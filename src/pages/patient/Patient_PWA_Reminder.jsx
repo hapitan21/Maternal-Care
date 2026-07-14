@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import {
+  getStoredHealthTips,
   mapScheduleRowToReminder,
   patientMatchesValue,
 } from "../../lib/patientData";
@@ -80,6 +81,12 @@ function getRelatedRecord(value) {
   return Array.isArray(value) ? value[0] || null : value || null;
 }
 
+function logMedicationReminderDebug(label, details = {}) {
+  if (import.meta.env.DEV) {
+    console.info(`[Patient Medication Reminder Flow] ${label}:`, details);
+  }
+}
+
 async function loadAuthenticatedPatientRow() {
   const {
     data: { user },
@@ -92,6 +99,9 @@ async function loadAuthenticatedPatientRow() {
   }
 
   console.info("[Patient Appointment Flow] reminder authenticated user ID:", user.id);
+  logMedicationReminderDebug("authenticated user", {
+    authenticatedUserId: user.id,
+  });
 
   const { data, error } = await supabase
     .from("patients")
@@ -106,6 +116,9 @@ async function loadAuthenticatedPatientRow() {
   }
 
   console.info("[Patient Appointment Flow] reminder resolved patient database ID:", data?.id || null);
+  logMedicationReminderDebug("resolved patient", {
+    patientDatabaseId: data?.id || null,
+  });
   return data || null;
 }
 
@@ -234,6 +247,8 @@ function mapMedicationDatabaseRow(row) {
     medication: row.medication_name || "Medication",
     dosage: row.dosage || "",
     frequency: row.frequency || "As prescribed",
+    duration: row.duration || "",
+    prescriptionReference: row.prescription_reference || "",
     reminderTimes: reminderTimes.length ? reminderTimes : ["08:00"],
     startDate: row.start_date || "",
     endDate: row.end_date || "",
@@ -290,9 +305,7 @@ function buildMedicationOccurrences(reminders, tab) {
     }
 
     return reminder.reminderTimes.map((timeValue, index) => {
-      const scheduleAt = new Date(
-        `${occurrenceDate}T${timeValue || "08:00"}:00`
-      ).toISOString();
+      const scheduleAt = `${occurrenceDate}T${timeValue || "08:00"}:00`;
 
       return {
         ...reminder,
@@ -304,6 +317,34 @@ function buildMedicationOccurrences(reminders, tab) {
       };
     });
   });
+}
+
+function buildMedicationCards(reminders, tab) {
+  return reminders
+    .map((reminder) => {
+      const occurrenceDate = getMedicationOccurrenceDate(reminder, tab);
+
+      if (!occurrenceDate) {
+        return null;
+      }
+
+      const sortedTimes = [...reminder.reminderTimes]
+        .map(normalizeDatabaseTime)
+        .filter(Boolean)
+        .sort();
+      const firstTime = sortedTimes[0] || "08:00";
+
+      return {
+        ...reminder,
+        id: `${reminder.databaseId}-${occurrenceDate}`,
+        scheduleDate: occurrenceDate,
+        scheduleTime: firstTime,
+        reminderTimes: sortedTimes,
+        scheduleAt: `${occurrenceDate}T${firstTime}:00`,
+        notifyAt: `${occurrenceDate}T${firstTime}:00`,
+      };
+    })
+    .filter(Boolean);
 }
 
 async function sendPatientNotification(reminder, kind) {
@@ -394,11 +435,13 @@ export default function PatientPWAReminder({ profile }) {
   const [medicationReminders, setMedicationReminders] = useState([]);
   const [scheduleReminders, setScheduleReminders] = useState([]);
   const [healthTips, setHealthTips] = useState(fallbackHealthTips);
+  const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] = useState(true);
+  const [medicationReminderError, setMedicationReminderError] = useState("");
   const notifiedReminderKeys = useRef(new Set());
 
   const medicationList = useMemo(
     () =>
-      buildMedicationOccurrences(medicationReminders, activeTab).sort(
+      buildMedicationCards(medicationReminders, activeTab).sort(
         (first, second) =>
           new Date(first.scheduleAt) - new Date(second.scheduleAt)
       ),
@@ -460,6 +503,8 @@ export default function PatientPWAReminder({ profile }) {
     let active = true;
 
     const loadSupabaseReminders = async () => {
+      setIsLoadingMedicationReminders(true);
+      setMedicationReminderError("");
       const patient = await loadAuthenticatedPatientRow();
       let appointmentQuery = supabase
         .from("reminders")
@@ -496,9 +541,11 @@ export default function PatientPWAReminder({ profile }) {
         .select(`
           id,
           patient_id,
+          prescription_reference,
           medication_name,
           dosage,
           frequency,
+          duration,
           reminder_times,
           instructions,
           start_date,
@@ -525,6 +572,10 @@ export default function PatientPWAReminder({ profile }) {
       } else {
         setAppointmentReminders([]);
         setMedicationReminders([]);
+        setIsLoadingMedicationReminders(false);
+        setMedicationReminderError(
+          "Unable to load medication reminders because no patient record is linked to this account."
+        );
 
         const healthTipsResult = await healthTipsQuery;
 
@@ -540,7 +591,7 @@ export default function PatientPWAReminder({ profile }) {
           setHealthTips(fallbackHealthTips);
         } else {
           setHealthTips(
-            dedupeHealthTips(
+            mergeHealthTipsWithFallback(
               [
                 ...(healthTipsResult.data || []).map(mapHealthTipDatabaseRow),
                 ...getStoredHealthTips(),
@@ -582,14 +633,28 @@ export default function PatientPWAReminder({ profile }) {
           "Patient medication reminders load failed:",
           medicationResult.error
         );
+        logMedicationReminderDebug("query error", {
+          patientDatabaseId: patient?.id || null,
+          error: medicationResult.error,
+        });
         setMedicationReminders([]);
+        setMedicationReminderError(
+          `Unable to load medication reminders: ${medicationResult.error.message}`
+        );
       } else {
+        logMedicationReminderDebug("returned medication reminder count", {
+          patientDatabaseId: patient?.id || null,
+          count: medicationResult.data?.length || 0,
+        });
         setMedicationReminders(
           (medicationResult.data || [])
             .filter((row) => Boolean(patient?.id && row.patient_id === patient.id))
             .map(mapMedicationDatabaseRow)
         );
+        setMedicationReminderError("");
       }
+
+      setIsLoadingMedicationReminders(false);
 
       if (healthTipsResult.error) {
         console.error(
@@ -942,7 +1007,21 @@ export default function PatientPWAReminder({ profile }) {
         </div>
 
         <div className="pwa-medication-list">
-          {medicationList.length > 0 ? (
+          {isLoadingMedicationReminders ? (
+            <article className="pwa-medication-row pwa-medication-row--empty">
+              <div className="pwa-medication-copy">
+                <h3>Loading medication reminders...</h3>
+                <p>Checking reminders linked to your patient record.</p>
+              </div>
+            </article>
+          ) : medicationReminderError ? (
+            <article className="pwa-medication-row pwa-medication-row--empty">
+              <div className="pwa-medication-copy">
+                <h3>Medication reminders could not be loaded.</h3>
+                <p>{medicationReminderError}</p>
+              </div>
+            </article>
+          ) : medicationList.length > 0 ? (
             medicationList.map((item) => {
               const key =
                 item.id ||
@@ -958,9 +1037,13 @@ export default function PatientPWAReminder({ profile }) {
                   className="pwa-medication-row"
                   key={key}
                 >
-                  <time>
-                    {formatAppointmentTime(item.scheduleTime)}
-                  </time>
+                  <div className="pwa-medication-times" aria-label="Medication times">
+                    {item.reminderTimes.map((timeValue) => (
+                      <time key={`${key}-${timeValue}`}>
+                        {formatAppointmentTime(timeValue)}
+                      </time>
+                    ))}
+                  </div>
 
                   <div className="pwa-medication-copy">
                     <h3>{item.medication}</h3>
@@ -970,6 +1053,13 @@ export default function PatientPWAReminder({ profile }) {
                       <Icon icon="solar:refresh-linear" />{" "}
                       {item.frequency || "As prescribed"}
                     </p>
+                    {item.duration || item.message ? (
+                      <p className="pwa-medication-details">
+                        {item.duration ? `Duration: ${item.duration}` : null}
+                        {item.duration && item.message ? " | " : null}
+                        {item.message || null}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="pwa-status-wrap">
@@ -1023,8 +1113,7 @@ export default function PatientPWAReminder({ profile }) {
               <div className="pwa-medication-copy">
                 <h3>No medication reminders yet.</h3>
                 <p>
-                  Saved medication reminders from your doctor
-                  will appear here.
+                  No medication reminders match the selected {activeTab.toLowerCase()} tab.
                 </p>
               </div>
             </article>

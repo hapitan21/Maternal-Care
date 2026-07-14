@@ -88,6 +88,33 @@ function normalizeDatabaseTime(value) {
   return String(value).slice(0, 5);
 }
 
+function normalizePostgresTime(value) {
+  const normalized = normalizeDatabaseTime(value);
+
+  if (!/^\d{2}:\d{2}$/.test(normalized)) {
+    return "";
+  }
+
+  return `${normalized}:00`;
+}
+
+function formatSupabaseError(error) {
+  return [
+    error?.message,
+    error?.details,
+    error?.hint,
+    error?.code ? `Code: ${error.code}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function logMedicationReminderDebug(label, details = {}) {
+  if (import.meta.env.DEV) {
+    console.info(`[Medication Reminder Flow] ${label}:`, details);
+  }
+}
+
 function getReminderDisplayStatus(status, remindAt) {
   const normalizedStatus = String(status || "pending").toLowerCase();
 
@@ -213,7 +240,7 @@ function mapMedicationReminderDatabaseRow(row) {
     scheduleDate: row.start_date || "",
     scheduleTime: primaryTime,
     scheduleTimes: reminderTimes,
-    duration: getMedicationDuration(row.start_date, row.end_date),
+    duration: row.duration || getMedicationDuration(row.start_date, row.end_date),
     reminderTiming: "medication",
     schedule: `${formatReminderDisplayDate(row.start_date)} ${reminderTimes
       .map(formatMedicationReminderTime)
@@ -864,11 +891,12 @@ function DoctorReminderContent({ headerAction = null }) {
   const [medicationForm, setMedicationForm] = React.useState({
     patientId: "",
     patientName: "",
+    prescriptionReference: "",
     medication: "",
     dosage: "",
     scheduleDate: "",
     scheduleTime: "",
-    scheduleTimes: ["08:00"],
+    scheduleTimes: [],
     frequency: "",
     duration: "",
     message: "",
@@ -880,6 +908,7 @@ function DoctorReminderContent({ headerAction = null }) {
   const [medicationPatientSearchMessage, setMedicationPatientSearchMessage] = React.useState("");
   const [medicationStatusMessage, setMedicationStatusMessage] = React.useState("");
   const [currentTime, setCurrentTime] = React.useState(() => Date.now());
+  const medicationTimeInputRef = React.useRef(null);
 
   React.useEffect(() => {
     const reminderStatusTimer = window.setInterval(() => {
@@ -1002,9 +1031,11 @@ function DoctorReminderContent({ headerAction = null }) {
       .select(`
         id,
         patient_id,
+        prescription_reference,
         medication_name,
         dosage,
         frequency,
+        duration,
         reminder_times,
         instructions,
         start_date,
@@ -1305,6 +1336,9 @@ function DoctorReminderContent({ headerAction = null }) {
       patientId: patient.id,
       patientName: patient.full_name,
     }));
+    logMedicationReminderDebug("selected patient", {
+      patientDatabaseId: patient.id,
+    });
     setMedicationPatientSearch(patient.full_name);
     setMedicationPatientResults([]);
     setMedicationPatientSearchMessage("");
@@ -1314,11 +1348,12 @@ function DoctorReminderContent({ headerAction = null }) {
     setMedicationForm({
       patientId: "",
       patientName: "",
+      prescriptionReference: "",
       medication: "",
       dosage: "",
       scheduleDate: "",
       scheduleTime: "",
-      scheduleTimes: ["08:00"],
+      scheduleTimes: [],
       frequency: "",
       duration: "",
       message: "",
@@ -1330,13 +1365,35 @@ function DoctorReminderContent({ headerAction = null }) {
   };
 
   const addMedicationTime = () => {
-    const nextTime = medicationForm.scheduleTime || "08:00";
+    const nextTime = normalizeDatabaseTime(medicationForm.scheduleTime);
+
+    if (!nextTime) {
+      setMedicationStatusMessage("Choose a medication time before adding it.");
+      medicationTimeInputRef.current?.focus();
+      medicationTimeInputRef.current?.showPicker?.();
+      return;
+    }
+
+    if (medicationForm.scheduleTimes.includes(nextTime)) {
+      setMedicationStatusMessage(
+        `${formatMedicationReminderTime(nextTime)} is already added.`
+      );
+      medicationTimeInputRef.current?.focus();
+      return;
+    }
 
     setMedicationForm((current) => ({
       ...current,
       scheduleTime: "",
       scheduleTimes: Array.from(new Set([...current.scheduleTimes, nextTime])).sort(),
     }));
+    setMedicationStatusMessage("");
+    logMedicationReminderDebug("selected medication times", {
+      medicationTimes: Array.from(
+        new Set([...medicationForm.scheduleTimes, nextTime])
+      ).sort(),
+    });
+    medicationTimeInputRef.current?.blur();
   };
 
   const removeMedicationTime = (timeIndex) => {
@@ -1345,7 +1402,7 @@ function DoctorReminderContent({ headerAction = null }) {
 
       return {
         ...current,
-        scheduleTimes: nextTimes.length > 0 ? nextTimes : ["08:00"],
+        scheduleTimes: nextTimes,
       };
     });
   };
@@ -1364,18 +1421,38 @@ function DoctorReminderContent({ headerAction = null }) {
       return;
     }
 
-    if (
-      !patientNameValue ||
-      !medicationForm.medication.trim() ||
-      !medicationForm.dosage.trim() ||
-      !medicationForm.frequency ||
-      !medicationForm.duration ||
-      !medicationForm.scheduleDate ||
-      medicationForm.scheduleTimes.length === 0
-    ) {
-      setMedicationStatusMessage(
-        "Enter a patient, then add medication, dosage, frequency, duration, date, and time."
-      );
+    if (!patientNameValue) {
+      setMedicationStatusMessage("Select a registered patient from the search results.");
+      return;
+    }
+
+    if (!medicationForm.prescriptionReference.trim()) {
+      setMedicationStatusMessage("Enter the RX number or prescription reference.");
+      return;
+    }
+
+    if (!medicationForm.medication.trim()) {
+      setMedicationStatusMessage("Enter the medication name.");
+      return;
+    }
+
+    if (!medicationForm.dosage.trim()) {
+      setMedicationStatusMessage("Select or enter the dosage.");
+      return;
+    }
+
+    if (!medicationForm.frequency) {
+      setMedicationStatusMessage("Select the medication frequency.");
+      return;
+    }
+
+    if (!medicationForm.duration) {
+      setMedicationStatusMessage("Select the medication duration.");
+      return;
+    }
+
+    if (!medicationForm.scheduleDate) {
+      setMedicationStatusMessage("Choose the medication start date.");
       return;
     }
 
@@ -1391,10 +1468,26 @@ function DoctorReminderContent({ headerAction = null }) {
       .filter(Boolean)
       .sort();
 
-    if (!normalizedTimes.length) {
+    const postgresReminderTimes = normalizedTimes
+      .map(normalizePostgresTime)
+      .filter(Boolean);
+
+    if (!postgresReminderTimes.length) {
       setMedicationStatusMessage(
         "Add at least one medication reminder time."
       );
+      medicationTimeInputRef.current?.focus();
+      return;
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user?.id) {
+      console.error("Medication reminder authenticated user lookup failed:", userError);
+      setMedicationStatusMessage("Unable to identify the logged-in account. Please sign in again.");
       return;
     }
 
@@ -1403,10 +1496,12 @@ function DoctorReminderContent({ headerAction = null }) {
 
     const payload = {
       patient_id: medicationForm.patientId,
+      prescription_reference: medicationForm.prescriptionReference.trim(),
       medication_name: medicationForm.medication.trim(),
       dosage: medicationForm.dosage.trim(),
       frequency: medicationForm.frequency,
-      reminder_times: normalizedTimes,
+      duration: medicationForm.duration,
+      reminder_times: postgresReminderTimes,
       instructions:
         medicationForm.message.trim() ||
         `Take ${medicationForm.dosage.trim()} of ${medicationForm.medication.trim()} ${medicationForm.frequency.toLowerCase()}.`,
@@ -1416,7 +1511,16 @@ function DoctorReminderContent({ headerAction = null }) {
         medicationForm.duration
       ),
       status: "active",
+      created_by: user.id,
+      updated_at: new Date().toISOString(),
     };
+
+    logMedicationReminderDebug("insert payload", {
+      authenticatedUserId: user.id,
+      patientDatabaseId: medicationForm.patientId,
+      medicationTimes: postgresReminderTimes,
+      payload,
+    });
 
     const { error } = await supabase
       .from(medicationRemindersTableName)
@@ -1426,15 +1530,16 @@ function DoctorReminderContent({ headerAction = null }) {
 
     if (error) {
       console.error("Medication reminder insert failed:", error);
+      logMedicationReminderDebug("insert error", { error });
       setMedicationStatusMessage(
-        `Unable to save medication reminder: ${error.message}`
+        `Unable to save medication reminder: ${formatSupabaseError(error)}`
       );
       return;
     }
 
     await loadMedicationReminderRows();
     resetMedicationForm();
-    setMedicationStatusMessage("");
+    setMedicationStatusMessage("Medication reminder saved successfully.");
     setIsMedicationFormOpen(false);
   };
 
@@ -1974,6 +2079,7 @@ function DoctorReminderContent({ headerAction = null }) {
               Add Medication
             </button>
           </div>
+          {medicationStatusMessage ? <p className="doctor-reminder-message">{medicationStatusMessage}</p> : null}
           <div className="doctor-medication-table">
             <div className="doctor-medication-head">
               <span>Patient</span>
@@ -2333,6 +2439,17 @@ function DoctorReminderContent({ headerAction = null }) {
               <h3>Medication Details</h3>
               <div className="doctor-medication-reminder-grid">
                 <label className="doctor-medication-reminder-field">
+                  <span>RX / Prescription Reference<b>*</b></span>
+                  <input
+                    name="prescriptionReference"
+                    type="text"
+                    placeholder="Enter RX number or prescription reference"
+                    value={medicationForm.prescriptionReference}
+                    onChange={handleMedicationChange}
+                  />
+                </label>
+
+                <label className="doctor-medication-reminder-field">
                   <span>Medication Name<b>*</b></span>
                   <input
                     name="medication"
@@ -2418,6 +2535,7 @@ function DoctorReminderContent({ headerAction = null }) {
                     </div>
                     <input
                       className="doctor-medication-reminder-time-input"
+                      ref={medicationTimeInputRef}
                       name="scheduleTime"
                       type="time"
                       value={medicationForm.scheduleTime}

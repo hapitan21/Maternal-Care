@@ -339,7 +339,14 @@
   position: relative;
 }
 
-.pwa-medication-row time {
+.pwa-medication-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 96px;
+}
+
+.pwa-medication-times time {
   width: 96px;
   height: 36px;
   border-radius: 7px;
@@ -374,6 +381,12 @@
 .pwa-medication-copy p svg {
   width: 13px;
   height: 13px;
+}
+
+.pwa-medication-copy .pwa-medication-details {
+  margin-top: 4px;
+  color: #7a6d75;
+  line-height: 17px;
 }
 
 .pwa-status-wrap {
@@ -517,6 +530,10 @@
 
   .pwa-status-wrap {
     justify-self: start;
+  }
+
+  .pwa-medication-times {
+    width: 100%;
   }
 
   .pwa-reminder-card-header h2 {
