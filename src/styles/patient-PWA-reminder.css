@@ -1,0 +1,525 @@
+.pwa-reminders-page {
+  width: min(100%, 930px);
+  max-width: 930px;
+  margin-right: auto;
+}
+
+.pwa-reminders-title {
+  margin-bottom: 58px !important;
+}
+
+.pwa-reminder-top-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.pwa-reminder-card,
+.pwa-medication-card {
+  border: 1px solid #fde1ea;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 34px rgba(22, 29, 45, 0.04);
+}
+
+.pwa-reminder-card {
+  min-height: 318px;
+  padding: 24px;
+}
+
+.pwa-reminder-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.pwa-reminder-card-header > span {
+  width: 39px;
+  height: 39px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffdce7;
+  color: #c31572;
+  flex: 0 0 39px;
+}
+
+.pwa-reminder-card-header > span.is-blue {
+  background: #cfefff;
+  color: #2490cb;
+}
+
+.pwa-reminder-card-header > span.is-violet {
+  background: #e8d8ff;
+  color: #7d49e8;
+}
+
+.pwa-reminder-card-header svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pwa-reminder-card-header h2 {
+  flex: 1;
+  margin: 0;
+  color: var(--pwa-text, #12192b);
+  font-family: "Poppins", sans-serif;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+.pwa-reminder-card-header button {
+  border: 0;
+  background: transparent;
+  color: #c31572;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pwa-upcoming-inner {
+  border: 1px solid #ffd7e4;
+  border-radius: 14px;
+  background: #fffbfd;
+  padding: 24px;
+}
+
+.pwa-reminder-appointment-main {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  align-items: center;
+  gap: 22px;
+}
+
+.pwa-reminder-date-box {
+  width: 94px;
+  height: 94px;
+  border: 1px solid #ffcedd;
+  border-radius: 12px;
+  background: #fff0f6;
+  color: #c31572;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.pwa-reminder-date-box span,
+.pwa-reminder-date-box small {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.pwa-reminder-date-box strong {
+  font-family: "Poppins", sans-serif;
+  font-size: 34px;
+  line-height: 38px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.pwa-reminder-appointment-copy h3 {
+  margin: 4px 0 6px;
+  color: var(--pwa-text, #12192b);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 700;
+}
+
+.pwa-reminder-appointment-copy h3 span {
+  color: #c31572;
+  font-weight: 800;
+}
+
+.pwa-reminder-appointment-copy em {
+  display: inline-flex;
+  min-height: 20px;
+  border-radius: 999px;
+  background: #ffe4ed;
+  color: #c31572;
+  padding: 3px 8px;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-style: normal;
+}
+
+.pwa-reminder-appointment-copy p {
+  margin: 10px 0 0;
+  color: #715c67;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pwa-reminder-note {
+  margin-top: 24px;
+  border-left: 4px solid #c31572;
+  border-radius: 9px;
+  background: #fff4f8;
+  padding: 14px 16px;
+  color: #3f3340;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.pwa-reminder-note svg {
+  width: 23px;
+  height: 23px;
+  color: #c31572;
+}
+
+.pwa-reminder-note div {
+  display: grid;
+  gap: 4px;
+}
+
+.pwa-reminder-note strong,
+.pwa-reminder-note span {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.pwa-reminder-note strong {
+  font-weight: 800;
+}
+
+.pwa-reminder-note span {
+  color: #6f6170;
+  font-weight: 500;
+}
+
+.pwa-daily-tip {
+  border-radius: 12px;
+  background: #dfeaff;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.pwa-tip-phone {
+  width: 118px;
+  height: 118px;
+  border-radius: 9px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px rgba(22, 29, 45, 0.04);
+}
+
+.pwa-tip-phone-screen {
+  width: 58px;
+  height: 86px;
+  border: 3px solid #1f2430;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: #fffafc;
+  position: relative;
+}
+
+.pwa-tip-phone-screen::before {
+  content: "";
+  width: 20px;
+  height: 3px;
+  border-radius: 99px;
+  background: #1f2430;
+  position: absolute;
+  top: 7px;
+}
+
+.pwa-tip-phone-screen span {
+  font-size: 34px;
+  transform: translateY(8px);
+}
+
+.pwa-tip-copy h3 {
+  margin: 0 0 8px;
+  color: var(--pwa-text, #12192b);
+  font-size: 21px;
+  line-height: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.pwa-tip-copy p {
+  margin: 0;
+  color: #5d6170;
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 500;
+}
+
+.pwa-tip-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.pwa-tip-dots button {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #e9c6d0;
+  cursor: pointer;
+}
+
+.pwa-tip-dots button.is-active {
+  background: #c31572;
+}
+
+.pwa-medication-card {
+  min-height: 500px;
+  padding: 30px 24px 34px;
+}
+
+.pwa-medication-card .pwa-reminder-card-header {
+  margin-bottom: 28px;
+}
+
+.pwa-medication-tabs {
+  width: 360px;
+  max-width: 100%;
+  height: 44px;
+  border-radius: 9px;
+  background: #f0f3fb;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 4px;
+  margin-bottom: 34px;
+}
+
+.pwa-medication-tabs button {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #715c67;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pwa-medication-tabs button.is-active {
+  background: #fff;
+  color: #c31572;
+  box-shadow: 0 3px 10px rgba(22, 29, 45, 0.07);
+}
+
+.pwa-medication-list {
+  display: grid;
+  gap: 34px;
+}
+
+.pwa-medication-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: 20px;
+  padding-inline: 24px;
+  position: relative;
+}
+
+.pwa-medication-row time {
+  width: 96px;
+  height: 36px;
+  border-radius: 7px;
+  background: #8054e8;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pwa-medication-copy h3 {
+  margin: 0 0 3px;
+  color: var(--pwa-text, #12192b);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 800;
+}
+
+.pwa-medication-copy p {
+  margin: 0;
+  color: #6b5964;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.pwa-medication-copy p svg {
+  width: 13px;
+  height: 13px;
+}
+
+.pwa-status-wrap {
+  position: relative;
+  display: inline-flex;
+  justify-self: end;
+}
+
+.pwa-status-chip {
+  min-width: 92px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: #eadfff;
+  color: #6b2ce7;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pwa-status-chip.is-pending {
+  background: #f0e0ff;
+  color: #7b37e8;
+}
+
+.pwa-status-chip.is-completed {
+  background: #ccf3dc;
+  color: #17a464;
+}
+
+.pwa-status-chip.is-sent {
+  background: #d8ecff;
+  color: #1769a8;
+}
+
+.pwa-status-chip.is-missed {
+  background: #ffd6d6;
+  color: #e45c5c;
+}
+
+.pwa-status-menu {
+  position: absolute;
+  right: -8px;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: 112px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 15px 28px rgba(22, 29, 45, 0.18);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.pwa-status-menu button {
+  border: 0;
+  border-radius: 999px;
+  min-height: 24px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pwa-status-menu button.is-pending {
+  background: #f0e0ff;
+  color: #7b37e8;
+}
+
+.pwa-status-menu button.is-completed {
+  background: #ccf3dc;
+  color: #17a464;
+}
+
+.pwa-status-menu button.is-sent {
+  background: #d8ecff;
+  color: #1769a8;
+}
+
+.pwa-status-menu button.is-missed {
+  background: #ffd6d6;
+  color: #e45c5c;
+}
+
+.pwa-medication-row--empty {
+  grid-template-columns: 1fr;
+  padding: 24px;
+}
+
+.pwa-row-chevron {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  color: #e6b6c6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.pwa-row-chevron svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 1180px) {
+  .pwa-reminders-page {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 1050px) {
+  .pwa-reminder-top-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .pwa-reminders-title {
+    margin-bottom: 24px !important;
+  }
+
+  .pwa-reminder-card,
+  .pwa-medication-card {
+    padding: 20px;
+  }
+
+  .pwa-reminder-appointment-main,
+  .pwa-daily-tip,
+  .pwa-medication-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-medication-row {
+    align-items: start;
+    padding-inline: 0;
+    gap: 12px;
+  }
+
+  .pwa-status-wrap {
+    justify-self: start;
+  }
+
+  .pwa-reminder-card-header h2 {
+    white-space: normal;
+  }
+}

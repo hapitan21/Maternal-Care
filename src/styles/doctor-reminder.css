@@ -1,0 +1,7593 @@
+.doctor-reminder-form button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(255, 77, 115, 0.18);
+}
+
+.doctor-reminder-page {
+  min-width: 0;
+  width: calc(100% - 64px);
+  max-width: none;
+  margin-right: 24px;
+  margin-left: 40px;
+  transform: none;
+}
+
+.doctor-reminder-header {
+  margin-bottom: 14px;
+}
+
+.doctor-dashboard-header.doctor-reminder-header h1 {
+  margin-left: 0;
+}
+
+.doctor-reminder-header .doctor-profile-menu-wrap--reminder {
+  flex: 0 0 auto;
+  transform: none !important;
+}
+
+@media (min-width: 901px) {
+  .doctor-reminder-header .doctor-profile-menu-wrap--reminder {
+    left: 0;
+    margin-right: 0;
+  }
+}
+
+.doctor-reminder-summary {
+  width: 100%;
+  min-height: 86px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: rgba(255, 241, 245, 0.92);
+  box-shadow: var(--doctor-shadow);
+  padding: 14px 18px;
+}
+
+.doctor-reminder-summary article {
+  position: relative;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 44px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.doctor-reminder-summary article:not(:last-child) {
+  border-right: 1px solid rgba(77, 73, 74, 0.55);
+}
+
+.doctor-reminder-summary__icon,
+.doctor-reminder-card__icon {
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--doctor-pink);
+  background: linear-gradient(135deg, #ffe7ee, #ffc7d6);
+}
+
+.doctor-reminder-summary__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  box-shadow: 0 8px 28px rgba(255, 77, 115, 0.16);
+}
+
+.doctor-reminder-summary strong {
+  color: var(--doctor-title);
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.doctor-reminder-summary small {
+  color: var(--doctor-title);
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 400;
+}
+
+.doctor-reminder-summary__arrow {
+  color: var(--doctor-title);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.doctor-reminder-layout {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  row-gap: 18px;
+  align-items: stretch;
+}
+
+.doctor-health-tips-card {
+  margin-left: 0;
+}
+
+.doctor-reminder-appointments-card,
+.doctor-health-tips-card {
+  width: 100%;
+  height: 100%;
+}
+
+.doctor-reminder-card {
+  min-width: 0;
+  min-height: 304px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--doctor-card);
+  box-shadow: var(--doctor-shadow);
+  padding: 14px;
+  transition: box-shadow var(--doctor-transition), transform var(--doctor-transition);
+}
+
+.doctor-reminder-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.1);
+}
+
+.doctor-reminder-appointments-card {
+  overflow: hidden;
+  padding-bottom: 18px;
+}
+
+.doctor-reminder-card__header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.doctor-reminder-card__icon {
+  width: 44px;
+  height: 44px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  color: #fb387e;
+  background: #fee1e9;
+  box-shadow: 0 10px 28px rgba(255, 127, 168, 0.24);
+}
+
+.doctor-reminder-card__header h2 {
+  margin: 0;
+  color: var(--doctor-title);
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-card__header button {
+  border: 0;
+  color: #ff6b8a;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  transition: color var(--doctor-transition), transform var(--doctor-transition);
+}
+
+.doctor-reminder-card__header button:hover {
+  transform: translateX(2px);
+}
+
+.doctor-reminder-tabs,
+.doctor-health-tip-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.doctor-reminder-tabs button,
+.doctor-health-tip-tabs button {
+  min-width: 74px;
+  height: 30px;
+  border: 1px solid rgba(77, 73, 74, 0.45);
+  border-radius: 5px;
+  color: var(--doctor-title);
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  transition: background-color var(--doctor-transition), border-color var(--doctor-transition), color var(--doctor-transition), transform var(--doctor-transition);
+}
+
+.doctor-health-tip-tabs button {
+  min-width: auto;
+  padding: 0 14px;
+}
+
+.doctor-reminder-tabs button.is-active,
+.doctor-health-tip-tabs button.is-active {
+  border-color: #ffd4df;
+  color: #fb387e;
+  background: #fde1e8;
+}
+
+.doctor-reminder-tabs button:hover,
+.doctor-health-tip-tabs button:hover {
+  transform: translateY(-1px);
+}
+
+.doctor-reminder-appointment-table,
+.doctor-medication-table {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 23px rgba(0, 0, 0, 0.08);
+}
+
+.doctor-reminder-appointment-head,
+.doctor-reminder-appointment-row,
+.doctor-medication-head,
+.doctor-medication-row {
+  display: grid;
+  align-items: center;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.28);
+  color: var(--doctor-title);
+}
+
+.doctor-reminder-appointment-head,
+.doctor-reminder-appointment-row {
+  grid-template-columns: 1.15fr 0.8fr 0.8fr 0.95fr 0.8fr;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.doctor-reminder-appointment-head,
+.doctor-medication-head {
+  border-bottom: 0;
+  color: #ffffff;
+  background: #fb387e;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.doctor-reminder-appointment-row,
+.doctor-medication-row {
+  min-height: 52px;
+  background: #ffffff;
+  font-weight: 400;
+  transition: background-color var(--doctor-transition);
+}
+
+.doctor-reminder-appointment-row:hover,
+.doctor-medication-row:hover {
+  background: rgba(255, 201, 212, 0.16);
+}
+
+.doctor-reminder-patient-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.doctor-reminder-avatar-dot {
+  width: 17px;
+  height: 17px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--doctor-pink-light);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.doctor-reminder-appointment-row mark,
+.doctor-medication-row mark {
+  width: fit-content;
+  border-radius: 6px;
+  color: var(--doctor-title);
+  background: #fbd8e2;
+  font-size: 11px;
+  padding: 3px 7px;
+}
+
+.doctor-reminder-appointment-empty {
+  display: grid;
+  place-items: center;
+  min-height: 148px;
+  color: var(--doctor-title);
+  font-size: 12px;
+  opacity: 0.76;
+  border: 1px solid rgba(77, 73, 74, 0.12);
+  border-top: 0;
+}
+
+.doctor-reminder-primary-action,
+.doctor-reminder-outline-action {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  transition: box-shadow var(--doctor-transition), transform var(--doctor-transition), background-color var(--doctor-transition);
+}
+
+.doctor-reminder-primary-action {
+  width: 132px;
+  flex: 0 0 auto;
+  margin: 18px 0 0;
+  border: 0;
+  color: #ffffff;
+  background: #fb387e;
+}
+
+.doctor-reminder-outline-action {
+  min-width: 168px;
+  margin: 18px 0 0;
+  border: 1px solid #fb387e;
+  color: #fb387e;
+  background: #ffffff;
+}
+
+.doctor-reminder-outline-action--header {
+  min-width: 196px;
+  min-height: 38px;
+  margin: 0;
+}
+
+.doctor-reminder-card__header .doctor-reminder-outline-action--header {
+  border: 1px solid #fb387e;
+  color: #fb387e;
+  background: #ffffff;
+}
+
+.doctor-reminder-primary-action:hover,
+.doctor-reminder-outline-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(255, 77, 115, 0.18);
+}
+
+.doctor-health-tip-list {
+  display: grid;
+  gap: 8px;
+}
+
+.doctor-health-tip-list article {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid rgba(77, 73, 74, 0.25);
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 6px 10px;
+}
+
+.doctor-health-tip-list article > span,
+.doctor-health-tip-logo {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--doctor-pink);
+  border-radius: 50%;
+  background: #ffe7ee;
+}
+
+.doctor-health-tip-list .doctor-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.doctor-health-tip-logo img {
+  width: 22px;
+  height: 22px;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+}
+
+.doctor-health-tip-list p {
+  margin: 0;
+  color: var(--doctor-title);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.doctor-health-tip-empty {
+  opacity: 0.78;
+}
+
+.doctor-medication-card {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 0;
+  display: block;
+  justify-self: stretch;
+  margin: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.doctor-medication-card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.doctor-medication-card .doctor-reminder-card__header {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  margin-bottom: 12px;
+}
+
+.doctor-medication-head,
+.doctor-medication-row {
+  grid-template-columns: 1fr 1.15fr 0.9fr 1fr 0.9fr 0.45fr;
+  gap: 16px;
+  min-height: 52px;
+  padding: 0 18px;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.doctor-medication-head {
+  min-height: 44px;
+}
+
+.doctor-medication-row {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.doctor-medication-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doctor-medication-actions button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #4d494a;
+  cursor: pointer;
+}
+
+.doctor-medication-actions button:hover {
+  background: #ffeaf1;
+  color: #ff4772;
+}
+
+.doctor-medication-actions .doctor-icon {
+  width: 17px;
+  height: 17px;
+}
+
+/* Figma reminder workspace */
+.doctor-reminder-page {
+  width: min(100%, 998px);
+  max-width: 998px;
+  margin: 0 auto;
+  font-family: "Poppins", sans-serif;
+}
+
+.doctor-reminder-header {
+  min-height: 58px;
+  margin-bottom: 22px;
+}
+
+.doctor-dashboard-header.doctor-reminder-header h1 {
+  color: #4d494a;
+  font-size: 39px;
+  line-height: 58px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-layout {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 489px));
+  align-items: start;
+  gap: 27px 20px;
+}
+
+.doctor-reminder-card,
+.doctor-reminder-appointments-card,
+.doctor-health-tips-card {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.doctor-reminder-card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.doctor-reminder-card__header,
+.doctor-medication-card .doctor-reminder-card__header {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin: 0 10px 17px;
+}
+
+.doctor-reminder-card__icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 5px;
+  color: #fb387e;
+  background: #fee1e9;
+  box-shadow: 0 0 25px rgba(255, 127, 168, 0.32);
+}
+
+.doctor-reminder-card__icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.doctor-reminder-card__header h2 {
+  color: #4d494a;
+  font-size: 24px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-card__header > button:not(.doctor-reminder-outline-action) {
+  color: #ff6b8a;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-toolbar {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 10px 9px;
+}
+
+.doctor-reminder-tabs,
+.doctor-health-tip-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.doctor-reminder-tabs button {
+  min-width: 85px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-tabs button:not(:first-child) {
+  min-width: 95px;
+}
+
+.doctor-reminder-primary-action {
+  width: 103px;
+  min-height: 34px;
+  height: 34px;
+  flex: 0 0 103px;
+  margin: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-appointment-table {
+  width: 100%;
+  min-height: 301px;
+  border-radius: 15px;
+  box-shadow: 0 4px 23px rgba(0, 0, 0, 0.08);
+}
+
+.doctor-reminder-appointment-head,
+.doctor-reminder-appointment-row {
+  grid-template-columns: 1.15fr 0.8fr 0.8fr 0.95fr 0.8fr;
+  gap: 10px;
+  padding: 0 12px;
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-appointment-head {
+  min-height: 52px;
+  padding-inline: 27px;
+  font-weight: 500;
+}
+
+.doctor-reminder-appointment-row {
+  min-height: 49px;
+}
+
+.doctor-reminder-appointment-empty {
+  min-height: 249px;
+  border: 0;
+  font-size: 12px;
+}
+
+.doctor-health-tips-panel {
+  width: 100%;
+  min-height: 304px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 15px;
+  background: #ffffff;
+  box-shadow: 0 4px 23px rgba(0, 0, 0, 0.08);
+  padding: 15px 10px 10px;
+}
+
+.doctor-health-tip-tabs {
+  min-height: 27px;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.doctor-health-tip-tabs button {
+  min-width: 0;
+  height: 27px;
+  flex: 0 1 auto;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 400;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+
+.doctor-health-tip-list {
+  display: grid;
+  gap: 4px;
+}
+
+.doctor-health-tip-list article {
+  min-height: 42px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  border-color: rgba(77, 73, 74, 0.45);
+  padding: 4px 12px;
+}
+
+.doctor-health-tip-list article > span,
+.doctor-health-tip-logo {
+  width: 25px;
+  height: 25px;
+}
+
+.doctor-health-tip-logo svg {
+  width: 17px;
+  height: 17px;
+}
+
+.doctor-health-tip-list p {
+  color: #4d494a;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.doctor-health-tips-panel > .doctor-reminder-outline-action {
+  width: 220px;
+  min-width: 220px;
+  min-height: 47px;
+  height: 47px;
+  align-self: center;
+  margin: 9px 0 0;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 27px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.doctor-health-tips-panel > .doctor-reminder-outline-action svg,
+.doctor-reminder-outline-action--header svg {
+  width: 24px;
+  height: 24px;
+}
+
+.doctor-medication-card {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+}
+
+.doctor-medication-card .doctor-reminder-card__header {
+  margin: 0 0 24px 16px;
+}
+
+.doctor-reminder-outline-action--header,
+.doctor-reminder-card__header .doctor-reminder-outline-action--header {
+  width: 273px;
+  min-width: 273px;
+  min-height: 49px;
+  height: 49px;
+  margin: 0;
+  border: 1px solid #fb387e;
+  border-radius: 8px;
+  color: #fb387e;
+  background: #ffffff;
+  font-size: 18px;
+  line-height: 27px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.doctor-medication-table {
+  width: 100%;
+  min-height: 188px;
+  border-radius: 15px;
+  box-shadow: 0 4px 23px rgba(0, 0, 0, 0.08);
+}
+
+.doctor-medication-head,
+.doctor-medication-row {
+  grid-template-columns: 1fr 1.15fr 0.9fr 1fr 0.9fr 0.45fr;
+  gap: 18px;
+  padding: 0 18px;
+  font-size: 18px;
+  line-height: 27px;
+  letter-spacing: 0;
+}
+
+.doctor-medication-head {
+  min-height: 52px;
+  font-weight: 500;
+}
+
+.doctor-medication-row {
+  min-height: 68px;
+}
+
+.doctor-medication-row mark {
+  min-width: 126px;
+  min-height: 34px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 12px;
+  border-radius: 5px;
+  font-size: 18px;
+  line-height: 27px;
+}
+
+.doctor-medication-actions {
+  gap: 4px;
+}
+
+.doctor-medication-actions button {
+  width: 30px;
+  height: 30px;
+}
+
+.doctor-medication-actions button svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Restore the dashboard's original compact reminder scale. */
+.doctor-reminder-page {
+  width: calc(100% - 64px);
+  max-width: none;
+  margin-right: 24px;
+  margin-left: 40px;
+}
+
+.doctor-reminder-header {
+  min-height: 0;
+  margin-bottom: 14px;
+}
+
+.doctor-dashboard-header.doctor-reminder-header h1 {
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.doctor-reminder-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  row-gap: 18px;
+  align-items: stretch;
+}
+
+.doctor-reminder-card,
+.doctor-reminder-appointments-card,
+.doctor-health-tips-card {
+  min-height: 304px;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--doctor-card);
+  box-shadow: var(--doctor-shadow);
+  padding: 14px;
+}
+
+.doctor-reminder-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.1);
+}
+
+.doctor-reminder-card__header,
+.doctor-medication-card .doctor-reminder-card__header {
+  min-height: 44px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.doctor-reminder-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(255, 127, 168, 0.24);
+}
+
+.doctor-reminder-card__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.doctor-reminder-card__header h2 {
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.doctor-reminder-toolbar {
+  min-height: 30px;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.doctor-reminder-toolbar .doctor-reminder-tabs {
+  min-width: 0;
+  gap: 8px;
+  margin: 0;
+}
+
+.doctor-reminder-tabs button,
+.doctor-reminder-tabs button:not(:first-child) {
+  min-width: 74px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.doctor-reminder-primary-action {
+  width: 110px;
+  min-height: 30px;
+  height: 30px;
+  flex-basis: 110px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.doctor-reminder-appointment-table {
+  min-height: 0;
+  border-radius: 12px;
+}
+
+.doctor-reminder-appointment-head,
+.doctor-reminder-appointment-row {
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.doctor-reminder-appointment-head {
+  font-weight: 600;
+}
+
+.doctor-reminder-appointment-row {
+  min-height: 52px;
+}
+
+.doctor-reminder-appointment-empty {
+  min-height: 148px;
+  border: 1px solid rgba(77, 73, 74, 0.12);
+  border-top: 0;
+}
+
+.doctor-health-tips-panel {
+  display: contents;
+}
+
+.doctor-health-tip-tabs {
+  min-height: 30px;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.doctor-health-tip-tabs button {
+  height: 30px;
+  flex: 0 1 auto;
+  padding: 0 12px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.doctor-health-tip-list {
+  gap: 8px;
+}
+
+.doctor-health-tip-list article {
+  min-height: 40px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  border-color: rgba(77, 73, 74, 0.25);
+  padding: 6px 10px;
+}
+
+.doctor-health-tip-list article > span,
+.doctor-health-tip-logo {
+  width: 24px;
+  height: 24px;
+}
+
+.doctor-health-tip-logo svg {
+  width: 18px;
+  height: 18px;
+}
+
+.doctor-health-tip-list p {
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 400;
+}
+
+.doctor-health-tips-panel > .doctor-reminder-outline-action {
+  width: auto;
+  min-width: 168px;
+  min-height: 38px;
+  height: auto;
+  align-self: flex-start;
+  margin: 18px 0 0;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.doctor-health-tips-panel > .doctor-reminder-outline-action svg,
+.doctor-reminder-outline-action--header svg {
+  width: 18px;
+  height: 18px;
+}
+
+.doctor-medication-card,
+.doctor-reminder-card.doctor-medication-card {
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.doctor-medication-card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.doctor-medication-card .doctor-reminder-card__header {
+  margin: 0 0 12px;
+}
+
+.doctor-reminder-outline-action--header,
+.doctor-reminder-card__header .doctor-reminder-outline-action--header {
+  width: auto;
+  min-width: 196px;
+  min-height: 38px;
+  height: 38px;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.doctor-medication-table {
+  min-height: 0;
+  border-radius: 12px;
+}
+
+.doctor-medication-head,
+.doctor-medication-row {
+  gap: 16px;
+  min-height: 52px;
+  padding: 0 18px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.doctor-medication-head {
+  min-height: 44px;
+  font-weight: 600;
+}
+
+.doctor-medication-row {
+  min-height: 52px;
+}
+
+.doctor-medication-row mark {
+  min-width: 0;
+  min-height: 0;
+  display: inline-block;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.doctor-medication-actions {
+  gap: 8px;
+}
+
+.doctor-medication-actions button {
+  width: 26px;
+  height: 26px;
+}
+
+.doctor-medication-actions button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.doctor-reminder-modal {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.28);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  padding: 24px;
+  animation: doctor-menu-in 160ms ease both;
+}
+
+.doctor-reminder-modal .doctor-reminder-form,
+.doctor-reminder-modal .doctor-health-tip-form {
+  width: min(680px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.doctor-reminder-view-all {
+  width: min(940px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 18px;
+  border-radius: 18px;
+  background: #fbfbfd;
+  padding: 24px;
+  overflow: hidden;
+  animation: doctor-reminder-dialog-in 180ms ease both;
+}
+
+.doctor-reminder-view-all__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.doctor-reminder-view-all__header h2,
+.doctor-reminder-view-all__header p {
+  margin: 0;
+}
+
+.doctor-reminder-view-all__header h2 {
+  color: var(--doctor-title);
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.doctor-reminder-view-all__header p {
+  margin-top: 4px;
+  color: rgba(77, 73, 74, 0.65);
+  font-size: 12px;
+}
+
+.doctor-reminder-view-all__header button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--doctor-title);
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09);
+  cursor: pointer;
+  font: inherit;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.doctor-reminder-view-all__content {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: rgba(251, 56, 126, 0.45) transparent;
+  scrollbar-width: thin;
+}
+
+.doctor-reminder-view-all__appointments {
+  border-radius: 12px;
+}
+
+.doctor-reminder-view-all__appointments .doctor-reminder-appointment-table {
+  overflow-x: auto;
+}
+
+.doctor-reminder-view-all__tips {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.doctor-reminder-view-all__tips article {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border: 1px solid rgba(77, 73, 74, 0.16);
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 12px 14px;
+}
+
+.doctor-reminder-view-all__tips .doctor-health-tip-logo {
+  width: 32px;
+  height: 32px;
+}
+
+.doctor-reminder-view-all__tips .doctor-health-tip-logo img {
+  width: 28px;
+  height: 28px;
+}
+
+.doctor-reminder-view-all__tips strong,
+.doctor-reminder-view-all__tips small {
+  display: block;
+}
+
+.doctor-reminder-view-all__tips strong {
+  color: var(--doctor-title);
+  font-size: 13px;
+}
+
+.doctor-reminder-view-all__tips small {
+  margin-top: 2px;
+  color: var(--doctor-pink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.doctor-reminder-view-all__tips p {
+  margin: 6px 0 0;
+  color: var(--doctor-title);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.doctor-reminder-view-all__empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: rgba(77, 73, 74, 0.7);
+  font-size: 13px;
+}
+
+.doctor-health-tip-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 24px;
+  border-radius: 18px;
+}
+
+.doctor-health-tip-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.doctor-health-tip-form select,
+.doctor-health-tip-form textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 77, 115, 0.24);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--doctor-title);
+  font: inherit;
+  transition: border-color var(--doctor-transition), box-shadow var(--doctor-transition);
+}
+
+.doctor-health-tip-form select {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.doctor-health-tip-form textarea {
+  min-height: 84px;
+  resize: vertical;
+  padding: 12px;
+}
+
+.doctor-health-tip-form select:focus,
+.doctor-health-tip-form textarea:focus {
+  border-color: var(--doctor-pink);
+  box-shadow: 0 0 0 4px rgba(255, 77, 115, 0.12);
+  outline: 0;
+}
+
+.doctor-health-tip-form button[type="submit"] {
+  grid-column: 1 / -1;
+  min-width: 132px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: linear-gradient(90deg, var(--doctor-pink-light), var(--doctor-pink));
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition: box-shadow var(--doctor-transition), transform var(--doctor-transition);
+}
+
+.doctor-health-tip-form button[type="submit"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(255, 77, 115, 0.18);
+}
+
+.doctor-reminder-form__title {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.doctor-reminder-form__title h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.doctor-reminder-form__title button {
+  width: auto;
+  min-width: 76px;
+  height: 34px;
+  grid-column: auto;
+  color: var(--doctor-pink);
+  background: #fff1f5;
+}
+
+.doctor-reminder-grid {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(300px, 0.65fr);
+  gap: 18px;
+}
+
+.doctor-reminder-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.doctor-reminder-form h2,
+.doctor-reminder-list h2 {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.doctor-reminder-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.doctor-reminder-form input,
+.doctor-reminder-form select,
+.doctor-reminder-form textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 77, 115, 0.24);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--doctor-title);
+  font: inherit;
+  transition: border-color var(--doctor-transition), box-shadow var(--doctor-transition), background-color var(--doctor-transition);
+}
+
+.doctor-reminder-form input:focus,
+.doctor-reminder-form select:focus,
+.doctor-reminder-form textarea:focus {
+  border-color: var(--doctor-pink);
+  box-shadow: 0 0 0 4px rgba(255, 77, 115, 0.12);
+  outline: 0;
+}
+
+.doctor-reminder-form input,
+.doctor-reminder-form select {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.doctor-reminder-form textarea {
+  min-height: 84px;
+  resize: vertical;
+  padding: 12px;
+}
+
+.doctor-reminder-form__wide,
+.doctor-reminder-message,
+.doctor-reminder-form button {
+  grid-column: 1 / -1;
+}
+
+.doctor-reminder-message {
+  margin: 0;
+  color: var(--doctor-pink);
+  font-weight: 700;
+}
+
+.doctor-reminder-form button {
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: linear-gradient(90deg, var(--doctor-pink-light), var(--doctor-pink));
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow var(--doctor-transition), filter var(--doctor-transition), transform var(--doctor-transition);
+}
+
+.doctor-patient-search {
+  position: relative;
+}
+
+.doctor-patient-search__hint {
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.doctor-patient-results {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 77, 115, 0.16);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.doctor-patient-results button {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 77, 115, 0.16);
+  border-radius: 7px;
+  color: var(--doctor-title);
+  background: #fff8fb;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--doctor-transition), background-color var(--doctor-transition), transform var(--doctor-transition);
+}
+
+.doctor-patient-results button:hover {
+  border-color: var(--doctor-pink);
+  background: #fff1f5;
+  transform: translateY(-1px);
+}
+
+.doctor-patient-results strong,
+.doctor-patient-results span {
+  display: block;
+}
+
+.doctor-patient-results strong {
+  font-size: 0.9rem;
+}
+
+.doctor-patient-results span {
+  color: var(--doctor-title);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.doctor-reminder-modal .doctor-reminder-form--appointment {
+  width: min(540px, calc(100vw - 48px));
+  grid-template-columns: 1fr;
+  gap: 16px;
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title {
+  display: block;
+  position: static;
+  padding-right: 52px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.22);
+  text-align: left;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+  margin: 0;
+  color: var(--doctor-title);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title p {
+  max-width: 390px;
+  margin: 6px 0 0;
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title button {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 34px;
+  min-width: 0;
+  height: 34px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--doctor-pink);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.doctor-reminder-form--appointment label {
+  gap: 6px;
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-form--appointment input,
+.doctor-reminder-form--appointment select {
+  height: 42px;
+  border: 1px solid rgba(77, 73, 74, 0.45);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  padding: 0 14px;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__wide,
+.doctor-reminder-form--appointment .doctor-reminder-message,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  grid-column: auto;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(77, 73, 74, 0.22);
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button {
+  grid-column: auto;
+  width: 132px;
+  min-width: 0;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--doctor-pink);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button:last-child {
+  width: auto;
+  background: transparent;
+  color: var(--doctor-pink);
+  padding: 0 20px;
+}
+
+.doctor-reminder-patient-section {
+  display: grid;
+  gap: 14px;
+}
+
+.doctor-reminder-patient-section h3 {
+  margin: 0;
+  color: var(--doctor-title);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.doctor-reminder-detail-field {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 8px;
+}
+
+.doctor-reminder-detail-field span {
+  color: var(--doctor-title);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.doctor-reminder-detail-field b {
+  color: var(--doctor-pink);
+}
+
+.doctor-reminder-detail-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 77, 115, 0.18);
+  border-radius: 8px;
+  color: var(--doctor-title);
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  outline: none;
+}
+
+.doctor-reminder-detail-field input:focus {
+  border-color: var(--doctor-pink);
+  box-shadow: 0 0 0 3px rgba(255, 77, 115, 0.1);
+}
+
+.doctor-reminder-preference-block {
+  display: grid;
+  gap: 10px;
+}
+
+.doctor-reminder-preference-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.doctor-reminder-preference-heading strong {
+  color: var(--doctor-title);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.doctor-reminder-preference-heading span {
+  color: #8c8688;
+  font-size: 0.76rem;
+}
+
+.doctor-reminder-preference-heading--inline {
+  gap: 8px;
+}
+
+.doctor-reminder-option-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.doctor-reminder-option {
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(77, 73, 74, 0.22);
+  border-radius: 5px;
+  padding: 7px 8px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.doctor-reminder-option:has(input:checked) {
+  border-color: var(--doctor-pink);
+  background: #fff1f5;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option input,
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options input {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--doctor-pink);
+  padding: 0;
+}
+
+.doctor-reminder-option span,
+.doctor-reminder-option small {
+  display: block;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.doctor-reminder-option small {
+  color: #6b6568;
+}
+
+.doctor-reminder-custom-time {
+  max-width: 260px;
+}
+
+.doctor-reminder-repeat-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+
+.doctor-reminder-repeat-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.doctor-reminder-message-input {
+  margin-top: -2px;
+}
+
+.doctor-reminder-preview {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  border: 1px solid rgba(77, 73, 74, 0.22);
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.doctor-reminder-preview > span {
+  color: var(--doctor-pink);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.doctor-reminder-preview p {
+  margin: 0;
+  color: var(--doctor-title);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.doctor-reminder-modal .doctor-medication-reminder-form {
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: grid;
+  gap: 0;
+  border-radius: 18px;
+  background: #fbfbfd;
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+}
+
+.doctor-medication-reminder-form__title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.34);
+}
+
+.doctor-medication-reminder-form__title h2 {
+  margin: 0;
+  color: var(--doctor-title);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.doctor-medication-reminder-form__title p {
+  margin: 6px 0 0;
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.doctor-medication-reminder-close {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--doctor-pink);
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.doctor-medication-reminder-section {
+  display: grid;
+  gap: 12px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.18);
+}
+
+.doctor-medication-reminder-section h3 {
+  margin: 0;
+  color: var(--doctor-title);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.doctor-medication-reminder-section h3 span {
+  margin-left: 10px;
+  color: #8f8a8c;
+  font-size: 0.76rem;
+  font-weight: 400;
+}
+
+.doctor-medication-reminder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.doctor-medication-reminder-field {
+  display: grid;
+  gap: 8px;
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.doctor-medication-reminder-field > span b {
+  color: var(--doctor-pink);
+  font-weight: 500;
+}
+
+.doctor-medication-reminder-field input,
+.doctor-medication-reminder-field select,
+.doctor-medication-reminder-section textarea {
+  width: 100%;
+  border: 1px solid rgba(77, 73, 74, 0.5);
+  border-radius: 5px;
+  background: #ffffff;
+  color: var(--doctor-title);
+  font: inherit;
+  font-size: 0.82rem;
+  outline: 0;
+  transition: border-color var(--doctor-transition), box-shadow var(--doctor-transition);
+}
+
+.doctor-medication-reminder-field input,
+.doctor-medication-reminder-field select {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.doctor-medication-reminder-field select:invalid,
+.doctor-medication-reminder-field input::placeholder {
+  color: #9c9799;
+}
+
+.doctor-medication-reminder-field input:focus,
+.doctor-medication-reminder-field select:focus,
+.doctor-medication-reminder-section textarea:focus {
+  border-color: var(--doctor-pink);
+  box-shadow: 0 0 0 3px rgba(255, 77, 115, 0.12);
+}
+
+.doctor-medication-reminder-field--patient {
+  width: min(361px, 100%);
+  position: relative;
+}
+
+.doctor-medication-reminder-form .doctor-patient-results {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
+}
+
+.doctor-medication-reminder-grid--schedule {
+  align-items: end;
+}
+
+.doctor-medication-reminder-times {
+  min-width: 0;
+}
+
+.doctor-medication-reminder-time-row {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 112px) auto;
+  align-items: start;
+  gap: 7px 8px;
+  justify-content: start;
+  min-width: 0;
+}
+
+.doctor-medication-reminder-time-chips {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.doctor-medication-reminder-time-chip {
+  min-height: 27px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 5px;
+  background: #d7d7d8;
+  color: var(--doctor-title);
+  padding: 4px 7px;
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.doctor-medication-reminder-time-chip button {
+  width: 13px;
+  height: 13px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #5b5658;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.doctor-medication-reminder-field .doctor-medication-reminder-time-input {
+  width: 112px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+.doctor-medication-reminder-add-time {
+  min-width: 86px;
+  height: 30px;
+  border: 1px solid var(--doctor-pink);
+  border-radius: 5px;
+  background: #ffffff;
+  color: var(--doctor-pink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.doctor-medication-reminder-section--notes {
+  gap: 11px;
+  padding-bottom: 18px;
+}
+
+.doctor-medication-reminder-section textarea {
+  min-height: 84px;
+  resize: vertical;
+  padding: 12px;
+}
+
+.doctor-medication-reminder-section--settings {
+  gap: 6px;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.doctor-medication-reminder-section--settings h3 {
+  font-size: 0.95rem;
+}
+
+.doctor-medication-reminder-section--settings p {
+  margin: 0;
+  color: #777174;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.doctor-medication-reminder-radios {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-top: 4px;
+}
+
+.doctor-medication-reminder-radios label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.doctor-medication-reminder-radios input {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--doctor-pink);
+}
+
+.doctor-medication-reminder-form .doctor-reminder-message {
+  margin: 16px 0 0;
+  color: var(--doctor-pink);
+  font-size: 0.82rem;
+}
+
+.doctor-medication-reminder-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.doctor-medication-reminder-actions button {
+  height: 42px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.doctor-medication-reminder-actions button:first-child {
+  min-width: 132px;
+  width: auto;
+  background: var(--doctor-pink);
+  color: #ffffff;
+}
+
+.doctor-medication-reminder-actions button:last-child {
+  width: auto;
+  background: transparent;
+  color: var(--doctor-pink);
+  padding: 0 18px;
+}
+
+body.doctor-reminder-modal-open {
+  overflow: hidden;
+}
+
+.doctor-reminder-modal {
+  background: rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.doctor-reminder-modal > form {
+  position: relative;
+  animation: doctor-reminder-dialog-in 180ms ease both;
+}
+
+@keyframes doctor-reminder-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-message-input {
+  display: none;
+}
+
+.doctor-reminder-modal .doctor-reminder-form--appointment {
+  width: min(520px, calc(100vw - 48px));
+  gap: 20px;
+  border-radius: 18px;
+  background: #fbfbfd;
+  padding: 50px 42px 36px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-right: 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.28);
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title > div {
+  min-width: 0;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+  font-size: 28px;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title p {
+  max-width: 430px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title button,
+.doctor-medication-reminder-close,
+.doctor-health-tip-form__title button {
+  width: 34px;
+  min-width: 0;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--doctor-pink);
+  color: #ffffff;
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title button {
+  position: static;
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview {
+  min-height: 56px;
+  background: #f7f7f9;
+}
+
+.doctor-reminder-modal .doctor-medication-reminder-form {
+  width: min(816px, calc(100vw - 48px));
+  padding: 34px 40px 28px;
+}
+
+.doctor-medication-reminder-close {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.doctor-reminder-modal .doctor-health-tip-form--detailed {
+  width: min(816px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  overflow-y: auto;
+  border-radius: 18px;
+  background: #fbfbfd;
+  padding: 34px 38px 32px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+}
+
+.doctor-health-tip-form__title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.28);
+}
+
+.doctor-health-tip-form__title h2 {
+  margin: 0;
+  color: var(--doctor-title);
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.doctor-health-tip-form__title p {
+  margin: 6px 0 0;
+  color: var(--doctor-title);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.doctor-health-tip-form__title button {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.doctor-health-tip-form__field {
+  display: grid;
+  gap: 8px;
+  color: var(--doctor-title);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.doctor-health-tip-form__field b {
+  color: var(--doctor-pink);
+  font-weight: 500;
+}
+
+.doctor-health-tip-form__field--category {
+  width: min(360px, 100%);
+}
+
+.doctor-health-tip-form__field--wide {
+  width: 100%;
+}
+
+.doctor-health-tip-form__field input,
+.doctor-health-tip-form__field select,
+.doctor-health-tip-form__field textarea {
+  width: 100%;
+  border: 1px solid rgba(77, 73, 74, 0.5);
+  border-radius: 5px;
+  background: #ffffff;
+  color: var(--doctor-title);
+  font: inherit;
+  font-size: 14px;
+  outline: 0;
+}
+
+.doctor-health-tip-form__field input,
+.doctor-health-tip-form__field select {
+  height: 46px;
+  padding: 0 12px;
+}
+
+.doctor-health-tip-form__field textarea {
+  min-height: 226px;
+  resize: vertical;
+  padding: 13px 12px 28px;
+}
+
+.doctor-health-tip-form__field input:focus,
+.doctor-health-tip-form__field select:focus,
+.doctor-health-tip-form__field textarea:focus {
+  border-color: var(--doctor-pink);
+  box-shadow: 0 0 0 3px rgba(255, 77, 115, 0.12);
+}
+
+.doctor-health-tip-form__counted-control {
+  position: relative;
+}
+
+.doctor-health-tip-form__counted-control small {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  color: rgba(77, 73, 74, 0.58);
+  font-size: 14px;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+.doctor-health-tip-form__counted-control:not(.doctor-health-tip-form__counted-control--textarea) small {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+
+.doctor-health-tip-form__counted-control:not(.doctor-health-tip-form__counted-control--textarea) input {
+  padding-right: 64px;
+}
+
+.doctor-health-tip-form__actions {
+  display: flex;
+  align-items: center;
+  gap: 64px;
+  margin-top: 16px;
+}
+
+.doctor-health-tip-form__actions button {
+  height: 46px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.doctor-health-tip-form__actions button:first-child {
+  width: 184px;
+  background: var(--doctor-pink);
+  color: #ffffff;
+}
+
+.doctor-health-tip-form__actions button:last-child {
+  width: auto;
+  background: transparent;
+  color: var(--doctor-pink);
+}
+
+.doctor-reminder-list {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.doctor-reminder-item,
+.doctor-reminder-empty {
+  padding: 14px;
+  border: 1px solid rgba(255, 77, 115, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color var(--doctor-transition), box-shadow var(--doctor-transition), transform var(--doctor-transition);
+}
+
+.doctor-reminder-item:hover {
+  border-color: rgba(255, 77, 115, 0.35);
+  box-shadow: 0 8px 22px rgba(255, 77, 115, 0.1);
+  transform: translateY(-1px);
+}
+
+.doctor-reminder-item strong,
+.doctor-reminder-item span,
+.doctor-reminder-item small {
+  display: block;
+}
+
+.doctor-reminder-item strong {
+  color: var(--doctor-title);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.doctor-reminder-item span {
+  margin-top: 6px;
+  color: var(--doctor-pink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.doctor-reminder-item p {
+  margin: 8px 0;
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.doctor-reminder-item small,
+.doctor-reminder-empty {
+  color: var(--doctor-title);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .doctor-reminder-page {
+    width: 100%;
+    max-width: 100%;
+    margin-right: 0;
+    margin-left: 0;
+    transform: none;
+  }
+
+  .doctor-reminder-header .doctor-profile-menu-wrap--reminder {
+    left: 0;
+    margin-right: 0;
+  }
+
+  .doctor-reminder-summary,
+  .doctor-reminder-layout {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-health-tips-card {
+    margin-left: 0;
+  }
+
+  .doctor-medication-card {
+    width: 100%;
+  }
+
+  .doctor-reminder-summary article {
+    border-right: 0;
+    border-bottom: 1px solid rgba(77, 73, 74, 0.16);
+    padding: 12px 0;
+  }
+
+  .doctor-reminder-summary article:last-child {
+    border-bottom: 0;
+  }
+
+  .doctor-reminder-appointment-table,
+  .doctor-medication-table {
+    overflow-x: auto;
+  }
+
+  .doctor-reminder-appointment-head,
+  .doctor-reminder-appointment-row,
+  .doctor-medication-head,
+  .doctor-medication-row {
+    min-width: 720px;
+  }
+
+  .doctor-reminder-grid,
+  .doctor-reminder-form {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-reminder-form__wide,
+  .doctor-reminder-message,
+  .doctor-reminder-form button {
+    grid-column: auto;
+  }
+
+  .doctor-reminder-modal .doctor-medication-reminder-form {
+    width: min(100%, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    padding: 24px 20px;
+  }
+
+  .doctor-reminder-view-all {
+    width: min(100%, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    padding: 20px 16px;
+  }
+
+  .doctor-reminder-view-all__appointments .doctor-reminder-appointment-head,
+  .doctor-reminder-view-all__appointments .doctor-reminder-appointment-row {
+    min-width: 720px;
+  }
+
+  .doctor-medication-reminder-form__title h2 {
+    font-size: 1.2rem;
+  }
+
+  .doctor-medication-reminder-close {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    font-size: 28px;
+  }
+
+  .doctor-medication-reminder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-medication-reminder-field--patient {
+    width: 100%;
+  }
+
+  .doctor-medication-reminder-radios,
+  .doctor-medication-reminder-actions {
+    align-items: flex-start;
+  }
+
+  .doctor-medication-reminder-time-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .doctor-medication-reminder-field .doctor-medication-reminder-time-input,
+  .doctor-medication-reminder-add-time {
+    width: 100%;
+  }
+
+  .doctor-medication-reminder-radios,
+  .doctor-medication-reminder-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .doctor-medication-reminder-actions button:first-child,
+  .doctor-medication-reminder-actions button:last-child {
+    width: 100%;
+  }
+}
+
+/* Smooth interaction polish */
+@keyframes doctor-reminder-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.doctor-reminder-page {
+  animation: doctor-reminder-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.doctor-reminder-appointments-card,
+.doctor-health-tips-card,
+.doctor-medication-card,
+.doctor-reminder-appointment-table {
+  transition:
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease;
+}
+
+.doctor-reminder-appointments-card:hover,
+.doctor-health-tips-card:hover,
+.doctor-medication-card:hover,
+.doctor-reminder-appointment-table:hover {
+  box-shadow: 0 12px 30px rgba(77, 73, 74, 0.1);
+}
+
+.doctor-reminder-page input,
+.doctor-reminder-page select,
+.doctor-reminder-page textarea {
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    background-color 200ms ease;
+}
+
+.doctor-reminder-page input:focus,
+.doctor-reminder-page select:focus,
+.doctor-reminder-page textarea:focus {
+  border-color: rgba(255, 77, 115, 0.68);
+  box-shadow: 0 0 0 3px rgba(255, 77, 115, 0.13);
+}
+
+.doctor-health-tip-list article,
+.doctor-reminder-appointment-row,
+.doctor-medication-row {
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.doctor-health-tip-list article:hover,
+.doctor-reminder-appointment-row:hover,
+.doctor-medication-row:hover {
+  box-shadow: inset 3px 0 0 rgba(255, 77, 115, 0.72);
+}
+
+.doctor-reminder-page button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.doctor-reminder-page button:active {
+  transform: scale(0.98);
+}
+
+.doctor-reminder-page button:focus-visible,
+.doctor-reminder-page input:focus-visible,
+.doctor-reminder-page select:focus-visible,
+.doctor-reminder-page textarea:focus-visible {
+  outline: 3px solid rgba(255, 77, 115, 0.2);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doctor-reminder-page {
+    animation: none;
+  }
+
+  .doctor-reminder-page *,
+  .doctor-reminder-page *::before,
+  .doctor-reminder-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+
+
+/* =========================================================
+   REMINDER SECTION FIGMA FINAL FIX
+   Matches the uploaded Reminder screen:
+   - wide left reminder cards
+   - right Health Tips card
+   - pink table headers
+   - functional tabs/buttons
+   - responsive layout
+   ========================================================= */
+
+:root {
+  --reminder-bg: #f7f9fc;
+  --reminder-card: #ffffff;
+  --reminder-text: #202938;
+  --reminder-muted: #636879;
+  --reminder-soft: #f5f6f8;
+  --reminder-line: #eef0f5;
+  --reminder-pink: #fb2f7d;
+  --reminder-pink-2: #ff4f91;
+  --reminder-pink-soft: #fff0f6;
+  --reminder-shadow: 0 16px 42px rgba(26, 31, 44, 0.055);
+  --reminder-border: rgba(222, 226, 237, 0.95);
+}
+
+/* Page */
+.doctor-reminder-page {
+  width: 100% !important;
+  max-width: 1160px !important;
+  min-width: 0 !important;
+  margin: 0 auto !important;
+  padding: 0 22px 56px !important;
+  font-family: "Poppins", "Plus Jakarta Sans", sans-serif !important;
+  background: transparent !important;
+  color: var(--reminder-text) !important;
+}
+
+.doctor-dashboard-header.doctor-reminder-header {
+  width: 100% !important;
+  min-height: 78px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 24px !important;
+  margin: 0 0 26px !important;
+  padding: 0 !important;
+}
+
+.doctor-reminder-title-block h1,
+.doctor-dashboard-header.doctor-reminder-header h1 {
+  margin: 0 !important;
+  color: #191d25 !important;
+  font-size: 38px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.doctor-reminder-title-block p {
+  margin: 6px 0 0 !important;
+  color: #4f5362 !important;
+  font-size: 17px !important;
+  line-height: 1.45 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-reminder-header .doctor-profile-menu-wrap--reminder,
+.doctor-reminder-header .doctor-profile-menu-wrap {
+  flex: 0 0 auto !important;
+  margin-left: auto !important;
+  transform: none !important;
+}
+
+/* Main layout */
+.doctor-reminder-layout {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 360px !important;
+  grid-template-areas:
+    "appointments tips"
+    "medication tips" !important;
+  align-items: start !important;
+  gap: 28px 18px !important;
+}
+
+.doctor-reminder-appointments-card {
+  grid-area: appointments !important;
+}
+
+.doctor-health-tips-card {
+  grid-area: tips !important;
+}
+
+.doctor-medication-card {
+  grid-area: medication !important;
+}
+
+/* Cards */
+.doctor-reminder-card,
+.doctor-reminder-appointments-card,
+.doctor-health-tips-card,
+.doctor-medication-card,
+.doctor-reminder-card.doctor-medication-card {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  border: 1px solid rgba(230, 233, 241, 0.82) !important;
+  border-radius: 8px !important;
+  background: var(--reminder-card) !important;
+  box-shadow: var(--reminder-shadow) !important;
+  padding: 26px !important;
+  transition: transform 180ms ease, box-shadow 180ms ease !important;
+}
+
+.doctor-reminder-card:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 20px 48px rgba(26, 31, 44, 0.075) !important;
+}
+
+/* Card headers */
+.doctor-reminder-card__header,
+.doctor-medication-card .doctor-reminder-card__header {
+  min-height: 44px !important;
+  display: grid !important;
+  grid-template-columns: 44px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin: 0 0 34px !important;
+}
+
+.doctor-reminder-card__icon {
+  width: 44px !important;
+  height: 44px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 9px !important;
+  color: var(--reminder-pink) !important;
+  background: #ffeef6 !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-card__icon svg,
+.doctor-reminder-card__icon .doctor-icon {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.doctor-reminder-card__header h2 {
+  margin: 0 !important;
+  color: #2e3442 !important;
+  font-size: 19px !important;
+  line-height: 1.3 !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.doctor-reminder-card__header > button:not(.doctor-reminder-outline-action),
+.doctor-reminder-card__header button {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--reminder-pink) !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+  transition: color 180ms ease, transform 180ms ease !important;
+}
+
+.doctor-reminder-card__header button:hover {
+  color: #d91d67 !important;
+  transform: translateX(2px) !important;
+}
+
+/* Toolbar + Tabs */
+.doctor-reminder-toolbar {
+  min-height: 46px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin: 0 0 32px !important;
+}
+
+.doctor-reminder-tabs,
+.doctor-health-tip-tabs {
+  height: 46px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 4px !important;
+  border-radius: 8px !important;
+  background: #f1f2f4 !important;
+}
+
+.doctor-reminder-tabs button,
+.doctor-reminder-tabs button:not(:first-child),
+.doctor-health-tip-tabs button {
+  min-width: 96px !important;
+  height: 38px !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: #5e6270 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease !important;
+}
+
+.doctor-health-tip-tabs button {
+  min-width: 72px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+}
+
+.doctor-reminder-tabs button.is-active,
+.doctor-health-tip-tabs button.is-active {
+  color: var(--reminder-pink) !important;
+  background: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(33, 38, 48, 0.055) !important;
+}
+
+.doctor-reminder-tabs button:hover,
+.doctor-health-tip-tabs button:hover {
+  transform: translateY(-1px) !important;
+}
+
+/* Buttons */
+.doctor-reminder-primary-action {
+  width: 144px !important;
+  min-width: 144px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  color: #ffffff !important;
+  background: var(--reminder-pink) !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-primary-action:hover {
+  transform: translateY(-1px) !important;
+  background: #f52575 !important;
+  box-shadow: 0 10px 24px rgba(251, 47, 125, 0.22) !important;
+}
+
+/* Tables */
+.doctor-reminder-appointment-table,
+.doctor-medication-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-appointment-head,
+.doctor-medication-head {
+  min-height: 46px !important;
+  display: grid !important;
+  align-items: center !important;
+  border: 0 !important;
+  background: var(--reminder-pink) !important;
+  color: #ffffff !important;
+  padding: 0 20px !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+}
+
+.doctor-reminder-appointment-head,
+.doctor-reminder-appointment-row {
+  grid-template-columns: 1.28fr 0.78fr 0.74fr 0.92fr 0.88fr !important;
+  gap: 14px !important;
+}
+
+.doctor-medication-head,
+.doctor-medication-row {
+  grid-template-columns: 1.05fr 1.2fr 0.78fr 1.06fr 0.88fr 0.5fr !important;
+  gap: 14px !important;
+}
+
+.doctor-reminder-appointment-row,
+.doctor-medication-row {
+  min-height: 76px !important;
+  display: grid !important;
+  align-items: center !important;
+  border-bottom: 0 !important;
+  background: #ffffff !important;
+  color: #464b59 !important;
+  padding: 0 20px !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 17px !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-medication-row {
+  min-height: 74px !important;
+  font-size: 13px !important;
+}
+
+.doctor-reminder-patient-cell,
+.doctor-medication-row > span:first-child {
+  color: #181c24 !important;
+  font-weight: 700 !important;
+}
+
+.doctor-reminder-avatar-dot {
+  display: none !important;
+}
+
+.doctor-reminder-appointment-row mark,
+.doctor-medication-row mark {
+  min-width: 92px !important;
+  min-height: 28px !important;
+  width: fit-content !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border: 1px solid rgba(251, 47, 125, 0.22) !important;
+  border-radius: 999px !important;
+  background: #fff1f6 !important;
+  color: var(--reminder-pink) !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  padding: 0 12px !important;
+}
+
+.doctor-medication-row mark {
+  min-width: 92px !important;
+}
+
+.doctor-reminder-appointment-empty {
+  min-height: 126px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 1px solid var(--reminder-line) !important;
+  border-top: 0 !important;
+  color: #7b8190 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  background: #ffffff !important;
+}
+
+/* Health Tips */
+.doctor-health-tips-card {
+  min-height: 566px !important;
+  padding: 26px 26px 32px !important;
+}
+
+.doctor-health-tips-card .doctor-reminder-card__header {
+  margin-bottom: 30px !important;
+}
+
+.doctor-health-tips-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.doctor-health-tip-tabs {
+  margin-bottom: 24px !important;
+  background: transparent !important;
+  gap: 8px !important;
+  padding: 0 !important;
+  height: 36px !important;
+}
+
+.doctor-health-tip-tabs button {
+  height: 36px !important;
+  border-radius: 8px !important;
+  background: #f0f1f3 !important;
+}
+
+.doctor-health-tip-tabs button.is-active {
+  border: 1px solid rgba(251, 47, 125, 0.24) !important;
+  background: #fff1f6 !important;
+}
+
+.doctor-health-tip-list {
+  display: grid !important;
+  gap: 18px !important;
+}
+
+.doctor-health-tip-list article {
+  min-height: 108px !important;
+  display: grid !important;
+  grid-template-columns: 58px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 18px !important;
+  border: 1px solid var(--reminder-line) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  padding: 18px !important;
+}
+
+.doctor-health-tip-logo,
+.doctor-health-tip-list article > span {
+  width: 44px !important;
+  height: 44px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 9px !important;
+  background: #eef5ff !important;
+  color: #3b82f6 !important;
+  overflow: hidden !important;
+}
+
+.doctor-health-tip-list article:nth-child(2) .doctor-health-tip-logo {
+  background: #f4e8ff !important;
+  color: #a855f7 !important;
+}
+
+.doctor-health-tip-list article:nth-child(3) .doctor-health-tip-logo {
+  background: #fff2f2 !important;
+  color: #fb7185 !important;
+}
+
+.doctor-health-tip-logo svg,
+.doctor-health-tip-logo .doctor-icon {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+.doctor-health-tip-logo img {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 8px !important;
+  display: block !important;
+  object-fit: cover !important;
+}
+
+.doctor-health-tip-list article strong {
+  display: block !important;
+  margin: 0 0 3px !important;
+  color: #202532 !important;
+  font-size: 18px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.doctor-health-tip-list article p {
+  margin: 0 !important;
+  color: #5b6070 !important;
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-health-tips-panel > .doctor-reminder-outline-action {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  margin: 36px 0 0 !important;
+  border: 2px dashed rgba(251, 47, 125, 0.28) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: var(--reminder-pink) !important;
+  box-shadow: none !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-health-tips-panel > .doctor-reminder-outline-action:hover {
+  background: #fff8fb !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Medication card */
+.doctor-medication-card,
+.doctor-reminder-card.doctor-medication-card {
+  padding: 26px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(230, 233, 241, 0.82) !important;
+  box-shadow: var(--reminder-shadow) !important;
+}
+
+.doctor-medication-card .doctor-reminder-card__header {
+  margin-bottom: 34px !important;
+}
+
+.doctor-medication-toolbar {
+  margin-bottom: 32px !important;
+}
+
+.doctor-medication-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.doctor-medication-actions button {
+  width: 28px !important;
+  height: 28px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #4b4f5d !important;
+  cursor: pointer !important;
+}
+
+.doctor-medication-actions button:hover {
+  background: #fff0f6 !important;
+  color: var(--reminder-pink) !important;
+}
+
+.doctor-medication-actions svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Modals/forms remain smooth and usable */
+.doctor-reminder-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 24px !important;
+  background: rgba(18, 20, 27, 0.42) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(88%) !important;
+  backdrop-filter: blur(8px) saturate(88%) !important;
+  animation: doctorReminderModalFade 160ms ease both !important;
+}
+
+.doctor-reminder-form,
+.doctor-health-tip-form,
+.doctor-medication-reminder-form,
+.doctor-reminder-view-all {
+  width: min(680px, calc(100vw - 48px)) !important;
+  max-height: calc(100vh - 48px) !important;
+  overflow-y: auto !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  box-shadow: 0 26px 70px rgba(18, 20, 27, 0.24) !important;
+  animation: doctorReminderCardIn 180ms ease both !important;
+}
+
+.doctor-reminder-form,
+.doctor-health-tip-form {
+  padding: 28px !important;
+}
+
+.doctor-reminder-view-all {
+  padding: 24px !important;
+}
+
+.doctor-reminder-form__title,
+.doctor-health-tip-form__title,
+.doctor-medication-reminder-form__title,
+.doctor-reminder-view-all__header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin-bottom: 22px !important;
+}
+
+.doctor-reminder-form__title h2,
+.doctor-health-tip-form__title h2,
+.doctor-medication-reminder-form__title h2,
+.doctor-reminder-view-all__header h2 {
+  margin: 0 !important;
+  color: #1f2937 !important;
+  font-size: 26px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.doctor-reminder-form__title p,
+.doctor-health-tip-form__title p,
+.doctor-medication-reminder-form__title p,
+.doctor-reminder-view-all__header p {
+  margin: 6px 0 0 !important;
+  color: #6c7280 !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+
+.doctor-reminder-form__title button,
+.doctor-health-tip-form__title button,
+.doctor-medication-reminder-form__title button,
+.doctor-reminder-view-all__header button {
+  width: 34px !important;
+  height: 34px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 34px !important;
+  color: #ffffff !important;
+  background: var(--reminder-pink) !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+}
+
+.doctor-reminder-form label,
+.doctor-health-tip-form label,
+.doctor-medication-reminder-field {
+  color: #273244 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.doctor-reminder-form input,
+.doctor-reminder-form select,
+.doctor-reminder-form textarea,
+.doctor-health-tip-form input,
+.doctor-health-tip-form select,
+.doctor-health-tip-form textarea,
+.doctor-medication-reminder-form input,
+.doctor-medication-reminder-form select,
+.doctor-medication-reminder-form textarea {
+  border: 1.4px solid #d9dde7 !important;
+  border-radius: 11px !important;
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  outline: 0 !important;
+}
+
+.doctor-reminder-form input:focus,
+.doctor-reminder-form select:focus,
+.doctor-reminder-form textarea:focus,
+.doctor-health-tip-form input:focus,
+.doctor-health-tip-form select:focus,
+.doctor-health-tip-form textarea:focus,
+.doctor-medication-reminder-form input:focus,
+.doctor-medication-reminder-form select:focus,
+.doctor-medication-reminder-form textarea:focus {
+  border-color: var(--reminder-pink) !important;
+  box-shadow: 0 0 0 3px rgba(251, 47, 125, 0.10) !important;
+}
+
+.doctor-reminder-form__actions,
+.doctor-medication-reminder-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 26px !important;
+}
+
+.doctor-reminder-form__actions button[type="submit"],
+.doctor-medication-reminder-actions button[type="submit"],
+.doctor-health-tip-form button[type="submit"] {
+  min-width: 118px !important;
+  height: 44px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: var(--reminder-pink) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(251, 47, 125, 0.20) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form__actions button[type="button"],
+.doctor-medication-reminder-actions button[type="button"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--reminder-pink) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+/* Responsive */
+@media (max-width: 1180px) {
+  .doctor-reminder-page {
+    max-width: 100% !important;
+    padding-inline: 18px !important;
+  }
+
+  .doctor-reminder-layout {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+  }
+
+  .doctor-reminder-card,
+  .doctor-reminder-appointments-card,
+  .doctor-health-tips-card,
+  .doctor-medication-card,
+  .doctor-reminder-card.doctor-medication-card {
+    padding: 22px !important;
+  }
+
+  .doctor-reminder-appointment-row {
+    font-size: 15px !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .doctor-dashboard-header.doctor-reminder-header {
+    flex-direction: column !important;
+  }
+
+  .doctor-reminder-layout {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "appointments"
+      "medication"
+      "tips" !important;
+  }
+
+  .doctor-health-tips-card {
+    min-height: 0 !important;
+  }
+
+  .doctor-health-tip-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-health-tip-list article {
+    min-height: 118px !important;
+    grid-template-columns: 1fr !important;
+    justify-items: start !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .doctor-reminder-page {
+    padding-inline: 12px !important;
+  }
+
+  .doctor-reminder-title-block h1,
+  .doctor-dashboard-header.doctor-reminder-header h1 {
+    font-size: 31px !important;
+  }
+
+  .doctor-reminder-title-block p {
+    font-size: 14px !important;
+  }
+
+  .doctor-reminder-card,
+  .doctor-reminder-appointments-card,
+  .doctor-health-tips-card,
+  .doctor-medication-card,
+  .doctor-reminder-card.doctor-medication-card {
+    padding: 18px !important;
+  }
+
+  .doctor-reminder-toolbar,
+  .doctor-medication-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .doctor-reminder-tabs,
+  .doctor-health-tip-tabs {
+    width: 100% !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+
+  .doctor-reminder-tabs::-webkit-scrollbar,
+  .doctor-health-tip-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .doctor-reminder-tabs button,
+  .doctor-reminder-tabs button:not(:first-child) {
+    flex: 1 0 92px !important;
+  }
+
+  .doctor-reminder-primary-action {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .doctor-reminder-appointment-table,
+  .doctor-medication-table {
+    overflow-x: auto !important;
+  }
+
+  .doctor-reminder-appointment-head,
+  .doctor-reminder-appointment-row {
+    min-width: 720px !important;
+  }
+
+  .doctor-medication-head,
+  .doctor-medication-row {
+    min-width: 760px !important;
+  }
+
+  .doctor-health-tip-list {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .doctor-reminder-card__header,
+  .doctor-medication-card .doctor-reminder-card__header {
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .doctor-reminder-card__header button {
+    grid-column: 2 !important;
+    justify-self: start !important;
+  }
+
+  .doctor-reminder-card__icon {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .doctor-reminder-card__header h2 {
+    font-size: 17px !important;
+  }
+
+  .doctor-reminder-modal {
+    padding: 14px !important;
+  }
+
+  .doctor-reminder-form,
+  .doctor-health-tip-form,
+  .doctor-medication-reminder-form,
+  .doctor-reminder-view-all {
+    width: 100% !important;
+    max-height: calc(100vh - 28px) !important;
+    border-radius: 16px !important;
+    padding: 22px !important;
+  }
+}
+
+@keyframes doctorReminderModalFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes doctorReminderCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+
+
+/* =========================================================
+   REMINDER MODALS FINAL DESIGN UPDATE
+   Matches the uploaded Set Reminder and Add Health Tip designs.
+   Responsive, smooth, minimalist, and full-screen blurred.
+   ========================================================= */
+
+body:has(.doctor-reminder-modal) {
+  overflow: hidden !important;
+}
+
+.doctor-reminder-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 22px !important;
+  background: rgba(18, 20, 27, 0.46) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(88%) !important;
+  backdrop-filter: blur(8px) saturate(88%) !important;
+  animation: doctorReminderModalFade 160ms ease both !important;
+}
+
+/* ---------- Set Reminder modal ---------- */
+.doctor-reminder-form.doctor-reminder-form--appointment {
+  width: min(600px, calc(100vw - 44px)) !important;
+  max-height: calc(100vh - 44px) !important;
+  overflow-y: auto !important;
+  border: 0 !important;
+  border-radius: 28px !important;
+  background: #ffffff !important;
+  box-shadow: 0 26px 72px rgba(18, 20, 27, 0.24) !important;
+  padding: 38px 34px 34px !important;
+  font-family: "Poppins", sans-serif !important;
+  animation: doctorReminderCardIn 180ms ease both !important;
+}
+
+.doctor-reminder-form.doctor-reminder-form--appointment::-webkit-scrollbar,
+.doctor-health-tip-form.doctor-health-tip-form--detailed::-webkit-scrollbar {
+  width: 7px !important;
+}
+
+.doctor-reminder-form.doctor-reminder-form--appointment::-webkit-scrollbar-thumb,
+.doctor-health-tip-form.doctor-health-tip-form--detailed::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(203, 208, 220, 0.86) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+  margin: 0 0 30px !important;
+  padding: 0 0 26px !important;
+  border-bottom: 1px solid #edf0f4 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+  margin: 0 !important;
+  color: #182230 !important;
+  font-size: 34px !important;
+  line-height: 1.14 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title p {
+  max-width: 480px !important;
+  margin: 10px 0 0 !important;
+  color: #5e6472 !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-reminder-modal-close,
+.doctor-reminder-form--appointment .doctor-reminder-form__title button {
+  width: 44px !important;
+  height: 44px !important;
+  flex: 0 0 44px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #c51477 !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  font-size: 38px !important;
+  line-height: 1 !important;
+  font-weight: 400 !important;
+  padding: 0 0 5px !important;
+  transition: transform 170ms ease, background-color 170ms ease !important;
+}
+
+.doctor-reminder-modal-close:hover,
+.doctor-reminder-form--appointment .doctor-reminder-form__title button:hover {
+  transform: scale(1.04) !important;
+  background: #e91e78 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-block {
+  margin: 0 0 30px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  margin: 0 0 16px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading strong {
+  color: #1d2532 !important;
+  font-size: 22px !important;
+  line-height: 1.2 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.04em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading span {
+  color: #9aa1ad !important;
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin: 0 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option {
+  position: relative !important;
+  min-height: 86px !important;
+  border: 1.5px solid #e4e7ef !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  color: #32384a !important;
+  display: grid !important;
+  place-items: center !important;
+  align-content: center !important;
+  gap: 5px !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  padding: 13px 10px !important;
+  transition: border-color 170ms ease, background-color 170ms ease, box-shadow 170ms ease, transform 170ms ease !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option:hover {
+  transform: translateY(-1px) !important;
+  border-color: rgba(197, 20, 119, 0.45) !important;
+  box-shadow: 0 8px 20px rgba(197, 20, 119, 0.08) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option input {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 0 5px !important;
+  accent-color: #c51477 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) {
+  border-color: #c51477 !important;
+  border-width: 2px !important;
+  background: #fff4fa !important;
+  box-shadow: 0 8px 20px rgba(197, 20, 119, 0.08) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option span {
+  color: inherit !important;
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option small {
+  margin: -1px 0 0 !important;
+  color: inherit !important;
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) span,
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) small {
+  color: #c51477 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-custom-time {
+  width: 100% !important;
+  height: 46px !important;
+  margin-top: 12px !important;
+  border: 1.4px solid #d9dde7 !important;
+  border-radius: 11px !important;
+  padding: 0 14px !important;
+  color: #1f2937 !important;
+  background: #ffffff !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options {
+  display: flex !important;
+  align-items: center !important;
+  gap: 26px !important;
+  flex-wrap: wrap !important;
+  margin: 0 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  color: #4b5060 !important;
+  font-size: 15px !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options input {
+  width: 21px !important;
+  height: 21px !important;
+  margin: 0 !important;
+  accent-color: #c51477 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options label:has(input:checked) {
+  color: #c51477 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-message-input {
+  display: none !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview {
+  min-height: 90px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: #eef0f2 !important;
+  display: grid !important;
+  grid-template-columns: 42px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 20px 22px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview > span {
+  color: rgba(197, 20, 119, 0.34) !important;
+  font-family: Georgia, serif !important;
+  font-size: 54px !important;
+  line-height: 0.7 !important;
+  font-weight: 800 !important;
+  margin-top: -12px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview p {
+  margin: 0 !important;
+  color: #222734 !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+  font-weight: 400 !important;
+  font-style: italic !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 76px !important;
+  margin: 34px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"] {
+  width: 174px !important;
+  min-width: 174px !important;
+  height: 52px !important;
+  border: 0 !important;
+  border-radius: 15px !important;
+  background: #c51477 !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 24px rgba(197, 20, 119, 0.22) !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"]:hover {
+  transform: translateY(-1px) !important;
+  background: #e91e78 !important;
+  box-shadow: 0 16px 30px rgba(197, 20, 119, 0.28) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="button"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: #c51477 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-message {
+  margin: 8px 0 0 !important;
+  border-radius: 10px !important;
+  background: #fff1f6 !important;
+  color: #b42318 !important;
+  padding: 10px 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+/* ---------- Add Health Tip modal ---------- */
+.doctor-health-tip-form.doctor-health-tip-form--detailed {
+  width: min(700px, calc(100vw - 44px)) !important;
+  max-height: calc(100vh - 44px) !important;
+  overflow-y: auto !important;
+  border: 0 !important;
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  box-shadow: 0 26px 72px rgba(18, 20, 27, 0.24) !important;
+  padding: 34px 34px 32px !important;
+  font-family: "Poppins", sans-serif !important;
+  animation: doctorReminderCardIn 180ms ease both !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 0 0 28px !important;
+  padding: 0 0 22px !important;
+  border-bottom: 1px solid #edf0f4 !important;
+}
+
+.doctor-health-tip-form__headline {
+  display: grid !important;
+  grid-template-columns: 70px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 20px !important;
+}
+
+.doctor-health-tip-form__icon {
+  width: 70px !important;
+  height: 70px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 18px !important;
+  background: #fff0f6 !important;
+  color: #f02a79 !important;
+}
+
+.doctor-health-tip-form__icon svg {
+  width: 38px !important;
+  height: 38px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title h2 {
+  margin: 0 !important;
+  color: #182230 !important;
+  font-size: 28px !important;
+  line-height: 1.14 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title p {
+  margin: 7px 0 0 !important;
+  color: #687083 !important;
+  font-size: 16px !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-health-tip-form__close,
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title > button {
+  width: 34px !important;
+  height: 34px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 34px !important;
+  background: transparent !important;
+  color: #98a0af !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  transition: color 170ms ease, background-color 170ms ease, transform 170ms ease !important;
+}
+
+.doctor-health-tip-form__close:hover,
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title > button:hover {
+  color: #f02a79 !important;
+  background: #fff0f6 !important;
+  transform: rotate(3deg) scale(1.04) !important;
+}
+
+.doctor-health-tip-form__close svg,
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title > button svg {
+  width: 26px !important;
+  height: 26px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__field {
+  display: grid !important;
+  gap: 9px !important;
+  margin: 0 0 22px !important;
+  color: #303849 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  font-weight: 700 !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__field span b {
+  color: #f02a79 !important;
+  margin-left: 3px !important;
+}
+
+.doctor-health-tip-form--detailed select,
+.doctor-health-tip-form--detailed input,
+.doctor-health-tip-form--detailed textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  border: 1.4px solid #dde2eb !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #273244 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.3 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  transition: border-color 170ms ease, box-shadow 170ms ease !important;
+}
+
+.doctor-health-tip-form--detailed select,
+.doctor-health-tip-form--detailed input {
+  height: 52px !important;
+  padding: 0 18px !important;
+}
+
+.doctor-health-tip-form--detailed textarea {
+  min-height: 160px !important;
+  resize: vertical !important;
+  padding: 18px !important;
+}
+
+.doctor-health-tip-form--detailed input::placeholder,
+.doctor-health-tip-form--detailed textarea::placeholder {
+  color: #9aa2af !important;
+  opacity: 1 !important;
+}
+
+.doctor-health-tip-form--detailed select:focus,
+.doctor-health-tip-form--detailed input:focus,
+.doctor-health-tip-form--detailed textarea:focus {
+  border-color: #f02a79 !important;
+  box-shadow: 0 0 0 3px rgba(240, 42, 121, 0.10) !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control {
+  position: relative !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control small {
+  position: absolute !important;
+  right: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: #9aa2af !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  pointer-events: none !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control input {
+  padding-right: 72px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control--textarea small {
+  top: auto !important;
+  bottom: 14px !important;
+  transform: none !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control--textarea textarea {
+  padding-right: 70px !important;
+  padding-bottom: 38px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 62px !important;
+  margin: 30px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="submit"] {
+  width: 154px !important;
+  min-width: 154px !important;
+  height: 52px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #f02a79 !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 24px rgba(240, 42, 121, 0.22) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="submit"]:hover {
+  transform: translateY(-1px) !important;
+  background: #e91e78 !important;
+  box-shadow: 0 16px 30px rgba(240, 42, 121, 0.28) !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="submit"] svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="button"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: #f02a79 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="button"]:hover {
+  color: #c51477 !important;
+}
+
+/* ---------- Responsive modal behavior ---------- */
+@media (max-width: 760px) {
+  .doctor-reminder-modal {
+    padding: 16px !important;
+  }
+
+  .doctor-reminder-form.doctor-reminder-form--appointment,
+  .doctor-health-tip-form.doctor-health-tip-form--detailed {
+    width: 100% !important;
+    max-height: calc(100vh - 32px) !important;
+    border-radius: 22px !important;
+    padding: 30px 24px 28px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+    font-size: 28px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title p {
+    font-size: 14px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option:last-child {
+    grid-column: span 2 !important;
+  }
+
+  .doctor-health-tip-form__headline {
+    grid-template-columns: 56px minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  .doctor-health-tip-form__icon {
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 14px !important;
+  }
+
+  .doctor-health-tip-form__icon svg {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__title h2 {
+    font-size: 24px !important;
+  }
+
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__title p {
+    font-size: 14px !important;
+  }
+
+  .doctor-health-tip-form--detailed textarea {
+    min-height: 130px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .doctor-reminder-form.doctor-reminder-form--appointment,
+  .doctor-health-tip-form.doctor-health-tip-form--detailed {
+    border-radius: 18px !important;
+    padding: 26px 18px 24px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title {
+    padding-bottom: 20px !important;
+  }
+
+  .doctor-reminder-modal-close,
+  .doctor-reminder-form--appointment .doctor-reminder-form__title button {
+    width: 38px !important;
+    height: 38px !important;
+    flex-basis: 38px !important;
+    font-size: 32px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option-grid {
+    gap: 10px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option {
+    min-height: 78px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-repeat-options {
+    gap: 14px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-preview {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-preview > span {
+    font-size: 42px !important;
+    margin: 0 !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions,
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__actions {
+    justify-content: flex-start !important;
+    gap: 22px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"],
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="submit"] {
+    width: 132px !important;
+    min-width: 132px !important;
+    height: 48px !important;
+  }
+
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__title {
+    gap: 10px !important;
+  }
+
+  .doctor-health-tip-form__headline {
+    grid-template-columns: 48px minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .doctor-health-tip-form__icon {
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  .doctor-health-tip-form__icon svg {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  .doctor-health-tip-form--detailed select,
+  .doctor-health-tip-form--detailed input {
+    height: 48px !important;
+    font-size: 14px !important;
+  }
+
+  .doctor-health-tip-form--detailed textarea {
+    min-height: 116px !important;
+    font-size: 14px !important;
+  }
+}
+
+
+
+/* =========================================================
+   COMPACT MINIMALIST REMINDER MODALS UPDATE
+   Applies to:
+   - Set Reminder
+   - Add Medication Reminder
+   - Add Health Tip
+   This makes the modals smaller, smoother, and closer to the
+   first minimalist reference photo.
+   ========================================================= */
+
+body:has(.doctor-reminder-modal) {
+  overflow: hidden !important;
+}
+
+.doctor-reminder-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 18px !important;
+  background: rgba(18, 20, 27, 0.44) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(88%) !important;
+  backdrop-filter: blur(7px) saturate(88%) !important;
+  animation: doctorReminderModalFade 160ms ease both !important;
+}
+
+/* -------------------- Shared compact modal base -------------------- */
+
+.doctor-reminder-form.doctor-reminder-form--appointment,
+.doctor-medication-reminder-form,
+.doctor-health-tip-form.doctor-health-tip-form--detailed {
+  border: 0 !important;
+  background: #ffffff !important;
+  font-family: "Poppins", sans-serif !important;
+  box-shadow: 0 22px 58px rgba(18, 20, 27, 0.22) !important;
+  animation: doctorReminderCardIn 170ms ease both !important;
+}
+
+.doctor-reminder-form.doctor-reminder-form--appointment::-webkit-scrollbar,
+.doctor-medication-reminder-form::-webkit-scrollbar,
+.doctor-health-tip-form.doctor-health-tip-form--detailed::-webkit-scrollbar {
+  width: 7px !important;
+}
+
+.doctor-reminder-form.doctor-reminder-form--appointment::-webkit-scrollbar-thumb,
+.doctor-medication-reminder-form::-webkit-scrollbar-thumb,
+.doctor-health-tip-form.doctor-health-tip-form--detailed::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(194, 199, 211, 0.88) !important;
+}
+
+/* =========================================================
+   SET REMINDER - compact version
+   ========================================================= */
+
+.doctor-reminder-form.doctor-reminder-form--appointment {
+  width: min(560px, calc(100vw - 36px)) !important;
+  max-height: calc(100vh - 36px) !important;
+  overflow-y: auto !important;
+  border-radius: 22px !important;
+  padding: 30px 32px 28px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 0 0 24px !important;
+  padding: 0 0 20px !important;
+  border-bottom: 1px solid #edf0f4 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+  margin: 0 !important;
+  color: #182230 !important;
+  font-size: 30px !important;
+  line-height: 1.12 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title p {
+  max-width: 440px !important;
+  margin: 8px 0 0 !important;
+  color: #5f6674 !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-reminder-modal-close,
+.doctor-reminder-form--appointment .doctor-reminder-form__title button {
+  width: 38px !important;
+  height: 38px !important;
+  flex: 0 0 38px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #c51477 !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  font-size: 32px !important;
+  line-height: 1 !important;
+  font-weight: 400 !important;
+  padding: 0 0 4px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-block {
+  margin: 0 0 24px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 9px !important;
+  margin: 0 0 13px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading strong {
+  color: #1d2532 !important;
+  font-size: 20px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.04em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading span {
+  color: #9aa1ad !important;
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option {
+  min-height: 74px !important;
+  border: 1.5px solid #e4e7ef !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #32384a !important;
+  display: grid !important;
+  place-items: center !important;
+  align-content: center !important;
+  gap: 3px !important;
+  padding: 10px 8px !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  transition: 170ms ease !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option input {
+  width: 15px !important;
+  height: 15px !important;
+  margin: 0 0 4px !important;
+  accent-color: #c51477 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option span,
+.doctor-reminder-form--appointment .doctor-reminder-option small {
+  color: inherit !important;
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) {
+  border-color: #c51477 !important;
+  border-width: 2px !important;
+  background: #fff4fa !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) span,
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) small {
+  color: #c51477 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options {
+  display: flex !important;
+  align-items: center !important;
+  gap: 22px !important;
+  flex-wrap: wrap !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  color: #4b5060 !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options input {
+  width: 19px !important;
+  height: 19px !important;
+  margin: 0 !important;
+  accent-color: #c51477 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options label:has(input:checked) {
+  color: #c51477 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview {
+  min-height: 76px !important;
+  border: 0 !important;
+  border-radius: 13px !important;
+  background: #eef0f2 !important;
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 17px 18px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview > span {
+  color: rgba(197, 20, 119, 0.34) !important;
+  font-family: Georgia, serif !important;
+  font-size: 46px !important;
+  line-height: 0.72 !important;
+  font-weight: 800 !important;
+  margin-top: -8px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview p {
+  margin: 0 !important;
+  color: #222734 !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  font-style: italic !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-message-input {
+  display: none !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 64px !important;
+  margin: 26px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"] {
+  width: 154px !important;
+  min-width: 154px !important;
+  height: 48px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: #c51477 !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(197, 20, 119, 0.20) !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="button"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: #c51477 !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+/* =========================================================
+   ADD MEDICATION REMINDER - compact version
+   ========================================================= */
+
+.doctor-medication-reminder-form {
+  width: min(620px, calc(100vw - 36px)) !important;
+  max-height: calc(100vh - 36px) !important;
+  overflow-y: auto !important;
+  border-radius: 18px !important;
+  padding: 26px 30px 28px !important;
+}
+
+.doctor-medication-reminder-form__title {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 0 0 22px !important;
+  padding: 0 0 18px !important;
+  border-bottom: 1px solid #dfe3ea !important;
+}
+
+.doctor-medication-reminder-form__title h2 {
+  margin: 0 !important;
+  color: #182230 !important;
+  font-size: 26px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.05em !important;
+}
+
+.doctor-medication-reminder-form__title p {
+  margin: 6px 0 0 !important;
+  color: #5f6674 !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-medication-reminder-close {
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #fb2f7d !important;
+  color: #ffffff !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  padding: 0 0 4px !important;
+  cursor: pointer !important;
+}
+
+.doctor-medication-reminder-section {
+  margin: 0 !important;
+  padding: 0 0 18px !important;
+  border-bottom: 1px solid #edf0f4 !important;
+}
+
+.doctor-medication-reminder-section + .doctor-medication-reminder-section {
+  padding-top: 18px !important;
+}
+
+.doctor-medication-reminder-section h3 {
+  margin: 0 0 12px !important;
+  color: #182230 !important;
+  font-size: 17px !important;
+  line-height: 1.3 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.doctor-medication-reminder-section h3 span {
+  margin-left: 8px !important;
+  color: #8b93a2 !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+.doctor-medication-reminder-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 14px 16px !important;
+}
+
+.doctor-medication-reminder-grid--schedule {
+  align-items: start !important;
+}
+
+.doctor-medication-reminder-field {
+  display: grid !important;
+  gap: 7px !important;
+  color: #273244 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-medication-reminder-field span b,
+.doctor-medication-reminder-section h3 b {
+  color: #fb2f7d !important;
+}
+
+.doctor-medication-reminder-form input,
+.doctor-medication-reminder-form select,
+.doctor-medication-reminder-form textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  border: 1.4px solid #d9dde7 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.doctor-medication-reminder-form input,
+.doctor-medication-reminder-form select {
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 13px !important;
+}
+
+.doctor-medication-reminder-form textarea {
+  min-height: 74px !important;
+  resize: vertical !important;
+  padding: 12px 13px !important;
+}
+
+.doctor-medication-reminder-form input:focus,
+.doctor-medication-reminder-form select:focus,
+.doctor-medication-reminder-form textarea:focus {
+  border-color: #fb2f7d !important;
+  box-shadow: 0 0 0 3px rgba(251, 47, 125, 0.10) !important;
+}
+
+.doctor-medication-reminder-time-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 102px 118px !important;
+  align-items: end !important;
+  gap: 8px !important;
+}
+
+.doctor-medication-reminder-time-chips {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  min-height: 42px !important;
+}
+
+.doctor-medication-reminder-time-chip {
+  min-height: 27px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  border-radius: 7px !important;
+  background: #e2e4e8 !important;
+  color: #263244 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  padding: 0 8px !important;
+}
+
+.doctor-medication-reminder-time-chip button {
+  border: 0 !important;
+  background: transparent !important;
+  color: #6b7280 !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+}
+
+.doctor-medication-reminder-time-input {
+  height: 34px !important;
+  min-height: 34px !important;
+}
+
+.doctor-medication-reminder-add-time {
+  height: 34px !important;
+  min-height: 34px !important;
+  border: 1.5px solid #fb2f7d !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #fb2f7d !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+.doctor-medication-reminder-section--settings p {
+  margin: -4px 0 10px !important;
+  color: #6c7280 !important;
+  font-size: 13px !important;
+}
+
+.doctor-medication-reminder-radios {
+  display: flex !important;
+  align-items: center !important;
+  gap: 18px !important;
+  flex-wrap: wrap !important;
+}
+
+.doctor-medication-reminder-radios label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  color: #4b5060 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+}
+
+.doctor-medication-reminder-radios input {
+  width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  accent-color: #fb2f7d !important;
+}
+
+.doctor-medication-reminder-radios label:has(input:checked) {
+  color: #fb2f7d !important;
+  font-weight: 800 !important;
+}
+
+.doctor-medication-reminder-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 34px !important;
+  margin: 22px 0 0 !important;
+  padding: 0 !important;
+}
+
+.doctor-medication-reminder-actions button[type="submit"] {
+  width: 118px !important;
+  min-width: 118px !important;
+  height: 44px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #fb2f7d !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(251, 47, 125, 0.20) !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+.doctor-medication-reminder-actions button[type="button"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: #fb2f7d !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+/* =========================================================
+   ADD HEALTH TIP - compact version
+   ========================================================= */
+
+.doctor-health-tip-form.doctor-health-tip-form--detailed {
+  width: min(620px, calc(100vw - 36px)) !important;
+  max-height: calc(100vh - 36px) !important;
+  overflow-y: auto !important;
+  border-radius: 18px !important;
+  padding: 28px 32px 30px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 0 0 24px !important;
+  padding: 0 0 20px !important;
+  border-bottom: 1px solid #edf0f4 !important;
+}
+
+.doctor-health-tip-form__headline {
+  display: grid !important;
+  grid-template-columns: 58px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+.doctor-health-tip-form__icon {
+  width: 58px !important;
+  height: 58px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 16px !important;
+  background: #fff0f6 !important;
+  color: #f02a79 !important;
+}
+
+.doctor-health-tip-form__icon svg {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title h2 {
+  margin: 0 !important;
+  color: #182230 !important;
+  font-size: 26px !important;
+  line-height: 1.14 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title p {
+  margin: 5px 0 0 !important;
+  color: #687083 !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-health-tip-form__close,
+.doctor-health-tip-form--detailed .doctor-health-tip-form__title > button {
+  width: 32px !important;
+  height: 32px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 32px !important;
+  background: transparent !important;
+  color: #98a0af !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+}
+
+.doctor-health-tip-form__close svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__field {
+  display: grid !important;
+  gap: 8px !important;
+  margin: 0 0 18px !important;
+  color: #303849 !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__field span b {
+  color: #f02a79 !important;
+  margin-left: 3px !important;
+}
+
+.doctor-health-tip-form--detailed select,
+.doctor-health-tip-form--detailed input,
+.doctor-health-tip-form--detailed textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  border: 1.4px solid #dde2eb !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #273244 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.doctor-health-tip-form--detailed select,
+.doctor-health-tip-form--detailed input {
+  height: 44px !important;
+  min-height: 44px !important;
+  padding: 0 14px !important;
+}
+
+.doctor-health-tip-form--detailed textarea {
+  min-height: 112px !important;
+  resize: vertical !important;
+  padding: 14px !important;
+}
+
+.doctor-health-tip-form--detailed input::placeholder,
+.doctor-health-tip-form--detailed textarea::placeholder {
+  color: #9aa2af !important;
+}
+
+.doctor-health-tip-form--detailed select:focus,
+.doctor-health-tip-form--detailed input:focus,
+.doctor-health-tip-form--detailed textarea:focus {
+  border-color: #f02a79 !important;
+  box-shadow: 0 0 0 3px rgba(240, 42, 121, 0.10) !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control {
+  position: relative !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control small {
+  position: absolute !important;
+  right: 14px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: #9aa2af !important;
+  font-size: 12px !important;
+  pointer-events: none !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control input {
+  padding-right: 68px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control--textarea small {
+  top: auto !important;
+  bottom: 12px !important;
+  transform: none !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__counted-control--textarea textarea {
+  padding-right: 64px !important;
+  padding-bottom: 34px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 54px !important;
+  margin: 24px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="submit"] {
+  width: 136px !important;
+  min-width: 136px !important;
+  height: 46px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #f02a79 !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(240, 42, 121, 0.20) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="submit"] svg {
+  width: 17px !important;
+  height: 17px !important;
+}
+
+.doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="button"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: #f02a79 !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+}
+
+/* -------------------- Responsive -------------------- */
+
+@media (max-width: 760px) {
+  .doctor-reminder-modal {
+    padding: 14px !important;
+  }
+
+  .doctor-reminder-form.doctor-reminder-form--appointment,
+  .doctor-medication-reminder-form,
+  .doctor-health-tip-form.doctor-health-tip-form--detailed {
+    width: 100% !important;
+    max-height: calc(100vh - 28px) !important;
+    border-radius: 18px !important;
+    padding: 24px 20px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title h2,
+  .doctor-medication-reminder-form__title h2,
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__title h2 {
+    font-size: 24px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title p,
+  .doctor-medication-reminder-form__title p,
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__title p {
+    font-size: 13px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option:last-child {
+    grid-column: span 2 !important;
+  }
+
+  .doctor-medication-reminder-grid,
+  .doctor-medication-reminder-grid--schedule {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-medication-reminder-time-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-health-tip-form__headline {
+    grid-template-columns: 50px minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .doctor-health-tip-form__icon {
+    width: 50px !important;
+    height: 50px !important;
+    border-radius: 14px !important;
+  }
+
+  .doctor-health-tip-form__icon svg {
+    width: 28px !important;
+    height: 28px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .doctor-reminder-form.doctor-reminder-form--appointment,
+  .doctor-medication-reminder-form,
+  .doctor-health-tip-form.doctor-health-tip-form--detailed {
+    padding: 22px 16px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title,
+  .doctor-medication-reminder-form__title,
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__title {
+    gap: 12px !important;
+  }
+
+  .doctor-reminder-modal-close,
+  .doctor-medication-reminder-close {
+    width: 34px !important;
+    height: 34px !important;
+    flex-basis: 34px !important;
+    font-size: 28px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-preference-heading {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 3px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-repeat-options {
+    gap: 13px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-preview {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-preview > span {
+    margin: 0 !important;
+    font-size: 38px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions,
+  .doctor-medication-reminder-actions,
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__actions {
+    gap: 22px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"],
+  .doctor-medication-reminder-actions button[type="submit"],
+  .doctor-health-tip-form--detailed .doctor-health-tip-form__actions button[type="submit"] {
+    width: 116px !important;
+    min-width: 116px !important;
+    height: 44px !important;
+  }
+}
+
+
+
+/* =========================================================
+   REMINDER MAIN PAGE FINAL CLEAN FIX
+   - Restores profile card on top-right if parent did not pass one
+   - Removes doubled health-tip titles by showing only clean Figma tips
+   - Matches the uploaded Reminder layout/icons more closely
+   - Responsive, smooth, and minimalist
+   ========================================================= */
+
+.doctor-reminder-page {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 28px 56px !important;
+  transform: none !important;
+  font-family: "Poppins", "Plus Jakarta Sans", sans-serif !important;
+}
+
+.doctor-dashboard-header.doctor-reminder-header {
+  width: 100% !important;
+  min-height: 78px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 24px !important;
+  margin: 0 0 24px !important;
+  padding: 0 !important;
+}
+
+.doctor-reminder-title-block h1,
+.doctor-dashboard-header.doctor-reminder-header h1 {
+  margin: 0 !important;
+  color: #191d25 !important;
+  font-size: 38px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.doctor-reminder-title-block p {
+  margin: 6px 0 0 !important;
+  color: #4f5362 !important;
+  font-size: 17px !important;
+  line-height: 1.45 !important;
+  font-weight: 400 !important;
+}
+
+/* Fallback profile card */
+.doctor-reminder-profile-card {
+  width: 281px !important;
+  height: 64px !important;
+  flex: 0 0 281px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  border: 0 !important;
+  border-radius: 15px !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 14px 32px rgba(26, 31, 44, 0.08) !important;
+  padding: 5px 14px 5px 18px !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-profile-avatar {
+  width: 54px !important;
+  height: 54px !important;
+  flex: 0 0 54px !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #ffffff !important;
+  background: #202334 !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.doctor-reminder-profile-copy {
+  min-width: 0 !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+}
+
+.doctor-reminder-profile-copy strong {
+  display: block !important;
+  color: #4d494a !important;
+  font-size: 16px !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.04em !important;
+  white-space: nowrap !important;
+}
+
+.doctor-reminder-profile-copy small {
+  display: block !important;
+  margin-top: 1px !important;
+  color: #4d494a !important;
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-reminder-profile-card svg {
+  width: 22px !important;
+  height: 22px !important;
+  flex: 0 0 22px !important;
+  color: #ff5e8a !important;
+}
+
+/* Layout */
+.doctor-reminder-layout {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 360px !important;
+  grid-template-areas:
+    "appointments tips"
+    "medication tips" !important;
+  align-items: start !important;
+  gap: 36px 12px !important;
+}
+
+.doctor-reminder-appointments-card {
+  grid-area: appointments !important;
+}
+
+.doctor-health-tips-card {
+  grid-area: tips !important;
+}
+
+.doctor-medication-card {
+  grid-area: medication !important;
+}
+
+/* Card design */
+.doctor-reminder-card,
+.doctor-reminder-appointments-card,
+.doctor-health-tips-card,
+.doctor-medication-card,
+.doctor-reminder-card.doctor-medication-card {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  border: 1px solid rgba(230, 233, 241, 0.82) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 42px rgba(26, 31, 44, 0.055) !important;
+  padding: 26px !important;
+}
+
+.doctor-reminder-card__header,
+.doctor-medication-card .doctor-reminder-card__header {
+  min-height: 44px !important;
+  display: grid !important;
+  grid-template-columns: 44px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin: 0 0 34px !important;
+}
+
+.doctor-reminder-card__icon {
+  width: 44px !important;
+  height: 44px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 9px !important;
+  color: #fb2f7d !important;
+  background: #ffeef6 !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-card__icon svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.doctor-reminder-card__header h2 {
+  margin: 0 !important;
+  color: #2e3442 !important;
+  font-size: 19px !important;
+  line-height: 1.3 !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.doctor-reminder-card__header > button {
+  border: 0 !important;
+  background: transparent !important;
+  color: #fb2f7d !important;
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+}
+
+/* Toolbar */
+.doctor-reminder-toolbar,
+.doctor-medication-toolbar {
+  min-height: 46px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin: 0 0 32px !important;
+}
+
+.doctor-reminder-tabs,
+.doctor-health-tip-tabs {
+  height: 46px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 4px !important;
+  border-radius: 8px !important;
+  background: #f1f2f4 !important;
+}
+
+.doctor-reminder-tabs button,
+.doctor-health-tip-tabs button {
+  min-width: 96px !important;
+  height: 38px !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: #5e6270 !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-tabs button.is-active,
+.doctor-health-tip-tabs button.is-active {
+  color: #fb2f7d !important;
+  background: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(33, 38, 48, 0.055) !important;
+}
+
+.doctor-reminder-primary-action {
+  width: 144px !important;
+  min-width: 144px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  color: #ffffff !important;
+  background: #fb2f7d !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+
+/* Tables */
+.doctor-reminder-appointment-table,
+.doctor-medication-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+.doctor-reminder-appointment-head,
+.doctor-medication-head {
+  min-height: 46px !important;
+  display: grid !important;
+  align-items: center !important;
+  border: 0 !important;
+  background: #fb2f7d !important;
+  color: #ffffff !important;
+  padding: 0 20px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+}
+
+.doctor-reminder-appointment-head,
+.doctor-reminder-appointment-row {
+  grid-template-columns: 1.28fr 0.78fr 0.74fr 0.92fr 0.88fr !important;
+  gap: 14px !important;
+}
+
+.doctor-medication-head,
+.doctor-medication-row {
+  grid-template-columns: 1.05fr 1.2fr 0.78fr 1.06fr 0.88fr 0.5fr !important;
+  gap: 14px !important;
+}
+
+.doctor-reminder-appointment-row,
+.doctor-medication-row {
+  min-height: 76px !important;
+  display: grid !important;
+  align-items: center !important;
+  border-bottom: 0 !important;
+  background: #ffffff !important;
+  color: #464b59 !important;
+  padding: 0 20px !important;
+  font-size: 17px !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-medication-row {
+  min-height: 74px !important;
+  font-size: 13px !important;
+}
+
+.doctor-reminder-patient-cell,
+.doctor-medication-row > span:first-child {
+  color: #181c24 !important;
+  font-weight: 700 !important;
+}
+
+.doctor-reminder-avatar-dot {
+  display: none !important;
+}
+
+.doctor-reminder-appointment-row mark,
+.doctor-medication-row mark {
+  min-width: 92px !important;
+  min-height: 28px !important;
+  width: fit-content !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border: 1px solid rgba(251, 47, 125, 0.22) !important;
+  border-radius: 999px !important;
+  background: #fff1f6 !important;
+  color: #fb2f7d !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  padding: 0 12px !important;
+}
+
+/* Health tips clean side card */
+.doctor-health-tips-card {
+  min-height: 566px !important;
+  padding: 26px 26px 32px !important;
+}
+
+.doctor-health-tip-tabs {
+  margin-bottom: 24px !important;
+  background: transparent !important;
+  gap: 8px !important;
+  padding: 0 !important;
+  height: 36px !important;
+}
+
+.doctor-health-tip-tabs button {
+  min-width: 72px !important;
+  height: 36px !important;
+  border-radius: 8px !important;
+  background: #f0f1f3 !important;
+  font-size: 13px !important;
+  padding: 0 12px !important;
+}
+
+.doctor-health-tip-tabs button.is-active {
+  border: 1px solid rgba(251, 47, 125, 0.24) !important;
+  background: #fff1f6 !important;
+}
+
+.doctor-health-tip-list {
+  display: grid !important;
+  gap: 18px !important;
+}
+
+.doctor-health-tip-list article {
+  min-height: 108px !important;
+  display: grid !important;
+  grid-template-columns: 58px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 18px !important;
+  border: 1px solid #eef0f5 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  padding: 18px !important;
+}
+
+.doctor-health-tip-logo {
+  width: 44px !important;
+  height: 44px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 9px !important;
+  overflow: hidden !important;
+  background: #eef5ff !important;
+  color: #3b82f6 !important;
+}
+
+.doctor-health-tip-list article:nth-child(2) .doctor-health-tip-logo {
+  background: #f4e8ff !important;
+  color: #a855f7 !important;
+}
+
+.doctor-health-tip-list article:nth-child(3) .doctor-health-tip-logo {
+  background: #fff2f2 !important;
+  color: #fb7185 !important;
+}
+
+.doctor-health-tip-logo svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+.doctor-health-tip-logo img {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 8px !important;
+  object-fit: cover !important;
+}
+
+.doctor-health-tip-list article strong {
+  display: block !important;
+  margin: 0 0 3px !important;
+  color: #202532 !important;
+  font-size: 18px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.doctor-health-tip-list article p {
+  margin: 0 !important;
+  color: #5b6070 !important;
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.doctor-health-tips-panel > .doctor-reminder-outline-action {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 64px !important;
+  margin: 36px 0 0 !important;
+  border: 2px dashed rgba(251, 47, 125, 0.28) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #fb2f7d !important;
+  box-shadow: none !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  font-weight: 400 !important;
+}
+
+/* Smooth hover */
+.doctor-reminder-card,
+.doctor-reminder-profile-card,
+.doctor-reminder-primary-action,
+.doctor-health-tips-panel > .doctor-reminder-outline-action,
+.doctor-reminder-card__header > button {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease !important;
+}
+
+.doctor-reminder-primary-action:hover,
+.doctor-health-tips-panel > .doctor-reminder-outline-action:hover,
+.doctor-reminder-profile-card:hover {
+  transform: translateY(-1px) !important;
+}
+
+/* Responsive */
+@media (max-width: 1180px) {
+  .doctor-reminder-page {
+    padding-inline: 18px !important;
+  }
+
+  .doctor-reminder-layout {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+  }
+
+  .doctor-reminder-card,
+  .doctor-reminder-appointments-card,
+  .doctor-health-tips-card,
+  .doctor-medication-card,
+  .doctor-reminder-card.doctor-medication-card {
+    padding: 22px !important;
+  }
+
+  .doctor-reminder-appointment-row {
+    font-size: 15px !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .doctor-dashboard-header.doctor-reminder-header {
+    flex-direction: column !important;
+  }
+
+  .doctor-reminder-profile-card {
+    width: 100% !important;
+    max-width: 320px !important;
+    flex-basis: auto !important;
+  }
+
+  .doctor-reminder-layout {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "appointments"
+      "medication"
+      "tips" !important;
+  }
+
+  .doctor-health-tips-card {
+    min-height: 0 !important;
+  }
+
+  .doctor-health-tip-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-health-tip-list article {
+    min-height: 118px !important;
+    grid-template-columns: 1fr !important;
+    justify-items: start !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .doctor-reminder-page {
+    padding-inline: 12px !important;
+  }
+
+  .doctor-reminder-title-block h1,
+  .doctor-dashboard-header.doctor-reminder-header h1 {
+    font-size: 31px !important;
+  }
+
+  .doctor-reminder-title-block p {
+    font-size: 14px !important;
+  }
+
+  .doctor-reminder-toolbar,
+  .doctor-medication-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .doctor-reminder-tabs {
+    width: 100% !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+
+  .doctor-reminder-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .doctor-reminder-tabs button {
+    flex: 1 0 92px !important;
+  }
+
+  .doctor-reminder-primary-action {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .doctor-reminder-appointment-table,
+  .doctor-medication-table {
+    overflow-x: auto !important;
+  }
+
+  .doctor-reminder-appointment-head,
+  .doctor-reminder-appointment-row {
+    min-width: 720px !important;
+  }
+
+  .doctor-medication-head,
+  .doctor-medication-row {
+    min-width: 760px !important;
+  }
+
+  .doctor-health-tip-list {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .doctor-reminder-card__header,
+  .doctor-medication-card .doctor-reminder-card__header {
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .doctor-reminder-card__header button {
+    grid-column: 2 !important;
+    justify-self: start !important;
+  }
+
+  .doctor-reminder-card__icon {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .doctor-reminder-card__header h2 {
+    font-size: 17px !important;
+  }
+
+  .doctor-health-tip-tabs {
+    width: 100% !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+
+  .doctor-health-tip-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+}
+
+
+
+/* =========================================================
+   SET REMINDER MODAL ALIGNMENT + MESSAGE PREVIEW FIX
+   Fixes:
+   - "before" text centered inside reminder cards
+   - Message Preview uses the Figma date/time layout with pink accents
+   - Custom option uses the calendar icon
+   - Removes the cramped/overlapping look from the second screenshot
+   ========================================================= */
+
+.doctor-reminder-form.doctor-reminder-form--appointment {
+  width: min(600px, calc(100vw - 36px)) !important;
+  max-height: calc(100vh - 36px) !important;
+  overflow-y: auto !important;
+  border-radius: 28px !important;
+  padding: 38px 34px 34px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title {
+  margin-bottom: 30px !important;
+  padding-bottom: 26px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+  font-size: 34px !important;
+  line-height: 1.14 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title p {
+  max-width: 480px !important;
+  margin-top: 10px !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+}
+
+.doctor-reminder-modal-close,
+.doctor-reminder-form--appointment .doctor-reminder-form__title button {
+  width: 44px !important;
+  height: 44px !important;
+  flex-basis: 44px !important;
+  font-size: 38px !important;
+  padding-bottom: 5px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-block {
+  margin-bottom: 30px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading {
+  margin-bottom: 16px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading strong {
+  font-size: 22px !important;
+  line-height: 1.2 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading span {
+  font-size: 12px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option {
+  position: relative !important;
+  min-width: 0 !important;
+  min-height: 86px !important;
+  height: 86px !important;
+  border-radius: 14px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  text-align: center !important;
+  padding: 12px 8px !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option input:not(.doctor-reminder-option-radio-hidden) {
+  position: static !important;
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+  min-height: 17px !important;
+  margin: 0 0 5px !important;
+  display: block !important;
+  flex: 0 0 auto !important;
+}
+
+.doctor-reminder-option-radio-hidden {
+  position: absolute !important;
+  inset: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.doctor-reminder-option-custom-icon {
+  width: 17px !important;
+  height: 17px !important;
+  flex: 0 0 17px !important;
+  margin: 0 0 5px !important;
+  color: #404654 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option span,
+.doctor-reminder-form--appointment .doctor-reminder-option small {
+  display: block !important;
+  width: 100% !important;
+  max-width: 76px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  color: inherit !important;
+  font-size: 12px !important;
+  line-height: 1.12 !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) .doctor-reminder-option-custom-icon {
+  color: #c51477 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options {
+  gap: 26px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options label {
+  gap: 10px !important;
+  font-size: 15px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options input {
+  width: 21px !important;
+  height: 21px !important;
+  min-width: 21px !important;
+  min-height: 21px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview {
+  min-height: 90px !important;
+  border-radius: 14px !important;
+  display: grid !important;
+  grid-template-columns: 42px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 20px 22px !important;
+  background: #eef0f2 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview > span {
+  display: block !important;
+  color: rgba(197, 20, 119, 0.34) !important;
+  font-family: Georgia, serif !important;
+  font-size: 54px !important;
+  line-height: 0.7 !important;
+  font-weight: 800 !important;
+  margin: -12px 0 0 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview p {
+  margin: 0 !important;
+  color: #222734 !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+  font-weight: 400 !important;
+  font-style: italic !important;
+  text-align: left !important;
+}
+
+.doctor-reminder-preview-accent {
+  color: #c51477 !important;
+  font-weight: 500 !important;
+  font-style: italic !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  justify-content: center !important;
+  gap: 76px !important;
+  margin-top: 34px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"] {
+  width: 174px !important;
+  min-width: 174px !important;
+  height: 52px !important;
+  border-radius: 15px !important;
+  font-size: 16px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="button"] {
+  font-size: 16px !important;
+}
+
+/* Keep the modal clean on smaller screens */
+@media (max-width: 760px) {
+  .doctor-reminder-form.doctor-reminder-form--appointment {
+    width: 100% !important;
+    max-height: calc(100vh - 28px) !important;
+    border-radius: 22px !important;
+    padding: 30px 24px 28px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+    font-size: 28px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option {
+    height: 82px !important;
+    min-height: 82px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option:last-child {
+    grid-column: span 2 !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .doctor-reminder-form.doctor-reminder-form--appointment {
+    padding: 26px 18px 24px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title {
+    padding-bottom: 20px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-preview {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-preview > span {
+    margin: 0 !important;
+    font-size: 42px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions {
+    justify-content: flex-start !important;
+    gap: 22px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"] {
+    width: 132px !important;
+    min-width: 132px !important;
+    height: 48px !important;
+  }
+}
+
+/* =========================================================
+   WORKING TOP-RIGHT PROFILE DROPDOWN
+   ========================================================= */
+.doctor-reminder-profile-wrap {
+  position: relative;
+  z-index: 90;
+  flex: 0 0 auto;
+}
+
+.doctor-reminder-profile-wrap > .doctor-reminder-profile-card > svg {
+  transition: transform 180ms ease;
+}
+
+.doctor-reminder-profile-wrap.is-open > .doctor-reminder-profile-card > svg {
+  transform: rotate(180deg);
+}
+
+.doctor-reminder-profile-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: min(316px, calc(100vw - 32px));
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 24px 55px rgba(18, 24, 38, 0.16);
+  padding: 20px 20px 18px;
+  animation: reminder-profile-menu-in 170ms ease both;
+}
+
+@keyframes reminder-profile-menu-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.doctor-reminder-profile-dropdown__header {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.doctor-reminder-profile-dropdown__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #181b25;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.doctor-reminder-profile-dropdown__header strong {
+  display: block;
+  color: #20232b;
+  font-size: 17px;
+  line-height: 1.2;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doctor-reminder-profile-dropdown__header small {
+  display: block;
+  margin-top: 3px;
+  color: #747887;
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 500;
+}
+
+.doctor-reminder-profile-dropdown__divider {
+  height: 1px;
+  background: #d9dce8;
+  margin: 18px 0;
+}
+
+.doctor-reminder-profile-dropdown > button {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: #545866;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.3;
+  font-weight: 500;
+  text-align: left;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.doctor-reminder-profile-dropdown > button svg {
+  width: 20px;
+  height: 20px;
+  color: currentColor;
+  flex: 0 0 auto;
+}
+
+.doctor-reminder-profile-dropdown > button:hover {
+  background: #fff0f6;
+  color: #c21570;
+  transform: translateX(2px);
+}
+
+.doctor-reminder-profile-dropdown > button.is-danger {
+  color: #d93025;
+}
+
+.doctor-reminder-profile-dropdown > button.is-danger:hover {
+  background: #fff1f1;
+  color: #c5221f;
+}
+
+@media (max-width: 900px) {
+  .doctor-reminder-profile-wrap,
+  .doctor-reminder-profile-wrap .doctor-reminder-profile-card {
+    width: 100%;
+  }
+
+  .doctor-reminder-profile-dropdown {
+    left: 0;
+    right: auto;
+    width: 100%;
+  }
+}
+
+/* Final compact modal pass: shared sizing, close button, and action alignment. */
+.doctor-reminder-modal {
+  padding: 28px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(15, 17, 23, 0.42) !important;
+  -webkit-backdrop-filter: blur(7px) !important;
+  backdrop-filter: blur(7px) !important;
+}
+
+.doctor-reminder-modal .doctor-reminder-form--appointment,
+.doctor-reminder-modal .doctor-medication-reminder-form,
+.doctor-reminder-modal .doctor-health-tip-form--detailed {
+  position: relative !important;
+  width: min(720px, calc(100vw - 56px)) !important;
+  max-height: min(760px, calc(100vh - 56px)) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  box-shadow: 0 28px 70px rgba(12, 18, 28, 0.22) !important;
+  padding: 30px 36px 26px !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 19, 117, 0.45) rgba(221, 225, 234, 0.8);
+}
+
+.doctor-reminder-modal .doctor-reminder-form--appointment {
+  width: min(620px, calc(100vw - 56px)) !important;
+}
+
+.doctor-reminder-modal .doctor-medication-reminder-form,
+.doctor-reminder-modal .doctor-health-tip-form--detailed {
+  width: min(760px, calc(100vw - 56px)) !important;
+}
+
+.doctor-reminder-modal .doctor-reminder-form--appointment::-webkit-scrollbar,
+.doctor-reminder-modal .doctor-medication-reminder-form::-webkit-scrollbar,
+.doctor-reminder-modal .doctor-health-tip-form--detailed::-webkit-scrollbar {
+  width: 8px;
+}
+
+.doctor-reminder-modal .doctor-reminder-form--appointment::-webkit-scrollbar-track,
+.doctor-reminder-modal .doctor-medication-reminder-form::-webkit-scrollbar-track,
+.doctor-reminder-modal .doctor-health-tip-form--detailed::-webkit-scrollbar-track {
+  background: rgba(221, 225, 234, 0.8);
+  border-radius: 999px;
+}
+
+.doctor-reminder-modal .doctor-reminder-form--appointment::-webkit-scrollbar-thumb,
+.doctor-reminder-modal .doctor-medication-reminder-form::-webkit-scrollbar-thumb,
+.doctor-reminder-modal .doctor-health-tip-form--detailed::-webkit-scrollbar-thumb {
+  background: rgba(196, 19, 117, 0.45);
+  border-radius: 999px;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title,
+.doctor-medication-reminder-form__title,
+.doctor-health-tip-form__title {
+  min-height: auto !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  border-bottom: 1px solid #e8eaf1 !important;
+  margin: 0 0 22px !important;
+  padding: 0 54px 18px 0 !important;
+}
+
+.doctor-health-tip-form__headline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 18px !important;
+}
+
+.doctor-health-tip-form__icon {
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 16px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2,
+.doctor-medication-reminder-form__title h2,
+.doctor-health-tip-form__title h2 {
+  margin: 0 !important;
+  color: #161b26 !important;
+  font-size: 26px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title p,
+.doctor-medication-reminder-form__title p,
+.doctor-health-tip-form__title p {
+  max-width: 560px !important;
+  margin: 6px 0 0 !important;
+  color: #6f7788 !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+  font-weight: 500 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title button,
+.doctor-medication-reminder-close,
+.doctor-health-tip-form__title button,
+.doctor-health-tip-form__close {
+  position: absolute !important;
+  top: 28px !important;
+  right: 32px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 40px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: #fb2f7d !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(251, 47, 125, 0.22) !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+}
+
+.doctor-health-tip-form__close svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+.doctor-reminder-preference-block,
+.doctor-medication-reminder-section,
+.doctor-health-tip-form__field {
+  gap: 10px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-block {
+  margin-bottom: 22px !important;
+}
+
+.doctor-medication-reminder-section {
+  padding: 16px 0 !important;
+  border-bottom: 1px solid #e8eaf1 !important;
+}
+
+.doctor-medication-reminder-section--settings {
+  border-bottom: 0 !important;
+}
+
+.doctor-reminder-preference-heading {
+  margin-bottom: 10px !important;
+}
+
+.doctor-reminder-preference-heading strong,
+.doctor-medication-reminder-section h3 {
+  color: #161b26 !important;
+  font-size: 18px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.doctor-reminder-preference-heading span,
+.doctor-medication-reminder-section h3 span,
+.doctor-medication-reminder-section--settings p {
+  color: #8991a2 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  font-weight: 500 !important;
+}
+
+.doctor-medication-reminder-grid {
+  gap: 14px 18px !important;
+}
+
+.doctor-medication-reminder-field,
+.doctor-health-tip-form__field {
+  color: #202533 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment input,
+.doctor-reminder-form--appointment select,
+.doctor-medication-reminder-field input,
+.doctor-medication-reminder-field select,
+.doctor-medication-reminder-section textarea,
+.doctor-health-tip-form__field input,
+.doctor-health-tip-form__field select,
+.doctor-health-tip-form__field textarea {
+  border: 1px solid #d9dee8 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #202533 !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+  font-weight: 600 !important;
+}
+
+.doctor-reminder-form--appointment input,
+.doctor-reminder-form--appointment select,
+.doctor-medication-reminder-field input,
+.doctor-medication-reminder-field select,
+.doctor-health-tip-form__field input,
+.doctor-health-tip-form__field select {
+  height: 42px !important;
+  padding: 0 14px !important;
+}
+
+.doctor-medication-reminder-section textarea {
+  min-height: 78px !important;
+  padding: 12px 14px !important;
+}
+
+.doctor-health-tip-form__field textarea {
+  min-height: 140px !important;
+  padding: 12px 14px 26px !important;
+}
+
+.doctor-health-tip-form__field--category {
+  width: min(420px, 100%) !important;
+}
+
+.doctor-reminder-option-grid {
+  gap: 12px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option {
+  min-height: 82px !important;
+  height: 82px !important;
+  border-radius: 12px !important;
+}
+
+.doctor-reminder-repeat-options,
+.doctor-medication-reminder-radios {
+  gap: 24px !important;
+}
+
+.doctor-reminder-repeat-options label,
+.doctor-medication-reminder-radios label {
+  color: #303545 !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  font-weight: 600 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview {
+  min-height: 84px !important;
+  border-radius: 14px !important;
+  background: #eef0f4 !important;
+  padding: 18px 22px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview p {
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.doctor-medication-reminder-time-row {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 8px 10px !important;
+}
+
+.doctor-medication-reminder-time-chip {
+  min-height: 26px !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+}
+
+.doctor-medication-reminder-field .doctor-medication-reminder-time-input {
+  width: 48px !important;
+  height: 42px !important;
+  color: transparent !important;
+  padding: 0 !important;
+}
+
+.doctor-medication-reminder-add-time {
+  min-width: 106px !important;
+  height: 34px !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form__actions,
+.doctor-medication-reminder-actions,
+.doctor-health-tip-form__actions,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  position: sticky !important;
+  bottom: -26px !important;
+  z-index: 4 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 64px !important;
+  border-top: 1px solid #e8eaf1 !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.94), #ffffff 34%) !important;
+  margin: 22px -36px -26px !important;
+  padding: 20px 36px 22px !important;
+}
+
+.doctor-reminder-form__actions button,
+.doctor-medication-reminder-actions button,
+.doctor-health-tip-form__actions button,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button {
+  height: 46px !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form__actions button[type="submit"],
+.doctor-medication-reminder-actions button:first-child,
+.doctor-health-tip-form__actions button:first-child,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"] {
+  width: 178px !important;
+  min-width: 178px !important;
+  border: 0 !important;
+  background: #fb2f7d !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 24px rgba(251, 47, 125, 0.22) !important;
+}
+
+.doctor-reminder-form__actions button[type="button"],
+.doctor-medication-reminder-actions button:last-child,
+.doctor-health-tip-form__actions button:last-child,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="button"] {
+  width: 140px !important;
+  min-width: 140px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #c41375 !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 760px) {
+  .doctor-reminder-modal {
+    padding: 14px !important;
+  }
+
+  .doctor-reminder-modal .doctor-reminder-form--appointment,
+  .doctor-reminder-modal .doctor-medication-reminder-form,
+  .doctor-reminder-modal .doctor-health-tip-form--detailed {
+    width: 100% !important;
+    max-height: calc(100vh - 28px) !important;
+    border-radius: 18px !important;
+    padding: 26px 20px 22px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title,
+  .doctor-medication-reminder-form__title,
+  .doctor-health-tip-form__title {
+    padding-right: 48px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__title button,
+  .doctor-medication-reminder-close,
+  .doctor-health-tip-form__title button,
+  .doctor-health-tip-form__close {
+    top: 22px !important;
+    right: 20px !important;
+  }
+
+  .doctor-medication-reminder-grid,
+  .doctor-medication-reminder-grid--schedule {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-reminder-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-reminder-form__actions,
+  .doctor-medication-reminder-actions,
+  .doctor-health-tip-form__actions,
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions {
+    bottom: -22px !important;
+    gap: 16px !important;
+    margin: 20px -20px -22px !important;
+    padding: 18px 20px 20px !important;
+  }
+
+  .doctor-reminder-form__actions button[type="submit"],
+  .doctor-medication-reminder-actions button:first-child,
+  .doctor-health-tip-form__actions button:first-child,
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"],
+  .doctor-reminder-form__actions button[type="button"],
+  .doctor-medication-reminder-actions button:last-child,
+  .doctor-health-tip-form__actions button:last-child,
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="button"] {
+    width: 50% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* =========================================================
+   FINAL REMINDER ALIGNMENT + MODAL SPACING FIX
+   ========================================================= */
+.doctor-reminder-page {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 24px 48px !important;
+}
+
+.doctor-reminder-layout {
+  width: 100% !important;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px) !important;
+  gap: 28px 18px !important;
+}
+
+.doctor-reminder-card,
+.doctor-reminder-appointments-card,
+.doctor-health-tips-card,
+.doctor-medication-card,
+.doctor-reminder-card.doctor-medication-card {
+  padding: 24px !important;
+}
+
+.doctor-reminder-card__header,
+.doctor-medication-card .doctor-reminder-card__header {
+  margin-bottom: 28px !important;
+}
+
+.doctor-reminder-toolbar,
+.doctor-medication-toolbar {
+  margin-bottom: 26px !important;
+}
+
+.doctor-reminder-appointment-table,
+.doctor-medication-table {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-appointment-head,
+.doctor-reminder-appointment-row {
+  grid-template-columns: minmax(130px, 1.35fr) minmax(92px, 0.8fr) minmax(82px, 0.68fr) minmax(130px, 1fr) minmax(108px, 0.86fr) !important;
+  gap: 18px !important;
+  padding: 0 24px !important;
+}
+
+.doctor-medication-head,
+.doctor-medication-row {
+  grid-template-columns: minmax(130px, 1.1fr) minmax(140px, 1.18fr) minmax(90px, 0.78fr) minmax(128px, 1fr) minmax(108px, 0.82fr) minmax(72px, 0.48fr) !important;
+  gap: 18px !important;
+  padding: 0 24px !important;
+}
+
+.doctor-reminder-appointment-head > span,
+.doctor-reminder-appointment-row > span,
+.doctor-medication-head > span,
+.doctor-medication-row > span {
+  min-width: 0 !important;
+  justify-self: stretch !important;
+  text-align: left !important;
+}
+
+.doctor-reminder-appointment-head > span:last-child,
+.doctor-reminder-appointment-row > mark,
+.doctor-medication-head > span:nth-child(5),
+.doctor-medication-row > mark {
+  justify-self: start !important;
+}
+
+.doctor-reminder-appointment-row,
+.doctor-medication-row {
+  min-height: 72px !important;
+  font-size: 16px !important;
+}
+
+.doctor-medication-row {
+  font-size: 13px !important;
+}
+
+.doctor-reminder-patient-cell {
+  display: flex !important;
+}
+
+.doctor-medication-actions {
+  justify-content: flex-start !important;
+}
+
+.doctor-health-tips-card {
+  min-height: 0 !important;
+}
+
+.doctor-health-tip-list {
+  gap: 14px !important;
+}
+
+.doctor-health-tip-list article {
+  min-height: 96px !important;
+  gap: 14px !important;
+  padding: 16px !important;
+}
+
+.doctor-health-tips-panel > .doctor-reminder-outline-action {
+  margin-top: 28px !important;
+}
+
+.doctor-reminder-modal {
+  padding: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.doctor-reminder-form.doctor-reminder-form--appointment {
+  width: min(640px, calc(100vw - 48px)) !important;
+  max-height: min(860px, calc(100vh - 48px)) !important;
+  overflow-y: auto !important;
+  border-radius: 28px !important;
+  padding: 42px 42px 34px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title {
+  margin-bottom: 30px !important;
+  padding-bottom: 24px !important;
+  border-bottom: 1px solid #eceef4 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+  font-size: 34px !important;
+  line-height: 1.12 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-block {
+  margin-bottom: 28px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 10px !important;
+  margin-bottom: 16px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading strong {
+  font-size: 22px !important;
+  line-height: 1.18 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option {
+  min-height: 92px !important;
+  height: 92px !important;
+  border-radius: 14px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-message-input {
+  display: none !important;
+  margin: 0 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-message-input input {
+  width: 100% !important;
+  height: 42px !important;
+  border: 1px solid #dde1ea !important;
+  border-radius: 11px !important;
+  background: #ffffff !important;
+  color: #222734 !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  padding: 0 14px !important;
+  outline: none !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-message-input input:focus {
+  border-color: rgba(197, 20, 119, 0.45) !important;
+  box-shadow: 0 0 0 3px rgba(197, 20, 119, 0.08) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview {
+  width: 100% !important;
+  min-height: 92px !important;
+  grid-template-columns: 46px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 12px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: #eef0f2 !important;
+  padding: 20px 24px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview > span {
+  color: rgba(197, 20, 119, 0.34) !important;
+  font-size: 54px !important;
+  line-height: 0.72 !important;
+  margin: -8px 0 0 !important;
+  color: transparent !important;
+  font-size: 0 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview > span::before {
+  content: "\201C" !important;
+  color: rgba(197, 20, 119, 0.34) !important;
+  font-family: Georgia, serif !important;
+  font-size: 54px !important;
+  line-height: 0.72 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview p {
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 72px !important;
+  margin-top: 34px !important;
+}
+
+@media (max-width: 1180px) {
+  .doctor-reminder-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 330px) !important;
+  }
+
+  .doctor-reminder-appointment-head,
+  .doctor-reminder-appointment-row,
+  .doctor-medication-head,
+  .doctor-medication-row {
+    padding-inline: 18px !important;
+    gap: 14px !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .doctor-reminder-layout {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "appointments"
+      "medication"
+      "tips" !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .doctor-reminder-page {
+    padding-inline: 12px !important;
+  }
+
+  .doctor-reminder-form.doctor-reminder-form--appointment {
+    width: 100% !important;
+    max-height: calc(100vh - 28px) !important;
+    padding: 30px 22px 26px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-option:last-child {
+    grid-column: span 2 !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-form__actions {
+    gap: 24px !important;
+  }
+}
+
+/* Keep doctor section headers aligned with the Dashboard topbar. */
+.doctor-dashboard .doctor-reminder-page {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 0 48px !important;
+}
+
+.doctor-dashboard .doctor-dashboard-header.doctor-reminder-header {
+  width: 100% !important;
+  min-height: 58px !important;
+  align-items: flex-start !important;
+  gap: 22px !important;
+  margin: 0 0 24px !important;
+  padding: 0 !important;
+}
+
+.doctor-dashboard .doctor-reminder-title-block h1,
+.doctor-dashboard .doctor-dashboard-header.doctor-reminder-header h1 {
+  margin: 3px 0 0 !important;
+  color: var(--doctor-heading, #4d494a) !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 30px !important;
+  line-height: 44px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.05em !important;
+}
+
+.doctor-dashboard .doctor-reminder-title-block p {
+  margin: -2px 0 0 !important;
+  color: #6b7284 !important;
+  font-family: "Plus Jakarta Sans", sans-serif !important;
+  font-size: 15px !important;
+  line-height: 22px !important;
+}
+
+.doctor-dashboard .doctor-reminder-profile-card {
+  width: 260px !important;
+  height: 58px !important;
+  min-height: 58px !important;
+  flex: 0 0 260px !important;
+  border-radius: 14px !important;
+  gap: 11px !important;
+  padding: 5px 13px 5px 18px !important;
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.07) !important;
+}
+
+.doctor-dashboard .doctor-reminder-profile-avatar {
+  width: 48px !important;
+  height: 48px !important;
+  flex-basis: 48px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+.doctor-dashboard .doctor-reminder-profile-copy strong {
+  font-size: 15px !important;
+  line-height: 22px !important;
+  letter-spacing: -0.05em !important;
+}
+
+.doctor-dashboard .doctor-reminder-profile-copy small {
+  margin-top: -3px !important;
+  font-size: 9.5px !important;
+  line-height: 14px !important;
+  letter-spacing: -0.05em !important;
+}
+
+.doctor-dashboard .doctor-reminder-profile-card svg {
+  width: 24px !important;
+  height: 24px !important;
+  flex-basis: 24px !important;
+}
+
+/* Absolute final reminder modal override. */
+.doctor-reminder-modal .doctor-reminder-form--appointment,
+.doctor-reminder-modal .doctor-medication-reminder-form,
+.doctor-reminder-modal .doctor-health-tip-form--detailed {
+  position: relative !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  padding: 30px 36px 26px !important;
+  box-shadow: 0 28px 70px rgba(12, 18, 28, 0.22) !important;
+}
+
+.doctor-reminder-modal .doctor-reminder-form--appointment {
+  width: min(620px, calc(100vw - 56px)) !important;
+  max-height: min(760px, calc(100vh - 56px)) !important;
+}
+
+.doctor-reminder-modal .doctor-medication-reminder-form,
+.doctor-reminder-modal .doctor-health-tip-form--detailed {
+  width: min(760px, calc(100vw - 56px)) !important;
+  max-height: min(760px, calc(100vh - 56px)) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title,
+.doctor-medication-reminder-form__title,
+.doctor-health-tip-form__title {
+  margin: 0 0 22px !important;
+  padding: 0 54px 18px 0 !important;
+  border-bottom: 1px solid #e8eaf1 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2,
+.doctor-medication-reminder-form__title h2,
+.doctor-health-tip-form__title h2 {
+  font-size: 26px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title p,
+.doctor-medication-reminder-form__title p,
+.doctor-health-tip-form__title p {
+  color: #6f7788 !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title button,
+.doctor-medication-reminder-close,
+.doctor-health-tip-form__close {
+  position: absolute !important;
+  top: 28px !important;
+  right: 32px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 40px !important;
+  border-radius: 50% !important;
+  background: #fb2f7d !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(251, 47, 125, 0.22) !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+}
+
+.doctor-health-tip-form__close svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+.doctor-medication-reminder-section {
+  padding: 16px 0 !important;
+}
+
+.doctor-reminder-preference-heading strong,
+.doctor-medication-reminder-section h3 {
+  font-size: 18px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-medication-reminder-grid {
+  gap: 14px 18px !important;
+}
+
+.doctor-medication-reminder-field,
+.doctor-health-tip-form__field {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-medication-reminder-field input,
+.doctor-medication-reminder-field select,
+.doctor-medication-reminder-section textarea,
+.doctor-health-tip-form__field input,
+.doctor-health-tip-form__field select,
+.doctor-health-tip-form__field textarea {
+  border: 1px solid #d9dee8 !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.doctor-medication-reminder-field input,
+.doctor-medication-reminder-field select,
+.doctor-health-tip-form__field input,
+.doctor-health-tip-form__field select {
+  height: 42px !important;
+}
+
+.doctor-medication-reminder-section textarea {
+  min-height: 78px !important;
+}
+
+.doctor-health-tip-form__field textarea {
+  min-height: 140px !important;
+}
+
+.doctor-health-tip-form__actions,
+.doctor-medication-reminder-actions,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  position: sticky !important;
+  bottom: -26px !important;
+  z-index: 4 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 64px !important;
+  border-top: 1px solid #e8eaf1 !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.94), #ffffff 34%) !important;
+  margin: 22px -36px -26px !important;
+  padding: 20px 36px 22px !important;
+}
+
+.doctor-health-tip-form__actions button,
+.doctor-medication-reminder-actions button,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button {
+  height: 46px !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+}
+
+.doctor-health-tip-form__actions button:first-child,
+.doctor-medication-reminder-actions button:first-child,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"] {
+  width: 178px !important;
+  min-width: 178px !important;
+  background: #fb2f7d !important;
+  color: #ffffff !important;
+}
+
+.doctor-health-tip-form__actions button:last-child,
+.doctor-medication-reminder-actions button:last-child,
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="button"] {
+  width: 140px !important;
+  min-width: 140px !important;
+  background: transparent !important;
+  color: #c41375 !important;
+}
+
+/* Final Set Reminder mockup override. */
+.doctor-reminder-modal .doctor-reminder-form.doctor-reminder-form--appointment {
+  width: min(520px, calc(100vw - 28px)) !important;
+  max-height: calc(100vh - 28px) !important;
+  gap: 24px !important;
+  overflow-y: auto !important;
+  border-radius: 28px !important;
+  background: #ffffff !important;
+  padding: 34px 38px 28px !important;
+  box-shadow: 0 26px 70px rgba(18, 18, 24, 0.28) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  border-bottom: 1px solid #e8e6ec !important;
+  padding: 0 0 24px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title h2 {
+  margin: 0 !important;
+  color: #222222 !important;
+  font-size: 30px !important;
+  line-height: 1.05 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__title p {
+  max-width: 410px !important;
+  margin: 10px 0 0 !important;
+  color: #696574 !important;
+  font-size: 15px !important;
+  line-height: 1.45 !important;
+  font-weight: 500 !important;
+}
+
+.doctor-reminder-modal-close,
+.doctor-reminder-form--appointment .doctor-reminder-form__title button {
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 38px !important;
+  flex: 0 0 38px !important;
+  border-radius: 999px !important;
+  background: #c2177a !important;
+  color: #ffffff !important;
+  font-size: 28px !important;
+  font-weight: 400 !important;
+  line-height: 1 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-block {
+  gap: 16px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 9px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading strong {
+  color: #28282d !important;
+  font-size: 21px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preference-heading span {
+  color: #9a94a3 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 11px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option {
+  min-height: 74px !important;
+  display: grid !important;
+  place-items: center !important;
+  gap: 5px !important;
+  border: 1px solid #e3e0ea !important;
+  border-radius: 13px !important;
+  background: #ffffff !important;
+  padding: 12px 8px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) {
+  border: 2px solid #d21a80 !important;
+  background: #fff4fa !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option input:not(.doctor-reminder-option-radio-hidden) {
+  width: 17px !important;
+  height: 17px !important;
+  accent-color: #d21a80 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option span,
+.doctor-reminder-form--appointment .doctor-reminder-option small {
+  color: #26262e !important;
+  font-size: 11px !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) span,
+.doctor-reminder-form--appointment .doctor-reminder-option:has(input:checked) small {
+  color: #d21a80 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 22px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options label {
+  gap: 9px !important;
+  color: #514d5a !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options input {
+  width: 18px !important;
+  height: 18px !important;
+  accent-color: #d21a80 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-repeat-options label:has(input:checked) {
+  color: #d21a80 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview {
+  min-height: 78px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: #edf0f4 !important;
+  padding: 18px 16px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview > span {
+  color: #e3a2ca !important;
+  font-size: 42px !important;
+  line-height: 0.8 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-preview p {
+  margin: 0 !important;
+  color: #4d4954 !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  font-style: italic !important;
+  font-weight: 500 !important;
+}
+
+.doctor-reminder-preview-accent {
+  color: #d21a80 !important;
+  font-style: italic !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-message-input {
+  display: none !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions {
+  position: static !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 54px !important;
+  border-top: 0 !important;
+  background: transparent !important;
+  margin: 4px 0 0 !important;
+  padding: 0 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button {
+  height: 44px !important;
+  border-radius: 12px !important;
+  border: 0 !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="submit"] {
+  width: 146px !important;
+  min-width: 146px !important;
+  background: #c2177a !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 18px rgba(194, 23, 122, 0.22) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-form__actions button[type="button"] {
+  width: 112px !important;
+  min-width: 112px !important;
+  background: transparent !important;
+  color: #c2177a !important;
+}
+
+/* Appointment-driven reminder table. */
+.doctor-reminder-appointment-head,
+.doctor-reminder-appointment-row {
+  grid-template-columns: minmax(150px, 1.45fr) minmax(90px, 0.9fr) minmax(82px, 0.75fr) minmax(120px, 1fr) minmax(88px, 0.75fr) minmax(76px, 0.65fr) !important;
+}
+
+.doctor-reminder-row-action {
+  min-width: 58px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: #fb2f7d;
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.doctor-reminder-row-action:hover {
+  background: #c2177a;
+}
+
+/* Compact reminder dashboard match. */
+.doctor-dashboard .doctor-reminder-page {
+  width: 100% !important;
+  max-width: 998px !important;
+  margin: 0 auto !important;
+  padding: 0 0 32px !important;
+}
+
+.doctor-dashboard .doctor-dashboard-header.doctor-reminder-header {
+  min-height: 58px !important;
+  margin: 0 0 16px !important;
+}
+
+.doctor-dashboard .doctor-reminder-title-block h1,
+.doctor-dashboard .doctor-dashboard-header.doctor-reminder-header h1 {
+  margin: 0 !important;
+  font-size: 30px !important;
+  line-height: 44px !important;
+  letter-spacing: 0 !important;
+}
+
+.doctor-dashboard .doctor-reminder-title-block p {
+  display: none !important;
+}
+
+.doctor-dashboard .doctor-reminder-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 489px) minmax(0, 489px) !important;
+  grid-template-areas:
+    "appointments tips"
+    "medication medication" !important;
+  gap: 24px 20px !important;
+  align-items: start !important;
+  width: 100% !important;
+  max-width: 998px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.doctor-dashboard .doctor-reminder-appointments-card {
+  grid-area: appointments !important;
+}
+
+.doctor-dashboard .doctor-health-tips-card {
+  grid-area: tips !important;
+}
+
+.doctor-dashboard .doctor-medication-card,
+.doctor-dashboard .doctor-reminder-card.doctor-medication-card {
+  grid-area: medication !important;
+}
+
+.doctor-dashboard .doctor-reminder-card,
+.doctor-dashboard .doctor-reminder-appointments-card,
+.doctor-dashboard .doctor-health-tips-card,
+.doctor-dashboard .doctor-medication-card,
+.doctor-dashboard .doctor-reminder-card.doctor-medication-card {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  transform: none !important;
+}
+
+.doctor-dashboard .doctor-reminder-card:hover,
+.doctor-dashboard .doctor-medication-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.doctor-dashboard .doctor-reminder-card__header,
+.doctor-dashboard .doctor-medication-card .doctor-reminder-card__header {
+  min-height: 54px !important;
+  display: grid !important;
+  grid-template-columns: 54px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin: 0 0 10px !important;
+}
+
+.doctor-dashboard .doctor-reminder-card__icon {
+  width: 54px !important;
+  height: 54px !important;
+  border-radius: 5px !important;
+  background: #fee1e9 !important;
+  color: #fb387e !important;
+  box-shadow: 0 0 25px rgba(255, 127, 168, 0.32) !important;
+}
+
+.doctor-dashboard .doctor-reminder-card__icon svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.doctor-dashboard .doctor-reminder-card__header h2 {
+  margin: 0 !important;
+  color: #4d494a !important;
+  font-size: 24px !important;
+  line-height: 36px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+.doctor-dashboard .doctor-reminder-card__header > button:not(.doctor-reminder-outline-action),
+.doctor-dashboard .doctor-reminder-card__header button {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #ff2f7c !important;
+  font-size: 11px !important;
+  line-height: 18px !important;
+  font-weight: 500 !important;
+  padding: 0 !important;
+}
+
+.doctor-dashboard .doctor-reminder-toolbar,
+.doctor-dashboard .doctor-medication-toolbar {
+  min-height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin: 0 0 8px !important;
+}
+
+.doctor-dashboard .doctor-reminder-tabs,
+.doctor-dashboard .doctor-health-tip-tabs {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 !important;
+}
+
+.doctor-dashboard .doctor-reminder-tabs button {
+  min-width: 85px !important;
+  height: 34px !important;
+  border-radius: 5px !important;
+  font-size: 12px !important;
+  line-height: 18px !important;
+  font-weight: 500 !important;
+}
+
+.doctor-dashboard .doctor-reminder-tabs button:not(.is-active) {
+  background: #ffffff !important;
+}
+
+.doctor-dashboard .doctor-reminder-tabs button.is-active,
+.doctor-dashboard .doctor-health-tip-tabs button.is-active {
+  border-color: #ffd4df !important;
+  color: #fb387e !important;
+  background: #fde1e8 !important;
+}
+
+.doctor-dashboard .doctor-reminder-primary-action {
+  width: 103px !important;
+  min-width: 103px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  flex: 0 0 103px !important;
+  border-radius: 8px !important;
+  background: #fb2f7d !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  line-height: 16px !important;
+  font-weight: 500 !important;
+  padding: 0 10px !important;
+}
+
+.doctor-dashboard .doctor-reminder-appointment-table,
+.doctor-dashboard .doctor-medication-table {
+  width: 100% !important;
+  overflow: hidden !important;
+  border-radius: 15px !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 23px rgba(0, 0, 0, 0.08) !important;
+}
+
+.doctor-dashboard .doctor-reminder-appointment-table {
+  min-height: 301px !important;
+  max-height: 301px !important;
+  overflow-y: auto !important;
+}
+
+.doctor-dashboard .doctor-reminder-appointment-head,
+.doctor-dashboard .doctor-reminder-appointment-row {
+  display: grid !important;
+  grid-template-columns: minmax(84px, 1fr) 64px 62px minmax(70px, 0.82fr) 70px !important;
+  gap: 8px !important;
+  align-items: center !important;
+  min-height: 49px !important;
+  padding: 0 16px !important;
+  font-size: 10px !important;
+  line-height: 15px !important;
+}
+
+.doctor-dashboard .doctor-reminder-appointment-head {
+  min-height: 50px !important;
+  color: #ffffff !important;
+  background: #fb2f7d !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+.doctor-dashboard .doctor-reminder-appointment-head > span:last-child,
+.doctor-dashboard .doctor-reminder-appointment-row > span:last-child {
+  display: none !important;
+}
+
+.doctor-dashboard .doctor-reminder-patient-cell {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.doctor-dashboard .doctor-reminder-avatar-dot {
+  width: 17px !important;
+  height: 17px !important;
+  flex: 0 0 17px !important;
+  font-size: 9px !important;
+}
+
+.doctor-dashboard .doctor-reminder-appointment-row mark,
+.doctor-dashboard .doctor-medication-row mark {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: fit-content !important;
+  max-width: 72px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid #ffc8dc !important;
+  border-radius: 5px !important;
+  background: #fbd8e2 !important;
+  color: #4d494a !important;
+  font-size: 10px !important;
+  line-height: 12px !important;
+  font-weight: 500 !important;
+  text-align: center !important;
+  padding: 3px 7px !important;
+}
+
+.doctor-dashboard .doctor-reminder-row-action {
+  display: none !important;
+}
+
+.doctor-dashboard .doctor-health-tips-panel {
+  min-height: 304px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-radius: 15px !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 23px rgba(0, 0, 0, 0.08) !important;
+  padding: 15px 10px 10px !important;
+}
+
+.doctor-dashboard .doctor-health-tip-tabs {
+  min-height: 27px !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  margin-bottom: 8px !important;
+}
+
+.doctor-dashboard .doctor-health-tip-tabs button {
+  min-width: 0 !important;
+  height: 27px !important;
+  flex: 0 1 auto !important;
+  padding: 0 10px !important;
+  border-radius: 5px !important;
+  font-size: 10px !important;
+  line-height: 15px !important;
+  font-weight: 400 !important;
+  white-space: nowrap !important;
+}
+
+.doctor-dashboard .doctor-health-tip-list {
+  display: grid !important;
+  gap: 4px !important;
+}
+
+.doctor-dashboard .doctor-health-tip-list article {
+  min-height: 42px !important;
+  display: grid !important;
+  grid-template-columns: 36px minmax(0, 1fr) !important;
+  gap: 0 !important;
+  align-items: center !important;
+  border: 1px solid rgba(77, 73, 74, 0.45) !important;
+  border-radius: 5px !important;
+  background: #ffffff !important;
+  padding: 4px 12px !important;
+}
+
+.doctor-dashboard .doctor-health-tip-list strong {
+  display: none !important;
+}
+
+.doctor-dashboard .doctor-health-tip-list p {
+  margin: 0 !important;
+  color: #4d494a !important;
+  font-size: 12px !important;
+  line-height: 18px !important;
+  font-weight: 500 !important;
+}
+
+.doctor-dashboard .doctor-health-tips-panel > .doctor-reminder-outline-action {
+  width: 220px !important;
+  min-width: 220px !important;
+  height: 47px !important;
+  min-height: 47px !important;
+  align-self: center !important;
+  margin: 9px 0 0 !important;
+  border: 1px solid #fb2f7d !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #fb2f7d !important;
+  font-size: 18px !important;
+  line-height: 27px !important;
+  font-weight: 500 !important;
+}
+
+.doctor-dashboard .doctor-medication-card .doctor-reminder-card__header {
+  margin: 0 0 10px 16px !important;
+}
+
+.doctor-dashboard .doctor-medication-table {
+  min-height: 188px !important;
+  max-height: 188px !important;
+  overflow-y: auto !important;
+}
+
+.doctor-dashboard .doctor-medication-head,
+.doctor-dashboard .doctor-medication-row {
+  grid-template-columns: minmax(92px, 1fr) minmax(130px, 1.15fr) minmax(84px, 0.8fr) minmax(118px, 1fr) minmax(92px, 0.8fr) minmax(58px, 0.46fr) !important;
+  gap: 12px !important;
+  min-height: 52px !important;
+  padding: 0 18px !important;
+  font-size: 13px !important;
+  line-height: 18px !important;
+}
+
+.doctor-dashboard .doctor-medication-head {
+  color: #ffffff !important;
+  background: #fb2f7d !important;
+  font-weight: 500 !important;
+}
+
+.doctor-dashboard .doctor-medication-row {
+  min-height: 68px !important;
+  color: #4d494a !important;
+  background: #ffffff !important;
+}
+
+.doctor-dashboard .doctor-medication-actions button {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+@media (max-width: 760px) {
+  .doctor-dashboard .doctor-reminder-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "appointments"
+      "tips"
+      "medication" !important;
+  }
+}

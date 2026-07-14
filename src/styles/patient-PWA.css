@@ -1,0 +1,694 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+:root {
+  --pwa-bg: #f6f8fb;
+  --pwa-surface: #ffffff;
+  --pwa-pink: #fb2f7d;
+  --pwa-pink-2: #ff5a94;
+  --pwa-pink-dark: #c20b79;
+  --pwa-pink-soft: #fff0f6;
+  --pwa-pink-soft-2: #ffe6f0;
+  --pwa-text: #172033;
+  --pwa-muted: #63728b;
+  --pwa-soft-muted: #9aa8bc;
+  --pwa-border: #d6dce8;
+  --pwa-card-border: #e6ebf3;
+  --pwa-shadow: 0 18px 42px rgba(22, 29, 45, 0.07);
+  --pwa-soft-shadow: 0 10px 30px rgba(22, 29, 45, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+html {
+  min-height: 100dvh;
+}
+
+body {
+  background: var(--pwa-bg);
+  color: var(--pwa-text);
+  font-family: "Plus Jakarta Sans", sans-serif;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* =========================================================
+   PATIENT PWA SHELL
+   This is the important part:
+   - Sidebar is now same size as your doctor/staff reference.
+   - Main content starts closer to sidebar.
+   - Active pill is not too wide.
+========================================================= */
+.pwa-shell {
+  width: 100% !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  display: grid !important;
+  grid-template-columns: 258px minmax(0, 1fr) !important;
+  background: var(--pwa-bg) !important;
+}
+
+.pwa-loading-shell {
+  grid-template-columns: 1fr !important;
+  place-items: center !important;
+}
+
+.pwa-loading-card {
+  display: grid !important;
+  justify-items: center !important;
+  gap: 12px !important;
+  color: var(--pwa-pink) !important;
+  font-weight: 800 !important;
+}
+
+.pwa-loading-card img {
+  width: 82px !important;
+  height: 82px !important;
+  object-fit: contain !important;
+}
+
+.pwa-sidebar {
+  position: sticky !important;
+  top: 0 !important;
+  width: 258px !important;
+  min-width: 258px !important;
+  max-width: 258px !important;
+  height: 100vh !important;
+  background: #ffffff !important;
+  border-right: 1px solid var(--pwa-border) !important;
+  padding: 30px 8px 28px !important;
+  overflow: hidden !important;
+  z-index: 30 !important;
+}
+
+.pwa-main {
+  position: relative !important;
+  min-width: 0 !important;
+  min-height: 100vh !important;
+  background: var(--pwa-bg) !important;
+  padding: 30px 32px 48px 24px !important;
+  overflow-x: hidden !important;
+}
+
+.pwa-content {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* =========================================================
+   SIDEBAR BRAND - SAME SCALE AS REFERENCE
+========================================================= */
+.pwa-brand {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 13px !important;
+  padding: 0 14px !important;
+  margin: 0 0 58px !important;
+}
+
+.pwa-brand-icon {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  border-radius: 12px !important;
+  background: var(--pwa-pink-dark) !important;
+  color: #ffffff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 14px 28px rgba(251, 56, 126, 0.22) !important;
+  flex-shrink: 0 !important;
+}
+
+.pwa-brand-icon svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+.pwa-brand h1 {
+  margin: 0 !important;
+  color: var(--pwa-pink) !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 19px !important;
+  line-height: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.045em !important;
+  white-space: nowrap !important;
+}
+
+.pwa-brand p {
+  width: 152px !important;
+  margin: 1px 0 0 !important;
+  color: #4e5568 !important;
+  font-size: 11px !important;
+  line-height: 15px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+  text-transform: none !important;
+}
+
+/* =========================================================
+   SIDEBAR NAV - SAME HEIGHT / WIDTH / SPACING AS REFERENCE
+========================================================= */
+.pwa-nav {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+.pwa-nav-item {
+  width: 100% !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: #4f4d5e !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 15px !important;
+  padding: 0 22px !important;
+  font-family: "Plus Jakarta Sans", sans-serif !important;
+  font-size: 16px !important;
+  line-height: 20px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+  box-shadow: none !important;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease !important;
+}
+
+.pwa-nav-item svg {
+  width: 21px !important;
+  height: 21px !important;
+  min-width: 21px !important;
+  color: currentColor !important;
+  flex-shrink: 0 !important;
+}
+
+.pwa-nav-item span {
+  display: inline-block !important;
+  white-space: nowrap !important;
+}
+
+.pwa-nav-item:hover {
+  background: var(--pwa-pink-soft) !important;
+  color: var(--pwa-pink) !important;
+  transform: translateX(2px) !important;
+}
+
+.pwa-nav-item.is-active {
+  background: var(--pwa-pink) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 26px rgba(251, 47, 125, 0.22) !important;
+  transform: none !important;
+}
+
+.pwa-nav-item.is-active:hover {
+  background: var(--pwa-pink) !important;
+  color: #ffffff !important;
+  transform: none !important;
+}
+
+/* =========================================================
+   PAGE BASE
+========================================================= */
+.pwa-page,
+.pwa-dashboard-page,
+.pwa-profile-page,
+.pwa-settings-page,
+.pwa-medicalrecords-page,
+.pwa-appointments-page,
+.pwa-reminders-page {
+  width: 100% !important;
+  max-width: none !important;
+  animation: pwaPageIn 220ms ease both;
+}
+
+@keyframes pwaPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pwa-page-title {
+  width: 100%;
+  min-height: 66px;
+  margin-bottom: 28px;
+  padding-right: 300px;
+}
+
+.pwa-page-title h1 {
+  margin: 0;
+  color: var(--pwa-text);
+  font-family: "Poppins", sans-serif;
+  font-size: 34px;
+  line-height: 42px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.pwa-page-title p {
+  margin: 5px 0 0;
+  color: var(--pwa-muted);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+/* =========================================================
+   TOP RIGHT PROFILE
+========================================================= */
+.pwa-top-profile {
+  position: absolute;
+  top: 30px;
+  right: 32px;
+  z-index: 100;
+}
+
+.pwa-profile-pill {
+  width: 236px;
+  height: 56px;
+  border: 1px solid var(--pwa-card-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 32px rgba(22, 29, 45, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 6px 14px 6px 8px;
+  color: var(--pwa-text);
+}
+
+.pwa-profile-pill-avatar,
+.pwa-avatar-fallback {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 3px solid var(--pwa-pink);
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #ffe5ef;
+  color: var(--pwa-pink);
+  font-weight: 800;
+}
+
+.pwa-profile-pill-copy {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.pwa-profile-pill-copy strong {
+  display: block;
+  color: var(--pwa-text);
+  font-size: 15px;
+  line-height: 19px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pwa-profile-pill-copy small {
+  display: block;
+  color: #8794a8;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+}
+
+.pwa-profile-pill > svg {
+  color: var(--pwa-pink);
+  width: 18px;
+  height: 18px;
+  transition: transform 180ms ease;
+}
+
+.pwa-profile-pill.is-open > svg {
+  transform: rotate(180deg);
+}
+
+.pwa-profile-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 12px);
+  width: 230px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 26px 52px rgba(22, 29, 45, 0.16);
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.pwa-profile-menu button {
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--pwa-text);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 800;
+}
+
+.pwa-profile-menu button:hover {
+  background: var(--pwa-pink-soft);
+  color: var(--pwa-pink);
+}
+
+.pwa-profile-menu .pwa-profile-logout {
+  color: #d9325f;
+}
+
+.pwa-profile-menu .pwa-profile-logout:hover {
+  background: #fff0f4;
+  color: #c20b42;
+}
+
+.pwa-profile-menu svg {
+  width: 17px;
+  height: 17px;
+  color: inherit;
+}
+
+/* =========================================================
+   EMPTY CARD
+========================================================= */
+.pwa-empty-card {
+  width: 100%;
+  min-height: 300px;
+  border-radius: 24px;
+  background: #ffffff;
+  border: 1px solid var(--pwa-card-border);
+  box-shadow: var(--pwa-soft-shadow);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.pwa-empty-card svg {
+  width: 54px;
+  height: 54px;
+  color: var(--pwa-pink);
+}
+
+.pwa-empty-card h2,
+.pwa-empty-card p {
+  margin: 0;
+}
+
+.pwa-empty-card p {
+  color: var(--pwa-muted);
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+@media (max-width: 1100px) {
+  .pwa-shell {
+    grid-template-columns: 92px minmax(0, 1fr) !important;
+  }
+
+  .pwa-sidebar {
+    width: 92px !important;
+    min-width: 92px !important;
+    max-width: 92px !important;
+    padding: 26px 10px !important;
+  }
+
+  .pwa-brand {
+    justify-content: center !important;
+    padding: 0 !important;
+    margin-bottom: 46px !important;
+  }
+
+  .pwa-brand div {
+    display: none !important;
+  }
+
+  .pwa-nav {
+    gap: 11px !important;
+  }
+
+  .pwa-nav-item {
+    width: 58px !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    border-radius: 18px !important;
+  }
+
+  .pwa-nav-item span {
+    display: none !important;
+  }
+
+  .pwa-main {
+    padding: 26px 26px 44px !important;
+  }
+
+  .pwa-top-profile {
+    right: 26px;
+    top: 26px;
+  }
+
+  .pwa-page-title {
+    padding-right: 270px;
+  }
+}
+
+@media (max-width: 780px) {
+  .pwa-shell {
+    display: block !important;
+    min-height: 100dvh !important;
+  }
+
+  .pwa-sidebar {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom)) !important;
+    border-right: 0 !important;
+    border-top: 1px solid var(--pwa-border) !important;
+    border-bottom: 0 !important;
+    box-shadow: 0 -14px 32px rgba(22, 29, 45, 0.08) !important;
+    overflow: visible !important;
+  }
+
+  .pwa-brand {
+    display: none !important;
+  }
+
+  .pwa-nav {
+    flex-direction: row !important;
+    gap: 6px !important;
+    overflow-x: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .pwa-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pwa-nav-item {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    padding: 6px 4px !important;
+    margin: 0 !important;
+    border-radius: 14px !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    font-size: 11px !important;
+    line-height: 14px !important;
+  }
+
+  .pwa-nav-item span {
+    display: inline-block !important;
+  }
+
+  .pwa-nav-item svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .pwa-main {
+    position: relative !important;
+    min-height: 100dvh !important;
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .pwa-top-profile {
+    position: absolute;
+    top: calc(16px + env(safe-area-inset-top));
+    right: 14px;
+    width: max-content;
+    margin-bottom: 0;
+  }
+
+  .pwa-top-profile.is-open {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    border: 1px solid var(--pwa-card-border);
+    border-radius: 28px;
+    background: #ffffff;
+    box-shadow: 0 14px 34px rgba(22, 29, 45, 0.08);
+    overflow: hidden;
+  }
+
+  .pwa-profile-pill,
+  .pwa-profile-menu {
+    width: 100%;
+  }
+
+  .pwa-profile-pill {
+    width: 62px;
+    height: 62px;
+    padding: 6px;
+    border-radius: 999px;
+    justify-content: center;
+    transition:
+      width 180ms ease,
+      border-radius 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .pwa-top-profile:not(.is-open) .pwa-profile-pill-copy,
+  .pwa-top-profile:not(.is-open) .pwa-profile-pill > svg {
+    display: none;
+  }
+
+  .pwa-top-profile.is-open .pwa-profile-pill {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 6px 14px 6px 8px;
+    border-color: transparent;
+    border-radius: 28px 28px 18px 18px;
+    box-shadow: none;
+  }
+
+  .pwa-profile-menu {
+    position: relative;
+    top: auto;
+    margin-top: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 4px 14px 16px;
+    gap: 10px;
+  }
+
+  .pwa-profile-menu button {
+    min-height: 52px;
+    height: auto;
+    border-radius: 16px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  .pwa-profile-menu svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .pwa-page-title {
+    padding-right: 76px;
+    min-height: 62px;
+    margin-bottom: 22px;
+  }
+
+  .pwa-main.is-profile-open .pwa-content {
+    padding-top: 330px;
+  }
+
+  .pwa-page-title h1 {
+    font-size: 28px;
+    line-height: 34px;
+  }
+}
+
+@media (max-width: 520px) {
+  .pwa-main {
+    padding-inline: 12px !important;
+  }
+
+  .pwa-top-profile {
+    right: 12px;
+  }
+
+  .pwa-top-profile.is-open {
+    left: 12px;
+    right: 12px;
+  }
+
+  .pwa-nav {
+    gap: 4px !important;
+  }
+
+  .pwa-nav-item {
+    height: 54px !important;
+    min-height: 54px !important;
+    padding: 6px 2px !important;
+  }
+
+  .pwa-nav-item span {
+    display: none !important;
+  }
+
+  .pwa-page-title h1 {
+    font-size: 26px;
+    line-height: 32px;
+  }
+}

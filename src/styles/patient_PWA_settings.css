@@ -1,0 +1,635 @@
+.pwa-settings-page {
+  max-width: 1040px;
+}
+
+.pwa-settings-title {
+  margin-bottom: 22px;
+}
+
+.pwa-settings-title p {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pwa-settings-title p svg {
+  width: 14px;
+  height: 14px;
+  color: #9aa8bc;
+}
+
+.pwa-settings-title p span {
+  color: var(--pwa-pink);
+  font-weight: 800;
+}
+
+.pwa-settings-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.pwa-settings-tabs,
+.pwa-settings-card {
+  border: 1px solid var(--pwa-border);
+  background: #ffffff;
+  box-shadow: var(--pwa-soft-shadow);
+  border-radius: 18px;
+}
+
+.pwa-settings-tabs {
+  overflow: hidden;
+  padding: 12px;
+}
+
+.pwa-settings-tabs button {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #5f6d84;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 15px;
+  text-align: left;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+  transition: 180ms ease;
+}
+
+.pwa-settings-tabs button svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.pwa-settings-tabs button:hover,
+.pwa-settings-tabs button.is-active {
+  background: #ffe8f1;
+  color: var(--pwa-pink);
+}
+
+.pwa-settings-content {
+  min-width: 0;
+  padding-bottom: 72px;
+}
+
+.pwa-settings-section-header {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.pwa-settings-section-header > span {
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: var(--pwa-pink-soft);
+  color: var(--pwa-pink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 25px rgba(255, 61, 131, 0.16);
+}
+
+.pwa-settings-section-header svg {
+  width: 24px;
+  height: 24px;
+}
+
+.pwa-settings-section-header h2 {
+  margin: 0;
+  color: var(--pwa-text);
+  font-family: "Poppins", sans-serif;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.pwa-settings-section-header p {
+  margin: 2px 0 0;
+  color: #8a98ae;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.pwa-settings-card {
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.pwa-settings-card > header {
+  min-height: 74px;
+  border-bottom: 1px solid #edf1f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px;
+}
+
+.pwa-settings-card > header h3 {
+  margin: 0;
+  color: var(--pwa-pink);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 800;
+}
+
+.pwa-settings-card-violet > header h3 {
+  color: #8957ff;
+}
+
+.pwa-settings-card > header button {
+  min-width: 92px;
+  height: 38px;
+  border: 1px solid var(--pwa-pink);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--pwa-pink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pwa-settings-info-grid {
+  padding: 28px 30px 30px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 56px;
+}
+
+.pwa-settings-info-grid article {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.pwa-settings-info-grid article > span,
+.pwa-account-status-card header > span,
+.pwa-status-row > span {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: var(--pwa-pink-soft);
+  color: var(--pwa-pink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pwa-settings-card-violet .pwa-settings-info-grid article > span {
+  background: #f2edff;
+  color: #8957ff;
+}
+
+.pwa-settings-info-grid svg,
+.pwa-status-row svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pwa-settings-info-grid small {
+  display: block;
+  color: #9aa8bc;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pwa-settings-info-grid strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--pwa-text);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.pwa-settings-info-grid .is-wide {
+  grid-column: span 2;
+}
+
+.pwa-settings-note {
+  grid-column: span 2;
+  margin: 8px -30px -30px;
+  min-height: 64px;
+  background: #f6f8fb;
+  color: #8794a8;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 30px;
+  font-size: 13px;
+  line-height: 20px;
+  font-style: italic;
+}
+
+.pwa-settings-note svg {
+  color: #8292aa;
+}
+
+.pwa-save-fixed {
+  float: right;
+  min-width: 180px;
+  height: 56px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--pwa-pink), var(--pwa-pink-2));
+  color: #ffffff;
+  box-shadow: 0 16px 26px rgba(255, 61, 131, 0.28);
+  font-weight: 800;
+}
+
+.pwa-account-card {
+  padding-bottom: 28px;
+}
+
+.pwa-account-form {
+  padding: 28px 32px 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.pwa-account-form label span,
+.pwa-password-field > span {
+  display: block;
+  margin-bottom: 10px;
+  color: #596579;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pwa-account-form input,
+.pwa-password-field input {
+  width: 100%;
+  height: 46px;
+  border: 1px solid #c9cde0;
+  border-radius: 10px;
+  background: #f9fafc;
+  color: var(--pwa-text);
+  padding: 0 14px;
+  outline: none;
+}
+
+.pwa-account-form input:focus,
+.pwa-password-field input:focus {
+  border-color: var(--pwa-pink);
+  background: #ffffff;
+}
+
+.pwa-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 32px;
+}
+
+.pwa-account-actions button,
+.pwa-full-save {
+  min-width: 168px;
+  height: 52px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.pwa-account-actions .is-solid,
+.pwa-full-save {
+  border: 0;
+  background: linear-gradient(135deg, var(--pwa-pink), var(--pwa-pink-2));
+  color: #ffffff;
+  box-shadow: 0 16px 26px rgba(255, 61, 131, 0.26);
+}
+
+.pwa-account-actions .is-outline {
+  border: 1.5px solid var(--pwa-pink);
+  background: #ffffff;
+  color: var(--pwa-pink);
+}
+
+.pwa-account-status-card {
+  padding: 24px 32px;
+}
+
+.pwa-account-status-card header {
+  min-height: auto;
+  border-bottom: 0;
+  padding: 0 0 20px;
+  justify-content: flex-start;
+}
+
+.pwa-account-status-card header h3 {
+  color: var(--pwa-text);
+  font-size: 22px;
+}
+
+.pwa-status-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 0;
+}
+
+.pwa-status-row strong {
+  display: block;
+  color: var(--pwa-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pwa-status-row small {
+  display: block;
+  margin-top: 3px;
+  color: #66758d;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.pwa-status-row em {
+  min-width: 54px;
+  height: 20px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #16a05d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.pwa-status-row em.is-purple {
+  background: #ede9fe;
+  color: #7c63ff;
+}
+
+.pwa-security-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.85fr);
+  gap: 18px;
+}
+
+.pwa-password-card,
+.pwa-security-card,
+.pwa-notification-card {
+  padding: 30px;
+}
+
+.pwa-password-card > header,
+.pwa-security-card > header,
+.pwa-notification-card > header {
+  min-height: auto;
+  border-bottom: 0;
+  padding: 0 0 22px;
+  justify-content: flex-start;
+}
+
+.pwa-password-card > header svg,
+.pwa-security-card > header svg {
+  color: var(--pwa-pink);
+  width: 22px;
+  height: 22px;
+}
+
+.pwa-password-card > header h3,
+.pwa-security-card > header h3,
+.pwa-notification-card > header h3 {
+  color: var(--pwa-text);
+  font-size: 22px;
+  line-height: 28px;
+}
+
+.pwa-password-field {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.pwa-password-field div {
+  position: relative;
+}
+
+.pwa-password-field button {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #4b5265;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pwa-password-field button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.pwa-password-help {
+  min-height: 56px;
+  border-radius: 10px;
+  background: #f0f1f4;
+  color: #515b6e;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.pwa-password-help svg {
+  flex-shrink: 0;
+}
+
+.pwa-full-save {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.pwa-security-toggle {
+  min-height: 126px;
+  border-radius: 14px;
+  background: #f0f1f4;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pwa-security-toggle h4 {
+  margin: 0 0 8px;
+  color: var(--pwa-text);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.pwa-security-toggle p {
+  margin: 0;
+  color: #545c6d;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.pwa-security-toggle > button {
+  justify-self: end;
+  align-self: center;
+  width: 44px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #ccd3df;
+  padding: 2px;
+  transition: 180ms ease;
+}
+
+.pwa-security-toggle > button span {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  display: block;
+  transition: 180ms ease;
+}
+
+.pwa-security-toggle > button.is-on {
+  background: var(--pwa-pink);
+}
+
+.pwa-security-toggle > button.is-on span {
+  transform: translateX(20px);
+}
+
+@media (max-width: 1100px) {
+  .pwa-settings-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 22px;
+  }
+
+  .pwa-security-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  .pwa-settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-settings-tabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+  }
+
+  .pwa-settings-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pwa-settings-tabs button {
+    min-width: 180px;
+  }
+
+  .pwa-settings-info-grid,
+  .pwa-account-form {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-settings-info-grid .is-wide,
+  .pwa-settings-note {
+    grid-column: auto;
+  }
+
+  .pwa-account-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pwa-account-actions button {
+    width: 100%;
+  }
+
+  .pwa-save-fixed {
+    width: 100%;
+    float: none;
+  }
+}
+
+/* =========================================================
+   FINAL SETTINGS WIDTH FIX
+   Keep settings text size unchanged, but let settings cards fill
+   more horizontal space and remove the large blank right side.
+========================================================= */
+.pwa-settings-page {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.pwa-settings-layout {
+  width: 100% !important;
+  grid-template-columns: 250px minmax(0, 1fr) !important;
+  gap: 34px !important;
+}
+
+.pwa-settings-content,
+.pwa-settings-card,
+.pwa-account-status-card,
+.pwa-security-grid {
+  width: 100% !important;
+}
+
+.pwa-settings-card {
+  max-width: none !important;
+}
+
+.pwa-security-grid {
+  grid-template-columns: minmax(420px, 1.05fr) minmax(300px, 0.85fr) !important;
+}
+
+@media (max-width: 1100px) {
+  .pwa-settings-layout {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+    gap: 22px !important;
+  }
+
+  .pwa-security-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 780px) {
+  .pwa-settings-layout {
+    grid-template-columns: 1fr !important;
+  }
+}

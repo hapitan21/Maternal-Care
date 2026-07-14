@@ -1,0 +1,3496 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --mr-bg: #fafafc;
+  --mr-card: #ffffff;
+  --mr-pink: #fb387e;
+  --mr-pink-2: #ff4d73;
+  --mr-soft-pink: #fee1e9;
+  --mr-soft-pink-2: #fde1e8;
+  --mr-text: #4d494a;
+  --mr-muted: rgba(77, 73, 74, 0.48);
+  --mr-border: rgba(77, 73, 74, 0.3);
+  --mr-shadow: 0 4px 23px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* 
+  Put only the medical records content inside .medical-records-page.
+  Keep your sidebar outside this container so the sidebar will stay put.
+*/
+
+.medical-records-page {
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  background: var(--mr-bg);
+  color: var(--mr-text);
+  font-family: "Poppins", sans-serif;
+  padding: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+.medical-records-page::-webkit-scrollbar {
+  width: 8px;
+}
+
+.medical-records-page::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.medical-records-page::-webkit-scrollbar-thumb {
+  background: rgba(251, 56, 126, 0.25);
+  border-radius: 20px;
+}
+
+.medical-records-page::-webkit-scrollbar-thumb:hover {
+  background: rgba(251, 56, 126, 0.45);
+}
+
+.medical-records-content {
+  width: min(998px, 100%);
+  margin: 0 auto;
+  padding-bottom: 32px;
+}
+
+.doctor-dashboard .medical-records-page {
+  padding: 24px 16px 24px 0;
+}
+
+.doctor-dashboard--medicalRecords .doctor-main {
+  padding-left: 10px;
+}
+
+.doctor-dashboard .medical-records-content {
+  width: calc(100% - 28px);
+  margin-right: auto;
+  margin-left: 28px;
+}
+
+/* TOP */
+
+.mr-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.mr-back-btn,
+.mr-edit-btn,
+.mr-tab,
+.mr-outline-btn,
+.mr-link-btn {
+  border: none;
+  background: transparent;
+  font-family: "Poppins", sans-serif;
+  cursor: pointer;
+}
+
+.mr-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--mr-pink);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: -0.05em;
+}
+
+.mr-back-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mr-edit-btn {
+  min-width: 146px;
+  height: 38px;
+  border: 1px solid var(--mr-pink-2);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--mr-pink-2);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+.mr-page-header {
+  margin-bottom: 20px;
+}
+
+.mr-page-header h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 45px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+}
+
+.mr-page-header p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+  letter-spacing: -0.05em;
+}
+
+/* PATIENT CARD */
+
+.mr-patient-card {
+  min-height: 205px;
+  background: var(--mr-card);
+  box-shadow: var(--mr-shadow);
+  border-radius: 15px;
+  padding: 27px 19px;
+  display: grid;
+  grid-template-columns: 1fr 303px;
+  gap: 28px;
+  margin-bottom: 10px;
+}
+
+.mr-patient-main {
+  display: flex;
+  gap: 21px;
+  align-items: flex-start;
+}
+
+.mr-avatar {
+  width: 98px;
+  height: 98px;
+  border-radius: 50%;
+  flex: 0 0 98px;
+  background: linear-gradient(135deg, #ffc1d4, #fb387e);
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}
+
+.mr-patient-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mr-name-row {
+  display: flex;
+  align-items: center;
+  gap: 19px;
+  margin-bottom: 1px;
+}
+
+.mr-name-row h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 30px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+}
+
+.mr-status {
+  min-width: 87px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mr-soft-pink-2);
+  border-radius: 5px;
+  color: var(--mr-pink-2);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: -0.05em;
+}
+
+.mr-patient-id {
+  margin: 0 0 18px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: -0.05em;
+}
+
+.mr-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.mr-details-column {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mr-divider {
+  width: 1px;
+  height: 94px;
+  background: var(--mr-border);
+}
+
+.mr-info-row {
+  display: grid;
+  grid-template-columns: 20px auto 1fr;
+  gap: 21px 14px;
+  align-items: center;
+  font-family: "Inter", sans-serif;
+  font-size: 11px;
+  line-height: 13px;
+  color: var(--mr-text);
+}
+
+.mr-info-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--mr-pink);
+}
+
+.mr-info-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mr-info-value {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* CURRENT PREGNANCY */
+
+.mr-pregnancy-box {
+  min-height: 147px;
+  border-radius: 15px;
+  background: rgba(255, 193, 212, 0.4);
+  padding: 20px 15px;
+}
+
+.mr-pregnancy-box h3 {
+  margin: 0 0 15px;
+  color: var(--mr-pink);
+  font-family: "Inter", sans-serif;
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.mr-pregnancy-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mr-pregnancy-list div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+  font-family: "Inter", sans-serif;
+  font-size: 11px;
+  line-height: 13px;
+}
+
+.mr-pregnancy-list strong {
+  font-weight: 600;
+}
+
+.mr-pregnancy-list span {
+  font-weight: 400;
+}
+
+.mr-risk {
+  width: 62px;
+  height: 19px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 5px;
+  background: #c8ffcc;
+  color: #00b783;
+  font-family: "Poppins", sans-serif;
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: -0.05em;
+}
+
+/* MAIN RECORD PANEL */
+
+.mr-record-panel {
+  background: var(--mr-bg);
+  box-shadow: var(--mr-shadow);
+  border-radius: 15px;
+  padding: 20px 13px 24px;
+  overflow: visible;
+}
+
+/* CATEGORIES / TABS */
+
+.mr-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 10px;
+  width: 100%;
+  border-bottom: 1px solid var(--mr-border);
+  padding-bottom: 16px;
+  margin-bottom: 23px;
+  overflow: visible;
+}
+
+.mr-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.mr-tab {
+  position: relative;
+  flex: 0 1 auto;
+  padding: 0;
+  color: var(--mr-text);
+  font-size: 13px;
+  line-height: 24px;
+  font-weight: 500;
+  white-space: nowrap;
+  letter-spacing: -0.05em;
+}
+
+.mr-tab.active {
+  color: var(--mr-pink);
+}
+
+.mr-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -19px;
+  width: 69px;
+  max-width: 100%;
+  height: 6px;
+  border-radius: 20px;
+  background: var(--mr-pink);
+}
+
+/* GRID LAYOUT */
+
+.mr-panel-grid {
+  display: grid;
+  grid-template-columns: 353px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.mr-overview-left,
+.mr-overview-right {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.mr-overview-right {
+  gap: 18px;
+}
+
+.mr-overview-bottom {
+  display: grid;
+  grid-template-columns: 235px minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+
+.mr-prenatal-scroll {
+  max-height: min(540px, calc(100vh - 430px));
+  display: grid;
+  gap: 22px;
+  padding: 0 3px 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  scroll-padding-top: 2px;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(251, 56, 126, 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+.mr-prenatal-scroll:focus {
+  outline: none;
+}
+
+.mr-prenatal-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.mr-prenatal-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mr-prenatal-scroll::-webkit-scrollbar-thumb {
+  background: rgba(251, 56, 126, 0.25);
+  border-radius: 20px;
+}
+
+.mr-prenatal-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(251, 56, 126, 0.45);
+}
+
+.mr-prenatal-card {
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 18px 20px;
+  scroll-margin-top: 2px;
+}
+
+.mr-prenatal-title {
+  margin: 0;
+  color: var(--mr-pink-2);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+}
+
+.mr-prenatal-rule {
+  margin: 12px 0 18px;
+  border: 0;
+  border-top: 1px solid var(--mr-border);
+}
+
+.mr-obstetric-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 20px;
+}
+
+.mr-obstetric-stat {
+  min-width: 0;
+  min-height: 73px;
+  display: grid;
+  place-items: center;
+  padding: 9px 8px;
+  border: 1px solid var(--mr-border);
+  border-radius: 15px;
+  text-align: center;
+}
+
+.mr-obstetric-stat strong,
+.mr-obstetric-stat span {
+  display: block;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.05em;
+}
+
+.mr-obstetric-stat strong {
+  font-weight: 600;
+}
+
+.mr-obstetric-stat span {
+  font-weight: 400;
+}
+
+.mr-prenatal-subtitle {
+  margin: 0 0 18px;
+  color: var(--mr-text);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+}
+
+.mr-prenatal-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 15px;
+  background: #ffffff;
+}
+
+.mr-prenatal-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  letter-spacing: -0.05em;
+}
+
+.mr-prenatal-table--narrow {
+  width: min(608px, 100%);
+  margin: 0 auto;
+}
+
+.mr-prenatal-table--wide {
+  min-width: 880px;
+}
+
+.mr-prenatal-table th {
+  padding: 12px;
+  background: var(--mr-pink);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.mr-prenatal-table th:first-child {
+  border-top-left-radius: 15px;
+}
+
+.mr-prenatal-table th:last-child {
+  border-top-right-radius: 15px;
+}
+
+.mr-prenatal-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--mr-border);
+  font-weight: 400;
+}
+
+.mr-prenatal-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.mr-prenatal-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 48px;
+  padding: 0 8px;
+}
+
+.mr-prenatal-info-column {
+  display: grid;
+  gap: 12px;
+}
+
+.mr-prenatal-info-row {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) 1fr;
+  gap: 24px;
+  align-items: center;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.05em;
+}
+
+.mr-prenatal-info-row strong {
+  font-weight: 600;
+}
+
+.mr-prenatal-info-row span {
+  font-weight: 400;
+}
+
+.mr-low-risk-badge {
+  width: 62px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: #c8ffcc;
+  color: #00b783;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.mr-condition-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px 32px;
+  padding: 4px 12px 0;
+}
+
+.mr-condition-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.05em;
+}
+
+.mr-condition-box {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 18px;
+  border: 2px solid var(--mr-pink-2);
+  color: var(--mr-pink-2);
+}
+
+.mr-condition-box svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mr-empty-tab {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  background: var(--mr-card);
+  box-shadow: var(--mr-shadow);
+  border-radius: 15px;
+  color: var(--mr-text);
+  font-size: 14px;
+  letter-spacing: -0.05em;
+}
+
+.mr-card {
+  background: var(--mr-card);
+  box-shadow: var(--mr-shadow);
+  border-radius: 15px;
+  padding: 13px 18px;
+  min-width: 0;
+}
+
+.mr-last-visit-card {
+  min-height: 244px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mr-progress-card {
+  min-height: 206px;
+  padding: 14px 16px 24px;
+}
+
+.mr-vitals-card {
+  min-height: 244px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mr-schedule-card {
+  min-height: 287px;
+  padding: 15px 17px;
+}
+
+.mr-notes-card {
+  min-height: 287px;
+  padding: 15px 17px;
+  position: relative;
+}
+
+/* SECTION HEADER */
+
+.mr-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 29px;
+}
+
+.mr-section-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mr-icon-badge {
+  width: 35px;
+  height: 35px;
+  border-radius: 30px;
+  background: radial-gradient(
+    76.15% 50% at 50% 50%,
+    #ffc1d4 50%,
+    #ffe8ef 100%
+  );
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.mr-icon-badge svg {
+  width: 23px;
+  height: 23px;
+  color: var(--mr-pink);
+}
+
+.mr-section-title-text {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mr-section-title-text h3,
+.mr-progress-header h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+}
+
+.mr-section-title-text span {
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: -0.05em;
+}
+
+.mr-link-btn {
+  padding: 0;
+  color: #ff4d73;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  flex-shrink: 0;
+}
+
+/* LAST VISIT + VITALS */
+
+.mr-card-body {
+  border-bottom: 1px solid var(--mr-border);
+  padding-bottom: 21px;
+  display: grid;
+  gap: 8px;
+  font-family: "Inter", sans-serif;
+}
+
+.mr-record-row {
+  display: grid;
+  grid-template-columns: 128px 1fr;
+  gap: 15px;
+  font-size: 12px;
+  line-height: 15px;
+}
+
+.mr-record-row strong,
+.mr-record-stack strong {
+  font-weight: 600;
+}
+
+.mr-record-row span,
+.mr-record-stack span {
+  font-weight: 400;
+}
+
+.mr-record-stack {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 15px;
+}
+
+.mr-outline-btn {
+  align-self: center;
+  min-width: 143px;
+  height: 42px;
+  margin-top: auto;
+  background: #ffffff;
+  border: 1px solid var(--mr-pink-2);
+  border-radius: 8px;
+  color: var(--mr-pink-2);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+.mr-vitals-card .mr-card-body {
+  gap: 10px;
+}
+
+/* PREGNANCY PROGRESS */
+
+.mr-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 22px;
+  font-family: "Inter", sans-serif;
+}
+
+.mr-progress-header h3,
+.mr-progress-header strong {
+  font-family: "Inter", sans-serif;
+  font-size: 16px;
+  line-height: 19px;
+  font-weight: 600;
+}
+
+.mr-progress-bar {
+  width: 100%;
+  height: 13px;
+  border-radius: 30px;
+  background: rgba(255, 193, 212, 0.7);
+  overflow: hidden;
+  margin-bottom: 35px;
+}
+
+.mr-progress-bar span {
+  display: block;
+  width: 58%;
+  height: 100%;
+  border-radius: 30px;
+  background: var(--mr-pink);
+}
+
+.mr-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.mr-stat-card {
+  min-height: 73px;
+  border-radius: 15px;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.08);
+  padding: 9px 8px;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.mr-stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(
+    76.15% 50% at 50% 50%,
+    #ffc1d4 50%,
+    #ffe8ef 100%
+  );
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.mr-stat-icon svg {
+  width: 20px;
+  height: 20px;
+  color: var(--mr-pink);
+}
+
+.mr-stat-card p,
+.mr-stat-card strong,
+.mr-stat-card span {
+  display: block;
+  margin: 0;
+  font-family: "Poppins", sans-serif;
+  letter-spacing: -0.05em;
+}
+
+.mr-stat-card p {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.mr-stat-card strong {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+.mr-stat-card span {
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 400;
+}
+
+.mr-stat-card.purple {
+  background: #f1ecff;
+  color: #8269c5;
+}
+
+.mr-stat-card.pink {
+  background: #ffd5e2;
+  color: #ec5686;
+}
+
+.mr-stat-card.yellow {
+  background: #fff2dc;
+  color: #d19020;
+}
+
+.mr-stat-card.green {
+  background: #ddfff4;
+  color: #328d71;
+}
+
+/* BABY POSITION ICON */
+
+.mr-baby-position-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--mr-pink);
+  background: radial-gradient(
+    76.15% 50% at 50% 50%,
+    #ffc1d4 50%,
+    #ffe8ef 100%
+  );
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.mr-stat-card.yellow .mr-baby-position-icon svg {
+  width: 20px;
+  height: 20px;
+  color: var(--mr-pink);
+}
+
+.mr-stat-card.yellow .mr-baby-position-icon svg [fill]:not([fill="none"]) {
+  fill: currentColor;
+}
+
+.mr-stat-card.yellow .mr-baby-position-icon svg [stroke]:not([stroke="none"]) {
+  stroke: currentColor;
+}
+
+/* NEXT SCHEDULE */
+
+.mr-schedule-card .mr-section-header {
+  margin-bottom: 25px;
+}
+
+.mr-schedule-card .mr-section-title-wrap {
+  gap: 10px;
+}
+
+.mr-schedule-card .mr-icon-badge {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  background: #fee1e9;
+  box-shadow: 0 4px 18px rgba(251, 56, 126, 0.18);
+}
+
+.mr-schedule-card .mr-icon-badge svg {
+  width: 20px;
+  height: 20px;
+  color: var(--mr-pink);
+}
+
+.mr-schedule-card .mr-section-title-text h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  color: var(--mr-text);
+}
+
+.mr-schedule-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-left: 9px;
+  font-family: "Inter", sans-serif;
+  color: var(--mr-text);
+}
+
+.mr-dot-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--mr-pink);
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
+.mr-schedule-content div {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mr-schedule-content strong {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.mr-schedule-content span {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 15px;
+}
+
+/* NOTES */
+
+.mr-notes-card .mr-section-header {
+  margin-bottom: 25px;
+}
+
+.mr-notes-card .mr-section-title-wrap {
+  gap: 10px;
+}
+
+.mr-notes-card .mr-icon-badge {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  background: #fee1e9;
+  box-shadow: 0 4px 18px rgba(251, 56, 126, 0.18);
+}
+
+.mr-notes-card .mr-icon-badge svg {
+  width: 20px;
+  height: 20px;
+  color: var(--mr-pink);
+}
+
+.mr-notes-card .mr-section-title-text h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  color: var(--mr-text);
+}
+
+.mr-notes-text {
+  margin: 10px 8px 0 31px;
+  font-family: "Inter", sans-serif;
+  color: var(--mr-text);
+}
+
+.mr-notes-text p {
+  margin: 0 0 14px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 15px;
+}
+
+.mr-notes-text strong {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 1px;
+}
+
+.mr-last-updated {
+  position: absolute;
+  left: 17px;
+  bottom: 15px;
+  color: rgba(77, 73, 74, 0.45);
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 400;
+  letter-spacing: -0.05em;
+}
+
+/* APPOINTMENTS */
+
+.mr-appointments-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.mr-appointment-summary {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.mr-appointment-summary-card {
+  min-width: 0;
+  width: 100%;
+  height: 73px;
+  min-height: 73px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-radius: 15px;
+  padding: 9px 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.08);
+}
+
+.mr-appointment-summary-icon {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fb387e;
+  background: #fee1e9;
+}
+
+.mr-appointment-summary-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    76.15% 50% at 50% 50%,
+    #ffc1d4 50%,
+    #ffe8ef 100%
+  );
+  filter: blur(12.5px);
+}
+
+.mr-appointment-summary-icon svg {
+  position: relative;
+  z-index: 1;
+  color: #fb387e;
+}
+
+.mr-appointment-summary-icon.is-calendar svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mr-appointment-summary-icon.is-check svg {
+  width: 21px;
+  height: 21px;
+}
+
+.mr-appointment-summary-icon.is-clock svg,
+.mr-appointment-summary-icon.is-close svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mr-appointment-summary-icon.is-attendance svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mr-appointment-summary-content {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  color: inherit;
+  font-family: "Poppins", sans-serif;
+}
+
+.mr-appointment-summary-card p,
+.mr-appointment-summary-card strong,
+.mr-appointment-summary-card small {
+  display: block;
+  margin: 0;
+  color: inherit;
+  letter-spacing: -0.05em;
+}
+
+.mr-appointment-summary-card p {
+  min-height: 0;
+  max-width: 83px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.mr-appointment-summary-card strong {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+.mr-appointment-summary-card small {
+  min-height: 0;
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 400;
+}
+
+.mr-appointment-summary-card.purple {
+  color: #8269c5;
+  background: #f1ecff;
+}
+
+.mr-appointment-summary-card.pink {
+  color: #ec5686;
+  background: #ffd5e2;
+}
+
+.mr-appointment-summary-card.yellow {
+  color: #d19020;
+  background: #fff2dc;
+}
+
+.mr-appointment-summary-card.green {
+  color: #328d71;
+  background: #ddfff4;
+}
+
+.mr-appointment-summary-card.blue {
+  color: #32668d;
+  background: #ddebff;
+}
+
+.mr-appointment-feature-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.mr-upcoming-appointments-card,
+.mr-appointment-timeline-card,
+.mr-appointment-history-card {
+  padding: 18px;
+}
+
+.mr-upcoming-appointments-card,
+.mr-appointment-timeline-card {
+  min-height: 330px;
+}
+
+.mr-appointment-timeline-card .mr-appointment-section-header h3 {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.mr-appointment-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--mr-border);
+  padding: 0 0 16px;
+  margin-bottom: 20px;
+}
+
+.mr-appointment-section-header h3,
+.mr-appointment-history-card > h3 {
+  margin: 0;
+  color: var(--mr-pink-2);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.mr-appointment-section-header button {
+  border: 0;
+  color: var(--mr-pink-2);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+}
+
+.mr-next-appointment {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border-radius: 8px;
+  background: #fff6f8;
+  padding: 16px;
+}
+
+.mr-next-appointment > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--mr-pink);
+  background: #fee1e9;
+}
+
+.mr-next-appointment > span svg {
+  width: 24px;
+  height: 24px;
+}
+
+.mr-next-appointment strong,
+.mr-next-appointment p,
+.mr-next-appointment small {
+  display: block;
+  margin: 0;
+}
+
+.mr-next-appointment strong { font-size: 14px; }
+.mr-next-appointment p { margin-top: 4px; font-size: 13px; }
+.mr-next-appointment small { margin-top: 3px; font-size: 12px; }
+
+.mr-next-appointment time {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.mr-next-appointment time svg {
+  width: 18px;
+  height: 18px;
+  color: var(--mr-pink);
+}
+
+.mr-appointment-timeline {
+  height: 230px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px 8px 4px 10px;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(251, 56, 126, 0.45) transparent;
+  scrollbar-width: thin;
+}
+
+.mr-appointment-timeline:focus {
+  outline: none;
+}
+
+.mr-appointment-timeline::-webkit-scrollbar {
+  width: 7px;
+}
+
+.mr-appointment-timeline::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mr-appointment-timeline::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(251, 56, 126, 0.4);
+}
+
+.mr-appointment-timeline article {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 82px;
+  padding-bottom: 8px;
+  color: var(--mr-text);
+}
+
+.mr-appointment-timeline article:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  bottom: -2px;
+  left: 9px;
+  width: 1.5px;
+  background: currentColor;
+}
+
+.mr-appointment-timeline article.is-completed { color: var(--mr-pink); }
+.mr-appointment-timeline article.is-upcoming { color: #d48b14; }
+
+.mr-appointment-timeline-marker {
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 3px solid currentColor;
+  border-radius: 50%;
+  color: inherit;
+  background: #ffffff;
+}
+
+.is-completed .mr-appointment-timeline-marker {
+  border: 0;
+  color: #ffffff;
+  background: var(--mr-pink);
+}
+
+.is-upcoming .mr-appointment-timeline-marker {
+  position: relative;
+  border-right-color: transparent;
+  transform: rotate(-18deg);
+}
+
+.is-upcoming .mr-appointment-timeline-marker::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  bottom: -1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mr-appointment-timeline-marker svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mr-appointment-timeline article > div {
+  color: var(--mr-text);
+}
+
+.mr-appointment-timeline strong,
+.mr-appointment-timeline p,
+.mr-appointment-timeline small {
+  display: block;
+  margin: 0;
+}
+
+.mr-appointment-timeline strong {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.mr-appointment-timeline p {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.mr-appointment-timeline small {
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.mr-appointment-timeline mark {
+  min-width: 68px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  align-self: start;
+  margin: 0;
+  border-radius: 5px;
+  color: #00b783;
+  background: #c8ffcc;
+  font-family: "Poppins", sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 400;
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+.mr-appointment-timeline .is-upcoming mark {
+  color: #d19020;
+  background: #fff2dc;
+}
+
+.mr-appointment-history-table mark {
+  border-radius: 5px;
+  color: #00a96b;
+  background: #c9ffd3;
+  font-size: 10px;
+  padding: 3px 9px;
+}
+
+.mr-appointment-history-card {
+  scroll-margin-top: 20px;
+}
+
+.mr-appointment-history-card > h3 {
+  border-bottom: 1px solid var(--mr-border);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.mr-appointment-history-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+}
+
+.mr-appointment-history-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--mr-text);
+  text-align: center;
+  font-size: 12px;
+}
+
+.mr-appointment-history-table th {
+  color: #ffffff;
+  background: var(--mr-pink);
+  padding: 14px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mr-appointment-history-table th:first-child { border-top-left-radius: 14px; }
+.mr-appointment-history-table th:last-child { border-top-right-radius: 14px; }
+
+.mr-appointment-history-table td {
+  border-bottom: 1px solid var(--mr-border);
+  background: #ffffff;
+  padding: 14px 12px;
+}
+
+.mr-appointment-history-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* LABORATORY RESULTS */
+
+.mr-laboratory-panel {
+  width: 100%;
+  display: grid;
+  align-content: start;
+  gap: 15px;
+}
+
+.mr-laboratory-search {
+  width: min(480px, 100%);
+  height: 52px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border-radius: 12px;
+  color: var(--mr-text);
+  background: #ffffff;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 0 16px;
+}
+
+.mr-laboratory-search > svg {
+  width: 21px;
+  height: 21px;
+  color: var(--mr-text);
+}
+
+.mr-laboratory-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--mr-text);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.mr-laboratory-search input::placeholder {
+  color: var(--mr-text);
+  opacity: 1;
+}
+
+.mr-laboratory-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 15px;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.08);
+}
+
+.mr-laboratory-table {
+  width: 100%;
+  min-width: 820px;
+  overflow: hidden;
+  border-radius: 15px;
+  background: #ffffff;
+}
+
+.mr-laboratory-head,
+.mr-laboratory-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1.55fr 0.75fr 1.2fr 1.35fr;
+  align-items: center;
+  gap: 16px;
+  padding: 0 22px;
+}
+
+.mr-laboratory-head {
+  min-height: 52px;
+  color: #ffffff;
+  background: #fb387e;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.mr-laboratory-row {
+  min-height: 78px;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.3);
+  color: var(--mr-text);
+  background: #ffffff;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  transition: background-color 160ms ease;
+}
+
+.mr-laboratory-row:last-child {
+  border-bottom: 0;
+}
+
+.mr-laboratory-row:hover {
+  background: rgba(255, 225, 232, 0.22);
+}
+
+.mr-laboratory-date strong,
+.mr-laboratory-date small {
+  display: block;
+  color: inherit;
+}
+
+.mr-laboratory-date strong {
+  font-weight: 500;
+}
+
+.mr-laboratory-date small {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+.mr-laboratory-row mark {
+  width: 74px;
+  min-height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 400;
+  padding: 2px 8px;
+}
+
+.mr-laboratory-row mark.is-normal {
+  color: #00b783;
+  background: #c8ffcc;
+}
+
+.mr-laboratory-row mark.is-pending {
+  color: #4d494a;
+  background: rgba(154, 152, 153, 0.45);
+}
+
+.mr-laboratory-file {
+  width: min(185px, 100%);
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(77, 73, 74, 0.2);
+  border-radius: 5px;
+  color: var(--mr-text);
+  background: #ffffff;
+  cursor: pointer;
+  padding: 6px 8px;
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.mr-laboratory-file:hover {
+  border-color: rgba(251, 56, 126, 0.45);
+  background: #fff8fa;
+}
+
+.mr-laboratory-file > svg {
+  width: 15px;
+  height: 15px;
+  color: #fb387e;
+}
+
+.mr-laboratory-file span,
+.mr-laboratory-file strong,
+.mr-laboratory-file small {
+  min-width: 0;
+  display: block;
+}
+
+.mr-laboratory-file strong {
+  overflow: hidden;
+  color: var(--mr-text);
+  font-size: 9px;
+  line-height: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mr-laboratory-file small {
+  color: var(--mr-text);
+  font-size: 8px;
+  line-height: 12px;
+  font-weight: 400;
+}
+
+.mr-laboratory-empty {
+  min-height: 156px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  color: var(--mr-text);
+  background: #ffffff;
+}
+
+.mr-laboratory-empty svg {
+  width: 30px;
+  height: 30px;
+  color: var(--mr-pink);
+}
+
+.mr-laboratory-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.mr-laboratory-count {
+  margin: auto 0 0;
+  color: rgba(77, 73, 74, 0.55);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+  text-align: center;
+}
+
+/* PREGNANCY TRACKING */
+
+.mr-pregnancy-tracking-panel {
+  width: 100%;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+}
+
+.mr-tracking-progress-card {
+  min-height: 320px;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 128px;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 30px;
+  overflow: hidden;
+}
+
+.mr-tracking-progress-visual {
+  display: grid;
+  place-items: center;
+}
+
+.mr-tracking-progress-image {
+  width: 128px;
+  height: 246px;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  justify-self: end;
+  filter: drop-shadow(0 10px 16px rgba(251, 56, 126, 0.1));
+}
+
+.mr-tracking-progress-ring {
+  position: relative;
+  width: 190px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(#fb387e 0 70%, #ffc9d4 70% 100%);
+  box-shadow: 0 12px 32px rgba(251, 56, 126, 0.13);
+}
+
+.mr-tracking-progress-ring::before {
+  content: "";
+  position: absolute;
+  inset: 24px;
+  border-radius: inherit;
+  background: #ffffff;
+}
+
+.mr-tracking-progress-ring__content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  color: var(--mr-text);
+  font-family: "Poppins", sans-serif;
+}
+
+.mr-tracking-progress-ring__content span {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.mr-tracking-progress-ring__content strong {
+  margin: -2px 0;
+  font-size: 58px;
+  line-height: 70px;
+  font-weight: 500;
+}
+
+.mr-tracking-progress-content {
+  min-width: 0;
+}
+
+.mr-tracking-progress-content > h3,
+.mr-tracking-detail-card h3,
+.mr-pregnancy-journey-card h3 {
+  margin: 0;
+  color: var(--mr-pink-2);
+  font-family: "Poppins", sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.mr-tracking-trimester {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin: 24px 0 20px;
+}
+
+.mr-tracking-trimester-icon,
+.mr-tracking-detail-icon,
+.mr-tracking-meta-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fb387e;
+  background: #fee1e9;
+}
+
+.mr-tracking-trimester-icon {
+  width: 54px;
+  height: 54px;
+}
+
+.mr-tracking-trimester-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.mr-tracking-trimester strong,
+.mr-tracking-trimester p {
+  display: block;
+  margin: 0;
+  color: var(--mr-text);
+}
+
+.mr-tracking-trimester strong {
+  font-size: 17px;
+  line-height: 25px;
+  font-weight: 600;
+}
+
+.mr-tracking-trimester p {
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.mr-tracking-progress-bar {
+  width: 100%;
+  height: 22px;
+  overflow: hidden;
+  border-radius: 30px;
+  background: rgba(255, 193, 212, 0.7);
+}
+
+.mr-tracking-progress-bar span {
+  width: 70%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  color: #ffffff;
+  background: #fb387e;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.mr-tracking-progress-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 28px;
+}
+
+.mr-tracking-progress-meta > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.mr-tracking-meta-icon {
+  width: 38px;
+  height: 38px;
+}
+
+.mr-tracking-meta-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.mr-tracking-progress-meta small,
+.mr-tracking-progress-meta strong {
+  display: block;
+  color: var(--mr-text);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.mr-tracking-progress-meta small {
+  font-weight: 400;
+}
+
+.mr-tracking-progress-meta strong {
+  font-weight: 600;
+}
+
+.mr-tracking-progress-meta mark {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  min-height: 21px;
+  margin-top: 2px;
+  border-radius: 5px;
+  color: #00a978;
+  background: #c8ffcc;
+  font-size: 10px;
+  line-height: 15px;
+  padding: 2px 9px;
+}
+
+.mr-tracking-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.mr-tracking-detail-card {
+  min-width: 0;
+  min-height: 315px;
+  padding: 20px 20px 16px;
+}
+
+.mr-tracking-detail-card > header,
+.mr-pregnancy-journey-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--mr-border);
+  padding-bottom: 15px;
+}
+
+.mr-tracking-detail-card > header > div,
+.mr-pregnancy-journey-card > header > div {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.mr-tracking-detail-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.mr-tracking-detail-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mr-tracking-card-illustration {
+  width: 38px;
+  height: 38px;
+  color: rgba(251, 56, 126, 0.28);
+}
+
+.mr-tracking-detail-card dl {
+  display: grid;
+  gap: 0;
+  margin: 17px 0 16px;
+}
+
+.mr-tracking-baby-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: center;
+  gap: 14px;
+}
+
+.mr-tracking-baby-image {
+  width: 112px;
+  height: 150px;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  justify-self: end;
+  filter: drop-shadow(0 8px 14px rgba(251, 56, 126, 0.1));
+}
+
+.mr-tracking-baby-body dl {
+  min-width: 0;
+}
+
+.mr-tracking-detail-card dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.12);
+  padding: 8px 2px;
+}
+
+.mr-tracking-detail-card dl > div:last-child {
+  border-bottom: 0;
+}
+
+.mr-tracking-detail-card dt,
+.mr-tracking-detail-card dd {
+  margin: 0;
+  color: var(--mr-text);
+  font-family: "Inter", "Poppins", sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.mr-tracking-detail-card dt {
+  font-weight: 600;
+}
+
+.mr-tracking-detail-card dd {
+  font-weight: 400;
+  text-align: right;
+}
+
+.mr-tracking-detail-card footer {
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  border-radius: 12px;
+  background: rgba(255, 193, 212, 0.2);
+  padding: 8px 12px;
+}
+
+.mr-tracking-detail-card footer > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fb387e;
+  background: #fee1e9;
+}
+
+.mr-tracking-detail-card footer svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mr-tracking-detail-card footer strong {
+  color: var(--mr-text);
+  font-size: 11px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.mr-pregnancy-journey-card {
+  padding: 20px;
+}
+
+.mr-pregnancy-journey-card > header > span {
+  color: rgba(77, 73, 74, 0.65);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.mr-pregnancy-journey {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 18px 12px;
+  padding: 24px 2px 4px;
+}
+
+.mr-pregnancy-milestone {
+  position: relative;
+  min-width: 0;
+  min-height: 190px;
+  display: grid;
+  grid-template-rows: 58px auto;
+  align-content: start;
+  justify-items: center;
+  border: 1px solid rgba(154, 152, 153, 0.6);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 16px 10px 12px;
+  text-align: center;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+  grid-column: span 2;
+}
+
+.mr-pregnancy-milestone:nth-child(6) {
+  grid-column: 2 / span 2;
+}
+
+.mr-pregnancy-milestone.is-completed {
+  border-color: rgba(0, 183, 131, 0.68);
+}
+
+.mr-pregnancy-milestone.is-current {
+  border-color: #fb387e;
+  box-shadow: 0 8px 24px rgba(251, 56, 126, 0.14);
+}
+
+.mr-pregnancy-milestone:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(77, 73, 74, 0.1);
+}
+
+.mr-pregnancy-milestone-image {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+}
+
+.mr-pregnancy-milestone-image img {
+  width: 54px;
+  height: 54px;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  filter: drop-shadow(0 6px 10px rgba(251, 56, 126, 0.1));
+}
+
+.mr-pregnancy-milestone > div {
+  width: 100%;
+  display: grid;
+  grid-template-rows: 15px minmax(32px, auto) minmax(42px, 1fr);
+  align-content: start;
+  justify-items: center;
+}
+
+.mr-pregnancy-milestone-status {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  background: #9a9899;
+  font-size: 8px;
+  line-height: 1;
+}
+
+.mr-pregnancy-milestone.is-completed .mr-pregnancy-milestone-status {
+  background: #00b783;
+}
+
+.mr-pregnancy-milestone.is-current .mr-pregnancy-milestone-status {
+  background: #fb387e;
+}
+
+.mr-pregnancy-milestone-status svg {
+  width: 13px;
+  height: 13px;
+}
+
+.mr-pregnancy-milestone small,
+.mr-pregnancy-milestone strong,
+.mr-pregnancy-milestone p {
+  display: block;
+  margin: 0;
+}
+
+.mr-pregnancy-milestone small {
+  margin-top: 8px;
+  color: #fb387e;
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 600;
+}
+
+.mr-pregnancy-milestone strong {
+  margin-top: 3px;
+  min-height: 32px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  color: var(--mr-text);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.mr-pregnancy-milestone p {
+  margin-top: 5px;
+  min-height: 42px;
+  color: rgba(77, 73, 74, 0.72);
+  font-size: 9px;
+  line-height: 14px;
+}
+
+/* PRESCRIPTIONS */
+
+.mr-prescriptions-panel {
+  width: 100%;
+  display: grid;
+  align-content: start;
+  gap: 15px;
+}
+
+.mr-prescriptions-search {
+  width: min(480px, 100%);
+  height: 52px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border-radius: 12px;
+  color: var(--mr-text);
+  background: #ffffff;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 0 16px;
+}
+
+.mr-prescriptions-search > svg {
+  width: 21px;
+  height: 21px;
+  color: var(--mr-text);
+}
+
+.mr-prescriptions-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--mr-text);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.mr-prescriptions-search input::placeholder {
+  color: var(--mr-text);
+  opacity: 1;
+}
+
+.mr-prescription-list {
+  display: grid;
+  gap: 16px;
+}
+
+.mr-prescription-card {
+  width: 100%;
+  min-height: 385px;
+  border-radius: 15px;
+  color: var(--mr-text);
+  background: #ffffff;
+  box-shadow: 0 4px 23px rgba(0, 0, 0, 0.08);
+  padding: 18px 17px 16px;
+}
+
+.mr-prescription-header {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.mr-prescription-icon {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fb387e;
+  background: #fee1e9;
+}
+
+.mr-prescription-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(76.15% 50% at 50% 50%, #ffc1d4 50%, #ffe8ef 100%);
+  filter: blur(12.5px);
+}
+
+.mr-prescription-icon svg {
+  position: relative;
+  z-index: 1;
+  width: 27px;
+  height: 27px;
+  color: #fb387e;
+}
+
+.mr-prescription-title h3,
+.mr-prescription-title p,
+.mr-prescription-header time {
+  margin: 0;
+  color: var(--mr-text);
+  letter-spacing: 0;
+}
+
+.mr-prescription-title h3 {
+  font-size: 18px;
+  line-height: 27px;
+  font-weight: 600;
+}
+
+.mr-prescription-title p {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.mr-prescription-header time {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.mr-prescription-header time svg {
+  width: 20px;
+  height: 20px;
+  color: #fb387e;
+}
+
+.mr-prescription-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 15px;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.08);
+}
+
+.mr-prescription-table {
+  width: 100%;
+  min-width: 720px;
+  overflow: hidden;
+  border-radius: 15px;
+  background: #ffffff;
+}
+
+.mr-prescription-head,
+.mr-prescription-row {
+  display: grid;
+  grid-template-columns: 1.65fr repeat(3, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 0 24px;
+}
+
+.mr-prescription-head {
+  min-height: 52px;
+  color: #ffffff;
+  background: #fb387e;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.mr-prescription-row {
+  min-height: 58px;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.3);
+  color: var(--mr-text);
+  background: #ffffff;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+  transition: background-color 160ms ease;
+}
+
+.mr-prescription-row:last-child {
+  border-bottom: 0;
+}
+
+.mr-prescription-row:hover {
+  background: rgba(255, 225, 232, 0.22);
+}
+
+.mr-prescription-instructions {
+  margin: 12px 22px 0;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.45);
+  padding-bottom: 12px;
+}
+
+.mr-prescription-instructions h4,
+.mr-prescription-instructions p {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.mr-prescription-instructions h4 {
+  color: #fb387e;
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 600;
+}
+
+.mr-prescription-instructions p {
+  margin-top: 2px;
+  color: var(--mr-text);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.mr-prescription-footer {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 10px 22px 0;
+}
+
+.mr-prescription-file {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.mr-prescription-file > svg {
+  width: 25px;
+  height: 25px;
+  color: #fb387e;
+}
+
+.mr-prescription-file span,
+.mr-prescription-file strong,
+.mr-prescription-file small {
+  min-width: 0;
+  display: block;
+}
+
+.mr-prescription-file strong {
+  overflow: hidden;
+  color: var(--mr-text);
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mr-prescription-file small {
+  color: var(--mr-text);
+  font-size: 8px;
+  line-height: 12px;
+  font-weight: 400;
+}
+
+.mr-prescription-footer > button {
+  width: 130px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 0 0 130px;
+  border: 1px solid #ff4d73;
+  border-radius: 8px;
+  color: #ff4d73;
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.mr-prescription-footer > button:hover {
+  background: #fff5f8;
+  box-shadow: 0 7px 18px rgba(251, 56, 126, 0.14);
+  transform: translateY(-1px);
+}
+
+.mr-prescription-footer > button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mr-prescription-empty {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  border-radius: 15px;
+  color: var(--mr-text);
+  background: #ffffff;
+  box-shadow: 0 4px 23px rgba(0, 0, 0, 0.08);
+}
+
+.mr-prescription-empty svg {
+  width: 34px;
+  height: 34px;
+  color: var(--mr-pink);
+}
+
+.mr-prescription-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.mr-prescription-count {
+  margin: auto 0 0;
+  color: rgba(77, 73, 74, 0.55);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+  text-align: center;
+}
+
+/* MEDICAL RECORD TAB */
+
+.mr-medical-records-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.mr-medical-search {
+  width: min(430px, 100%);
+  height: 52px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: var(--mr-shadow);
+  padding: 0 16px;
+}
+
+.mr-medical-search > svg {
+  width: 21px;
+  height: 21px;
+  color: var(--mr-text);
+}
+
+.mr-medical-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--mr-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: -0.03em;
+}
+
+.mr-medical-search input::placeholder {
+  color: rgba(77, 73, 74, 0.72);
+}
+
+.mr-medical-record-list {
+  display: grid;
+  gap: 14px;
+}
+
+.mr-medical-entry {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 225px minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--mr-shadow);
+}
+
+.mr-medical-entry-meta {
+  min-width: 0;
+  background: #fff2f6;
+  padding: 20px 18px;
+}
+
+.mr-medical-entry-meta header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin-bottom: 36px;
+}
+
+.mr-medical-meta-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--mr-pink);
+  background: #ffdce7;
+  box-shadow: 0 0 24px 10px rgba(255, 77, 115, 0.16);
+}
+
+.mr-medical-meta-icon svg {
+  width: 27px;
+  height: 27px;
+}
+
+.mr-medical-entry-meta h3,
+.mr-medical-entry-meta p,
+.mr-medical-entry-meta dl,
+.mr-medical-entry-meta dd,
+.mr-medical-entry-meta dt {
+  margin: 0;
+}
+
+.mr-medical-entry-meta h3 {
+  color: var(--mr-text);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.mr-medical-entry-meta p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--mr-text);
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 400;
+}
+
+.mr-medical-entry-meta dl {
+  display: grid;
+  gap: 18px;
+  padding-left: 14px;
+}
+
+.mr-medical-entry-meta dl > div {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: center;
+}
+
+.mr-medical-entry-meta dt {
+  grid-column: 2;
+  grid-row: 1;
+  color: rgba(77, 73, 74, 0.78);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.mr-medical-detail-icon {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 23px;
+  height: 23px;
+  color: var(--mr-pink);
+}
+
+.mr-medical-entry-meta dd {
+  grid-column: 2;
+  grid-row: 2;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.mr-medical-entry-content {
+  min-width: 0;
+  padding: 20px 18px 16px;
+}
+
+.mr-medical-section {
+  border-bottom: 1px solid var(--mr-border);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.mr-medical-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+}
+
+.mr-medical-two-column > section {
+  min-width: 0;
+  padding-right: 18px;
+}
+
+.mr-medical-two-column > section + section {
+  border-left: 1px solid var(--mr-border);
+  padding-right: 0;
+  padding-left: 20px;
+}
+
+.mr-medical-entry-content h4,
+.mr-medical-entry-content p {
+  margin: 0;
+  color: var(--mr-text);
+  letter-spacing: -0.03em;
+}
+
+.mr-medical-entry-content h4 {
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.mr-medical-entry-content p {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.mr-medical-checklist {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mr-medical-checklist li {
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr);
+  align-items: start;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.mr-medical-checklist li svg {
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+}
+
+.mr-medical-checklist li.is-subitem {
+  padding-left: 14px;
+}
+
+.mr-medical-findings {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mr-medical-findings > div {
+  min-width: 0;
+  min-height: 74px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--mr-border);
+  border-radius: 5px;
+  text-align: center;
+  padding: 7px 5px;
+}
+
+.mr-medical-findings small,
+.mr-medical-findings strong,
+.mr-medical-findings span {
+  display: block;
+  color: var(--mr-text);
+}
+
+.mr-medical-findings small {
+  min-height: 20px;
+  font-size: 7px;
+  line-height: 10px;
+  font-weight: 400;
+}
+
+.mr-medical-findings strong {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.mr-medical-findings span {
+  font-size: 7px;
+  line-height: 10px;
+  font-weight: 400;
+}
+
+.mr-medical-obstetric {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px 32px;
+  margin: 0;
+}
+
+.mr-medical-obstetric > div {
+  display: grid;
+  gap: 7px;
+}
+
+.mr-medical-obstetric dt,
+.mr-medical-obstetric dd {
+  margin: 0;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.mr-medical-obstetric dt {
+  font-weight: 600;
+}
+
+.mr-medical-obstetric dd {
+  font-weight: 400;
+}
+
+.mr-medical-plan-row {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.mr-medical-attachments h4 {
+  margin-bottom: 10px;
+}
+
+.mr-medical-attachments button,
+.mr-medical-attachments a {
+  width: min(190px, 100%);
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(77, 73, 74, 0.24);
+  border-radius: 5px;
+  background: #ffffff;
+  color: var(--mr-text);
+  cursor: pointer;
+  padding: 5px 7px;
+  text-decoration: none;
+  text-align: left;
+}
+
+.mr-medical-attachments button > svg,
+.mr-medical-attachments a > svg {
+  width: 17px;
+  height: 17px;
+  color: var(--mr-pink);
+}
+
+.mr-medical-attachments button span,
+.mr-medical-attachments button strong,
+.mr-medical-attachments button small,
+.mr-medical-attachments a span,
+.mr-medical-attachments a strong,
+.mr-medical-attachments a small {
+  min-width: 0;
+  display: block;
+}
+
+.mr-medical-attachments button strong,
+.mr-medical-attachments a strong {
+  overflow: hidden;
+  color: var(--mr-text);
+  font-size: 8px;
+  line-height: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mr-medical-attachments button small,
+.mr-medical-attachments a small {
+  color: rgba(77, 73, 74, 0.68);
+  font-size: 7px;
+  line-height: 10px;
+}
+
+.mr-medical-record-count {
+  margin: 8px 0 0;
+  color: rgba(77, 73, 74, 0.5);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.mr-medical-no-results {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--mr-shadow);
+}
+
+.mr-medical-no-results svg {
+  width: 34px;
+  height: 34px;
+  color: var(--mr-pink);
+}
+
+.mr-medical-no-results p {
+  margin: 0;
+  color: var(--mr-text);
+  font-size: 13px;
+}
+
+.mr-medical-load-message {
+  margin: 0 0 12px;
+  border: 1px solid rgba(251, 56, 126, 0.2);
+  border-radius: 8px;
+  color: var(--mr-pink);
+  background: #fff3f7;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mr-record-modal {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(31, 27, 29, 0.38);
+  padding: 24px;
+}
+
+.mr-record-form {
+  width: min(680px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  padding: 22px;
+}
+
+.mr-record-form > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(77, 73, 74, 0.16);
+  padding-bottom: 14px;
+}
+
+.mr-record-form h2,
+.mr-record-form p {
+  margin: 0;
+}
+
+.mr-record-form h2 {
+  color: var(--mr-text);
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.mr-record-form p {
+  margin-top: 4px;
+  color: rgba(77, 73, 74, 0.7);
+  font-size: 12px;
+}
+
+.mr-record-form > header > button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--mr-text);
+  background: #fff0f5;
+  cursor: pointer;
+}
+
+.mr-record-form > header > button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mr-record-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mr-record-form-grid label {
+  display: grid;
+  gap: 7px;
+  color: var(--mr-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mr-record-form-grid input,
+.mr-record-form-grid select,
+.mr-record-form-grid textarea {
+  width: 100%;
+  border: 1px solid rgba(77, 73, 74, 0.28);
+  border-radius: 7px;
+  color: var(--mr-text);
+  background: #ffffff;
+  font: inherit;
+  font-weight: 400;
+  outline: 0;
+}
+
+.mr-record-form-grid input,
+.mr-record-form-grid select {
+  height: 40px;
+  padding: 0 11px;
+}
+
+.mr-record-form-grid textarea {
+  min-height: 82px;
+  resize: vertical;
+  padding: 10px 11px;
+}
+
+.mr-record-form-grid input:focus,
+.mr-record-form-grid select:focus,
+.mr-record-form-grid textarea:focus {
+  border-color: var(--mr-pink);
+  box-shadow: 0 0 0 3px rgba(251, 56, 126, 0.1);
+}
+
+.mr-record-form-wide {
+  grid-column: 1 / -1;
+}
+
+.mr-record-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.mr-record-form-message {
+  margin: 14px 0 0;
+  border-radius: 7px;
+  color: var(--mr-pink);
+  background: #fff1f6;
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mr-record-form-actions button {
+  min-width: 130px;
+  height: 40px;
+  border: 1px solid var(--mr-pink);
+  border-radius: 8px;
+  color: var(--mr-pink);
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mr-record-form-actions button:first-child {
+  color: #ffffff;
+  background: var(--mr-pink);
+}
+
+.mr-record-form-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+/* SIDEBAR SAFETY FIX */
+
+.sidebar,
+.app-sidebar,
+.dashboard-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1024px) {
+  html,
+  body,
+  #root {
+    overflow: auto;
+  }
+
+  .medical-records-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    padding: 18px;
+  }
+
+  .mr-patient-card {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-appointment-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mr-appointment-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-tracking-progress-card {
+    grid-template-columns: 166px minmax(0, 1fr) 96px;
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .mr-tracking-progress-image {
+    width: 96px;
+    height: 210px;
+  }
+
+  .mr-tracking-progress-ring {
+    width: 166px;
+  }
+
+  .mr-pregnancy-journey {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mr-pregnancy-milestone,
+  .mr-pregnancy-milestone:nth-child(6) {
+    grid-column: auto;
+  }
+
+  .mr-medical-entry {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  .mr-medical-entry--primary,
+  .mr-medical-entry--secondary {
+    min-height: 0;
+  }
+
+  .mr-record-panel--medical .mr-tab {
+    font-size: 13px;
+  }
+
+  .mr-record-panel--medical .mr-tab.active::after {
+    width: 69px;
+  }
+
+  .mr-medical-findings {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mr-medical-obstetric {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mr-upcoming-appointments-card,
+  .mr-appointment-timeline-card {
+    min-height: 0;
+  }
+
+  .mr-overview-bottom {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-prenatal-scroll {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .mr-obstetric-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mr-prenatal-info-grid,
+  .mr-condition-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-prenatal-info-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .mr-last-visit-card,
+  .mr-progress-card,
+  .mr-vitals-card,
+  .mr-schedule-card,
+  .mr-notes-card {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .mr-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .mr-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-divider {
+    display: none;
+  }
+
+  .mr-tabs {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 12px 22px;
+    overflow: visible;
+  }
+
+  .mr-tab.active::after {
+    bottom: -8px;
+  }
+
+  .sidebar,
+  .app-sidebar,
+  .dashboard-sidebar {
+    position: relative;
+    height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .medical-records-page {
+    padding: 14px;
+  }
+
+  .mr-page-header h1 {
+    font-size: 26px;
+    line-height: 36px;
+  }
+
+  .mr-patient-main {
+    flex-direction: column;
+  }
+
+  .mr-name-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mr-info-row {
+    grid-template-columns: 20px 1fr;
+  }
+
+  .mr-info-value {
+    grid-column: 2;
+    white-space: normal;
+  }
+
+  .mr-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-appointment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-tracking-progress-card,
+  .mr-tracking-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-tracking-progress-card {
+    gap: 20px;
+    padding: 20px 16px;
+  }
+
+  .mr-tracking-progress-ring {
+    width: 176px;
+  }
+
+  .mr-tracking-progress-image {
+    width: 100px;
+    height: 210px;
+    justify-self: center;
+  }
+
+  .mr-tracking-baby-body {
+    grid-template-columns: minmax(0, 1fr) 94px;
+    gap: 10px;
+  }
+
+  .mr-tracking-baby-image {
+    width: 94px;
+    height: 126px;
+  }
+
+  .mr-tracking-progress-meta {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .mr-pregnancy-journey {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mr-next-appointment {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .mr-medical-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-medical-entry-meta {
+    padding: 16px;
+  }
+
+  .mr-medical-entry-meta header {
+    margin-bottom: 18px;
+  }
+
+  .mr-medical-entry-meta dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding-left: 0;
+  }
+
+  .mr-medical-two-column,
+  .mr-medical-plan-row {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-medical-two-column > section {
+    padding-right: 0;
+  }
+
+  .mr-medical-two-column > section + section {
+    border-top: 1px solid var(--mr-border);
+    border-left: 0;
+    padding-top: 14px;
+    padding-left: 0;
+    margin-top: 14px;
+  }
+
+  .mr-medical-findings,
+  .mr-medical-obstetric {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mr-next-appointment time {
+    grid-column: 2;
+  }
+
+  .mr-prescription-header {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .mr-prescription-header time {
+    grid-column: 2;
+  }
+
+  .mr-prescription-instructions,
+  .mr-prescription-footer {
+    margin-right: 4px;
+    margin-left: 4px;
+  }
+
+  .mr-prescription-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mr-appointment-timeline article {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .mr-appointment-timeline article mark {
+    grid-column: 2;
+    width: fit-content;
+    margin-top: -42px;
+    justify-self: end;
+  }
+
+  .mr-prenatal-card {
+    padding: 14px 16px 18px;
+  }
+
+  .mr-prenatal-title {
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  .mr-obstetric-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-prenatal-table {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .mr-prenatal-table th,
+  .mr-prenatal-table td {
+    padding: 12px;
+  }
+
+  .mr-condition-item,
+  .mr-prenatal-info-row {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .mr-record-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .mr-notes-text {
+    margin-left: 10px;
+  }
+
+  .mr-schedule-content {
+    margin-left: 4px;
+  }
+
+  .mr-tabs {
+    gap: 10px 16px;
+  }
+
+  .mr-tab {
+    font-size: 13px;
+  }
+}

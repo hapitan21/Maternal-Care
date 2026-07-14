@@ -1,0 +1,2335 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap");
+
+/* =========================================================
+   STAFF PATIENTS - COMPLETE CLEAN CSS
+   Replace your whole staff-patients.css with this file.
+   This restores the 1-4 Register Patient pages and keeps
+   the smaller search/register button on the Patients list.
+========================================================= */
+
+.staff-patients-page,
+.staff-register-page {
+  --patients-pink: #ff2f7d;
+  --patients-pink-dark: #ee1768;
+  --patients-ink: #202432;
+  --patients-muted: #73788a;
+  --patients-line: #dddfea;
+  --patients-soft-line: #eef0f6;
+  --patients-surface: #ffffff;
+  --patients-bg: #f8f9fc;
+  --patients-shadow: 0 18px 42px rgba(22, 27, 41, 0.055);
+  --patients-glow: 0 14px 30px rgba(255, 47, 125, 0.2);
+
+  width: 100%;
+  min-width: 0;
+  color: var(--patients-ink);
+  font-family: "Poppins", sans-serif;
+  box-sizing: border-box;
+}
+
+.staff-patients-page {
+  padding: 0;
+  min-height: calc(100vh + 1px);
+  padding-bottom: 48px;
+}
+
+.staff-register-page {
+  padding: 28px 30px 42px 28px;
+}
+
+.staff-patients-page *,
+.staff-patients-page *::before,
+.staff-patients-page *::after,
+.staff-register-page *,
+.staff-register-page *::before,
+.staff-register-page *::after {
+  box-sizing: border-box;
+}
+
+.staff-patients-page button,
+.staff-patients-page input,
+.staff-register-page button,
+.staff-register-page input,
+.staff-register-page select,
+.staff-register-page textarea {
+  font: inherit;
+}
+
+.staff-patients-page button,
+.staff-register-page button {
+  cursor: pointer;
+}
+
+/* Patients list */
+.staff-patients-header {
+  width: 100%;
+  min-height: var(--doctor-top-profile-height, 66px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22px;
+  margin: 0 0 46px;
+  padding: 0;
+}
+
+.staff-patients-header h2 {
+  margin: 0;
+  color: #202432;
+  font-size: clamp(34px, 2.6vw, 42px);
+  font-weight: 900;
+  line-height: 1.03;
+  letter-spacing: -0.06em;
+}
+
+.staff-patients-header p {
+  margin: 8px 0 0;
+  color: #4e5363;
+  font-size: 15.5px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.staff-patients-actions {
+  display: grid;
+  grid-template-columns: minmax(260px, 420px) max-content;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  margin: 0 0 18px;
+}
+
+.staff-patients-search {
+  width: min(420px, 100%);
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid #dfe2ec;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(22, 27, 41, 0.025);
+  color: #697183;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.staff-patients-search:focus-within {
+  border-color: rgba(255, 47, 125, 0.65);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-patients-search svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.staff-patients-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #252a38;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.staff-patients-search input::placeholder {
+  color: #858c9d;
+}
+
+.staff-register-patient-btn {
+  width: auto;
+  min-width: 190px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--patients-pink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 750;
+  box-shadow: 0 10px 20px rgba(255, 47, 125, 0.16);
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.staff-register-patient-btn:hover {
+  background: var(--patients-pink-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 24px rgba(255, 47, 125, 0.2);
+}
+
+.staff-register-patient-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.staff-patients-card {
+  overflow: hidden;
+  width: 100%;
+  border: 1px solid var(--patients-line);
+  border-radius: 8px;
+  background: var(--patients-surface);
+  box-shadow: var(--patients-shadow);
+  margin-bottom: 48px;
+}
+
+.staff-patients-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 47, 125, 0.45) transparent;
+}
+
+.staff-patients-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+}
+
+.staff-patients-table thead {
+  background: var(--patients-pink);
+}
+
+.staff-patients-table th {
+  height: 60px;
+  padding: 0 34px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.035em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.staff-patients-table th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-transform: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+.staff-patients-table th button svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.9;
+}
+
+.staff-patients-table td {
+  height: 102px;
+  padding: 0 34px;
+  border-bottom: 1px solid var(--patients-soft-line);
+  color: #4d5263;
+  font-size: 16px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.staff-patients-table tbody tr {
+  background: #fff;
+  transition: background-color 180ms ease;
+}
+
+.staff-patients-table tbody tr:hover {
+  background: #fff8fb;
+}
+
+.staff-patients-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.staff-patient-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  min-width: 0;
+}
+
+.staff-patient-avatar {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.avatar-pink {
+  background: #ffd7e6;
+  color: #9b155a;
+}
+
+.avatar-purple {
+  background: #edd5ff;
+  color: #812bd3;
+}
+
+.avatar-blue {
+  background: #dfe2ff;
+  color: #515cf6;
+}
+
+.avatar-orange {
+  background: #ffe6cf;
+  color: #dc6b19;
+}
+
+.staff-patient-name-wrap {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.staff-patient-name-wrap strong {
+  color: #242936;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.staff-patient-name-wrap small {
+  color: var(--patients-muted);
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.staff-patient-id,
+.staff-patient-date {
+  color: #4d5263;
+  font-size: 15.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.staff-patient-view-btn {
+  min-width: 90px;
+  height: 38px;
+  border: 2px solid var(--patients-pink);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--patients-pink);
+  font-size: 13px;
+  font-weight: 800;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.staff-patient-view-btn:hover {
+  background: var(--patients-pink);
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(255, 47, 125, 0.18);
+}
+
+.staff-patients-empty-cell {
+  height: 190px !important;
+  text-align: center !important;
+  color: var(--patients-muted) !important;
+}
+
+.staff-patients-empty-cell svg {
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 10px;
+  color: var(--patients-pink);
+}
+
+.staff-patients-empty-cell strong {
+  display: block;
+  color: var(--patients-ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.staff-patients-empty-cell span {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+/* Register page shell */
+.staff-register-shell {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.staff-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--patients-pink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.staff-back-btn:hover {
+  color: var(--patients-pink-dark);
+  transform: translateX(-2px);
+}
+
+.staff-register-hero-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 282px;
+  gap: 22px;
+  align-items: start;
+  margin: 0 0 16px;
+}
+
+.staff-register-top {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding-top: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  text-align: center;
+}
+
+.staff-register-top > div:first-child {
+  width: min(100%, 720px);
+  margin: 0 auto;
+}
+
+.staff-register-top h2 {
+  margin: 0;
+  color: var(--patients-pink);
+  font-size: clamp(32px, 3vw, 42px);
+  font-weight: 900;
+  line-height: 1.03;
+  letter-spacing: -0.055em;
+  text-align: center;
+}
+
+.staff-register-top p {
+  margin: 9px 0 0;
+  color: #697183;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.staff-register-layout {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 282px;
+  gap: 22px;
+  align-items: start;
+}
+
+.staff-register-main {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Stepper */
+.staff-register-stepper {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 0;
+  margin: 0 0 28px;
+  padding: 0 26px;
+  overflow: visible;
+}
+
+.staff-register-step-line {
+  position: absolute;
+  top: 18px;
+  left: 62px;
+  right: 62px;
+  height: 2px;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      90deg,
+      var(--patients-pink) 0,
+      var(--patients-pink) var(--step-progress),
+      #dfe3eb var(--step-progress),
+      #dfe3eb 100%
+    );
+  z-index: 0;
+}
+
+.staff-register-stepper[style*="--step-progress: 0%"] .staff-register-step-line {
+  background:
+    linear-gradient(
+      90deg,
+      var(--patients-pink) 0,
+      var(--patients-pink) 8%,
+      #dfe3eb 8%,
+      #dfe3eb 100%
+    );
+}
+
+.staff-register-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #9aa2b2;
+  text-align: center;
+}
+
+.staff-register-step span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #9aa2b2;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 850;
+  box-shadow: 0 4px 12px rgba(39, 45, 60, 0.08);
+}
+
+.staff-register-step small {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: min(100%, 170px);
+  min-height: 31px;
+  padding-bottom: 8px;
+  color: inherit;
+  font-size: 10.5px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.staff-register-step small::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--patients-pink);
+  transform: translateX(-50%);
+  transition: width 180ms ease;
+}
+
+.staff-register-step.is-active,
+.staff-register-step.is-complete {
+  color: var(--patients-pink);
+}
+
+.staff-register-step.is-active span,
+.staff-register-step.is-complete span {
+  background: var(--patients-pink);
+  color: #fff;
+}
+
+/* Only current step has underline */
+.staff-register-step.is-active small::after {
+  width: 100%;
+}
+
+.staff-register-step.is-complete:not(.is-active) small::after {
+  width: 0;
+}
+
+/* Register form card */
+.staff-register-card {
+  width: 100%;
+  min-height: 0;
+  padding: 30px 34px 28px;
+  border: 1px solid #edf0f6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(22, 27, 41, 0.055);
+}
+
+.staff-register-card > header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.staff-register-card > header > span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #ffe4ef;
+  color: var(--patients-pink);
+}
+
+.staff-register-card > header svg {
+  width: 20px;
+  height: 20px;
+}
+
+.staff-register-card h3 {
+  margin: 0;
+  color: var(--patients-pink);
+  font-size: 22px;
+  font-weight: 850;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.staff-register-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 18px;
+  row-gap: 18px;
+}
+
+.staff-register-grid.is-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 28px;
+  row-gap: 22px;
+}
+
+.staff-register-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.staff-register-field.is-wide {
+  grid-column: span 2;
+}
+
+.staff-register-field.is-half {
+  grid-column: span 2;
+}
+
+.staff-register-field.is-full,
+.staff-check-section.is-full,
+.staff-allergy-group.is-full {
+  grid-column: 1 / -1;
+}
+
+.staff-register-field > span,
+.staff-register-radio-group > span,
+.staff-allergy-group > label {
+  color: #30384a;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.staff-register-field b {
+  color: var(--patients-pink);
+}
+
+.staff-register-input-wrap {
+  position: relative;
+}
+
+.staff-register-input-wrap input,
+.staff-register-input-wrap select,
+.staff-register-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d6dbe6;
+  border-radius: 10px;
+  background: #fff;
+  color: #293143;
+  font-size: 14.5px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.staff-register-input-wrap input,
+.staff-register-input-wrap select {
+  height: 50px;
+  padding: 0 16px;
+}
+
+.staff-register-input-wrap select {
+  appearance: none;
+  padding-right: 42px;
+}
+
+.staff-register-input-wrap input[type="date"] {
+  color: #747b8c;
+}
+
+.staff-register-input-wrap svg {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 19px;
+  height: 19px;
+  transform: translateY(-50%);
+  color: #8b93a4;
+  pointer-events: none;
+}
+
+.staff-register-field textarea {
+  min-height: 154px;
+  padding: 15px 17px;
+  resize: vertical;
+}
+
+.staff-register-input-wrap input::placeholder,
+.staff-register-field textarea::placeholder {
+  color: #8d95a7;
+}
+
+.staff-register-input-wrap input:focus,
+.staff-register-input-wrap select:focus,
+.staff-register-field textarea:focus {
+  border-color: rgba(255, 47, 125, 0.65);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-register-radio-group {
+  display: grid;
+  align-content: end;
+  gap: 13px;
+  min-height: 74px;
+}
+
+.staff-register-radio-group > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  min-height: 46px;
+}
+
+.staff-register-radio-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #41495c;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.staff-register-radio-group input,
+.staff-register-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.staff-register-radio-group i {
+  width: 19px;
+  height: 19px;
+  border: 2px solid #ccd2de;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.staff-register-radio-group input:checked + i {
+  border-color: var(--patients-pink);
+  background:
+    radial-gradient(circle, var(--patients-pink) 0 47%, transparent 50%),
+    #fff;
+}
+
+.staff-allergy-group {
+  display: grid;
+  gap: 9px;
+}
+
+.staff-allergy-group > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 42px;
+  gap: 18px;
+  align-items: end;
+}
+
+.staff-allergy-group .staff-register-field {
+  gap: 0;
+}
+
+.staff-allergy-group button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--patients-pink);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--patients-pink);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.staff-allergy-group button:hover {
+  background: var(--patients-pink);
+  color: #fff;
+}
+
+.staff-check-section {
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+  border-top: 1px solid #edf0f5;
+}
+
+.staff-check-section h4 {
+  margin: 0;
+  color: #30384a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.staff-check-section h4 span {
+  font-weight: 700;
+}
+
+.staff-check-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 32px;
+}
+
+.staff-register-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #4b5366;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.staff-register-check i {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border: 1.7px solid var(--patients-pink);
+  border-radius: 5px;
+  background: #fff;
+}
+
+.staff-register-check input:checked + i {
+  background:
+    linear-gradient(var(--patients-pink), var(--patients-pink)) center / 12px 12px no-repeat,
+    var(--patients-pink);
+  box-shadow: inset 0 0 0 4px #fff;
+}
+
+.staff-pregnancy-table-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 22px 0;
+}
+
+.staff-pregnancy-table-actions button {
+  height: 46px;
+  min-width: 190px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 2px solid var(--patients-pink);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--patients-pink);
+  font-size: 15px;
+  font-weight: 800;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.staff-pregnancy-table-actions button:hover {
+  background: var(--patients-pink);
+  color: #fff;
+}
+
+.staff-pregnancy-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #f0f1f6;
+  border-radius: 15px;
+}
+
+.staff-pregnancy-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.staff-pregnancy-table thead {
+  background: var(--patients-pink);
+}
+
+.staff-pregnancy-table th {
+  height: 48px;
+  padding: 0 16px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.staff-pregnancy-table td {
+  height: 64px;
+  padding: 0 16px;
+  color: #9aa2b2;
+  font-size: 12px;
+  text-align: center;
+}
+
+.staff-pregnancy-table input,
+.staff-pregnancy-table select {
+  width: 100%;
+  min-width: 132px;
+  height: 38px;
+  border: 1px solid #d8dde8;
+  border-radius: 8px;
+  background: #fff;
+  color: #293143;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  outline: none;
+}
+
+.staff-pregnancy-table input {
+  padding: 0 10px;
+}
+
+.staff-pregnancy-table select {
+  padding: 0 28px 0 10px;
+}
+
+.staff-pregnancy-table input:focus,
+.staff-pregnancy-table select:focus {
+  border-color: rgba(255, 47, 125, 0.65);
+  box-shadow: 0 0 0 3px rgba(255, 47, 125, 0.08);
+}
+
+.staff-register-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.staff-register-footer.has-divider {
+  margin-top: 32px;
+  padding-top: 30px;
+  border-top: 1px solid #edf0f5;
+}
+
+.staff-register-footer.is-end {
+  justify-content: flex-end;
+}
+
+.staff-prev-btn,
+.staff-next-btn {
+  height: 52px;
+  min-width: 180px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 850;
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.staff-prev-btn {
+  border: 2px solid var(--patients-pink);
+  background: #fff;
+  color: var(--patients-pink);
+}
+
+.staff-prev-btn:hover {
+  background: #fff4f9;
+}
+
+.staff-next-btn {
+  border: 0;
+  background: var(--patients-pink);
+  color: #fff;
+  box-shadow: var(--patients-glow);
+}
+
+.staff-next-btn:hover {
+  background: var(--patients-pink-dark);
+}
+
+.staff-prev-btn:active,
+.staff-next-btn:active {
+  transform: translateY(1px);
+}
+
+/* Right credential panel */
+.staff-register-side {
+  position: sticky;
+  top: 22px;
+  display: grid;
+  gap: 15px;
+  min-width: 0;
+}
+
+.staff-register-success-card,
+.staff-register-credential-card {
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: var(--patients-shadow);
+}
+
+.staff-register-success-card {
+  min-height: 190px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  padding: 24px 22px;
+  border: 1px solid #d7f7e1;
+  background: #effdf4;
+  text-align: center;
+}
+
+.staff-register-success-card span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: #18a74f;
+  color: #fff;
+}
+
+.staff-register-success-card svg {
+  width: 28px;
+  height: 28px;
+}
+
+.staff-register-success-card h3 {
+  margin: 0 0 8px;
+  color: #12672e;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.staff-register-success-card p {
+  margin: 0;
+  color: #13a550;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.staff-register-credential-card {
+  padding: 25px 24px;
+}
+
+.staff-register-credential-card header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--patients-pink);
+  margin-bottom: 18px;
+}
+
+.staff-register-credential-card header h3 {
+  margin: 0;
+  color: var(--patients-pink);
+  font-size: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-register-credential-card > p {
+  margin: 0 0 26px;
+  color: #788091;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.staff-credential-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.staff-credential-field small,
+.staff-qr-block small {
+  color: #9aa2b2;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-credential-field strong {
+  min-height: 41px;
+  display: flex;
+  align-items: center;
+  padding: 0 17px;
+  border: 1px solid #ffd5e4;
+  border-radius: 9px;
+  background: #fff0f5;
+  color: var(--patients-pink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.staff-credential-field strong.is-green {
+  color: #11a24d;
+}
+
+.staff-qr-block {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 25px;
+}
+
+.staff-qr-block > div {
+  height: 172px;
+  border: 1px solid #ffdce8;
+  border-radius: 12px;
+  background: #fff9fb;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+}
+
+.staff-qr-block canvas {
+  width: 148px !important;
+  height: 148px !important;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.staff-register-credential-card em {
+  display: block;
+  color: #9ba3b3;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.staff-important-box {
+  margin-top: 28px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  background: #fff6f9;
+}
+
+.staff-important-box strong {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--patients-pink);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-important-box p {
+  margin: 0 0 11px;
+  color: #6d7485;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.staff-important-box p:last-child {
+  margin-bottom: 0;
+}
+
+/* Modal */
+.staff-patients-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(24, 27, 34, 0.45);
+  backdrop-filter: blur(4px);
+  animation: staffPatientsFade 180ms ease both;
+}
+
+.staff-patients-modal {
+  width: min(100%, 480px);
+  padding: 52px 52px 48px;
+  border-radius: 28px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(19, 23, 35, 0.26);
+  animation: staffPatientsModalUp 220ms ease both;
+}
+
+.staff-patients-modal-icon {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 26px;
+  border-radius: 50%;
+  background: #ffe6f0;
+  color: var(--patients-pink);
+}
+
+.staff-patients-modal-icon.is-warning {
+  background: #fff3e6;
+  color: #ff933d;
+}
+
+.staff-patients-modal-icon.is-success {
+  background: #e9fced;
+  color: #17a653;
+}
+
+.staff-patients-modal-icon svg {
+  width: 38px;
+  height: 38px;
+}
+
+.staff-patients-modal h3 {
+  margin: 0 0 23px;
+  color: #202838;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+.staff-patients-modal p {
+  max-width: 330px;
+  margin: 0 auto 18px;
+  color: #6d7890;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.staff-patients-modal button {
+  width: 100%;
+  height: 60px;
+  margin-top: 20px;
+  border: 0;
+  border-radius: 11px;
+  background: #e91e63;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 14px 26px rgba(233, 30, 99, 0.25);
+  transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.staff-patients-modal button:hover {
+  background: #d8175a;
+  box-shadow: 0 18px 32px rgba(233, 30, 99, 0.3);
+}
+
+@keyframes staffPatientsFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes staffPatientsModalUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Responsive */
+@media (max-width: 1120px) {
+  .staff-register-shell {
+    max-width: 880px;
+  }
+
+  .staff-register-hero-grid,
+  .staff-register-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-register-side {
+    position: static;
+  }
+
+  .staff-register-hero-grid > .staff-register-success-card {
+    width: min(100%, 360px);
+    justify-self: center;
+  }
+}
+
+@media (max-width: 1024px) {
+  .staff-register-page {
+    padding: 24px 18px 34px;
+  }
+
+  .staff-register-stepper {
+    padding: 0 12px;
+  }
+
+  .staff-register-step-line {
+    left: 42px;
+    right: 42px;
+  }
+
+  .staff-register-grid,
+  .staff-register-grid.is-three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .staff-register-field.is-wide,
+  .staff-register-field.is-half {
+    grid-column: span 1;
+  }
+
+  .staff-register-field.is-full,
+  .staff-check-section.is-full,
+  .staff-allergy-group.is-full {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-patients-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .staff-patients-actions {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .staff-patients-search,
+  .staff-register-patient-btn {
+    width: 100%;
+  }
+
+  .staff-register-patient-btn {
+    height: 44px;
+  }
+
+  .staff-patients-table {
+    min-width: 720px;
+  }
+
+  .staff-patients-table th {
+    height: 54px;
+    padding: 0 22px;
+    font-size: 11px;
+  }
+
+  .staff-patients-table td {
+    height: 88px;
+    padding: 0 22px;
+    font-size: 14px;
+  }
+
+  .staff-patient-avatar {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+    font-size: 16px;
+  }
+
+  .staff-patient-name-wrap strong,
+  .staff-patient-id,
+  .staff-patient-date {
+    font-size: 14px;
+  }
+
+  .staff-patient-name-wrap small {
+    font-size: 12px;
+  }
+
+  .staff-register-top {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .staff-register-top h2,
+  .staff-register-top p {
+    text-align: left;
+  }
+
+  .staff-register-hero-grid > .staff-register-success-card {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .staff-register-stepper {
+    overflow-x: auto;
+    grid-template-columns: repeat(4, 150px);
+    justify-content: start;
+    padding-bottom: 8px;
+  }
+
+  .staff-register-step-line {
+    left: 45px;
+    right: auto;
+    width: 500px;
+  }
+
+  .staff-register-grid,
+  .staff-register-grid.is-three,
+  .staff-check-grid,
+  .staff-allergy-group > div {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-register-card {
+    padding: 24px 20px;
+  }
+
+  .staff-register-card h3 {
+    font-size: 20px;
+  }
+
+  .staff-register-footer,
+  .staff-register-footer.has-divider {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .staff-prev-btn,
+  .staff-next-btn {
+    width: 100%;
+  }
+
+  .staff-patients-modal {
+    padding: 38px 28px 30px;
+    border-radius: 24px;
+  }
+
+  .staff-patients-modal-icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 22px;
+  }
+
+  .staff-patients-modal h3 {
+    font-size: 25px;
+  }
+
+  .staff-patients-modal p {
+    font-size: 14px;
+  }
+
+  .staff-patients-modal button {
+    height: 54px;
+  }
+}
+
+
+
+/* =========================================================
+   REGISTER PAGE GAP + ALIGNMENT FIX
+   Fixes the large vertical gap by keeping the title and
+   1-4 stepper in the same left column while the green card
+   stays on the right.
+========================================================= */
+
+.staff-register-page {
+  padding: 26px 30px 42px 28px !important;
+}
+
+.staff-register-shell {
+  max-width: 1100px !important;
+}
+
+.staff-back-btn {
+  margin: 0 0 22px !important;
+}
+
+.staff-register-hero-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 282px !important;
+  gap: 22px !important;
+  align-items: start !important;
+  margin: 0 0 26px !important;
+}
+
+.staff-register-hero-main {
+  min-width: 0 !important;
+  display: grid !important;
+  align-content: start !important;
+}
+
+.staff-register-top {
+  padding-top: 6px !important;
+  margin: 0 !important;
+}
+
+.staff-register-top h2 {
+  font-size: clamp(32px, 3vw, 42px) !important;
+  line-height: 1.03 !important;
+}
+
+.staff-register-top p {
+  margin-top: 8px !important;
+}
+
+/* Stepper now sits right below the title, not below the green card height */
+.staff-register-hero-main .staff-register-stepper {
+  margin: 34px 0 0 !important;
+}
+
+/* No extra stepper space inside the form column */
+.staff-register-layout {
+  margin: 0 !important;
+  grid-template-columns: minmax(0, 1fr) 282px !important;
+  gap: 22px !important;
+  align-items: start !important;
+}
+
+.staff-register-card {
+  margin-top: 0 !important;
+}
+
+/* Keep the success card aligned with the title area */
+.staff-register-hero-grid > .staff-register-success-card {
+  align-self: start !important;
+}
+
+/* Slightly tighter form card to match the clean reference */
+.staff-register-card {
+  padding: 30px 34px 28px !important;
+}
+
+@media (max-width: 1120px) {
+  .staff-register-shell {
+    max-width: 880px !important;
+  }
+
+  .staff-register-hero-grid,
+  .staff-register-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-register-hero-grid > .staff-register-success-card {
+    width: min(100%, 360px) !important;
+    justify-self: center !important;
+  }
+
+  .staff-register-hero-main .staff-register-stepper {
+    margin-top: 28px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-register-page {
+    padding: 22px 16px 34px !important;
+  }
+
+  .staff-back-btn {
+    margin-bottom: 20px !important;
+  }
+
+  .staff-register-hero-grid {
+    margin-bottom: 22px !important;
+  }
+
+  .staff-register-top {
+    padding-top: 0 !important;
+  }
+
+  .staff-register-hero-main .staff-register-stepper {
+    margin-top: 24px !important;
+  }
+}
+
+
+
+/* =========================================================
+   REGISTER TITLE TO STEPPER GAP FIX
+   Adds a cleaner breathing space between the title/description
+   and the 1-4 stepper, matching the reference spacing.
+========================================================= */
+
+.staff-register-hero-main .staff-register-stepper {
+  margin-top: 50px !important;
+}
+
+.staff-register-hero-grid {
+  margin-bottom: 28px !important;
+}
+
+/* Keep the right success card aligned while the left side gets breathing room */
+.staff-register-hero-grid > .staff-register-success-card {
+  margin-top: 0 !important;
+}
+
+/* Slightly smaller adjustment for medium screens */
+@media (max-width: 1120px) {
+  .staff-register-hero-main .staff-register-stepper {
+    margin-top: 42px !important;
+  }
+}
+
+/* Mobile/tablet: keep it readable without creating too much vertical height */
+@media (max-width: 760px) {
+  .staff-register-hero-main .staff-register-stepper {
+    margin-top: 34px !important;
+  }
+
+  .staff-register-hero-grid {
+    margin-bottom: 24px !important;
+  }
+}
+
+
+
+/* =========================================================
+   FINAL EXACT REGISTER ALIGNMENT PATCH
+   Apply this at the very bottom of staff-patients.css.
+   This version fixes the visible "no change" issue by using
+   stronger selectors and removing the old margin-based spacing.
+   Target:
+   - Title area is higher and centered like the reference.
+   - Clear breathing gap between subtitle and 1-4 stepper.
+   - Form card starts closer under the stepper.
+   - Right cards stay aligned with the title/form column.
+========================================================= */
+
+.staff-register-page {
+  padding: 10px 30px 42px 28px !important;
+}
+
+.staff-register-shell {
+  width: 100% !important;
+  max-width: 1100px !important;
+  margin: 0 auto !important;
+}
+
+.staff-register-page .staff-back-btn {
+  margin: 0 0 24px !important;
+}
+
+/* Title + stepper + right green card row */
+.staff-register-page .staff-register-hero-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 282px !important;
+  column-gap: 22px !important;
+  align-items: start !important;
+  margin: 0 0 22px !important;
+}
+
+/* This controls the REAL gap between Register New Patient and 1-4 */
+.staff-register-page .staff-register-hero-main {
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-rows: auto auto !important;
+  row-gap: 48px !important;
+  align-content: start !important;
+}
+
+.staff-register-page .staff-register-top {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+.staff-register-page .staff-register-top > div:first-child {
+  width: min(100%, 720px) !important;
+  margin: 0 auto !important;
+}
+
+.staff-register-page .staff-register-top h2 {
+  margin: 0 !important;
+  color: var(--patients-pink) !important;
+  font-size: clamp(32px, 3vw, 42px) !important;
+  font-weight: 900 !important;
+  line-height: 1.03 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.staff-register-page .staff-register-top p {
+  margin: 8px 0 0 !important;
+  color: #697183 !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+}
+
+/* Remove every older margin rule that kept the stepper too close */
+.staff-register-page .staff-register-hero-main > .staff-register-stepper,
+.staff-register-page .staff-register-hero-main .staff-register-stepper {
+  margin: 0 !important;
+}
+
+/* Robust fallback in case an older JSX still places the stepper inside main */
+.staff-register-page .staff-register-layout .staff-register-main > .staff-register-stepper {
+  margin: 48px 0 22px !important;
+}
+
+/* Stepper sizing/positioning */
+.staff-register-page .staff-register-stepper {
+  position: relative !important;
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  align-items: start !important;
+  gap: 0 !important;
+  padding: 0 26px !important;
+  overflow: visible !important;
+}
+
+.staff-register-page .staff-register-step-line {
+  top: 18px !important;
+  left: 62px !important;
+  right: 62px !important;
+}
+
+/* Form and credential layout under the hero */
+.staff-register-page .staff-register-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 282px !important;
+  gap: 22px !important;
+  align-items: start !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+.staff-register-page .staff-register-card {
+  margin-top: 0 !important;
+  padding: 30px 34px 28px !important;
+}
+
+/* Keep the right green card aligned and compact */
+.staff-register-page .staff-register-hero-grid > .staff-register-success-card {
+  align-self: start !important;
+  margin: 0 !important;
+  min-height: 190px !important;
+}
+
+/* Right credential card starts on the same row as the form card */
+.staff-register-page .staff-register-side {
+  position: sticky !important;
+  top: 22px !important;
+  margin: 0 !important;
+}
+
+/* Responsive */
+@media (max-width: 1120px) {
+  .staff-register-page {
+    padding: 22px 18px 34px !important;
+  }
+
+  .staff-register-page .staff-register-shell {
+    max-width: 880px !important;
+  }
+
+  .staff-register-page .staff-register-hero-grid,
+  .staff-register-page .staff-register-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-register-page .staff-register-hero-main {
+    row-gap: 40px !important;
+  }
+
+  .staff-register-page .staff-register-hero-grid > .staff-register-success-card {
+    width: min(100%, 360px) !important;
+    justify-self: center !important;
+  }
+
+  .staff-register-page .staff-register-side {
+    position: static !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-register-page {
+    padding: 20px 16px 34px !important;
+  }
+
+  .staff-register-page .staff-register-top {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+
+  .staff-register-page .staff-register-top h2,
+  .staff-register-page .staff-register-top p {
+    text-align: left !important;
+  }
+
+  .staff-register-page .staff-register-hero-main {
+    row-gap: 30px !important;
+  }
+
+  .staff-register-page .staff-register-stepper {
+    grid-template-columns: repeat(4, 150px) !important;
+    overflow-x: auto !important;
+    padding-bottom: 8px !important;
+  }
+
+  .staff-register-page .staff-register-step-line {
+    left: 45px !important;
+    right: auto !important;
+    width: 500px !important;
+  }
+}
+
+
+
+/* =========================================================
+   STEP 2 REPRODUCTIVE FORM POSITION FIX
+   Keeps Gravida + Para and LMP + EDD in two aligned columns,
+   exactly like the reference image. This prevents them from
+   stacking vertically into one long column.
+========================================================= */
+
+.staff-register-page .staff-register-grid.is-three .staff-step2-two-column {
+  grid-column: 1 / -1 !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  column-gap: 28px !important;
+  row-gap: 20px !important;
+  align-items: start !important;
+  width: 100% !important;
+  margin-top: 0 !important;
+}
+
+.staff-register-page .staff-step2-two-column .staff-register-field {
+  min-width: 0 !important;
+  grid-column: auto !important;
+}
+
+/* Match the same input size and rhythm from the first/reference photo */
+.staff-register-page .staff-step2-two-column .staff-register-input-wrap input {
+  width: 100% !important;
+  height: 50px !important;
+}
+
+.staff-register-page .staff-step2-two-column .staff-register-field > span {
+  min-height: 17px !important;
+  line-height: 1.2 !important;
+}
+
+/* Make Step 2 top rows keep their 3-column layout */
+.staff-register-page .staff-register-grid.is-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  column-gap: 28px !important;
+  row-gap: 22px !important;
+  align-items: start !important;
+}
+
+/* Tablet: keep paired fields side-by-side when there is space */
+@media (max-width: 1024px) {
+  .staff-register-page .staff-register-grid.is-three .staff-step2-two-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: 18px !important;
+  }
+}
+
+/* Mobile: stack cleanly only on small screens */
+@media (max-width: 640px) {
+  .staff-register-page .staff-register-grid.is-three .staff-step2-two-column {
+    grid-template-columns: 1fr !important;
+    row-gap: 16px !important;
+  }
+}
+
+
+
+/* =========================================================
+   STEP 3 MEDICAL & FAMILY HISTORY POSITION FIX
+   Matches the reference:
+   - Medical Conditions: left column has 4 items, right column has
+     Thyroid Disorder + Others + Specify.
+   - Family History: 3 clean columns with Others + Specify on the right.
+========================================================= */
+
+.staff-register-page .staff-check-section {
+  gap: 14px !important;
+}
+
+.staff-register-page .staff-check-section h4 {
+  margin: 0 0 2px !important;
+  color: #30384a !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+}
+
+.staff-register-page .staff-check-columns {
+  display: grid !important;
+  width: 100% !important;
+  align-items: start !important;
+  column-gap: 54px !important;
+  row-gap: 12px !important;
+}
+
+/* Medical section uses 2 columns like the first/reference photo. */
+.staff-register-page .staff-check-columns.is-medical {
+  grid-template-columns: minmax(210px, 1fr) minmax(250px, 1fr) !important;
+  max-width: 650px !important;
+}
+
+/* Family section uses 3 columns like the first/reference photo. */
+.staff-register-page .staff-check-columns.is-family {
+  grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(210px, 1fr) !important;
+  max-width: 760px !important;
+  column-gap: 42px !important;
+}
+
+.staff-register-page .staff-check-column {
+  min-width: 0 !important;
+  display: grid !important;
+  align-content: start !important;
+  gap: 12px !important;
+}
+
+.staff-register-page .staff-check-column .staff-register-check {
+  min-height: 22px !important;
+  margin: 0 !important;
+}
+
+.staff-register-page .staff-check-column .staff-specify-field {
+  width: 100% !important;
+  max-width: 310px !important;
+  margin-top: 0 !important;
+}
+
+.staff-register-page .staff-check-column .staff-specify-field .staff-register-input-wrap input {
+  height: 40px !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  padding: 0 13px !important;
+}
+
+/* Disable the old row-flow grid if any old markup remains nearby. */
+.staff-register-page .staff-check-grid {
+  grid-auto-flow: initial !important;
+}
+
+/* Keep Step 3 content inside the same clean card rhythm. */
+.staff-register-page .staff-register-card .staff-check-section + .staff-check-section {
+  margin-top: 2px !important;
+}
+
+/* Tablet: preserve reference grouping while reducing gaps. */
+@media (max-width: 1024px) {
+  .staff-register-page .staff-check-columns {
+    column-gap: 28px !important;
+  }
+
+  .staff-register-page .staff-check-columns.is-medical {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    max-width: none !important;
+  }
+
+  .staff-register-page .staff-check-columns.is-family {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    max-width: none !important;
+    column-gap: 24px !important;
+  }
+}
+
+/* Mobile: stack cleanly only when screen is narrow. */
+@media (max-width: 680px) {
+  .staff-register-page .staff-check-columns.is-medical,
+  .staff-register-page .staff-check-columns.is-family {
+    grid-template-columns: 1fr !important;
+    max-width: none !important;
+  }
+
+  .staff-register-page .staff-check-column .staff-specify-field {
+    max-width: none !important;
+  }
+}
+
+
+
+/* =========================================================
+   FINAL PATIENTS LIST ALIGNMENT PATCH
+   Matches the clean reference photo:
+   - Header/profile stays fixed in the same top alignment.
+   - Search bar returns to the wider, cleaner size.
+   - Register Patient button returns to the correct larger size.
+   - Table moves closer to the toolbar and matches row/header spacing.
+   Add this at the very bottom of staff-patients.css.
+========================================================= */
+
+.staff-dashboard-shell .staff-patients-page,
+.staff-patients-page {
+  width: 100% !important;
+  padding: 0 0 48px !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+}
+
+/* Header alignment like the reference */
+.staff-dashboard-shell .staff-patients-header,
+.staff-patients-page .staff-patients-header {
+  width: 100% !important;
+  min-height: var(--doctor-top-profile-height, 66px) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 22px !important;
+  margin: 0 0 45px !important;
+  padding: 0 !important;
+}
+
+.staff-patients-page .staff-patients-header h2 {
+  margin: 0 !important;
+  color: #202432 !important;
+  font-size: clamp(34px, 2.45vw, 38px) !important;
+  font-weight: 800 !important;
+  line-height: 1.04 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.staff-patients-page .staff-patients-header p {
+  margin: 8px 0 0 !important;
+  color: #4e5363 !important;
+  font-size: 15.5px !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+}
+
+/* Toolbar: matches reference spacing and positioning */
+.staff-patients-page .staff-patients-actions {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(320px, 480px) 256px !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 24px !important;
+  margin: 0 0 35px !important;
+}
+
+/* Search bar: bigger and cleaner like first photo */
+.staff-patients-page .staff-patients-search {
+  width: 480px !important;
+  max-width: 100% !important;
+  height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 0 16px !important;
+  border: 1px solid #dfe2ec !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(22, 27, 41, 0.025) !important;
+}
+
+.staff-patients-page .staff-patients-search svg {
+  width: 22px !important;
+  height: 22px !important;
+  color: #71798d !important;
+}
+
+.staff-patients-page .staff-patients-search input {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  color: #252a38 !important;
+}
+
+.staff-patients-page .staff-patients-search input::placeholder {
+  color: #858c9d !important;
+}
+
+/* Register button: reference size and position */
+.staff-patients-page .staff-register-patient-btn {
+  width: 256px !important;
+  min-width: 256px !important;
+  height: 64px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 14px !important;
+  padding: 0 24px !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: var(--patients-pink) !important;
+  color: #ffffff !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.18) !important;
+}
+
+.staff-patients-status-message {
+  margin: 0 0 18px !important;
+  color: #ff2f7d !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+}
+
+.staff-next-btn:disabled,
+.staff-prev-btn:disabled {
+  cursor: wait !important;
+  opacity: 0.7 !important;
+}
+
+.staff-patients-page .staff-register-patient-btn svg {
+  width: 23px !important;
+  height: 23px !important;
+}
+
+/* Table card: closer to toolbar, exact card feel */
+.staff-patients-page .staff-patients-card {
+  width: 100% !important;
+  overflow: hidden !important;
+  margin: 0 0 48px !important;
+  border: 1px solid #dddfea !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  box-shadow: 0 18px 42px rgba(22, 27, 41, 0.055) !important;
+}
+
+.staff-patients-page .staff-patients-table {
+  width: 100% !important;
+  min-width: 850px !important;
+  border-collapse: collapse !important;
+}
+
+.staff-patients-page .staff-patients-table th {
+  height: 60px !important;
+  padding: 0 34px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+  text-align: left !important;
+}
+
+.staff-patients-page .staff-patients-table td {
+  height: 102px !important;
+  padding: 0 34px !important;
+  border-bottom: 1px solid #eef0f6 !important;
+  color: #4d5263 !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  vertical-align: middle !important;
+}
+
+.staff-patients-page .staff-patient-info-cell {
+  gap: 17px !important;
+}
+
+.staff-patients-page .staff-patient-avatar {
+  width: 52px !important;
+  height: 52px !important;
+  flex: 0 0 52px !important;
+  font-size: 18px !important;
+}
+
+.staff-patients-page .staff-patient-name-wrap strong {
+  color: #242936 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.staff-patients-page .staff-patient-name-wrap small {
+  color: #73788a !important;
+  font-size: 13.5px !important;
+  font-weight: 400 !important;
+}
+
+.staff-patients-page .staff-patient-id,
+.staff-patients-page .staff-patient-date {
+  color: #4d5263 !important;
+  font-size: 15.5px !important;
+  font-weight: 500 !important;
+}
+
+.staff-patients-page .staff-patient-view-btn {
+  min-width: 90px !important;
+  height: 38px !important;
+  border: 2px solid var(--patients-pink) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: var(--patients-pink) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+/* Keeps profile card aligned when switching Dashboard / Patients / Appointments */
+.staff-dashboard-shell .staff-patients-header .staff-profile-wrapper,
+.staff-dashboard-shell .staff-patients-header .doctor-profile-wrapper {
+  width: var(--doctor-top-profile-width, 292px) !important;
+  flex: 0 0 var(--doctor-top-profile-width, 292px) !important;
+  margin-left: auto !important;
+  align-self: flex-start !important;
+}
+
+/* Responsive behavior */
+@media (max-width: 900px) {
+  .staff-dashboard-shell .staff-patients-header,
+  .staff-patients-page .staff-patients-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+    margin-bottom: 30px !important;
+  }
+
+  .staff-patients-page .staff-patients-actions {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    margin-bottom: 18px !important;
+  }
+
+  .staff-patients-page .staff-patients-search,
+  .staff-patients-page .staff-register-patient-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .staff-patients-page .staff-register-patient-btn {
+    height: 50px !important;
+    font-size: 15px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-patients-page .staff-patients-header h2 {
+    font-size: 31px !important;
+  }
+
+  .staff-patients-page .staff-patients-search {
+    height: 44px !important;
+  }
+
+  .staff-patients-page .staff-patients-table {
+    min-width: 720px !important;
+  }
+
+  .staff-patients-page .staff-patients-table th {
+    height: 54px !important;
+    padding: 0 22px !important;
+    font-size: 11px !important;
+  }
+
+  .staff-patients-page .staff-patients-table td {
+    height: 88px !important;
+    padding: 0 22px !important;
+    font-size: 14px !important;
+  }
+}
+
+
+
+/* =========================================================
+   MEDICAL RECORDS COLUMN RIGHT ALIGNMENT FIX
+   Moves the Medical Records column/header/button farther right
+   so the Patients table uses the full horizontal space like
+   the reference design.
+========================================================= */
+
+.staff-patients-page .staff-patients-table th:nth-child(1),
+.staff-patients-page .staff-patients-table td:nth-child(1) {
+  width: 34% !important;
+}
+
+.staff-patients-page .staff-patients-table th:nth-child(2),
+.staff-patients-page .staff-patients-table td:nth-child(2) {
+  width: 19% !important;
+}
+
+.staff-patients-page .staff-patients-table th:nth-child(3),
+.staff-patients-page .staff-patients-table td:nth-child(3) {
+  width: 22% !important;
+}
+
+.staff-patients-page .staff-patients-table th:nth-child(4),
+.staff-patients-page .staff-patients-table td:nth-child(4) {
+  width: 25% !important;
+  text-align: right !important;
+  padding-right: 34px !important;
+}
+
+.staff-patients-page .staff-patients-table th:nth-child(4) {
+  padding-right: 66px !important;
+}
+
+.staff-patients-page .staff-patient-view-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-left: auto !important;
+}
+
+/* Keep it clean on smaller screens */
+@media (max-width: 900px) {
+  .staff-patients-page .staff-patients-table th:nth-child(4),
+  .staff-patients-page .staff-patients-table td:nth-child(4) {
+    text-align: left !important;
+    padding-right: 22px !important;
+  }
+
+  .staff-patients-page .staff-patients-table th:nth-child(4) {
+    padding-right: 22px !important;
+  }
+
+  .staff-patients-page .staff-patient-view-btn {
+    margin-left: 0 !important;
+  }
+}
+
+
+
+/* =========================================================
+   MEDICAL RECORDS HEADER SLIGHT RIGHT FIX
+   Keeps the View buttons in the good position, but moves only
+   the Medical Records column title a little more to the right.
+========================================================= */
+
+.staff-patients-page .staff-patients-table th:nth-child(4) {
+  text-align: right !important;
+  padding-right: 34px !important;
+}
+
+/* Keep View button position unchanged */
+.staff-patients-page .staff-patients-table td:nth-child(4) {
+  text-align: right !important;
+  padding-right: 34px !important;
+}
+
+@media (max-width: 900px) {
+  .staff-patients-page .staff-patients-table th:nth-child(4),
+  .staff-patients-page .staff-patients-table td:nth-child(4) {
+    text-align: left !important;
+    padding-right: 22px !important;
+  }
+}

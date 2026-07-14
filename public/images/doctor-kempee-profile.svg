@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Kempee Vergara">
+  <defs>
+    <linearGradient id="bg" x1="24" y1="12" x2="144" y2="150" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f5efe8"/>
+      <stop offset="1" stop-color="#d8c8bc"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="80" fill="url(#bg)"/>
+  <path d="M42 150c4-35 17-58 38-58s34 23 38 58H42Z" fill="#f8f9fb"/>
+  <path d="M58 99c11 12 33 12 44 0 16 8 26 24 30 51H28c4-27 14-43 30-51Z" fill="#f9fbfc"/>
+  <path d="M61 70c0-27 7-44 21-44s29 18 28 45c-18-12-34-12-49-1Z" fill="#20232b"/>
+  <path d="M56 69c0-24 10-40 26-40 15 0 24 17 24 40v12c0 25-11 42-25 42-15 0-25-17-25-42V69Z" fill="#d9a987"/>
+  <path d="M55 75c-5-1-8 5-6 12 1 6 5 10 9 9l-3-21Zm52 0c5-1 8 5 6 12-1 6-5 10-9 9l3-21Z" fill="#d19d7c"/>
+  <path d="M62 71c13-15 30-17 48-3-1-23-10-40-27-40-16 0-25 16-21 43Z" fill="#242832"/>
+  <circle cx="70" cy="77" r="2.5" fill="#1f2228"/>
+  <circle cx="93" cy="77" r="2.5" fill="#1f2228"/>
+  <path d="M75 95c5 4 12 4 17 0" fill="none" stroke="#874f45" stroke-width="3" stroke-linecap="round"/>
+  <path d="M68 87c4 3 9 3 13 0 4 3 9 3 13 0" fill="none" stroke="#7d4a3b" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

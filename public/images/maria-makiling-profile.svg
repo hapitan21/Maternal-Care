@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Maria Makiling">
+  <defs>
+    <linearGradient id="bg" x1="38" y1="18" x2="204" y2="222" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#eef0f1"/>
+      <stop offset="1" stop-color="#c9d0d1"/>
+    </linearGradient>
+    <linearGradient id="coat" x1="78" y1="132" x2="172" y2="234" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f9fbfb"/>
+      <stop offset="1" stop-color="#e2e8ea"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="34" fill="url(#bg)"/>
+  <ellipse cx="120" cy="94" rx="45" ry="58" fill="#20242a"/>
+  <path d="M72 222c6-45 24-75 48-75s42 30 48 75H72Z" fill="#178399"/>
+  <path d="M84 155c16 16 56 16 72 0 25 13 41 40 47 85H37c6-45 22-72 47-85Z" fill="url(#coat)"/>
+  <path d="M96 151 120 222l24-71c-14 8-34 8-48 0Z" fill="#0f778b"/>
+  <path d="M73 240c5-38 14-65 28-84l17 84H73Zm66 0 17-84c14 19 23 46 28 84h-45Z" fill="#f7f9fa"/>
+  <path d="M88 91c0-28 14-48 32-48s32 20 32 48v18c0 29-14 50-32 50s-32-21-32-50V91Z" fill="#f1c6a7"/>
+  <path d="M90 97c-2-34 7-61 30-61 22 0 33 25 31 60-14-10-36-12-61 1Z" fill="#252932"/>
+  <path d="M84 104c-7-1-10 6-8 14 2 7 7 12 13 11l-5-25Zm72 0c7-1 10 6 8 14-2 7-7 12-13 11l5-25Z" fill="#edbd9d"/>
+  <path d="M105 116c4 4 10 4 15 0 5 4 11 4 15 0" fill="none" stroke="#7f4a3b" stroke-width="3" stroke-linecap="round"/>
+  <path d="M110 134c6 5 14 5 20 0" fill="none" stroke="#9b4d55" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="104" cy="104" r="3" fill="#20242a"/>
+  <circle cx="136" cy="104" r="3" fill="#20242a"/>
+</svg>

@@ -1,0 +1,622 @@
+.pwa-medical-page {
+  width: 100%;
+  max-width: none;
+  padding-bottom: 34px;
+}
+
+.pwa-medical-title {
+  margin-bottom: 26px !important;
+}
+
+.pwa-medical-search {
+  width: min(430px, 100%);
+  height: 46px;
+  border: 1px solid var(--pwa-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #9aa8bc;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  margin: 0 0 34px;
+  box-shadow: 0 10px 28px rgba(22, 29, 45, 0.03);
+}
+
+.pwa-medical-search svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.pwa-medical-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--pwa-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pwa-medical-search input::placeholder {
+  color: #9ba9bb;
+  font-weight: 500;
+}
+
+.pwa-medical-alert {
+  width: min(680px, 100%);
+  margin: -18px 0 24px;
+  border: 1px solid #ffc9dc;
+  border-radius: 12px;
+  background: #fff0f6;
+  color: var(--pwa-pink);
+  padding: 13px 16px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 800;
+}
+
+.pwa-medical-record-tabs {
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 16px;
+  margin: -10px 0 18px;
+}
+
+.pwa-medical-record-tabs::-webkit-scrollbar {
+  height: 8px;
+}
+
+.pwa-medical-record-tabs::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #f8c8d9;
+}
+
+.pwa-medical-record-tabs button {
+  min-width: 214px;
+  max-width: 280px;
+  border: 1px solid var(--pwa-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--pwa-text);
+  padding: 12px 14px;
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(22, 29, 45, 0.035);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.pwa-medical-record-tabs button:hover,
+.pwa-medical-record-tabs button.is-active {
+  border-color: #ffc9dc;
+  box-shadow: 0 12px 26px rgba(251, 56, 126, 0.09);
+  transform: translateY(-1px);
+}
+
+.pwa-medical-record-tabs span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--pwa-pink);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+}
+
+.pwa-medical-record-tabs strong {
+  display: block;
+  overflow: hidden;
+  color: var(--pwa-text);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pwa-medical-card {
+  width: 100%;
+  min-height: 735px;
+  border: 1px solid var(--pwa-border);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(22, 29, 45, 0.04);
+  display: grid;
+  grid-template-columns: 245px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.pwa-medical-side {
+  background: #fbfcfe;
+  border-right: 1px solid var(--pwa-border);
+  padding: 34px 28px;
+}
+
+.pwa-medical-side h2 {
+  margin: 0;
+  color: var(--pwa-pink);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Poppins", sans-serif;
+  font-size: 21px;
+  line-height: 28px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.pwa-medical-side h2 svg {
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+}
+
+.pwa-medical-side > p {
+  margin: 7px 0 42px 32px;
+  color: var(--pwa-muted);
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.pwa-medical-meta {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 32px;
+  align-items: start;
+}
+
+.pwa-medical-meta > span {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pwa-pink-soft);
+  color: var(--pwa-pink);
+  flex-shrink: 0;
+}
+
+.pwa-medical-meta.is-blue > span {
+  background: #eaf3ff;
+  color: #4c8ff9;
+}
+
+.pwa-medical-meta.is-violet > span {
+  background: #f5e8ff;
+  color: #9d57ff;
+}
+
+.pwa-medical-meta svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pwa-medical-meta small {
+  display: block;
+  color: #9aa8bc;
+  font-size: 10px;
+  line-height: 13px;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.pwa-medical-meta strong {
+  display: block;
+  max-width: 140px;
+  color: var(--pwa-text);
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 800;
+}
+
+.pwa-medical-body {
+  min-width: 0;
+  padding: 34px 48px 34px;
+}
+
+.pwa-medical-top-grid,
+.pwa-medical-bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(285px, 0.75fr);
+  column-gap: 54px;
+}
+
+.pwa-medical-top-grid {
+  row-gap: 34px;
+}
+
+.pwa-medical-bottom-grid {
+  align-items: start;
+}
+
+.pwa-record-section {
+  min-width: 0;
+}
+
+.pwa-chief-section {
+  grid-column: 1;
+}
+
+.pwa-assessment-section {
+  grid-column: 1;
+}
+
+.pwa-findings-section {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.pwa-dot-title,
+.pwa-record-section h3 {
+  margin: 0 0 15px;
+  color: var(--pwa-text);
+  font-family: "Poppins", sans-serif;
+  font-size: 16.5px;
+  line-height: 23px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.pwa-dot-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.pwa-dot-title span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--pwa-pink);
+  flex-shrink: 0;
+}
+
+.pwa-record-section p {
+  margin: 0;
+  max-width: 410px;
+  color: var(--pwa-muted);
+  font-size: 14.5px;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+.pwa-findings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(72px, 1fr));
+  gap: 27px 30px;
+  margin-top: 4px;
+}
+
+.pwa-findings-grid small {
+  display: block;
+  color: #9aa8bc;
+  font-size: 9.5px;
+  line-height: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pwa-findings-grid strong {
+  display: block;
+  color: var(--pwa-text);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 800;
+}
+
+.pwa-findings-grid span {
+  display: block;
+  color: #8b98aa;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+}
+
+.pwa-assessment-list,
+.pwa-treatment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.pwa-assessment-list {
+  gap: 12px;
+}
+
+.pwa-assessment-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--pwa-muted);
+  font-size: 14.5px;
+  line-height: 21px;
+  font-weight: 500;
+}
+
+.pwa-assessment-list svg {
+  width: 15px;
+  height: 15px;
+  margin-top: 3px;
+  color: #20c573;
+  flex-shrink: 0;
+}
+
+.pwa-record-divider {
+  height: 1px;
+  background: var(--pwa-border);
+  margin: 38px 0 32px;
+}
+
+.pwa-obstetric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pwa-obstetric-grid div {
+  min-height: 68px;
+  border-radius: 12px;
+  background: #f7f8fa;
+  padding: 16px 15px;
+}
+
+.pwa-obstetric-grid div.is-wide {
+  grid-column: 1 / -1;
+}
+
+.pwa-obstetric-grid small {
+  display: block;
+  color: #9aa8bc;
+  font-size: 9.5px;
+  line-height: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.pwa-obstetric-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--pwa-text);
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 800;
+}
+
+.pwa-diagnosis-title,
+.pwa-attachment-title {
+  margin-top: 28px !important;
+}
+
+.pwa-diagnosis-box {
+  min-height: 54px;
+  border: 1px solid #ffc9dc;
+  border-radius: 12px;
+  background: #fff0f6;
+  color: var(--pwa-pink);
+  display: flex;
+  align-items: center;
+  padding: 14px 17px;
+  font-size: 13.5px;
+  line-height: 19px;
+  font-weight: 800;
+}
+
+.pwa-treatment-list {
+  gap: 17px;
+  margin-bottom: 28px;
+}
+
+.pwa-treatment-list li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--pwa-muted);
+  font-size: 14.5px;
+  line-height: 1.58;
+  font-weight: 500;
+}
+
+.pwa-treatment-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--pwa-pink);
+}
+
+.pwa-attachment-card {
+  width: 100%;
+  min-height: 76px;
+  border: 1px solid var(--pwa-border);
+  border-radius: 13px;
+  background: #ffffff;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 17px;
+  text-align: left;
+  text-decoration: none;
+  color: var(--pwa-text);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.pwa-attachment-card[aria-disabled="true"] {
+  cursor: default;
+}
+
+.pwa-attachment-card:not([aria-disabled="true"]):hover {
+  transform: translateY(-1px);
+  border-color: #ffc9dc;
+  box-shadow: 0 12px 26px rgba(251, 56, 126, 0.08);
+}
+
+.pwa-attachment-card > span {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #fff0f3;
+  color: var(--pwa-pink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pwa-attachment-card span svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pwa-attachment-card strong {
+  display: block;
+  min-width: 0;
+  color: var(--pwa-text);
+  font-size: 14px;
+  line-height: 17px;
+  font-weight: 800;
+}
+
+.pwa-attachment-card small {
+  display: block;
+  color: #8fa0b5;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 700;
+}
+
+.pwa-attachment-card > svg {
+  width: 18px;
+  height: 18px;
+  color: #a5b1c1;
+}
+
+.pwa-medical-empty {
+  width: min(620px, 100%);
+  min-height: 240px;
+  border: 1px solid var(--pwa-border);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: var(--pwa-soft-shadow);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 34px;
+}
+
+.pwa-medical-empty svg {
+  width: 40px;
+  height: 40px;
+  color: var(--pwa-pink);
+}
+
+.pwa-medical-empty h2 {
+  margin: 0;
+  color: var(--pwa-text);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.pwa-medical-empty p {
+  margin: 0;
+  color: var(--pwa-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 1180px) {
+  .pwa-medical-page {
+    max-width: 100%;
+  }
+
+  .pwa-medical-body {
+    padding: 32px 36px;
+  }
+
+  .pwa-medical-top-grid,
+  .pwa-medical-bottom-grid {
+    column-gap: 42px;
+  }
+}
+
+@media (max-width: 980px) {
+  .pwa-medical-card {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-medical-side {
+    border-right: 0;
+    border-bottom: 1px solid var(--pwa-border);
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .pwa-medical-side h2,
+  .pwa-medical-side > p {
+    grid-column: 1 / -1;
+  }
+
+  .pwa-medical-side > p {
+    margin-bottom: 8px;
+  }
+
+  .pwa-medical-meta {
+    margin-top: 0;
+  }
+
+  .pwa-medical-top-grid,
+  .pwa-medical-bottom-grid {
+    grid-template-columns: 1fr;
+    row-gap: 30px;
+  }
+
+  .pwa-findings-section,
+  .pwa-chief-section,
+  .pwa-assessment-section {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .pwa-medical-page {
+    padding-bottom: 22px;
+  }
+
+  .pwa-medical-search {
+    width: 100%;
+    margin-bottom: 22px;
+  }
+
+  .pwa-medical-side,
+  .pwa-medical-body {
+    padding: 24px 18px;
+  }
+
+  .pwa-medical-side {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-findings-grid,
+  .pwa-obstetric-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 460px) {
+  .pwa-findings-grid,
+  .pwa-obstetric-grid {
+    grid-template-columns: 1fr;
+  }
+}

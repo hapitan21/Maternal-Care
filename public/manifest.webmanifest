@@ -1,0 +1,54 @@
+{
+  "id": "/patient",
+  "name": "Maternal Care Patient",
+  "short_name": "Maternal Care",
+  "description": "Patient pregnancy dashboard, appointments, medical records, and reminder notifications.",
+  "start_url": "/patient/access",
+  "scope": "/patient/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#ff0a55",
+  "categories": ["health", "medical", "productivity"],
+  "shortcuts": [
+    {
+      "name": "My Appointments",
+      "short_name": "Appointments",
+      "url": "/patient/appointments",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "My Reminders",
+      "short_name": "Reminders",
+      "url": "/patient/reminders",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

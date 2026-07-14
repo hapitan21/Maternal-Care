@@ -1,0 +1,3175 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap");
+
+.staff-appointments-page {
+  --staff-appointments-pink: #ff2f7d;
+  --staff-appointments-pink-dark: #ee1768;
+  --staff-appointments-ink: #202432;
+  --staff-appointments-muted: #686e7f;
+  --staff-appointments-line: #d6d9e7;
+  --staff-appointments-soft-line: #edf0f6;
+  --staff-appointments-surface: #ffffff;
+  --staff-appointments-bg: #f8f9fc;
+  --staff-appointments-shadow: 0 18px 42px rgba(22, 27, 41, 0.055);
+  --staff-appointments-glow: 0 14px 30px rgba(255, 47, 125, 0.18);
+
+  width: 100%;
+  min-width: 0;
+  padding: 34px 30px 40px 28px;
+  color: var(--staff-appointments-ink);
+  
+  font-family: "Poppins", sans-serif;
+  box-sizing: border-box;
+}
+
+.staff-appointments-page *,
+.staff-appointments-page *::before,
+.staff-appointments-page *::after {
+  box-sizing: border-box;
+}
+
+.staff-appointments-page button,
+.staff-appointments-page input,
+.staff-appointments-page select {
+  font: inherit;
+}
+
+.staff-appointments-page button,
+.staff-appointments-page select {
+  cursor: pointer;
+}
+
+/* Header */
+.staff-appointments-header {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 64px;
+}
+
+.staff-appointments-status-message {
+  margin: -42px 0 24px;
+  color: var(--staff-appointments-pink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.staff-appointments-toolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 390px) max-content;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  margin: -42px 0 10px;
+}
+
+.staff-appointments-status-message + .staff-appointments-toolbar {
+  margin-top: 0;
+}
+
+.staff-appointment-summary {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0 18px;
+}
+
+.staff-appointment-summary-card {
+  min-width: 0;
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 18px 16px;
+  border: 1px solid #e5e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--staff-appointments-shadow);
+}
+
+.staff-appointment-summary-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #fff0f6;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointment-summary-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.staff-appointment-summary-card div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.staff-appointment-summary-card span:not(.staff-appointment-summary-icon) {
+  color: #6d7484;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.staff-appointment-summary-card strong {
+  color: #202432;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.staff-appointment-summary-card.is-today .staff-appointment-summary-icon {
+  background: #e8f0ff;
+  color: #4667e8;
+}
+
+.staff-appointment-summary-card.is-pending .staff-appointment-summary-icon {
+  background: #fff0d5;
+  color: #dc8b00;
+}
+
+.staff-appointment-summary-card.is-checked .staff-appointment-summary-icon {
+  background: #ece9ff;
+  color: #5b54e8;
+}
+
+.staff-appointment-summary-card.is-cancelled .staff-appointment-summary-icon {
+  background: #ffe8e8;
+  color: #e04747;
+}
+
+.staff-appointments-search-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.staff-appointments-search {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 15px;
+  border: 1px solid #cfd2e0;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #414755;
+}
+
+.staff-appointments-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 1200;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #d5dae6;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(22, 27, 41, 0.13);
+}
+
+.staff-appointments-suggestions button {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #252b38;
+  text-align: left;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.staff-appointments-suggestions button:hover,
+.staff-appointments-suggestions button:focus-visible {
+  outline: 0;
+  background: #fff2f7;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointments-suggestions strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-appointments-suggestions span {
+  color: #7a8294;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 650;
+}
+
+.staff-appointments-search:focus-within {
+  border-color: rgba(255, 47, 125, 0.65);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-appointments-search svg {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+}
+
+.staff-appointments-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #2d3340;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.staff-appointments-search input::placeholder {
+  color: #9aa1af;
+}
+
+.staff-add-appointment-btn {
+  height: 42px;
+  min-width: 180px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--staff-appointments-pink);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 850;
+  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.2);
+  transition: transform 170ms ease, background-color 170ms ease, box-shadow 170ms ease;
+}
+
+.staff-add-appointment-btn:hover {
+  background: var(--staff-appointments-pink-dark);
+  box-shadow: 0 16px 28px rgba(255, 47, 125, 0.24);
+}
+
+.staff-add-appointment-btn:active {
+  transform: translateY(1px);
+}
+
+.staff-add-appointment-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.staff-appointments-header h1 {
+  margin: 0;
+  color: #161a24;
+  font-size: clamp(31px, 2.7vw, 40px);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.055em;
+}
+
+.staff-appointments-tabs {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  margin-top: 24px;
+  border-bottom: 1px solid #d9dce8;
+}
+
+.staff-appointments-tabs button {
+  position: relative;
+  min-height: 30px;
+  padding: 0 0 15px;
+  border: 0;
+  background: transparent;
+  color: #3c4150;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  transition: color 170ms ease;
+}
+
+.staff-appointments-tabs button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--staff-appointments-pink);
+  transition: width 170ms ease;
+}
+
+.staff-appointments-tabs button:hover,
+.staff-appointments-tabs button.is-active {
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointments-tabs button.is-active::after {
+  width: 100%;
+}
+
+/* Table */
+.staff-appointments-table-card {
+  width: 100%;
+  overflow: hidden;
+  margin-bottom: 36px;
+  border: 1px solid #cfd2e0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--staff-appointments-shadow);
+}
+
+.staff-appointments-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 47, 125, 0.4) transparent;
+}
+
+.staff-appointments-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+}
+
+.staff-appointments-table thead {
+  background: var(--staff-appointments-pink);
+}
+
+.staff-appointments-table th {
+  height: 50px;
+  padding: 0 24px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.staff-appointments-table th:first-child {
+  padding-left: 25px;
+}
+
+.staff-appointments-table td {
+  height: 67px;
+  padding: 0 24px;
+  border-top: 1px solid #cfd2e0;
+  color: #343945;
+  font-size: 13.5px;
+  font-weight: 500;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.staff-appointments-table tbody tr {
+  transition: background-color 170ms ease;
+}
+
+.staff-appointments-table tbody tr:hover {
+  background: #fff8fb;
+}
+
+.staff-appointments-empty-cell {
+  height: 120px !important;
+  color: var(--staff-appointments-muted) !important;
+  text-align: center;
+}
+
+/* Status select */
+.staff-status-select {
+  position: relative;
+  width: max-content;
+  min-width: 89px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.staff-status-select select {
+  width: 100%;
+  height: 100%;
+  appearance: none;
+  border: 0;
+  outline: 0;
+  border-radius: inherit;
+  padding: 0 24px 0 16px;
+  color: inherit;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.staff-status-select svg {
+  position: absolute;
+  right: 9px;
+  width: 13px;
+  height: 13px;
+  pointer-events: none;
+}
+
+.staff-status-select.is-pending {
+  background: #ffe4f1;
+  color: #cf1260;
+}
+
+.staff-status-select.is-checked,
+.staff-status-select.is-completed {
+  background: #ece9ff;
+  color: #5b54e8;
+}
+
+.staff-status-select.is-cancelled {
+  background: #ffe8e8;
+  color: #e04747;
+}
+
+/* Calendar layout */
+.staff-appointments-calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 315px;
+  gap: 16px;
+  width: 100%;
+  align-items: start;
+}
+
+.staff-calendar-panel,
+.staff-mini-calendar-card,
+.staff-categories-card {
+  background: #fff;
+  border: 1px solid #cfd2e0;
+  box-shadow: var(--staff-appointments-shadow);
+}
+
+.staff-calendar-panel {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  padding: 24px 24px 20px;
+}
+
+.staff-calendar-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.staff-calendar-panel-header > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.staff-calendar-panel-header h2 {
+  margin: 0;
+  color: #202432;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.staff-calendar-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.staff-calendar-controls button,
+.staff-mini-calendar-card header button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cfd2e0;
+  border-radius: 8px;
+  background: #fff;
+  color: #3f4453;
+  transition: background-color 170ms ease, color 170ms ease, transform 170ms ease;
+}
+
+.staff-calendar-controls button:hover,
+.staff-mini-calendar-card header button:hover {
+  color: var(--staff-appointments-pink);
+  background: #fff5fa;
+}
+
+.staff-calendar-controls button:active,
+.staff-mini-calendar-card header button:active {
+  transform: translateY(1px);
+}
+
+.staff-calendar-panel-header strong {
+  color: #424654;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.staff-calendar-clear {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--staff-appointments-pink);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--staff-appointments-pink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.staff-week-calendar {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border-top: 1px solid #e1e5ef;
+}
+
+.staff-week-calendar-days {
+  min-width: 820px;
+  display: grid;
+  grid-template-columns: 64px repeat(7, minmax(92px, 1fr));
+  border-bottom: 2px solid #dfe2ec;
+}
+
+.staff-week-calendar-time-head {
+  min-height: 62px;
+  display: grid;
+  place-items: center;
+  color: #7b8294;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-week-calendar-days button {
+  min-height: 62px;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  border: 0;
+  border-left: 1px solid #eef0f5;
+  background: #ffffff;
+  color: #202432;
+}
+
+.staff-week-calendar-days button small {
+  color: #697183;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-week-calendar-days button strong {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #202432;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.staff-week-calendar-days button.is-selected strong,
+.staff-week-calendar-days button:hover strong {
+  background: var(--staff-appointments-pink);
+  color: #ffffff;
+}
+
+.staff-week-calendar-body {
+  min-width: 820px;
+  display: grid;
+  grid-template-columns: 64px minmax(756px, 1fr);
+  min-height: calc(var(--staff-week-hour-height) * 13);
+}
+
+.staff-week-calendar-times {
+  display: grid;
+  grid-template-rows: repeat(13, var(--staff-week-hour-height));
+  color: #323746;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.staff-week-calendar-times span {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+  border-bottom: 1px solid #e7e9f0;
+}
+
+.staff-week-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(92px, 1fr));
+}
+
+.staff-week-calendar-day {
+  position: relative;
+  min-height: calc(var(--staff-week-hour-height) * 13);
+  border-left: 1px solid #eef0f5;
+  overflow: hidden;
+}
+
+.staff-week-calendar-line {
+  display: block;
+  width: 100%;
+  height: var(--staff-week-hour-height);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #e7e9f0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.staff-week-calendar-line:hover {
+  background: rgba(255, 47, 125, 0.045);
+}
+
+.staff-week-event {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  z-index: 2;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 0;
+  border-left: 4px solid currentColor;
+  border-radius: 9px;
+  overflow: hidden;
+  text-align: left;
+  box-shadow: 0 8px 18px rgba(22, 27, 41, 0.08);
+}
+
+.staff-week-event strong {
+  overflow: hidden;
+  color: currentColor;
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-week-event span,
+.staff-week-event small {
+  overflow: hidden;
+  color: currentColor;
+  font-size: 10px;
+  line-height: 1.15;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-week-event-checkup {
+  color: #ff2f7d;
+  background: #ffe3ef;
+}
+
+.staff-week-event-consultation {
+  color: #5264f2;
+  background: #e6ebff;
+}
+
+.staff-week-event-education {
+  color: #7d38f4;
+  background: #f0ddff;
+}
+
+.staff-week-event-reminder {
+  color: #f04444;
+  background: #ffe0e0;
+}
+
+.staff-fullcalendar-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border-top: 1px solid #e1e5ef;
+}
+
+.staff-fullcalendar-wrap .fc {
+  min-width: 860px;
+  color: #202432;
+  font-family: "Poppins", sans-serif;
+}
+
+.staff-fullcalendar-wrap .fc-theme-standard td,
+.staff-fullcalendar-wrap .fc-theme-standard th,
+.staff-fullcalendar-wrap .fc-scrollgrid {
+  border-color: #e7e9f0;
+}
+
+.staff-fullcalendar-wrap .fc-col-header-cell {
+  height: 62px;
+  background: #fff;
+}
+
+.staff-fullcalendar-wrap .fc-col-header-cell-cushion {
+  display: grid;
+  gap: 2px;
+  padding: 12px 8px;
+  color: #202432;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.staff-fullcalendar-wrap .fc-timegrid-slot {
+  height: 35px;
+}
+
+.staff-fullcalendar-wrap .fc-timegrid-slot-label {
+  color: #323746;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.staff-fullcalendar-wrap .fc-timegrid-axis-cushion,
+.staff-fullcalendar-wrap .fc-timegrid-slot-label-cushion {
+  padding: 8px;
+}
+
+.staff-fullcalendar-wrap .fc-timegrid-now-indicator-line {
+  border-color: var(--staff-appointments-pink);
+}
+
+.staff-fullcalendar-wrap .fc-event {
+  border: 0;
+  border-left: 4px solid currentColor;
+  border-radius: 9px;
+  box-shadow: 0 8px 18px rgba(22, 27, 41, 0.08);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.staff-fullcalendar-card {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 8px 9px;
+  line-height: 1.15;
+}
+
+.staff-fullcalendar-card strong,
+.staff-fullcalendar-card span,
+.staff-fullcalendar-card small {
+  overflow: hidden;
+  color: currentColor;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-fullcalendar-card strong {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.staff-fullcalendar-card span,
+.staff-fullcalendar-card small {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.staff-fullcalendar-event-checkup {
+  color: #ff2f7d;
+  background: #ffe3ef;
+}
+
+.staff-fullcalendar-event-consultation {
+  color: #5264f2;
+  background: #e6ebff;
+}
+
+.staff-fullcalendar-event-education {
+  color: #7d38f4;
+  background: #f0ddff;
+}
+
+.staff-fullcalendar-event-reminder {
+  color: #f04444;
+  background: #ffe0e0;
+}
+
+.staff-mobile-calendar-list {
+  display: none;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.staff-mobile-calendar-item {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border: 0;
+  border-left: 4px solid currentColor;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.staff-mobile-calendar-item span,
+.staff-mobile-calendar-item small {
+  color: currentColor;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.staff-mobile-calendar-item strong {
+  color: currentColor;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.staff-mobile-calendar-empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed #d8dce7;
+  border-radius: 12px;
+  color: #7a8294;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.staff-appointments-table tbody tr {
+  cursor: pointer;
+}
+
+.staff-appointment-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(25, 27, 34, 0.44);
+  backdrop-filter: blur(7px);
+}
+
+.staff-appointment-detail-modal {
+  width: min(680px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  position: relative;
+  border: 1px solid #f1bfd3;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(22, 27, 41, 0.25);
+}
+
+.staff-appointment-detail-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #f6bad2;
+  border-radius: 12px;
+  background: #fff3f8;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointment-detail-close svg {
+  width: 22px;
+  height: 22px;
+}
+
+.staff-appointment-detail-modal > header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 74px 22px 28px;
+  border-bottom: 1px solid #edf0f6;
+}
+
+.staff-appointment-detail-icon {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #ffe3ef;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointment-detail-modal h2 {
+  margin: 0;
+  color: #202432;
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.staff-appointment-detail-modal p {
+  margin: 5px 0 0;
+  color: #666e82;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.staff-appointment-detail-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+  margin: 0;
+  padding: 24px 28px;
+}
+
+.staff-appointment-detail-list div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #edf0f6;
+  border-radius: 12px;
+  background: #fafbfe;
+}
+
+.staff-appointment-detail-list dt {
+  color: #7a8294;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.staff-appointment-detail-list dd {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  color: #202432;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.staff-appointment-cancel-reason {
+  margin: 0 28px 18px !important;
+  padding: 13px 14px;
+  border: 1px solid #ffbec3;
+  border-radius: 12px;
+  background: #fff0f1;
+  color: #d43e48 !important;
+}
+
+.staff-appointment-detail-modal footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px 28px 28px;
+  border-top: 1px solid #edf0f6;
+}
+
+.staff-appointment-detail-modal footer button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.staff-appointment-detail-modal footer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.staff-appointment-detail-modal footer svg {
+  width: 17px;
+  height: 17px;
+}
+
+.staff-appointment-detail-modal .is-outline {
+  border: 1px solid #f5a9c7;
+  background: #fff;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointment-detail-modal .is-primary {
+  border: 1px solid var(--staff-appointments-pink);
+  background: var(--staff-appointments-pink);
+  color: #fff;
+}
+
+.staff-appointment-detail-modal .is-danger {
+  border: 1px solid #ff9ea2;
+  background: #fff0f1;
+  color: #e04747;
+}
+
+/* Right side */
+.staff-calendar-sidebar {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.staff-mini-calendar-card {
+  border-radius: 14px;
+  padding: 27px 24px 24px;
+}
+
+.staff-mini-calendar-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 23px;
+}
+
+.staff-mini-calendar-card header h3,
+.staff-categories-card h3 {
+  margin: 0;
+  color: #202432;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.staff-mini-calendar-card header div {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.staff-mini-calendar-card header button {
+  width: 25px;
+  height: 25px;
+  border: 0;
+}
+
+.staff-mini-calendar-weekdays,
+.staff-mini-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+}
+
+.staff-mini-calendar-weekdays {
+  margin-bottom: 14px;
+}
+
+.staff-mini-calendar-weekdays span {
+  color: #4d5263;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.staff-mini-calendar-days {
+  row-gap: 16px;
+}
+
+.staff-mini-calendar-days button {
+  width: 29px;
+  height: 29px;
+  justify-self: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #202432;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background-color 170ms ease, color 170ms ease, transform 170ms ease;
+}
+
+.staff-mini-calendar-days button:not(:disabled):hover,
+.staff-mini-calendar-days button.is-soft {
+  background: #ffe5f0;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-mini-calendar-days button.is-active {
+  background: var(--staff-appointments-pink);
+  color: #fff;
+}
+
+.staff-mini-calendar-days button.is-disabled {
+  color: #d8dbe3;
+  cursor: default;
+}
+
+.staff-mini-calendar-days button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.staff-categories-card {
+  border: 0;
+  border-radius: 28px;
+  padding: 26px 24px;
+}
+
+.staff-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.staff-category-item {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: #fafbfe;
+  color: #344052;
+  text-align: left;
+  transition: transform 170ms ease, border-color 170ms ease, box-shadow 170ms ease, background-color 170ms ease;
+}
+
+.staff-category-item:hover,
+.staff-category-item.is-active {
+  transform: translateY(-1px);
+  border-color: rgba(255, 47, 125, 0.18);
+  box-shadow: 0 12px 22px rgba(22, 27, 41, 0.055);
+}
+
+.staff-category-item span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+}
+
+.staff-category-item strong {
+  color: #344052;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.staff-category-item.is-checkup span {
+  background: #ffe0ee;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-category-item.is-consultation span {
+  background: #e4edff;
+  color: #4a89ff;
+}
+
+.staff-category-item.is-education span {
+  background: #f0ddff;
+  color: #8b4dff;
+}
+
+.staff-category-item.is-reminder span {
+  background: #ffe9cf;
+  color: #ff981f;
+}
+
+/* Responsive */
+@media (max-width: 1180px) {
+  .staff-appointments-calendar-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-appointment-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .staff-calendar-sidebar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .staff-appointments-page {
+    padding: 26px 20px 34px;
+  }
+
+  .staff-appointments-header {
+    flex-direction: column;
+    gap: 18px;
+    margin-bottom: 34px;
+  }
+
+  .staff-appointments-tabs {
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 18px;
+  }
+
+  .staff-calendar-panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .staff-calendar-sidebar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-appointments-page {
+    padding: 22px 14px 32px;
+  }
+
+  .staff-appointments-header h1 {
+    font-size: 31px;
+  }
+
+  .staff-appointments-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 1px;
+  }
+
+  .staff-appointments-table {
+    min-width: 760px;
+  }
+
+  .staff-appointment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-appointments-table th {
+    height: 50px;
+    padding: 0 20px;
+    font-size: 10.5px;
+  }
+
+  .staff-appointments-table td {
+    height: 62px;
+    padding: 0 20px;
+    font-size: 13px;
+  }
+
+  .staff-calendar-panel,
+  .staff-mini-calendar-card,
+  .staff-categories-card {
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  .staff-calendar-panel-header h2 {
+    font-size: 20px;
+  }
+
+  .staff-calendar-panel-header strong {
+    font-size: 16px;
+  }
+
+  .staff-fullcalendar-wrap,
+  .staff-week-calendar {
+    display: none;
+  }
+
+  .staff-mobile-calendar-list {
+    display: grid;
+  }
+
+  .staff-category-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-appointment-detail-list {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-appointment-detail-modal > header {
+    padding: 24px 66px 20px 22px;
+  }
+
+  .staff-appointment-detail-list,
+  .staff-appointment-detail-modal footer {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+
+}
+
+
+
+/* =========================================================
+   Shared staff alignment override for Appointments page
+   Keeps the title and profile position the same as Dashboard/Patients.
+========================================================= */
+
+.staff-dashboard-shell .staff-appointments-page {
+  padding: 0 !important;
+}
+
+.staff-dashboard-shell .staff-appointments-header {
+  width: 100% !important;
+  min-height: var(--doctor-top-profile-height, 66px) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 22px !important;
+  margin: 0 0 64px !important;
+  padding: 0 !important;
+}
+
+.staff-dashboard-shell .staff-appointments-header h1 {
+  margin: 0 !important;
+  color: #202432 !important;
+  font-size: clamp(34px, 2.6vw, 42px) !important;
+  font-weight: 900 !important;
+  line-height: 1.03 !important;
+  letter-spacing: -0.06em !important;
+}
+
+.staff-dashboard-shell .staff-appointments-tabs {
+  margin-top: 24px !important;
+}
+
+.staff-dashboard-shell .staff-appointments-table-card,
+.staff-dashboard-shell .staff-appointments-calendar-layout {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.staff-dashboard-shell .staff-appointments-header .staff-profile-wrapper {
+  margin-left: auto !important;
+  flex: 0 0 var(--doctor-top-profile-width, 292px) !important;
+  width: var(--doctor-top-profile-width, 292px) !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell .staff-appointments-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+    margin-bottom: 34px !important;
+  }
+
+  .staff-dashboard-shell .staff-appointments-header .staff-profile-wrapper {
+    width: 100% !important;
+    flex-basis: auto !important;
+  }
+}
+
+
+
+/* =========================================================
+   Custom appointment status dropdown
+   Matches the rounded floating menu design:
+   Pending / Checked in / Cancel / No show.
+========================================================= */
+
+/* Allow the floating menu to show outside the table row/card. */
+.staff-appointments-table-card {
+  overflow: visible !important;
+}
+
+.staff-appointments-table-scroll {
+  overflow-x: auto;
+  overflow-y: visible !important;
+}
+
+/* New custom dropdown */
+.staff-status-dropdown {
+  position: relative;
+  display: inline-flex;
+  width: max-content;
+  min-width: 94px;
+  z-index: 5;
+}
+
+.staff-status-trigger {
+  min-width: 94px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px 0 15px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffe4f1;
+  color: #cf1260;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  transition: transform 170ms ease, box-shadow 170ms ease, filter 170ms ease;
+}
+
+.staff-status-trigger:hover {
+  filter: brightness(0.99);
+  box-shadow: 0 8px 16px rgba(22, 27, 41, 0.08);
+}
+
+.staff-status-trigger:active {
+  transform: translateY(1px);
+}
+
+.staff-status-trigger svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+}
+
+.staff-status-trigger.is-pending {
+  background: #ffe4f1;
+  color: #cf1260;
+}
+
+.staff-status-trigger.is-checked,
+.staff-status-trigger.is-completed {
+  background: #ece9ff;
+  color: #5b54e8;
+}
+
+.staff-status-trigger.is-cancel,
+.staff-status-trigger.is-cancelled {
+  background: #ffe2e2;
+  color: #e04747;
+}
+
+.staff-status-trigger.is-no-show {
+  background: #fff0d9;
+  color: #d98a00;
+}
+
+/* Floating menu */
+.staff-status-menu {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 208px;
+  display: grid;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 2px solid #191b22;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow:
+    0 28px 56px rgba(0, 0, 0, 0.28),
+    0 6px 14px rgba(0, 0, 0, 0.12);
+  z-index: 50;
+  animation: staffStatusMenuIn 160ms ease both;
+}
+
+.staff-status-option {
+  width: 100%;
+  height: 37px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+  transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+}
+
+.staff-status-option:hover,
+.staff-status-option.is-selected {
+  filter: brightness(0.98);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.staff-status-option:active {
+  transform: scale(0.98);
+}
+
+.staff-status-option.is-pending {
+  background: #f6a4ca;
+  color: #ff2f7d;
+}
+
+.staff-status-option.is-checked {
+  background: #e3e7f8;
+  color: #4f59ee;
+}
+
+.staff-status-option.is-completed {
+  background: #dff7ea;
+  color: #159a56;
+}
+
+.staff-status-option.is-cancel {
+  background: #ff9ea2;
+  color: #f04444;
+}
+
+.staff-status-option.is-no-show {
+  background: #fff0d5;
+  color: #dc8b00;
+}
+
+@keyframes staffStatusMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Old native select fallback hidden if any old markup remains */
+.staff-status-select {
+  display: none !important;
+}
+
+/* Table needs a little room so the dropdown won't feel cramped */
+.staff-appointments-table td:last-child {
+  position: relative;
+}
+
+/* Mobile keeps the menu usable and visible inside horizontal scroll. */
+@media (max-width: 640px) {
+  .staff-status-menu {
+    right: auto;
+    left: 0;
+    width: 188px;
+    border-radius: 18px;
+    padding: 12px;
+  }
+
+  .staff-status-option {
+    height: 35px;
+    font-size: 17px;
+  }
+}
+
+
+
+/* =========================================================
+   SMALL STATUS DROPDOWN PATCH
+   Makes the appointment status dropdown compact like the Figma
+   reference instead of a large modal-like dropdown.
+========================================================= */
+
+.staff-appointments-page .staff-status-dropdown {
+  position: relative !important;
+  display: inline-flex !important;
+  width: max-content !important;
+  min-width: 82px !important;
+  z-index: 20 !important;
+}
+
+.staff-appointments-page .staff-status-trigger {
+  min-width: 82px !important;
+  height: 26px !important;
+  padding: 0 10px 0 12px !important;
+  gap: 5px !important;
+  border-radius: 999px !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+
+.staff-appointments-page .staff-status-trigger svg {
+  width: 11px !important;
+  height: 11px !important;
+  flex: 0 0 11px !important;
+}
+
+/* Compact floating menu */
+.staff-appointments-page .staff-status-menu {
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  right: 0 !important;
+  width: 104px !important;
+  display: grid !important;
+  gap: 5px !important;
+  padding: 7px 7px !important;
+  border: 1.5px solid #111318 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.20),
+    0 6px 14px rgba(0, 0, 0, 0.10) !important;
+  z-index: 999 !important;
+  animation: staffStatusMenuSmallIn 140ms ease both !important;
+}
+
+.staff-appointments-page .staff-status-option {
+  width: 100% !important;
+  height: 21px !important;
+  min-height: 21px !important;
+  padding: 0 7px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: none !important;
+}
+
+.staff-appointments-page .staff-status-option:hover,
+.staff-appointments-page .staff-status-option.is-selected {
+  filter: brightness(0.98) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
+}
+
+.staff-appointments-page .staff-status-option.is-pending {
+  background: #f6a4ca !important;
+  color: #ff2f7d !important;
+}
+
+.staff-appointments-page .staff-status-option.is-checked {
+  background: #e3e7f8 !important;
+  color: #4f59ee !important;
+}
+
+.staff-appointments-page .staff-status-option.is-completed {
+  background: #dff7ea !important;
+  color: #159a56 !important;
+}
+
+.staff-appointments-page .staff-status-option.is-cancel {
+  background: #ff9ea2 !important;
+  color: #f04444 !important;
+}
+
+.staff-appointments-page .staff-status-option.is-no-show {
+  background: #fff0d5 !important;
+  color: #dc8b00 !important;
+}
+
+/* Stop the table area from looking like it grew because of the dropdown. */
+.staff-appointments-page .staff-appointments-table-card {
+  overflow: visible !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+.staff-appointments-page .staff-appointments-table td {
+  height: 67px !important;
+}
+
+@keyframes staffStatusMenuSmallIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-appointments-page .staff-status-menu {
+    left: 0 !important;
+    right: auto !important;
+    width: 100px !important;
+    padding: 7px !important;
+  }
+
+  .staff-appointments-page .staff-status-option {
+    height: 20px !important;
+    font-size: 8.5px !important;
+  }
+}
+
+
+
+/* =========================================================
+   STATUS DROPDOWN SIDE POSITION FIX
+   Opens the dropdown at the RIGHT SIDE of the status pill
+   so it no longer covers the next appointment row.
+========================================================= */
+
+.staff-appointments-page .staff-status-dropdown {
+  position: relative !important;
+  overflow: visible !important;
+  z-index: 40 !important;
+}
+
+/* Place the menu beside Pending / Checked in */
+.staff-appointments-page .staff-status-menu {
+  top: 50% !important;
+  left: calc(100% + 8px) !important;
+  right: auto !important;
+  width: 104px !important;
+  transform: translateY(-50%) !important;
+  transform-origin: left center !important;
+  z-index: 9999 !important;
+}
+
+/* Side-open animation */
+@keyframes staffStatusMenuSmallIn {
+  from {
+    opacity: 0;
+    transform: translate(4px, -50%) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+}
+
+/* Give the status column enough space so the menu fits on the right */
+.staff-appointments-page .staff-appointments-table th:last-child,
+.staff-appointments-page .staff-appointments-table td:last-child {
+  min-width: 220px !important;
+  width: 220px !important;
+  overflow: visible !important;
+}
+
+/* Prevent clipping from table wrappers/cards */
+.staff-appointments-page .staff-appointments-table-card,
+.staff-appointments-page .staff-appointments-table-scroll,
+.staff-appointments-page .staff-appointments-table,
+.staff-appointments-page .staff-appointments-table tbody,
+.staff-appointments-page .staff-appointments-table tr,
+.staff-appointments-page .staff-appointments-table td {
+  overflow: visible !important;
+}
+
+/* Keep the menu above rows and nearby content */
+.staff-appointments-page .staff-appointments-table tbody tr {
+  position: relative !important;
+}
+
+.staff-appointments-page .staff-appointments-table tbody tr:has(.staff-status-menu) {
+  z-index: 20 !important;
+}
+
+/* Mobile: open below because side space is limited */
+@media (max-width: 640px) {
+  .staff-appointments-page .staff-status-menu {
+    top: calc(100% + 6px) !important;
+    left: 0 !important;
+    right: auto !important;
+    transform: none !important;
+  }
+
+  @keyframes staffStatusMenuSmallIn {
+    from {
+      opacity: 0;
+      transform: translateY(-3px) scale(0.98);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .staff-appointments-page .staff-appointments-table th:last-child,
+  .staff-appointments-page .staff-appointments-table td:last-child {
+    min-width: 180px !important;
+    width: 180px !important;
+  }
+}
+
+
+
+/* =========================================================
+   FINAL STATUS DROPDOWN BELOW + SCROLLABLE FIX
+   Opens the dropdown directly below the status/arrow button
+   and keeps it compact with its own vertical scroll.
+========================================================= */
+
+/* Keep row/card from clipping the dropdown */
+.staff-appointments-page .staff-appointments-table-card,
+.staff-appointments-page .staff-appointments-table-scroll,
+.staff-appointments-page .staff-appointments-table,
+.staff-appointments-page .staff-appointments-table tbody,
+.staff-appointments-page .staff-appointments-table tr,
+.staff-appointments-page .staff-appointments-table td {
+  overflow: visible !important;
+}
+
+.staff-appointments-page .staff-status-dropdown {
+  position: relative !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: max-content !important;
+  min-width: 82px !important;
+  overflow: visible !important;
+  z-index: 60 !important;
+}
+
+.staff-appointments-page .staff-status-trigger {
+  position: relative !important;
+  z-index: 2 !important;
+  min-width: 88px !important;
+  height: 26px !important;
+  padding: 0 10px 0 12px !important;
+  gap: 5px !important;
+  border-radius: 999px !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+}
+
+/* Dropdown opens BELOW the arrow/status button */
+.staff-appointments-page .staff-status-menu {
+  position: absolute !important;
+  top: calc(100% + 7px) !important;
+  left: 50% !important;
+  right: auto !important;
+  width: 108px !important;
+  max-height: 82px !important;
+  transform: translateX(-50%) !important;
+  transform-origin: top center !important;
+
+  display: grid !important;
+  gap: 5px !important;
+  padding: 7px !important;
+  border: 1.5px solid #111318 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.18),
+    0 6px 14px rgba(0, 0, 0, 0.10) !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain !important;
+  z-index: 9999 !important;
+  animation: staffStatusDropdownBelowIn 140ms ease both !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 47, 125, 0.7) transparent !important;
+}
+
+.staff-appointments-page .staff-status-menu::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+.staff-appointments-page .staff-status-menu::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.staff-appointments-page .staff-status-menu::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(255, 47, 125, 0.7) !important;
+}
+
+.staff-appointments-page .staff-status-option {
+  width: 100% !important;
+  height: 21px !important;
+  min-height: 21px !important;
+  flex: 0 0 21px !important;
+  padding: 0 7px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  font-size: 8.8px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+/* Keep the active row above the next row while the menu is open */
+.staff-appointments-page .staff-appointments-table tbody tr {
+  position: relative !important;
+}
+
+.staff-appointments-page .staff-appointments-table tbody tr:has(.staff-status-menu) {
+  z-index: 80 !important;
+}
+
+/* The status column no longer needs extra width for side-open menu */
+.staff-appointments-page .staff-appointments-table th:last-child,
+.staff-appointments-page .staff-appointments-table td:last-child {
+  min-width: 150px !important;
+  width: 150px !important;
+  overflow: visible !important;
+}
+
+@keyframes staffStatusDropdownBelowIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -3px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-appointments-page .staff-status-menu {
+    left: 50% !important;
+    right: auto !important;
+    width: 104px !important;
+    max-height: 78px !important;
+    transform: translateX(-50%) !important;
+  }
+
+  .staff-appointments-page .staff-appointments-table th:last-child,
+  .staff-appointments-page .staff-appointments-table td:last-child {
+    min-width: 145px !important;
+    width: 145px !important;
+  }
+}
+
+/* =========================================================
+   PROFILE DROPDOWN NO-LAYOUT-SHIFT FIX
+   Paste this file as your whole staff-appointments.css.
+   This makes the top profile dropdown float above the table
+   instead of pushing the appointments table/calendar downward.
+========================================================= */
+
+/* The appointment header must allow the floating profile menu to appear
+   without changing the page layout. */
+.staff-dashboard-shell .staff-appointments-header,
+.staff-dashboard-shell .staff-section-header,
+.staff-appointments-page .staff-appointments-header {
+  position: relative !important;
+  z-index: 5000 !important;
+  overflow: visible !important;
+}
+
+/* Make the profile wrapper the anchor for the dropdown. */
+.staff-dashboard-shell .staff-profile-wrapper,
+.staff-dashboard-shell .doctor-profile-wrapper,
+.staff-dashboard-shell .profile-wrapper,
+.staff-appointments-page .staff-profile-wrapper,
+.staff-appointments-page .doctor-profile-wrapper,
+.staff-appointments-page .profile-wrapper {
+  position: relative !important;
+  z-index: 6000 !important;
+  overflow: visible !important;
+}
+
+/* Keep the profile card/button in its normal place. */
+.staff-dashboard-shell .staff-appointments-header .staff-profile-wrapper,
+.staff-dashboard-shell .staff-appointments-header .doctor-profile-wrapper,
+.staff-dashboard-shell .staff-appointments-header .profile-wrapper,
+.staff-dashboard-shell .staff-section-header .staff-profile-wrapper,
+.staff-dashboard-shell .staff-section-header .doctor-profile-wrapper,
+.staff-dashboard-shell .staff-section-header .profile-wrapper,
+.staff-appointments-page .staff-profile-wrapper,
+.staff-appointments-page .doctor-profile-wrapper,
+.staff-appointments-page .profile-wrapper {
+  margin-left: auto !important;
+  flex: 0 0 var(--doctor-top-profile-width, 292px) !important;
+  width: var(--doctor-top-profile-width, 292px) !important;
+}
+
+/* IMPORTANT PART:
+   The opened profile menu must be absolute so it overlays the table
+   and does NOT push the table/calendar down. */
+.staff-dashboard-shell .staff-profile-wrapper > .staff-profile-dropdown,
+.staff-dashboard-shell .staff-profile-wrapper > .staff-profile-menu,
+.staff-dashboard-shell .staff-profile-wrapper > .staff-profile-panel,
+.staff-dashboard-shell .staff-profile-wrapper > .staff-dropdown-menu,
+.staff-dashboard-shell .staff-profile-wrapper > .profile-dropdown,
+.staff-dashboard-shell .staff-profile-wrapper > .profile-menu,
+.staff-dashboard-shell .staff-profile-wrapper > .profile-panel,
+.staff-dashboard-shell .staff-profile-wrapper > .dropdown-menu,
+.staff-dashboard-shell .staff-profile-wrapper > [role="menu"],
+.staff-dashboard-shell .staff-profile-wrapper > [class*="dropdown"],
+.staff-dashboard-shell .staff-profile-wrapper > [class*="menu"],
+.staff-dashboard-shell .doctor-profile-wrapper > .doctor-profile-dropdown,
+.staff-dashboard-shell .doctor-profile-wrapper > .doctor-profile-menu,
+.staff-dashboard-shell .doctor-profile-wrapper > .profile-dropdown,
+.staff-dashboard-shell .doctor-profile-wrapper > .profile-menu,
+.staff-dashboard-shell .doctor-profile-wrapper > [role="menu"],
+.staff-dashboard-shell .doctor-profile-wrapper > [class*="dropdown"],
+.staff-dashboard-shell .doctor-profile-wrapper > [class*="menu"],
+.staff-dashboard-shell .profile-wrapper > .profile-dropdown,
+.staff-dashboard-shell .profile-wrapper > .profile-menu,
+.staff-dashboard-shell .profile-wrapper > [role="menu"],
+.staff-dashboard-shell .profile-wrapper > [class*="dropdown"],
+.staff-dashboard-shell .profile-wrapper > [class*="menu"] {
+  position: absolute !important;
+  top: calc(100% + 12px) !important;
+  right: 0 !important;
+  left: auto !important;
+  margin: 0 !important;
+  z-index: 7000 !important;
+}
+
+/* Fallback: if your profile dropdown uses a different direct-child class,
+   this targets only the second direct child of the profile wrapper, which is
+   usually the opened dropdown. It prevents layout shifting. */
+.staff-dashboard-shell .staff-profile-wrapper > *:nth-child(2),
+.staff-dashboard-shell .doctor-profile-wrapper > *:nth-child(2),
+.staff-dashboard-shell .profile-wrapper > *:nth-child(2) {
+  position: absolute !important;
+  top: calc(100% + 12px) !important;
+  right: 0 !important;
+  left: auto !important;
+  margin: 0 !important;
+  z-index: 7000 !important;
+}
+
+/* The appointments table and calendar stay in the normal page layer. */
+.staff-appointments-page .staff-appointments-table-card,
+.staff-appointments-page .staff-appointments-calendar-layout,
+.staff-appointments-page .staff-calendar-panel,
+.staff-appointments-page .staff-calendar-sidebar {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Status pills and their menus stay below the profile dropdown. */
+.staff-appointments-page .staff-status-dropdown,
+.staff-appointments-page .staff-status-trigger,
+.staff-appointments-page .staff-status-menu,
+.staff-appointments-page .staff-appointments-table tbody tr:has(.staff-status-menu) {
+  z-index: 50 !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell .staff-appointments-header .staff-profile-wrapper,
+  .staff-dashboard-shell .staff-appointments-header .doctor-profile-wrapper,
+  .staff-dashboard-shell .staff-appointments-header .profile-wrapper,
+  .staff-dashboard-shell .staff-section-header .staff-profile-wrapper,
+  .staff-dashboard-shell .staff-section-header .doctor-profile-wrapper,
+  .staff-dashboard-shell .staff-section-header .profile-wrapper,
+  .staff-appointments-page .staff-profile-wrapper,
+  .staff-appointments-page .doctor-profile-wrapper,
+  .staff-appointments-page .profile-wrapper {
+    width: 100% !important;
+    flex-basis: auto !important;
+  }
+
+  .staff-dashboard-shell .staff-profile-wrapper > .staff-profile-dropdown,
+  .staff-dashboard-shell .staff-profile-wrapper > .staff-profile-menu,
+  .staff-dashboard-shell .staff-profile-wrapper > .staff-profile-panel,
+  .staff-dashboard-shell .staff-profile-wrapper > .staff-dropdown-menu,
+  .staff-dashboard-shell .staff-profile-wrapper > .profile-dropdown,
+  .staff-dashboard-shell .staff-profile-wrapper > .profile-menu,
+  .staff-dashboard-shell .staff-profile-wrapper > .profile-panel,
+  .staff-dashboard-shell .staff-profile-wrapper > .dropdown-menu,
+  .staff-dashboard-shell .staff-profile-wrapper > [role="menu"],
+  .staff-dashboard-shell .staff-profile-wrapper > [class*="dropdown"],
+  .staff-dashboard-shell .staff-profile-wrapper > [class*="menu"],
+  .staff-dashboard-shell .doctor-profile-wrapper > .doctor-profile-dropdown,
+  .staff-dashboard-shell .doctor-profile-wrapper > .doctor-profile-menu,
+  .staff-dashboard-shell .doctor-profile-wrapper > .profile-dropdown,
+  .staff-dashboard-shell .doctor-profile-wrapper > .profile-menu,
+  .staff-dashboard-shell .doctor-profile-wrapper > [role="menu"],
+  .staff-dashboard-shell .doctor-profile-wrapper > [class*="dropdown"],
+  .staff-dashboard-shell .doctor-profile-wrapper > [class*="menu"],
+  .staff-dashboard-shell .profile-wrapper > .profile-dropdown,
+  .staff-dashboard-shell .profile-wrapper > .profile-menu,
+  .staff-dashboard-shell .profile-wrapper > [role="menu"],
+  .staff-dashboard-shell .profile-wrapper > [class*="dropdown"],
+  .staff-dashboard-shell .profile-wrapper > [class*="menu"],
+  .staff-dashboard-shell .staff-profile-wrapper > *:nth-child(2),
+  .staff-dashboard-shell .doctor-profile-wrapper > *:nth-child(2),
+  .staff-dashboard-shell .profile-wrapper > *:nth-child(2) {
+    right: 0 !important;
+    left: auto !important;
+  }
+}
+
+/* =========================================================
+   FINAL FIX: SCROLLABLE APPOINTMENT TABLE + STATUS PORTAL
+   This block is intentionally at the very bottom.
+   - Appointment rows scroll when more patients/appointments are added.
+   - Status choices are rendered above the table, so Checked in/Pending
+     cannot cover the dropdown options.
+   - Profile dropdown remains above the appointment table without layout shift.
+========================================================= */
+
+/* Scrollable appointment list */
+.staff-appointments-page .staff-appointments-table-card {
+  overflow: hidden !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll {
+  max-height: 282px !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 47, 125, 0.55) transparent !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar {
+  width: 7px !important;
+  height: 7px !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(255, 47, 125, 0.55) !important;
+}
+
+.staff-appointments-page .staff-appointments-table thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 6 !important;
+  background: var(--staff-appointments-pink) !important;
+}
+
+.staff-appointments-page .staff-appointments-table tbody tr {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.staff-appointments-page .staff-status-dropdown,
+.staff-appointments-page .staff-status-trigger {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+/* New status menu rendered through React portal */
+.staff-status-portal-menu {
+  position: fixed !important;
+  width: 122px !important;
+  display: grid !important;
+  gap: 6px !important;
+  padding: 8px !important;
+  border: 1.5px solid #111318 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow:
+    0 22px 42px rgba(0, 0, 0, 0.22),
+    0 7px 14px rgba(0, 0, 0, 0.10) !important;
+  overflow: visible !important;
+  z-index: 50000 !important;
+  font-family: "Poppins", sans-serif !important;
+  animation: staffStatusPortalMenuIn 140ms ease both !important;
+}
+
+.staff-status-portal-menu .staff-status-option {
+  width: 100% !important;
+  height: 25px !important;
+  min-height: 25px !important;
+  padding: 0 8px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 9.4px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease !important;
+}
+
+.staff-status-portal-menu .staff-status-option:hover,
+.staff-status-portal-menu .staff-status-option.is-selected {
+  filter: brightness(0.98) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22) !important;
+}
+
+.staff-status-portal-menu .staff-status-option:active {
+  transform: scale(0.98) !important;
+}
+
+.staff-status-portal-menu .staff-status-option.is-pending {
+  background: #f8b2d3 !important;
+  color: #ff2f7d !important;
+}
+
+.staff-status-portal-menu .staff-status-option.is-checked {
+  background: #e8e9ff !important;
+  color: #5b54e8 !important;
+}
+
+.staff-status-portal-menu .staff-status-option.is-completed {
+  background: #dff7ea !important;
+  color: #159a56 !important;
+}
+
+.staff-status-portal-menu .staff-status-option.is-cancel {
+  background: #ffa7aa !important;
+  color: #f04444 !important;
+}
+
+.staff-status-portal-menu .staff-status-option.is-no-show {
+  background: #fff0d5 !important;
+  color: #dc8b00 !important;
+}
+
+@keyframes staffStatusPortalMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Profile dropdown must stay higher than the table and must not move content. */
+.staff-dashboard-shell .staff-appointments-header,
+.staff-dashboard-shell .staff-section-header,
+.staff-appointments-page .staff-appointments-header {
+  position: relative !important;
+  z-index: 300000 !important;
+  overflow: visible !important;
+}
+
+.staff-dashboard-shell .staff-profile-wrapper,
+.staff-dashboard-shell .doctor-profile-wrapper,
+.staff-dashboard-shell .profile-wrapper,
+.staff-appointments-page .staff-profile-wrapper,
+.staff-appointments-page .doctor-profile-wrapper,
+.staff-appointments-page .profile-wrapper {
+  position: relative !important;
+  z-index: 350000 !important;
+  overflow: visible !important;
+}
+
+.staff-dashboard-shell .staff-profile-wrapper > .staff-profile-dropdown,
+.staff-dashboard-shell .staff-profile-wrapper > .staff-profile-menu,
+.staff-dashboard-shell .staff-profile-wrapper > .staff-profile-panel,
+.staff-dashboard-shell .staff-profile-wrapper > .staff-dropdown-menu,
+.staff-dashboard-shell .staff-profile-wrapper > .profile-dropdown,
+.staff-dashboard-shell .staff-profile-wrapper > .profile-menu,
+.staff-dashboard-shell .staff-profile-wrapper > .profile-panel,
+.staff-dashboard-shell .staff-profile-wrapper > .dropdown-menu,
+.staff-dashboard-shell .staff-profile-wrapper > [role="menu"],
+.staff-dashboard-shell .staff-profile-wrapper > [class*="dropdown"],
+.staff-dashboard-shell .staff-profile-wrapper > [class*="menu"],
+.staff-dashboard-shell .doctor-profile-wrapper > .doctor-profile-dropdown,
+.staff-dashboard-shell .doctor-profile-wrapper > .doctor-profile-menu,
+.staff-dashboard-shell .doctor-profile-wrapper > .profile-dropdown,
+.staff-dashboard-shell .doctor-profile-wrapper > .profile-menu,
+.staff-dashboard-shell .doctor-profile-wrapper > [role="menu"],
+.staff-dashboard-shell .doctor-profile-wrapper > [class*="dropdown"],
+.staff-dashboard-shell .doctor-profile-wrapper > [class*="menu"],
+.staff-dashboard-shell .profile-wrapper > .profile-dropdown,
+.staff-dashboard-shell .profile-wrapper > .profile-menu,
+.staff-dashboard-shell .profile-wrapper > [role="menu"],
+.staff-dashboard-shell .profile-wrapper > [class*="dropdown"],
+.staff-dashboard-shell .profile-wrapper > [class*="menu"],
+.staff-dashboard-shell .staff-profile-wrapper > *:nth-child(2),
+.staff-dashboard-shell .doctor-profile-wrapper > *:nth-child(2),
+.staff-dashboard-shell .profile-wrapper > *:nth-child(2) {
+  position: absolute !important;
+  top: calc(100% + 12px) !important;
+  right: 0 !important;
+  left: auto !important;
+  margin: 0 !important;
+  z-index: 400000 !important;
+}
+
+.staff-appointments-page .staff-appointments-calendar-layout,
+.staff-appointments-page .staff-calendar-panel,
+.staff-appointments-page .staff-calendar-sidebar {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+@media (max-width: 900px) {
+  .staff-appointments-page .staff-appointments-table-scroll {
+    max-height: 270px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-appointments-page .staff-appointments-table-scroll {
+    max-height: 250px !important;
+  }
+
+  .staff-status-portal-menu {
+    width: 116px !important;
+    padding: 7px !important;
+  }
+
+  .staff-status-portal-menu .staff-status-option {
+    height: 24px !important;
+    min-height: 24px !important;
+    font-size: 9px !important;
+  }
+}
+
+.staff-add-appointment-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(30, 31, 37, 0.34);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.staff-add-appointment-modal {
+  position: relative;
+  width: min(100%, 560px);
+  max-height: calc(100vh - 48px);
+  overflow: visible;
+  padding: 56px 52px 48px;
+  border: 0;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 34px 90px rgba(30, 31, 37, 0.24);
+  color: #474747;
+  font-family: "Poppins", sans-serif;
+}
+
+.staff-add-appointment-modal > header {
+  display: block;
+  min-height: 0;
+  margin: 0 0 30px;
+  padding: 0;
+  border: 0;
+}
+
+.staff-add-appointment-modal h2 {
+  margin: 0;
+  color: #4a4a4a;
+  font-size: clamp(29px, 2.2vw, 36px);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.staff-add-appointment-close {
+  position: absolute;
+  top: 27px;
+  right: 28px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--staff-appointments-pink, #ff2f7d);
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.staff-add-appointment-close:hover {
+  filter: brightness(0.92);
+  transform: scale(1.04);
+}
+
+.staff-add-appointment-close:active {
+  transform: scale(0.97);
+}
+
+.staff-add-appointment-close svg {
+  width: 42px;
+  height: 42px;
+}
+
+.staff-add-appointment-modal form {
+  display: grid;
+  gap: 18px;
+  padding: 0;
+}
+
+.staff-add-appointment-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.staff-add-appointment-field > span {
+  color: #505050;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+.staff-add-appointment-patient-search,
+.staff-add-appointment-control {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.staff-add-appointment-control > svg {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 16px;
+  height: 16px;
+  color: #717171;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.staff-add-appointment-field input,
+.staff-add-appointment-field select,
+.staff-add-appointment-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1.5px solid #696969;
+  border-radius: 5px;
+  outline: 0;
+  background: #ffffff;
+  color: #3f3f3f;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 500;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.staff-add-appointment-field input,
+.staff-add-appointment-field select {
+  height: 50px;
+  padding: 0 16px;
+}
+
+.staff-add-appointment-field select {
+  appearance: none;
+  padding-right: 46px;
+}
+
+.staff-add-appointment-field textarea {
+  min-height: 50px;
+  max-height: 110px;
+  resize: vertical;
+  padding: 14px 16px;
+}
+
+.staff-add-appointment-field input::placeholder,
+.staff-add-appointment-field textarea::placeholder {
+  color: #a0a0a0;
+  opacity: 1;
+}
+
+.staff-add-appointment-field input:focus,
+.staff-add-appointment-field select:focus,
+.staff-add-appointment-field textarea:focus {
+  border-color: var(--staff-appointments-pink, #ff2f7d);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.09);
+}
+
+.staff-add-appointment-patient-results {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  left: 0;
+  z-index: 30;
+  max-height: 205px;
+  overflow-y: auto;
+  display: grid;
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid #ffd0e1;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 18px 38px rgba(36, 39, 50, 0.16);
+}
+
+.staff-add-appointment-patient-results button {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #3f3f3f;
+  text-align: left;
+}
+
+.staff-add-appointment-patient-results button:hover,
+.staff-add-appointment-patient-results button:focus-visible {
+  outline: 0;
+  background: #fff1f7;
+}
+
+.staff-add-appointment-patient-results strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.15;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-add-appointment-patient-results small {
+  color: #7b7f89;
+  font-size: 11px;
+  line-height: 1.15;
+  font-weight: 600;
+}
+
+.staff-add-appointment-modal footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 36px;
+  padding-top: 16px;
+}
+
+.staff-add-appointment-modal footer button {
+  height: 50px;
+  min-width: 128px;
+  padding: 0 24px;
+  border-radius: 9px;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.staff-add-appointment-modal footer button[type="submit"] {
+  border: 0;
+  background: var(--staff-appointments-pink, #ff2f7d);
+  color: #ffffff;
+  box-shadow: 0 14px 26px rgba(255, 47, 125, 0.22);
+}
+
+.staff-add-appointment-modal footer button[type="submit"]:hover {
+  background: var(--staff-appointments-pink-dark, #ee1768);
+}
+
+.staff-add-appointment-modal footer button[type="submit"]:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.staff-add-appointment-modal footer button[type="button"] {
+  min-width: auto;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--staff-appointments-pink, #ff2f7d);
+  box-shadow: none;
+}
+
+.staff-add-appointment-modal footer button[type="button"]:hover {
+  color: var(--staff-appointments-pink-dark, #ee1768);
+}
+
+@media (max-width: 760px) {
+  .staff-appointments-toolbar {
+    grid-template-columns: 1fr;
+    margin-top: -12px;
+  }
+
+  .staff-add-appointment-btn,
+  .staff-appointments-search-wrap,
+  .staff-appointments-search {
+    width: 100%;
+  }
+
+  .staff-add-appointment-backdrop {
+    place-items: start center;
+    overflow-y: auto;
+    padding: 18px 12px;
+  }
+
+  .staff-add-appointment-modal {
+    width: min(100%, 520px);
+    max-height: none;
+    margin: auto 0;
+    padding: 50px 24px 30px;
+    border-radius: 18px;
+  }
+
+  .staff-add-appointment-modal h2 {
+    padding-right: 44px;
+    font-size: 28px;
+  }
+
+  .staff-add-appointment-close {
+    top: 20px;
+    right: 18px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .staff-add-appointment-close svg {
+    width: 38px;
+    height: 38px;
+  }
+
+  .staff-add-appointment-modal footer {
+    gap: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .staff-add-appointment-modal {
+    padding: 46px 18px 26px;
+  }
+
+  .staff-add-appointment-modal form {
+    gap: 15px;
+  }
+
+  .staff-add-appointment-modal footer {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .staff-add-appointment-modal footer button {
+    width: 100%;
+  }
+
+  .staff-add-appointment-modal footer button[type="button"] {
+    height: 42px;
+  }
+}
+
+/* =========================================================
+   Staff follow-up visit form
+========================================================= */
+
+.staff-followup-page {
+  --followup-pink: #e91e63;
+  --followup-pink-dark: #d8175a;
+  --followup-ink: #3c4658;
+  --followup-muted: #77839a;
+  --followup-line: #d9e0eb;
+  --followup-bg: #f6f8fb;
+  --followup-shadow: 0 12px 28px rgba(30, 35, 53, 0.06);
+
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 46px;
+  color: var(--followup-ink);
+  font-family: "Poppins", sans-serif;
+}
+
+.staff-followup-page *,
+.staff-followup-page *::before,
+.staff-followup-page *::after {
+  box-sizing: border-box;
+}
+
+.staff-followup-page button,
+.staff-followup-page input {
+  font: inherit;
+}
+
+.staff-followup-header {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 210px;
+  align-items: start;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.staff-followup-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  width: max-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--followup-pink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.staff-followup-back svg {
+  width: 18px;
+  height: 18px;
+}
+
+.staff-followup-title {
+  text-align: center;
+}
+
+.staff-followup-title h1 {
+  margin: 0;
+  color: var(--followup-pink);
+  font-size: clamp(32px, 3.1vw, 48px);
+  line-height: 1.04;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.staff-followup-title p {
+  margin: 8px 0 0;
+  color: #788398;
+  font-size: clamp(15px, 1.4vw, 20px);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.staff-followup-appointment-id {
+  min-height: 94px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1.5px solid #ffc2dc;
+  border-radius: 16px;
+  background: #fff7fb;
+  text-align: center;
+}
+
+.staff-followup-appointment-id span {
+  color: #748099;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.staff-followup-appointment-id strong {
+  color: var(--followup-pink);
+  font-size: clamp(21px, 1.8vw, 29px);
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.staff-followup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 26px;
+  margin-bottom: 28px;
+}
+
+.staff-followup-card {
+  min-width: 0;
+  min-height: 0;
+  padding: 34px 34px 32px;
+  border: 1px solid var(--followup-line);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: var(--followup-shadow);
+}
+
+.staff-followup-card h2 {
+  margin: 0 0 28px;
+  color: var(--followup-pink);
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.staff-followup-field {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 20px;
+}
+
+.staff-followup-field:last-child {
+  margin-bottom: 0;
+}
+
+.staff-followup-field > span,
+.staff-followup-risk-group > span {
+  color: #70809a;
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: 800;
+}
+
+.staff-followup-input-wrap {
+  position: relative;
+}
+
+.staff-followup-input-wrap input {
+  width: 100%;
+  height: 54px;
+  min-width: 0;
+  padding: 0 48px 0 16px;
+  border: 1.5px solid #cfd8e6;
+  border-radius: 8px;
+  outline: 0;
+  background: #ffffff;
+  color: #3c4658;
+  font-size: 19px;
+  line-height: 1;
+  font-weight: 500;
+  transition: border-color 170ms ease, box-shadow 170ms ease;
+}
+
+.staff-followup-input-wrap input::placeholder {
+  color: #8e97aa;
+}
+
+.staff-followup-input-wrap input:focus {
+  border-color: var(--followup-pink);
+  box-shadow: 0 0 0 4px rgba(233, 30, 99, 0.09);
+}
+
+.staff-followup-input-wrap svg {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 20px;
+  height: 20px;
+  color: var(--followup-pink);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.staff-followup-risk-group {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.staff-followup-risk-group > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.staff-followup-risk-group button {
+  height: 46px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1.5px solid #dfe4ed;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #9aa5b8;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  text-transform: uppercase;
+  transition: border-color 170ms ease, color 170ms ease, background-color 170ms ease;
+}
+
+.staff-followup-risk-group button.is-active {
+  border-color: var(--followup-pink);
+  background: #fff8fb;
+  color: var(--followup-pink);
+}
+
+.staff-followup-clinical-card {
+  margin-bottom: 32px;
+}
+
+.staff-followup-clinical-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px 34px;
+}
+
+.staff-followup-clinical-grid .staff-followup-field {
+  margin-bottom: 0;
+}
+
+.staff-followup-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.staff-followup-save,
+.staff-followup-cancel {
+  height: 64px;
+  min-width: 230px;
+  border-radius: 10px;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 800;
+  transition: transform 170ms ease, box-shadow 170ms ease, background-color 170ms ease;
+}
+
+.staff-followup-save {
+  border: 0;
+  background: var(--followup-pink);
+  color: #ffffff;
+  box-shadow: 0 18px 30px rgba(233, 30, 99, 0.22);
+}
+
+.staff-followup-save:hover {
+  background: var(--followup-pink-dark);
+}
+
+.staff-followup-save:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.staff-followup-cancel {
+  border: 1.5px solid #cfd8e6;
+  background: #ffffff;
+  color: #566173;
+}
+
+.staff-followup-save:active,
+.staff-followup-cancel:active {
+  transform: translateY(1px);
+}
+
+.staff-followup-message {
+  margin: 0 0 18px !important;
+}
+
+@media (max-width: 1180px) {
+  .staff-followup-header {
+    grid-template-columns: 1fr 190px;
+  }
+
+  .staff-followup-back {
+    grid-column: 1 / -1;
+  }
+
+  .staff-followup-title {
+    text-align: left;
+  }
+
+  .staff-followup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-followup-clinical-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .staff-followup-header {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-followup-appointment-id {
+    justify-self: start;
+    width: min(100%, 220px);
+  }
+
+  .staff-followup-card {
+    padding: 24px 20px;
+  }
+
+  .staff-followup-input-wrap input {
+    height: 50px;
+    font-size: 16px;
+  }
+
+  .staff-followup-risk-group > div,
+  .staff-followup-clinical-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-followup-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .staff-followup-save,
+  .staff-followup-cancel {
+    width: 100%;
+    min-width: 0;
+    height: 56px;
+    font-size: 17px;
+  }
+}
+
+/* Compact follow-up form sizing */
+.staff-followup-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 8px 34px;
+}
+
+.staff-followup-header {
+  grid-template-columns: 170px minmax(0, 1fr) 170px;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.staff-followup-back {
+  min-height: 32px;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.staff-followup-back svg {
+  width: 15px;
+  height: 15px;
+}
+
+.staff-followup-title h1 {
+  font-size: clamp(24px, 2.4vw, 36px);
+  line-height: 1.03;
+}
+
+.staff-followup-title p {
+  margin-top: 5px;
+  font-size: clamp(12px, 1.1vw, 15px);
+}
+
+.staff-followup-appointment-id {
+  min-height: 70px;
+  gap: 5px;
+  padding: 11px 13px;
+  border-radius: 12px;
+}
+
+.staff-followup-appointment-id span {
+  font-size: 9.5px;
+}
+
+.staff-followup-appointment-id strong {
+  font-size: clamp(17px, 1.4vw, 22px);
+}
+
+.staff-followup-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.staff-followup-card {
+  padding: 22px 22px 20px;
+  border-radius: 8px;
+}
+
+.staff-followup-card h2 {
+  margin-bottom: 18px;
+  font-size: 12.5px;
+}
+
+.staff-followup-field {
+  gap: 5px;
+  margin-bottom: 13px;
+}
+
+.staff-followup-field > span,
+.staff-followup-risk-group > span {
+  font-size: 11.5px;
+}
+
+.staff-followup-input-wrap input {
+  height: 42px;
+  padding: 0 38px 0 12px;
+  border-radius: 7px;
+  font-size: 14px;
+}
+
+.staff-followup-input-wrap svg {
+  right: 12px;
+  width: 16px;
+  height: 16px;
+}
+
+.staff-followup-risk-group {
+  gap: 8px;
+}
+
+.staff-followup-risk-group > div {
+  gap: 7px;
+}
+
+.staff-followup-risk-group button {
+  height: 36px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font-size: 8.8px;
+}
+
+.staff-followup-clinical-card {
+  margin-bottom: 24px;
+}
+
+.staff-followup-clinical-grid {
+  gap: 16px 20px;
+}
+
+.staff-followup-actions {
+  gap: 14px;
+}
+
+.staff-followup-save,
+.staff-followup-cancel {
+  height: 48px;
+  min-width: 180px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+@media (max-width: 1180px) {
+  .staff-followup-page {
+    max-width: 840px;
+  }
+
+  .staff-followup-header {
+    grid-template-columns: 1fr 160px;
+  }
+}
+
+@media (max-width: 720px) {
+  .staff-followup-page {
+    max-width: none;
+    padding: 0 0 30px;
+  }
+
+  .staff-followup-card {
+    padding: 20px 16px;
+  }
+
+  .staff-followup-input-wrap input {
+    height: 40px;
+    font-size: 13px;
+  }
+
+  .staff-followup-save,
+  .staff-followup-cancel {
+    height: 46px;
+    font-size: 14px;
+  }
+}
+
+.staff-add-appointment-modal footer button[type="submit"],
+.staff-add-appointment-modal footer button:first-child {
+  border: 0 !important;
+  background: var(--staff-appointments-pink, #ff2f7d) !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  text-indent: 0 !important;
+  text-shadow: none !important;
+  white-space: nowrap !important;
+  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.2) !important;
+}
+
+.staff-add-appointment-modal footer button[type="submit"]:disabled {
+  color: #ffffff !important;
+  opacity: 0.78 !important;
+}

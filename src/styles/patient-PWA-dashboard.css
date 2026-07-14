@@ -1,0 +1,708 @@
+.pwa-dashboard-page {
+  max-width: 1040px;
+}
+
+.pwa-dashboard-hero {
+  position: relative;
+  min-height: 300px;
+  border-radius: 34px;
+  background: linear-gradient(135deg, #ff4086 0%, #ff74a8 100%);
+  overflow: hidden;
+  padding: 52px 48px;
+  margin-bottom: 42px;
+  box-shadow: 0 18px 38px rgba(255, 61, 131, 0.16);
+}
+
+.pwa-dashboard-hero::before,
+.pwa-dashboard-hero::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  filter: blur(8px);
+}
+
+.pwa-dashboard-hero::before {
+  width: 300px;
+  height: 300px;
+  right: -80px;
+  top: -80px;
+}
+
+.pwa-dashboard-hero::after {
+  width: 360px;
+  height: 360px;
+  left: 44%;
+  bottom: -180px;
+}
+
+.pwa-hero-copy {
+  position: relative;
+  z-index: 2;
+  max-width: 430px;
+  color: #ffffff;
+}
+
+.pwa-hero-copy h2 {
+  width: 390px;
+  max-width: 100%;
+  margin: 0 0 20px;
+  font-family: "Poppins", sans-serif;
+  font-size: 38px;
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.055em;
+}
+
+.pwa-hero-copy p {
+  margin: 0 0 6px;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
+}
+
+.pwa-hero-copy strong {
+  display: block;
+  font-family: "Poppins", sans-serif;
+  font-size: 50px;
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.pwa-hero-copy strong span {
+  color: #ffe94f;
+}
+
+.pwa-hero-illustration {
+  position: absolute;
+  right: 42px;
+  bottom: 26px;
+  z-index: 2;
+  width: 390px;
+  height: 230px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.pwa-hero-person {
+  width: 120px;
+  height: 170px;
+  border-radius: 60px 60px 24px 24px;
+  background: rgba(255, 255, 255, 0.28);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 84px;
+  filter: drop-shadow(0 18px 18px rgba(76, 18, 48, 0.16));
+}
+
+.pwa-hero-mom {
+  height: 178px;
+  background: #bd9af4;
+}
+
+.pwa-hero-doctor {
+  height: 198px;
+  background: #fff;
+}
+
+.pwa-hero-nurse {
+  height: 185px;
+  background: #79d7b0;
+}
+
+.pwa-journey-section {
+  margin-bottom: 34px;
+}
+
+.pwa-journey-section h2 {
+  margin: 0 0 24px;
+  color: var(--pwa-text);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 800;
+}
+
+.pwa-journey-carousel {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) 50px;
+  align-items: center;
+  gap: 14px;
+}
+
+.pwa-round-arrow {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--pwa-border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--pwa-pink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--pwa-soft-shadow);
+}
+
+.pwa-round-arrow svg {
+  width: 22px;
+  height: 22px;
+}
+
+.pwa-week-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 0;
+}
+
+.pwa-week-card {
+  position: relative;
+  min-height: 176px;
+  border: 1px solid var(--pwa-border);
+  background: #ffffff;
+  color: var(--pwa-text);
+  padding: 26px 16px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+  transition: 180ms ease;
+}
+
+.pwa-week-card:first-child {
+  border-radius: 22px 0 0 22px;
+}
+
+.pwa-week-card:last-child {
+  border-radius: 0 22px 22px 0;
+}
+
+.pwa-week-card span {
+  color: #99a9bf;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pwa-week-card strong {
+  margin-top: 4px;
+  color: var(--pwa-text);
+  font-family: "Poppins", sans-serif;
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: 800;
+}
+
+.pwa-week-card small {
+  margin-top: 10px;
+  color: #8ba0bc;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.pwa-week-card em {
+  width: 105px;
+  margin-top: 5px;
+  color: #b7c2d1;
+  font-style: normal;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.pwa-week-card.is-active {
+  border: 2px solid var(--pwa-pink);
+  border-radius: 22px;
+  z-index: 2;
+  transform: translateY(-1px);
+}
+
+.pwa-week-card.is-active .pwa-week-icon {
+  width: 30px;
+  height: 30px;
+  color: #4b4c52;
+  margin-bottom: 7px;
+}
+
+.pwa-week-card.is-active strong {
+  display: none;
+}
+
+.pwa-week-card.is-active b {
+  color: var(--pwa-pink);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 800;
+}
+
+.pwa-week-card.is-active small {
+  margin-top: 2px;
+  color: var(--pwa-pink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pwa-week-card i {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 28px;
+  height: 28px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #19b37b;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 5px 10px rgba(25, 179, 123, 0.24);
+}
+
+.pwa-week-card i svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pwa-health-tip-card {
+  min-height: 260px;
+  border-radius: 34px;
+  border: 1px solid #ffd8e5;
+  background: #fff0f5;
+  box-shadow: 0 12px 30px rgba(20, 25, 40, 0.08);
+  padding: 54px 50px;
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) 230px;
+  gap: 42px;
+  align-items: center;
+}
+
+.pwa-tip-image {
+  width: 116px;
+  height: 116px;
+  border-radius: 22px;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pwa-pink);
+}
+
+.pwa-tip-image svg {
+  width: 78px;
+  height: 78px;
+}
+
+.pwa-tip-copy span {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--pwa-pink);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 800;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+}
+
+.pwa-tip-copy h2 {
+  width: 440px;
+  max-width: 100%;
+  margin: 0 0 13px;
+  color: var(--pwa-text);
+  font-family: "Poppins", sans-serif;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.pwa-tip-copy p {
+  max-width: 510px;
+  margin: 0;
+  color: #6f7f99;
+  font-size: 18px;
+  line-height: 1.55;
+  font-weight: 600;
+}
+
+.pwa-health-tip-card button {
+  min-width: 210px;
+  height: 64px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--pwa-pink), var(--pwa-pink-2));
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 16px 26px rgba(255, 61, 131, 0.28);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.pwa-health-tip-card button svg {
+  width: 24px;
+  height: 24px;
+}
+
+@media (max-width: 1100px) {
+  .pwa-dashboard-hero {
+    padding: 42px 34px;
+  }
+
+  .pwa-hero-illustration {
+    opacity: 0.35;
+    right: 20px;
+  }
+
+  .pwa-week-row {
+    overflow-x: auto;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(142px, 1fr);
+    grid-template-columns: none;
+    padding-bottom: 12px;
+  }
+
+  .pwa-health-tip-card {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+
+  .pwa-health-tip-card button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 760px) {
+  .pwa-dashboard-hero {
+    min-height: 260px;
+    border-radius: 26px;
+    padding: 34px 24px;
+  }
+
+  .pwa-hero-copy h2 {
+    font-size: 32px;
+  }
+
+  .pwa-hero-copy strong {
+    font-size: 40px;
+  }
+
+  .pwa-hero-illustration {
+    display: none;
+  }
+
+  .pwa-journey-carousel {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 8px;
+  }
+
+  .pwa-round-arrow {
+    width: 40px;
+    height: 40px;
+  }
+
+  .pwa-health-tip-card {
+    grid-template-columns: 1fr;
+    padding: 28px 22px;
+    gap: 18px;
+  }
+
+  .pwa-health-tip-card button {
+    grid-column: auto;
+    width: 100%;
+  }
+
+  .pwa-tip-copy h2 {
+    font-size: 24px;
+  }
+
+  .pwa-tip-copy p {
+    font-size: 15px;
+  }
+}
+
+/* =========================================================
+   FINAL DASHBOARD COMPACT PASS
+   - smaller dashboard hero/cards/text only
+   - keeps the Dashboard title unchanged
+   - fills available width without creating a large right gap
+========================================================= */
+.pwa-dashboard-page {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.pwa-dashboard-page .pwa-page-title {
+  margin-bottom: 24px !important;
+}
+
+.pwa-dashboard-hero {
+  min-height: 256px !important;
+  border-radius: 30px !important;
+  padding: 38px 42px !important;
+  margin-bottom: 34px !important;
+  box-shadow: 0 16px 34px rgba(255, 61, 131, 0.14) !important;
+}
+
+.pwa-hero-copy {
+  max-width: 390px !important;
+}
+
+.pwa-hero-copy h2 {
+  width: 350px !important;
+  margin-bottom: 18px !important;
+  font-size: 32px !important;
+  line-height: 1.12 !important;
+  letter-spacing: -0.052em !important;
+}
+
+.pwa-hero-copy p {
+  margin-bottom: 6px !important;
+  font-size: 17px !important;
+  line-height: 24px !important;
+}
+
+.pwa-hero-copy strong {
+  font-size: 41px !important;
+  line-height: 1.08 !important;
+}
+
+.pwa-hero-illustration {
+  right: 44px !important;
+  bottom: 24px !important;
+  width: 345px !important;
+  height: 200px !important;
+  gap: 8px !important;
+}
+
+.pwa-hero-person {
+  width: 104px !important;
+  height: 150px !important;
+  border-radius: 52px 52px 22px 22px !important;
+  font-size: 68px !important;
+}
+
+.pwa-hero-mom {
+  height: 156px !important;
+}
+
+.pwa-hero-doctor {
+  height: 174px !important;
+}
+
+.pwa-hero-nurse {
+  height: 162px !important;
+}
+
+.pwa-journey-section {
+  margin-bottom: 30px !important;
+}
+
+.pwa-journey-section h2 {
+  margin-bottom: 20px !important;
+  font-size: 18px !important;
+  line-height: 25px !important;
+}
+
+.pwa-journey-carousel {
+  grid-template-columns: 44px minmax(0, 1fr) 44px !important;
+  gap: 12px !important;
+}
+
+.pwa-round-arrow {
+  width: 42px !important;
+  height: 42px !important;
+}
+
+.pwa-round-arrow svg {
+  width: 19px !important;
+  height: 19px !important;
+}
+
+.pwa-week-row {
+  grid-template-columns: repeat(5, minmax(118px, 1fr)) !important;
+}
+
+.pwa-week-card {
+  min-height: 148px !important;
+  padding: 22px 14px 18px !important;
+}
+
+.pwa-week-card span {
+  font-size: 11px !important;
+  line-height: 14px !important;
+}
+
+.pwa-week-card strong {
+  font-size: 28px !important;
+  line-height: 34px !important;
+}
+
+.pwa-week-card small {
+  margin-top: 8px !important;
+  font-size: 12px !important;
+  line-height: 16px !important;
+}
+
+.pwa-week-card em {
+  font-size: 11px !important;
+  line-height: 15px !important;
+}
+
+.pwa-week-card.is-active b {
+  font-size: 16px !important;
+  line-height: 21px !important;
+}
+
+.pwa-week-card.is-active .pwa-week-icon {
+  width: 26px !important;
+  height: 26px !important;
+  margin-bottom: 5px !important;
+}
+
+.pwa-week-card i {
+  width: 25px !important;
+  height: 25px !important;
+  bottom: -13px !important;
+}
+
+.pwa-health-tip-card {
+  min-height: 220px !important;
+  border-radius: 30px !important;
+  padding: 42px 44px !important;
+  grid-template-columns: 110px minmax(0, 1fr) 190px !important;
+  gap: 32px !important;
+}
+
+.pwa-tip-image {
+  width: 100px !important;
+  height: 100px !important;
+  border-radius: 20px !important;
+}
+
+.pwa-tip-image svg {
+  width: 66px !important;
+  height: 66px !important;
+}
+
+.pwa-tip-copy span {
+  margin-bottom: 10px !important;
+  font-size: 11px !important;
+  line-height: 16px !important;
+}
+
+.pwa-tip-copy h2 {
+  width: 390px !important;
+  margin-bottom: 10px !important;
+  font-size: 24px !important;
+  line-height: 1.2 !important;
+}
+
+.pwa-tip-copy p {
+  max-width: 470px !important;
+  font-size: 15.5px !important;
+  line-height: 1.5 !important;
+}
+
+.pwa-health-tip-card button {
+  min-width: 170px !important;
+  height: 54px !important;
+  border-radius: 14px !important;
+  font-size: 15px !important;
+}
+
+.pwa-health-tip-card button svg {
+  width: 21px !important;
+  height: 21px !important;
+}
+
+@media (max-width: 1180px) {
+  .pwa-dashboard-hero {
+    padding: 34px 32px !important;
+  }
+
+  .pwa-hero-illustration {
+    right: 24px !important;
+    width: 310px !important;
+    opacity: 0.88 !important;
+  }
+
+  .pwa-hero-copy h2 {
+    font-size: 30px !important;
+  }
+
+  .pwa-hero-copy strong {
+    font-size: 38px !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  .pwa-week-row {
+    overflow-x: auto;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(132px, 1fr);
+    grid-template-columns: none !important;
+    padding-bottom: 12px;
+  }
+
+  .pwa-health-tip-card {
+    grid-template-columns: 96px minmax(0, 1fr) !important;
+  }
+
+  .pwa-health-tip-card button {
+    grid-column: 2 !important;
+    justify-self: start !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .pwa-dashboard-hero {
+    min-height: 238px !important;
+    border-radius: 24px !important;
+    padding: 30px 22px !important;
+  }
+
+  .pwa-hero-copy h2 {
+    width: 100% !important;
+    font-size: 28px !important;
+  }
+
+  .pwa-hero-copy p {
+    font-size: 15px !important;
+  }
+
+  .pwa-hero-copy strong {
+    font-size: 34px !important;
+  }
+
+  .pwa-hero-illustration {
+    display: none !important;
+  }
+
+  .pwa-journey-carousel {
+    grid-template-columns: 38px minmax(0, 1fr) 38px !important;
+    gap: 8px !important;
+  }
+
+  .pwa-round-arrow {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  .pwa-health-tip-card {
+    grid-template-columns: 1fr !important;
+    padding: 26px 20px !important;
+    gap: 18px !important;
+  }
+
+  .pwa-health-tip-card button {
+    grid-column: auto !important;
+    width: 100% !important;
+  }
+}

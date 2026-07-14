@@ -1,0 +1,2427 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap");
+
+.staff-patients-page {
+  --patients-pink: #ff2f7d;
+  --patients-pink-dark: #ee1768;
+  --patients-ink: #202432;
+  --patients-muted: #73788a;
+  --patients-line: #dddfea;
+  --patients-soft-line: #eef0f6;
+  --patients-surface: #ffffff;
+  --patients-bg: #f8f9fc;
+  --patients-shadow: 0 18px 42px rgba(22, 27, 41, 0.055);
+  --patients-glow: 0 14px 30px rgba(255, 47, 125, 0.2);
+
+  width: 100%;
+  min-width: 0;
+  padding: 30px 34px 42px 28px;
+  color: var(--patients-ink);
+  font-family: "Poppins", sans-serif;
+  box-sizing: border-box;
+}
+
+.staff-patients-page *,
+.staff-patients-page *::before,
+.staff-patients-page *::after {
+  box-sizing: border-box;
+}
+
+.staff-patients-page button,
+.staff-patients-page input {
+  font: inherit;
+}
+
+.staff-patients-page button {
+  cursor: pointer;
+}
+
+/* Header */
+.staff-patients-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22px;
+  width: 100%;
+  margin-bottom: 36px;
+}
+
+.staff-patients-header h2 {
+  margin: 0;
+  color: var(--patients-ink);
+  font-size: clamp(32px, 2.8vw, 42px);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.055em;
+}
+
+.staff-patients-header p {
+  margin: 8px 0 0;
+  color: #4e5363;
+  font-size: 15.5px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+/* Toolbar */
+.staff-patients-actions {
+  display: grid;
+  grid-template-columns: minmax(260px, 480px) minmax(190px, 256px);
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.staff-patients-search {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 0 15px;
+  border: 1px solid var(--patients-line);
+  border-radius: 11px;
+  background: var(--patients-surface);
+  box-shadow: 0 10px 22px rgba(23, 28, 42, 0.035);
+  color: #6a7081;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.staff-patients-search:focus-within {
+  border-color: rgba(255, 47, 125, 0.65);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-patients-search svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.staff-patients-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #252a38;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.staff-patients-search input::placeholder {
+  color: #7f8493;
+}
+
+.staff-register-patient-btn {
+  height: 62px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--patients-pink);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  box-shadow: var(--patients-glow);
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.staff-register-patient-btn:hover {
+  background: var(--patients-pink-dark);
+  box-shadow: 0 18px 34px rgba(255, 47, 125, 0.26);
+}
+
+.staff-register-patient-btn:active {
+  transform: translateY(1px);
+}
+
+.staff-register-patient-btn svg {
+  width: 23px;
+  height: 23px;
+}
+
+/* Table */
+.staff-patients-card {
+  overflow: hidden;
+  width: 100%;
+  border: 1px solid var(--patients-line);
+  border-radius: 8px;
+  background: var(--patients-surface);
+  box-shadow: var(--patients-shadow);
+}
+
+.staff-patients-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 47, 125, 0.45) transparent;
+}
+
+.staff-patients-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+}
+
+.staff-patients-table thead {
+  background: var(--patients-pink);
+}
+
+.staff-patients-table th {
+  height: 60px;
+  padding: 0 34px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.035em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.staff-patients-table th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-transform: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+.staff-patients-table th button svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.9;
+}
+
+.staff-patients-table td {
+  height: 102px;
+  padding: 0 34px;
+  border-bottom: 1px solid var(--patients-soft-line);
+  color: #4d5263;
+  font-size: 16px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.staff-patients-table tbody tr {
+  background: #fff;
+  transition: background-color 180ms ease;
+}
+
+.staff-patients-table tbody tr:hover {
+  background: #fff8fb;
+}
+
+.staff-patients-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.staff-patient-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  min-width: 0;
+}
+
+.staff-patient-avatar {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #991156;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.avatar-pink {
+  background: #ffd7e6;
+  color: #9b155a;
+}
+
+.avatar-purple {
+  background: #edd5ff;
+  color: #812bd3;
+}
+
+.avatar-blue {
+  background: #dfe2ff;
+  color: #515cf6;
+}
+
+.avatar-orange {
+  background: #ffe6cf;
+  color: #dc6b19;
+}
+
+.staff-patient-name-wrap {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.staff-patient-name-wrap strong {
+  color: #242936;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.staff-patient-name-wrap small {
+  color: var(--patients-muted);
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.staff-patient-id,
+.staff-patient-date {
+  color: #4d5263;
+  font-size: 15.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.staff-patient-view-btn {
+  min-width: 90px;
+  height: 38px;
+  border: 2px solid var(--patients-pink);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--patients-pink);
+  font-size: 13px;
+  font-weight: 800;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.staff-patient-view-btn:hover {
+  background: var(--patients-pink);
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(255, 47, 125, 0.18);
+}
+
+.staff-patient-view-btn:active {
+  transform: translateY(1px);
+}
+
+.staff-patients-empty-cell {
+  height: 190px !important;
+  text-align: center !important;
+  color: var(--patients-muted) !important;
+}
+
+.staff-patients-empty-cell svg {
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 10px;
+  color: var(--patients-pink);
+}
+
+.staff-patients-empty-cell strong {
+  display: block;
+  color: var(--patients-ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.staff-patients-empty-cell span {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+/* Modal */
+.staff-patients-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(24, 27, 34, 0.45);
+  backdrop-filter: blur(4px);
+  animation: staffPatientsFade 180ms ease both;
+}
+
+.staff-patients-modal {
+  width: min(100%, 480px);
+  padding: 52px 52px 48px;
+  border-radius: 28px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(19, 23, 35, 0.26);
+  animation: staffPatientsModalUp 220ms ease both;
+}
+
+.staff-patients-modal-icon {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 26px;
+  border-radius: 50%;
+  background: #ffe6f0;
+  color: var(--patients-pink);
+}
+
+.staff-patients-modal-icon.is-warning {
+  background: #fff3e6;
+  color: #ff933d;
+}
+
+.staff-patients-modal-icon svg {
+  width: 38px;
+  height: 38px;
+}
+
+.staff-patients-modal h3 {
+  margin: 0 0 23px;
+  color: #202838;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+.staff-patients-modal p {
+  max-width: 330px;
+  margin: 0 auto 18px;
+  color: #6d7890;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.staff-patients-modal button {
+  width: 100%;
+  height: 60px;
+  margin-top: 20px;
+  border: 0;
+  border-radius: 11px;
+  background: #e91e63;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 14px 26px rgba(233, 30, 99, 0.25);
+  transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.staff-patients-modal button:hover {
+  background: #d8175a;
+  box-shadow: 0 18px 32px rgba(233, 30, 99, 0.3);
+}
+
+.staff-patients-modal button:active {
+  transform: translateY(1px);
+}
+
+@keyframes staffPatientsFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes staffPatientsModalUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .staff-patients-page {
+    padding: 26px 22px 36px;
+  }
+
+  .staff-patients-header {
+    margin-bottom: 26px;
+  }
+
+  .staff-patients-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-register-patient-btn {
+    width: 100%;
+    height: 54px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 680px) {
+  .staff-patients-page {
+    padding: 22px 14px 32px;
+  }
+
+  .staff-patients-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .staff-patients-header h2 {
+    font-size: 31px;
+  }
+
+  .staff-patients-header p {
+    font-size: 13.5px;
+  }
+
+  .staff-patients-search {
+    height: 46px;
+  }
+
+  .staff-patients-card {
+    border-radius: 12px;
+  }
+
+  .staff-patients-table {
+    min-width: 720px;
+  }
+
+  .staff-patients-table th {
+    height: 54px;
+    padding: 0 22px;
+    font-size: 11px;
+  }
+
+  .staff-patients-table td {
+    height: 88px;
+    padding: 0 22px;
+    font-size: 14px;
+  }
+
+  .staff-patient-avatar {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+    font-size: 16px;
+  }
+
+  .staff-patient-name-wrap strong,
+  .staff-patient-id,
+  .staff-patient-date {
+    font-size: 14px;
+  }
+
+  .staff-patient-name-wrap small {
+    font-size: 12px;
+  }
+
+  .staff-patients-modal {
+    padding: 38px 28px 30px;
+    border-radius: 24px;
+  }
+
+  .staff-patients-modal-icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 22px;
+  }
+
+  .staff-patients-modal h3 {
+    font-size: 25px;
+  }
+
+  .staff-patients-modal p {
+    font-size: 14px;
+  }
+
+  .staff-patients-modal button {
+    height: 54px;
+  }
+}
+
+
+
+/* =========================================================
+   Register Patient alignment patch
+   - Removes reserved profile/header gap
+   - Centers title and stepper like the reference
+   - Highlights completed/current step words with pink line
+   - Tightens right panel spacing and keeps the form aligned
+========================================================= */
+
+.staff-register-page {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 28px 30px 42px 28px !important;
+}
+
+.staff-register-page .staff-back-btn {
+  margin: 0 0 28px !important;
+  color: var(--patients-pink) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+.staff-register-page .staff-register-top {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin: 0 0 30px !important;
+  text-align: center !important;
+}
+
+.staff-register-page .staff-register-top > div:first-child {
+  width: min(100%, 740px) !important;
+  margin: 0 auto !important;
+}
+
+.staff-register-page .staff-register-top h2 {
+  margin: 0 !important;
+  color: var(--patients-pink) !important;
+  font-size: clamp(32px, 2.8vw, 42px) !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.045em !important;
+  text-align: center !important;
+}
+
+.staff-register-page .staff-register-top p {
+  margin: 9px 0 0 !important;
+  color: #697183 !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  text-align: center !important;
+}
+
+/* Make sure any old headerAction/profile position rule is neutralized */
+.staff-register-page .staff-register-top > :last-child:not(:first-child) {
+  position: static !important;
+  right: auto !important;
+  top: auto !important;
+}
+
+/* Center the main content exactly like the clean reference */
+.staff-register-page .staff-register-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 282px !important;
+  gap: 22px !important;
+  align-items: start !important;
+  width: 100% !important;
+  max-width: 1100px !important;
+  margin: 0 auto !important;
+}
+
+.staff-register-page .staff-register-main {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+/* Stepper line and words */
+.staff-register-page .staff-register-stepper {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  align-items: start !important;
+  gap: 0 !important;
+  width: 100% !important;
+  margin: 0 0 24px !important;
+  padding: 0 26px !important;
+  overflow: visible !important;
+}
+
+.staff-register-page .staff-register-step-line {
+  position: absolute !important;
+  top: 18px !important;
+  left: 62px !important;
+  right: 62px !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background:
+    linear-gradient(
+      90deg,
+      var(--patients-pink) 0,
+      var(--patients-pink) var(--step-progress),
+      #dfe3eb var(--step-progress),
+      #dfe3eb 100%
+    ) !important;
+  z-index: 0 !important;
+}
+
+.staff-register-page .staff-register-step {
+  position: relative !important;
+  z-index: 1 !important;
+  display: grid !important;
+  justify-items: center !important;
+  gap: 9px !important;
+  min-width: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #9aa2b2 !important;
+  text-align: center !important;
+  pointer-events: auto !important;
+}
+
+.staff-register-page .staff-register-step span {
+  width: 36px !important;
+  height: 36px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 50% !important;
+  background: #9aa2b2 !important;
+  color: #fff !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 12px rgba(39, 45, 60, 0.08) !important;
+}
+
+.staff-register-page .staff-register-step small {
+  position: relative !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  width: min(100%, 170px) !important;
+  min-height: 30px !important;
+  padding-bottom: 8px !important;
+  color: inherit !important;
+  font-size: 10.5px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+}
+
+.staff-register-page .staff-register-step small::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 0 !important;
+  width: 0 !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background: var(--patients-pink) !important;
+  transform: translateX(-50%) !important;
+  transition: width 180ms ease !important;
+}
+
+.staff-register-page .staff-register-step.is-active,
+.staff-register-page .staff-register-step.is-complete {
+  color: var(--patients-pink) !important;
+}
+
+.staff-register-page .staff-register-step.is-active span,
+.staff-register-page .staff-register-step.is-complete span {
+  background: var(--patients-pink) !important;
+}
+
+.staff-register-page .staff-register-step.is-active small::after,
+.staff-register-page .staff-register-step.is-complete small::after {
+  width: 100% !important;
+}
+
+/* Card alignment and spacing like the second photo */
+.staff-register-page .staff-register-card {
+  width: 100% !important;
+  min-height: 0 !important;
+  padding: 30px 34px 28px !important;
+  border: 1px solid #edf0f6 !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(22, 27, 41, 0.055) !important;
+}
+
+.staff-register-page .staff-register-card > header {
+  margin-bottom: 26px !important;
+}
+
+.staff-register-page .staff-register-card h3 {
+  color: var(--patients-pink) !important;
+  font-size: 22px !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.staff-register-page .staff-register-grid.is-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  column-gap: 28px !important;
+  row-gap: 22px !important;
+}
+
+.staff-register-page .staff-register-input-wrap input,
+.staff-register-page .staff-register-input-wrap select {
+  height: 50px !important;
+  border-radius: 10px !important;
+  font-size: 14.5px !important;
+}
+
+.staff-register-page .staff-register-field textarea {
+  min-height: 154px !important;
+  border-radius: 10px !important;
+  font-size: 14.5px !important;
+}
+
+.staff-register-page .staff-register-footer.has-divider {
+  margin-top: 32px !important;
+  padding-top: 30px !important;
+}
+
+.staff-register-page .staff-prev-btn,
+.staff-register-page .staff-next-btn {
+  height: 52px !important;
+  min-width: 180px !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+  font-weight: 850 !important;
+}
+
+/* Right side cards */
+.staff-register-page .staff-register-side {
+  top: 22px !important;
+  gap: 15px !important;
+}
+
+.staff-register-page .staff-register-success-card {
+  padding: 24px 22px !important;
+  border-radius: 17px !important;
+}
+
+.staff-register-page .staff-register-credential-card {
+  padding: 25px 24px !important;
+  border-radius: 17px !important;
+}
+
+.staff-register-page .staff-qr-block > div {
+  height: 172px !important;
+}
+
+/* Responsive alignment */
+@media (max-width: 1120px) {
+  .staff-register-page .staff-register-layout {
+    grid-template-columns: 1fr !important;
+    max-width: 880px !important;
+  }
+
+  .staff-register-page .staff-register-side {
+    position: static !important;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .staff-register-page {
+    padding: 24px 18px 34px !important;
+  }
+
+  .staff-register-page .staff-register-stepper {
+    padding: 0 12px !important;
+  }
+
+  .staff-register-page .staff-register-step-line {
+    left: 42px !important;
+    right: 42px !important;
+  }
+
+  .staff-register-page .staff-register-grid.is-three,
+  .staff-register-page .staff-register-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-register-page .staff-register-top {
+    text-align: left !important;
+    justify-content: flex-start !important;
+  }
+
+  .staff-register-page .staff-register-top h2,
+  .staff-register-page .staff-register-top p {
+    text-align: left !important;
+  }
+
+  .staff-register-page .staff-register-stepper {
+    overflow-x: auto !important;
+    grid-template-columns: repeat(4, 150px) !important;
+    justify-content: start !important;
+    padding-bottom: 8px !important;
+  }
+
+  .staff-register-page .staff-register-step-line {
+    left: 45px !important;
+    right: auto !important;
+    width: 500px !important;
+  }
+
+  .staff-register-page .staff-register-grid,
+  .staff-register-page .staff-register-grid.is-three,
+  .staff-register-page .staff-register-side {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-register-page .staff-register-card {
+    padding: 24px 20px !important;
+  }
+
+  .staff-register-page .staff-register-footer,
+  .staff-register-page .staff-register-footer.has-divider {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .staff-register-page .staff-prev-btn,
+  .staff-register-page .staff-next-btn {
+    width: 100% !important;
+  }
+}
+
+
+
+/* =========================================================
+   FINAL Register New Patient alignment fix
+   Goal:
+   - Title aligns with the 1-4 stepper and main form column.
+   - Green "Patient will be registered" card sits to the right of the title.
+   - No profile area is rendered in the register header.
+   - Completed/current step labels highlight with pink underline.
+========================================================= */
+
+.staff-register-page {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 28px 30px 42px 28px !important;
+  color: var(--patients-ink) !important;
+}
+
+.staff-register-page .staff-register-shell {
+  width: 100% !important;
+  max-width: 1100px !important;
+  margin: 0 auto !important;
+}
+
+.staff-register-page .staff-back-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 0 28px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--patients-pink) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+}
+
+.staff-register-page .staff-register-hero-grid {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 282px !important;
+  gap: 22px !important;
+  align-items: start !important;
+  margin: 0 0 16px !important;
+}
+
+.staff-register-page .staff-register-top {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding-top: 18px !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  text-align: center !important;
+}
+
+.staff-register-page .staff-register-top > div:first-child {
+  width: min(100%, 720px) !important;
+  margin: 0 auto !important;
+}
+
+.staff-register-page .staff-register-top h2 {
+  margin: 0 !important;
+  color: var(--patients-pink) !important;
+  font-size: clamp(32px, 3vw, 42px) !important;
+  font-weight: 900 !important;
+  line-height: 1.03 !important;
+  letter-spacing: -0.055em !important;
+  text-align: center !important;
+}
+
+.staff-register-page .staff-register-top p {
+  margin: 9px 0 0 !important;
+  color: #697183 !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  text-align: center !important;
+}
+
+/* This guarantees any old profile/headerAction layout rule does not reserve space. */
+.staff-register-page .staff-register-top > :last-child:not(:first-child) {
+  position: static !important;
+  inset: auto !important;
+}
+
+.staff-register-page .staff-register-hero-grid > .staff-register-success-card {
+  align-self: start !important;
+  width: 100% !important;
+}
+
+/* Main layout below title: main column and credentials column match the top grid. */
+.staff-register-page .staff-register-layout {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 282px !important;
+  gap: 22px !important;
+  align-items: start !important;
+}
+
+.staff-register-page .staff-register-main {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+/* Stepper aligns under the title/main column only. */
+.staff-register-page .staff-register-stepper {
+  position: relative !important;
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  align-items: start !important;
+  gap: 0 !important;
+  margin: 0 0 28px !important;
+  padding: 0 26px !important;
+  overflow: visible !important;
+}
+
+.staff-register-page .staff-register-step-line {
+  position: absolute !important;
+  top: 18px !important;
+  left: 62px !important;
+  right: 62px !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background:
+    linear-gradient(
+      90deg,
+      var(--patients-pink) 0,
+      var(--patients-pink) var(--step-progress),
+      #dfe3eb var(--step-progress),
+      #dfe3eb 100%
+    ) !important;
+  z-index: 0 !important;
+}
+
+.staff-register-page .staff-register-step {
+  position: relative !important;
+  z-index: 1 !important;
+  display: grid !important;
+  justify-items: center !important;
+  gap: 9px !important;
+  min-width: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #9aa2b2 !important;
+  text-align: center !important;
+  pointer-events: auto !important;
+}
+
+.staff-register-page .staff-register-step span {
+  width: 36px !important;
+  height: 36px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 50% !important;
+  background: #9aa2b2 !important;
+  color: #fff !important;
+  font-size: 14px !important;
+  font-weight: 850 !important;
+  box-shadow: 0 4px 12px rgba(39, 45, 60, 0.08) !important;
+}
+
+.staff-register-page .staff-register-step small {
+  position: relative !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  width: min(100%, 170px) !important;
+  min-height: 31px !important;
+  padding-bottom: 8px !important;
+  color: inherit !important;
+  font-size: 10.5px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+}
+
+.staff-register-page .staff-register-step small::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 0 !important;
+  width: 0 !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background: var(--patients-pink) !important;
+  transform: translateX(-50%) !important;
+  transition: width 180ms ease !important;
+}
+
+.staff-register-page .staff-register-step.is-active,
+.staff-register-page .staff-register-step.is-complete {
+  color: var(--patients-pink) !important;
+}
+
+.staff-register-page .staff-register-step.is-active span,
+.staff-register-page .staff-register-step.is-complete span {
+  background: var(--patients-pink) !important;
+}
+
+.staff-register-page .staff-register-step.is-active small::after,
+.staff-register-page .staff-register-step.is-complete small::after {
+  width: 100% !important;
+}
+
+/* Form card starts directly below the stepper like the reference. */
+.staff-register-page .staff-register-card {
+  width: 100% !important;
+  min-height: 0 !important;
+  padding: 30px 34px 28px !important;
+  border: 1px solid #edf0f6 !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 42px rgba(22, 27, 41, 0.055) !important;
+}
+
+.staff-register-page .staff-register-card > header {
+  margin-bottom: 26px !important;
+}
+
+.staff-register-page .staff-register-card h3 {
+  color: var(--patients-pink) !important;
+  font-size: 22px !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.035em !important;
+}
+
+/* Keep first page and 2-column fields clean. */
+.staff-register-page .staff-register-grid {
+  column-gap: 18px !important;
+  row-gap: 18px !important;
+}
+
+.staff-register-page .staff-register-grid.is-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  column-gap: 28px !important;
+  row-gap: 22px !important;
+}
+
+.staff-register-page .staff-register-input-wrap input,
+.staff-register-page .staff-register-input-wrap select {
+  height: 50px !important;
+  border-radius: 10px !important;
+  font-size: 14.5px !important;
+}
+
+.staff-register-page .staff-register-field textarea {
+  min-height: 154px !important;
+  border-radius: 10px !important;
+  font-size: 14.5px !important;
+}
+
+.staff-register-page .staff-register-footer.has-divider {
+  margin-top: 32px !important;
+  padding-top: 30px !important;
+}
+
+.staff-register-page .staff-prev-btn,
+.staff-register-page .staff-next-btn {
+  height: 52px !important;
+  min-width: 180px !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+  font-weight: 850 !important;
+}
+
+/* Right cards aligned to title/credentials column. */
+.staff-register-page .staff-register-side {
+  position: sticky !important;
+  top: 22px !important;
+  display: grid !important;
+  gap: 15px !important;
+  min-width: 0 !important;
+}
+
+.staff-register-page .staff-register-success-card {
+  min-height: 190px !important;
+  display: grid !important;
+  justify-items: center !important;
+  align-content: center !important;
+  padding: 24px 22px !important;
+  border-radius: 17px !important;
+}
+
+.staff-register-page .staff-register-credential-card {
+  padding: 25px 24px !important;
+  border-radius: 17px !important;
+}
+
+.staff-register-page .staff-qr-block > div {
+  height: 172px !important;
+}
+
+/* Tablet: title/success stack but still centered. */
+@media (max-width: 1120px) {
+  .staff-register-page .staff-register-shell {
+    max-width: 880px !important;
+  }
+
+  .staff-register-page .staff-register-hero-grid,
+  .staff-register-page .staff-register-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-register-page .staff-register-side {
+    position: static !important;
+  }
+
+  .staff-register-page .staff-register-hero-grid > .staff-register-success-card {
+    width: min(100%, 360px) !important;
+    justify-self: center !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .staff-register-page {
+    padding: 24px 18px 34px !important;
+  }
+
+  .staff-register-page .staff-register-stepper {
+    padding: 0 12px !important;
+  }
+
+  .staff-register-page .staff-register-step-line {
+    left: 42px !important;
+    right: 42px !important;
+  }
+
+  .staff-register-page .staff-register-grid,
+  .staff-register-page .staff-register-grid.is-three {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-register-page .staff-register-shell {
+    max-width: none !important;
+  }
+
+  .staff-register-page .staff-register-top {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+
+  .staff-register-page .staff-register-top h2,
+  .staff-register-page .staff-register-top p {
+    text-align: left !important;
+  }
+
+  .staff-register-page .staff-register-hero-grid > .staff-register-success-card {
+    justify-self: stretch !important;
+    width: 100% !important;
+  }
+
+  .staff-register-page .staff-register-stepper {
+    overflow-x: auto !important;
+    grid-template-columns: repeat(4, 150px) !important;
+    justify-content: start !important;
+    padding-bottom: 8px !important;
+  }
+
+  .staff-register-page .staff-register-step-line {
+    left: 45px !important;
+    right: auto !important;
+    width: 500px !important;
+  }
+
+  .staff-register-page .staff-register-grid,
+  .staff-register-page .staff-register-grid.is-three,
+  .staff-register-page .staff-register-side {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-register-page .staff-register-card {
+    padding: 24px 20px !important;
+  }
+
+  .staff-register-page .staff-register-footer,
+  .staff-register-page .staff-register-footer.has-divider {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .staff-register-page .staff-prev-btn,
+  .staff-register-page .staff-next-btn {
+    width: 100% !important;
+  }
+}
+
+
+
+/* =========================================================
+   Step 1 highlight fix
+   This makes Basic Information pink + underlined immediately
+   on the first page, not only after going to Step 2.
+========================================================= */
+
+.staff-register-page .staff-register-step.is-active,
+.staff-register-page .staff-register-step.is-highlighted,
+.staff-register-page .staff-register-step.is-complete {
+  color: var(--patients-pink) !important;
+}
+
+.staff-register-page .staff-register-step.is-active span,
+.staff-register-page .staff-register-step.is-highlighted span,
+.staff-register-page .staff-register-step.is-complete span {
+  background: var(--patients-pink) !important;
+  color: #ffffff !important;
+}
+
+.staff-register-page .staff-register-step.is-active small,
+.staff-register-page .staff-register-step.is-highlighted small,
+.staff-register-page .staff-register-step.is-complete small {
+  color: var(--patients-pink) !important;
+  font-weight: 900 !important;
+}
+
+.staff-register-page .staff-register-step.is-active small::after,
+.staff-register-page .staff-register-step.is-highlighted small::after,
+.staff-register-page .staff-register-step.is-complete small::after {
+  width: 100% !important;
+  background: var(--patients-pink) !important;
+}
+
+/* Keep upcoming steps gray. */
+.staff-register-page .staff-register-step:not(.is-reached):not(.is-active):not(.is-highlighted):not(.is-complete) {
+  color: #9aa2b2 !important;
+}
+
+.staff-register-page .staff-register-step:not(.is-reached):not(.is-active):not(.is-highlighted):not(.is-complete) span {
+  background: #9aa2b2 !important;
+}
+
+.staff-register-page .staff-register-step:not(.is-reached):not(.is-active):not(.is-highlighted):not(.is-complete) small::after {
+  width: 0 !important;
+}
+
+/* Make the page-1 progress line start pink up to step 1 so it looks active immediately. */
+.staff-register-page .staff-register-stepper[style*="--step-progress: 0%"] .staff-register-step-line {
+  background:
+    linear-gradient(
+      90deg,
+      var(--patients-pink) 0,
+      var(--patients-pink) 8%,
+      #dfe3eb 8%,
+      #dfe3eb 100%
+    ) !important;
+}
+
+
+
+/* =========================================================
+   Current-step-only underline fix
+   Completed steps stay pink, but their underline disappears.
+   Only the active/current page keeps the pink underline.
+========================================================= */
+
+.staff-register-page .staff-register-step.is-complete {
+  color: var(--patients-pink) !important;
+}
+
+.staff-register-page .staff-register-step.is-complete span {
+  background: var(--patients-pink) !important;
+  color: #ffffff !important;
+}
+
+.staff-register-page .staff-register-step.is-complete small {
+  color: var(--patients-pink) !important;
+  font-weight: 900 !important;
+}
+
+/* Remove underline from finished/previous steps */
+.staff-register-page .staff-register-step.is-complete:not(.is-active) small::after,
+.staff-register-page .staff-register-step.is-complete:not(.is-highlighted) small::after {
+  width: 0 !important;
+}
+
+/* Keep underline only on the current step */
+.staff-register-page .staff-register-step.is-active small::after,
+.staff-register-page .staff-register-step.is-highlighted small::after {
+  width: 100% !important;
+  background: var(--patients-pink) !important;
+}
+
+/* Upcoming steps stay gray and never underlined */
+.staff-register-page .staff-register-step:not(.is-active):not(.is-complete):not(.is-highlighted) {
+  color: #9aa2b2 !important;
+}
+
+.staff-register-page .staff-register-step:not(.is-active):not(.is-complete):not(.is-highlighted) span {
+  background: #9aa2b2 !important;
+}
+
+.staff-register-page .staff-register-step:not(.is-active):not(.is-complete):not(.is-highlighted) small::after {
+  width: 0 !important;
+}
+
+
+
+/* =========================================================
+   Shared staff alignment override for Patients page
+   Keeps this page connected with Dashboard/Appointments alignment.
+========================================================= */
+
+.staff-dashboard-shell .staff-patients-page {
+  padding: 0 !important;
+}
+
+.staff-dashboard-shell .staff-patients-header {
+  width: 100% !important;
+  min-height: var(--doctor-top-profile-height, 66px) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 22px !important;
+  margin: 0 0 46px !important;
+  padding: 0 !important;
+}
+
+.staff-dashboard-shell .staff-patients-header h2 {
+  margin: 0 !important;
+  color: #202432 !important;
+  font-size: clamp(34px, 2.6vw, 42px) !important;
+  font-weight: 900 !important;
+  line-height: 1.03 !important;
+  letter-spacing: -0.06em !important;
+}
+
+.staff-dashboard-shell .staff-patients-actions,
+.staff-dashboard-shell .staff-patients-card {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.staff-dashboard-shell .staff-patients-header .staff-profile-wrapper {
+  margin-left: auto !important;
+  flex: 0 0 var(--doctor-top-profile-width, 292px) !important;
+  width: var(--doctor-top-profile-width, 292px) !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell .staff-patients-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+    margin-bottom: 28px !important;
+  }
+
+  .staff-dashboard-shell .staff-patients-header .staff-profile-wrapper {
+    width: 100% !important;
+    flex-basis: auto !important;
+  }
+}
+
+
+/* =========================================================
+   Patients page scroll alignment fix
+   Adds enough scroll height so the browser keeps the same
+   vertical scrollbar as Dashboard and the profile does not move.
+========================================================= */
+
+.staff-dashboard-shell .staff-patients-page,
+.staff-patients-page {
+  min-height: calc(100vh + 1px) !important;
+  padding-bottom: 48px !important;
+}
+
+.staff-dashboard-shell .staff-patients-card {
+  margin-bottom: 48px !important;
+}
+
+
+
+/* =========================================================
+   PATIENTS TOOLBAR MINIMAL SIZE FIX
+   Makes the Search bar and Register Patient button smaller,
+   cleaner, and more minimal while keeping the same alignment.
+========================================================= */
+
+.staff-patients-page .staff-patients-actions,
+.staff-dashboard-shell .staff-patients-actions {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 420px) max-content !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  width: 100% !important;
+  margin: 0 0 18px !important;
+}
+
+/* Smaller search bar */
+.staff-patients-page .staff-patients-search,
+.staff-dashboard-shell .staff-patients-search {
+  width: min(420px, 100%) !important;
+  height: 42px !important;
+  gap: 10px !important;
+  padding: 0 14px !important;
+  border: 1px solid #dfe2ec !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(22, 27, 41, 0.025) !important;
+}
+
+.staff-patients-page .staff-patients-search svg,
+.staff-dashboard-shell .staff-patients-search svg {
+  width: 18px !important;
+  height: 18px !important;
+  color: #697183 !important;
+}
+
+.staff-patients-page .staff-patients-search input,
+.staff-dashboard-shell .staff-patients-search input {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #252a38 !important;
+}
+
+.staff-patients-page .staff-patients-search input::placeholder,
+.staff-dashboard-shell .staff-patients-search input::placeholder {
+  color: #858c9d !important;
+}
+
+/* Smaller Register Patient button */
+.staff-patients-page .staff-register-patient-btn,
+.staff-dashboard-shell .staff-register-patient-btn {
+  width: auto !important;
+  min-width: 190px !important;
+  height: 46px !important;
+  padding: 0 22px !important;
+  gap: 9px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-weight: 750 !important;
+  box-shadow: 0 10px 20px rgba(255, 47, 125, 0.16) !important;
+}
+
+.staff-patients-page .staff-register-patient-btn svg,
+.staff-dashboard-shell .staff-register-patient-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.staff-patients-page .staff-register-patient-btn:hover,
+.staff-dashboard-shell .staff-register-patient-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 24px rgba(255, 47, 125, 0.20) !important;
+}
+
+/* Keep the toolbar clean on tablets and mobile */
+@media (max-width: 760px) {
+  .staff-patients-page .staff-patients-actions,
+  .staff-dashboard-shell .staff-patients-actions {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .staff-patients-page .staff-patients-search,
+  .staff-dashboard-shell .staff-patients-search,
+  .staff-patients-page .staff-register-patient-btn,
+  .staff-dashboard-shell .staff-register-patient-btn {
+    width: 100% !important;
+  }
+
+  .staff-patients-page .staff-register-patient-btn,
+  .staff-dashboard-shell .staff-register-patient-btn {
+    height: 44px !important;
+  }
+}
+
+
+/* =========================================================
+   Staff Settings profile design refresh
+   Visual-only overrides. The existing React save/edit behavior is unchanged.
+========================================================= */
+
+.staff-dashboard-shell .staff-settings-page,
+.staff-settings-page {
+  --staff-settings-bg: #f7f8fb;
+  --staff-settings-card: #ffffff;
+  --staff-settings-ink: #262a33;
+  --staff-settings-muted: #6d7180;
+  --staff-settings-line: #dfe2ec;
+  --staff-settings-pink: #ff2f7d;
+  --staff-settings-pink-soft: #f3dfea;
+  --staff-settings-purple: #8c52ff;
+  --staff-settings-purple-soft: #f1e7ff;
+  width: 100% !important;
+  min-height: calc(100vh + 1px) !important;
+  padding: 0 0 48px !important;
+  background: var(--staff-settings-bg) !important;
+  color: var(--staff-settings-ink) !important;
+}
+
+.staff-settings-page > .staff-section-header,
+.staff-dashboard-shell .staff-settings-page > .staff-section-header {
+  width: 100% !important;
+  min-height: var(--doctor-top-profile-height, 78px) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 28px !important;
+  margin: 0 0 34px !important;
+  padding: 0 !important;
+}
+
+.staff-settings-page > .staff-section-header h1 {
+  margin: 0 0 10px !important;
+  color: #1f232c !important;
+  font-size: clamp(34px, 3vw, 46px) !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0 !important;
+}
+
+.staff-settings-page .doctor-settings-breadcrumb {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  color: #5f6371 !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+}
+
+.staff-settings-page .doctor-settings-breadcrumb span {
+  color: #8d92a1 !important;
+}
+
+.staff-settings-page .doctor-settings-breadcrumb b {
+  color: var(--staff-settings-pink) !important;
+  font-weight: 900 !important;
+}
+
+.staff-settings-page .staff-profile-wrapper {
+  flex: 0 0 330px !important;
+  width: 330px !important;
+  margin-left: auto !important;
+}
+
+.staff-settings-page .staff-profile-card {
+  width: 100% !important;
+  min-height: 78px !important;
+  padding: 12px 18px 12px 16px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: 0 20px 36px rgba(21, 26, 38, 0.1) !important;
+}
+
+.staff-settings-page .doctor-profile-avatar {
+  width: 54px !important;
+  height: 54px !important;
+  border-radius: 50% !important;
+}
+
+.staff-settings-page .doctor-profile-info strong {
+  color: #3b3d46 !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+}
+
+.staff-settings-page .doctor-profile-info span {
+  color: #6a6f7d !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.staff-settings-page .doctor-profile-arrow {
+  color: var(--staff-settings-pink) !important;
+}
+
+.staff-settings-page .doctor-settings-shell,
+.staff-settings-page .doctor-settings-shell[data-panel="profile"],
+.staff-settings-page .doctor-settings-shell[data-panel="account"],
+.staff-settings-page .doctor-settings-shell[data-panel="security"] {
+  width: 100% !important;
+  max-width: none !important;
+  display: grid !important;
+  grid-template-columns: 270px minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 40px !important;
+  margin: 0 !important;
+}
+
+.staff-settings-page .doctor-settings-sidebar,
+.staff-settings-page .doctor-settings-shell[data-panel="profile"] .doctor-settings-sidebar,
+.staff-settings-page .doctor-settings-shell[data-panel="account"] .doctor-settings-sidebar,
+.staff-settings-page .doctor-settings-shell[data-panel="security"] .doctor-settings-sidebar {
+  width: 270px !important;
+  min-height: 220px !important;
+  display: grid !important;
+  gap: 12px !important;
+  padding: 20px !important;
+  border: 1px solid #cfd3e0 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 30px rgba(23, 30, 45, 0.06) !important;
+}
+
+.staff-settings-page .doctor-settings-sidebar button,
+.staff-settings-page .doctor-settings-shell[data-panel="profile"] .doctor-settings-sidebar button,
+.staff-settings-page .doctor-settings-shell[data-panel="account"] .doctor-settings-sidebar button,
+.staff-settings-page .doctor-settings-shell[data-panel="security"] .doctor-settings-sidebar button {
+  width: 100% !important;
+  min-height: 50px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 14px !important;
+  padding: 12px 18px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #545966 !important;
+  font-size: 15px !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+  text-align: left !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+
+.staff-settings-page .doctor-settings-sidebar button:hover,
+.staff-settings-page .doctor-settings-sidebar button.is-active,
+.staff-settings-page[data-panel="profile"] .doctor-settings-sidebar button.is-active,
+.staff-settings-page[data-panel="account"] .doctor-settings-sidebar button.is-active,
+.staff-settings-page[data-panel="security"] .doctor-settings-sidebar button.is-active {
+  background: var(--staff-settings-pink-soft) !important;
+  color: var(--staff-settings-pink) !important;
+}
+
+.staff-settings-page .doctor-settings-sidebar .doctor-icon,
+.staff-settings-page .doctor-settings-shell[data-panel="profile"] .doctor-settings-sidebar .doctor-icon,
+.staff-settings-page .doctor-settings-shell[data-panel="account"] .doctor-settings-sidebar .doctor-icon,
+.staff-settings-page .doctor-settings-shell[data-panel="security"] .doctor-settings-sidebar .doctor-icon {
+  width: 24px !important;
+  height: 24px !important;
+  flex: 0 0 24px !important;
+  color: currentColor !important;
+}
+
+.staff-settings-page .doctor-settings-content {
+  min-width: 0 !important;
+}
+
+.staff-settings-page .doctor-settings-profile-form {
+  width: 100% !important;
+  display: grid !important;
+  gap: 30px !important;
+  margin: 0 !important;
+}
+
+.staff-settings-page[data-panel="profile"] .doctor-settings-section-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  margin: 4px 0 0 !important;
+}
+
+.staff-settings-page[data-panel="profile"] .doctor-settings-section-header > span {
+  width: 52px !important;
+  height: 52px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  background: #ffe2ee !important;
+  color: var(--staff-settings-pink) !important;
+  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.22) !important;
+}
+
+.staff-settings-page[data-panel="profile"] .doctor-settings-section-header > span .doctor-icon {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.staff-settings-page[data-panel="profile"] .doctor-settings-section-header h2 {
+  margin: 0 !important;
+  color: #3c3f48 !important;
+  font-size: 24px !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0 !important;
+}
+
+.staff-settings-page[data-panel="profile"] .doctor-settings-section-header p {
+  margin: 3px 0 0 !important;
+  color: #5d626e !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+}
+
+.staff-settings-page .doctor-settings-info-stack {
+  display: grid !important;
+  gap: 28px !important;
+}
+
+.staff-settings-page .doctor-settings-info-card {
+  overflow: hidden !important;
+  border: 1px solid var(--staff-settings-line) !important;
+  border-radius: 8px !important;
+  background: var(--staff-settings-card) !important;
+  box-shadow: 0 14px 26px rgba(24, 31, 44, 0.05) !important;
+}
+
+.staff-settings-page .doctor-settings-info-card > header {
+  min-height: 82px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  padding: 0 30px !important;
+  border-bottom: 1px solid #d8dbe6 !important;
+  background: #ffffff !important;
+}
+
+.staff-settings-page .doctor-settings-info-card h3 {
+  margin: 0 !important;
+  color: var(--staff-settings-pink) !important;
+  font-size: 24px !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+}
+
+.staff-settings-page .doctor-settings-info-card--professional h3 {
+  color: var(--staff-settings-purple) !important;
+}
+
+.staff-settings-page .doctor-settings-info-card > header button {
+  min-width: 105px !important;
+  height: 48px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  padding: 0 18px !important;
+  border: 1px solid currentColor !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: var(--staff-settings-pink) !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+
+.staff-settings-page .doctor-settings-info-card > header button:hover {
+  background: #fff5f9 !important;
+  transform: translateY(-1px) !important;
+}
+
+.staff-settings-page .doctor-settings-info-card--professional > header button {
+  color: var(--staff-settings-purple) !important;
+}
+
+.staff-settings-page .doctor-settings-info-card--professional > header button:hover {
+  background: #fbf7ff !important;
+}
+
+.staff-settings-page .doctor-settings-info-card > header button .doctor-icon {
+  width: 19px !important;
+  height: 19px !important;
+  flex: 0 0 19px !important;
+}
+
+.staff-settings-page .doctor-settings-info-grid,
+.staff-settings-page .doctor-settings-info-grid--personal,
+.staff-settings-page .doctor-settings-info-grid--personal.is-editing {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 40px 62px !important;
+  padding: 36px 40px 42px !important;
+}
+
+.staff-settings-page .doctor-settings-info-card--professional .doctor-settings-info-grid,
+.staff-settings-page .doctor-settings-info-card--professional .doctor-settings-info-grid.is-editing {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 40px 72px !important;
+}
+
+.staff-settings-page .doctor-settings-info-item {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.staff-settings-page .doctor-settings-info-item span {
+  color: #737888 !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0 !important;
+}
+
+.staff-settings-page .doctor-settings-info-item strong {
+  min-height: 25px !important;
+  color: #282c34 !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.staff-settings-page .doctor-settings-info-item input {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 44px !important;
+  padding: 0 12px !important;
+  border: 1px solid #cfd3df !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #282c34 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+
+.staff-settings-page .doctor-settings-info-item input:focus {
+  border-color: var(--staff-settings-pink) !important;
+  outline: 3px solid rgba(255, 47, 125, 0.14) !important;
+}
+
+.staff-settings-page .doctor-settings-info-card--professional .doctor-settings-info-item input:focus {
+  border-color: var(--staff-settings-purple) !important;
+  outline-color: rgba(140, 82, 255, 0.14) !important;
+}
+
+.staff-settings-page .doctor-settings-profile-form .doctor-settings-footer,
+.staff-settings-page .doctor-settings-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 14px !important;
+  margin: 20px 0 0 !important;
+  padding: 0 !important;
+}
+
+.staff-settings-page .doctor-settings-footer p {
+  flex: 1 1 360px !important;
+  margin: 0 !important;
+  color: var(--staff-settings-pink) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  text-align: right !important;
+}
+
+.staff-settings-page .doctor-settings-profile-form .doctor-settings-footer button,
+.staff-settings-page .doctor-settings-footer button {
+  width: 220px !important;
+  height: 58px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: var(--staff-settings-pink) !important;
+  color: #ffffff !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  box-shadow: 0 18px 30px rgba(255, 47, 125, 0.22) !important;
+}
+
+.staff-settings-page .doctor-settings-profile-form .doctor-settings-footer button:hover,
+.staff-settings-page .doctor-settings-footer button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 22px 34px rgba(255, 47, 125, 0.26) !important;
+}
+
+.staff-settings-page .doctor-settings-profile-form .doctor-settings-footer button:disabled,
+.staff-settings-page .doctor-settings-footer button:disabled,
+.staff-settings-page .doctor-settings-info-card > header button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.68 !important;
+  transform: none !important;
+}
+
+@media (max-width: 1180px) {
+  .staff-settings-page .doctor-settings-shell,
+  .staff-settings-page .doctor-settings-shell[data-panel="profile"],
+  .staff-settings-page .doctor-settings-shell[data-panel="account"],
+  .staff-settings-page .doctor-settings-shell[data-panel="security"] {
+    grid-template-columns: 240px minmax(0, 1fr) !important;
+    gap: 28px !important;
+  }
+
+  .staff-settings-page .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="profile"] .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="account"] .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="security"] .doctor-settings-sidebar {
+    width: 240px !important;
+  }
+
+  .staff-settings-page .doctor-settings-info-grid,
+  .staff-settings-page .doctor-settings-info-grid--personal,
+  .staff-settings-page .doctor-settings-info-grid--personal.is-editing,
+  .staff-settings-page .doctor-settings-info-card--professional .doctor-settings-info-grid,
+  .staff-settings-page .doctor-settings-info-card--professional .doctor-settings-info-grid.is-editing {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 32px 40px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .staff-settings-page > .staff-section-header,
+  .staff-dashboard-shell .staff-settings-page > .staff-section-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 18px !important;
+    margin-bottom: 26px !important;
+  }
+
+  .staff-settings-page .staff-profile-wrapper {
+    width: 100% !important;
+    flex-basis: auto !important;
+  }
+
+  .staff-settings-page .doctor-settings-shell,
+  .staff-settings-page .doctor-settings-shell[data-panel="profile"],
+  .staff-settings-page .doctor-settings-shell[data-panel="account"],
+  .staff-settings-page .doctor-settings-shell[data-panel="security"] {
+    grid-template-columns: 1fr !important;
+    gap: 22px !important;
+  }
+
+  .staff-settings-page .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="profile"] .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="account"] .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="security"] .doctor-settings-sidebar {
+    width: 100% !important;
+    min-height: auto !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    padding: 12px !important;
+  }
+
+  .staff-settings-page .doctor-settings-sidebar button,
+  .staff-settings-page .doctor-settings-shell[data-panel="profile"] .doctor-settings-sidebar button,
+  .staff-settings-page .doctor-settings-shell[data-panel="account"] .doctor-settings-sidebar button,
+  .staff-settings-page .doctor-settings-shell[data-panel="security"] .doctor-settings-sidebar button {
+    justify-content: center !important;
+    padding: 12px 10px !important;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-settings-page .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="profile"] .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="account"] .doctor-settings-sidebar,
+  .staff-settings-page .doctor-settings-shell[data-panel="security"] .doctor-settings-sidebar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-settings-page .doctor-settings-sidebar button,
+  .staff-settings-page .doctor-settings-shell[data-panel="profile"] .doctor-settings-sidebar button,
+  .staff-settings-page .doctor-settings-shell[data-panel="account"] .doctor-settings-sidebar button,
+  .staff-settings-page .doctor-settings-shell[data-panel="security"] .doctor-settings-sidebar button {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+
+  .staff-settings-page[data-panel="profile"] .doctor-settings-section-header {
+    align-items: flex-start !important;
+  }
+
+  .staff-settings-page .doctor-settings-info-card > header {
+    min-height: auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 20px !important;
+  }
+
+  .staff-settings-page .doctor-settings-info-card > header button {
+    width: 100% !important;
+  }
+
+  .staff-settings-page .doctor-settings-info-grid,
+  .staff-settings-page .doctor-settings-info-grid--personal,
+  .staff-settings-page .doctor-settings-info-grid--personal.is-editing,
+  .staff-settings-page .doctor-settings-info-card--professional .doctor-settings-info-grid,
+  .staff-settings-page .doctor-settings-info-card--professional .doctor-settings-info-grid.is-editing {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+    padding: 24px 20px 28px !important;
+  }
+
+  .staff-settings-page .doctor-settings-profile-form .doctor-settings-footer,
+  .staff-settings-page .doctor-settings-footer {
+    justify-content: stretch !important;
+  }
+
+  .staff-settings-page .doctor-settings-footer p {
+    flex-basis: 100% !important;
+    text-align: left !important;
+  }
+
+  .staff-settings-page .doctor-settings-profile-form .doctor-settings-footer button,
+  .staff-settings-page .doctor-settings-footer button {
+    width: 100% !important;
+  }
+}
+
+
+/* =========================================================
+   Staff secure email change modal
+========================================================= */
+
+.staff-settings-page .staff-email-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 24px !important;
+  background: rgba(20, 23, 33, 0.48) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+.staff-settings-page .staff-email-modal {
+  width: min(560px, 100%) !important;
+  max-height: min(760px, calc(100vh - 48px)) !important;
+  overflow: auto !important;
+  border: 1px solid #ead7e1 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: 0 28px 70px rgba(23, 29, 43, 0.24) !important;
+}
+
+.staff-settings-page .staff-email-modal-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  padding: 24px 26px 18px !important;
+  border-bottom: 1px solid #f1dbe5 !important;
+}
+
+.staff-settings-page .staff-email-modal-header > div {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.staff-settings-page .staff-email-modal-icon {
+  width: 48px !important;
+  height: 48px !important;
+  flex: 0 0 48px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  background: #ffe2ee !important;
+  color: #ff2f7d !important;
+  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.18) !important;
+}
+
+.staff-settings-page .staff-email-modal-icon .doctor-icon {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.staff-settings-page .staff-email-modal-header h2 {
+  margin: 0 !important;
+  color: #272b35 !important;
+  font-size: 24px !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+}
+
+.staff-settings-page .staff-email-modal-header p {
+  margin: 4px 0 0 !important;
+  color: #686d7b !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  line-height: 1.35 !important;
+}
+
+.staff-settings-page .staff-email-modal-close {
+  width: 38px !important;
+  height: 38px !important;
+  flex: 0 0 38px !important;
+  border: 1px solid #f2bfd5 !important;
+  border-radius: 10px !important;
+  background: #fff7fb !important;
+  color: #ff2f7d !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.staff-settings-page .staff-email-steps {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  padding: 18px 26px 0 !important;
+}
+
+.staff-settings-page .staff-email-steps.staff-password-steps {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.staff-settings-page .staff-email-steps span {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 10px !important;
+  border: 1px solid #e3e6ef !important;
+  border-radius: 10px !important;
+  background: #f8f9fc !important;
+  color: #858b99 !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+
+.staff-settings-page .staff-email-steps span::first-letter {
+  color: inherit !important;
+}
+
+.staff-settings-page .staff-email-steps span.is-active {
+  border-color: #ff9cc4 !important;
+  background: #fff0f6 !important;
+  color: #ff2f7d !important;
+}
+
+.staff-settings-page .staff-email-steps small {
+  min-width: 0 !important;
+  color: inherit !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  line-height: 1.1 !important;
+}
+
+.staff-settings-page .staff-email-modal-message {
+  margin: 16px 26px 0 !important;
+  padding: 12px 14px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1.4 !important;
+}
+
+.staff-settings-page .staff-email-modal-message.is-error {
+  border: 1px solid #ffc4d8 !important;
+  background: #fff1f6 !important;
+  color: #db1f62 !important;
+}
+
+.staff-settings-page .staff-email-modal-message.is-success {
+  border: 1px solid #bdebd0 !important;
+  background: #effbf4 !important;
+  color: #18794e !important;
+}
+
+.staff-settings-page .staff-email-modal-body {
+  display: grid !important;
+  gap: 16px !important;
+  padding: 22px 26px 26px !important;
+}
+
+.staff-settings-page .staff-email-modal-body label {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.staff-settings-page .staff-email-modal-body label span {
+  color: #5e6371 !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+
+.staff-settings-page .staff-email-modal-body input {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 46px !important;
+  padding: 0 13px !important;
+  border: 1px solid #d5d9e5 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #252a34 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+
+.staff-settings-page .staff-email-modal-body input[readonly] {
+  background: #f6f7fb !important;
+  color: #697083 !important;
+}
+
+.staff-settings-page .staff-email-modal-body input:focus {
+  border-color: #ff2f7d !important;
+  outline: 3px solid rgba(255, 47, 125, 0.15) !important;
+}
+
+.staff-settings-page .staff-email-modal-help {
+  margin: 0 !important;
+  color: #666b78 !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+  line-height: 1.45 !important;
+}
+
+.staff-settings-page .staff-email-modal-help strong {
+  color: #252a34 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.staff-settings-page .staff-email-modal-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+  margin-top: 4px !important;
+}
+
+.staff-settings-page .staff-email-modal-actions button {
+  min-width: 132px !important;
+  height: 46px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #ff2f7d !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 850 !important;
+  box-shadow: 0 14px 24px rgba(255, 47, 125, 0.2) !important;
+}
+
+.staff-settings-page .staff-email-modal-actions button.is-secondary {
+  border: 1px solid #f0bdd3 !important;
+  background: #ffffff !important;
+  color: #ff2f7d !important;
+  box-shadow: none !important;
+}
+
+.staff-settings-page .staff-email-modal-actions button:disabled,
+.staff-settings-page .staff-email-modal-close:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.65 !important;
+  transform: none !important;
+}
+
+.staff-settings-page .staff-email-complete {
+  display: grid !important;
+  justify-items: center !important;
+  gap: 10px !important;
+  padding: 18px 10px !important;
+  text-align: center !important;
+}
+
+.staff-settings-page .staff-email-complete > .doctor-icon {
+  width: 48px !important;
+  height: 48px !important;
+  color: #ff2f7d !important;
+}
+
+.staff-settings-page .staff-email-complete h3 {
+  margin: 0 !important;
+  color: #252a34 !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+}
+
+.staff-settings-page .staff-email-complete p {
+  margin: 0 !important;
+  color: #687082 !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+  line-height: 1.45 !important;
+}
+
+.staff-settings-page .staff-email-complete strong {
+  color: #252a34 !important;
+  overflow-wrap: anywhere !important;
+}
+
+@media (max-width: 560px) {
+  .staff-settings-page .staff-email-modal-backdrop {
+    align-items: end !important;
+    padding: 12px !important;
+  }
+
+  .staff-settings-page .staff-email-modal {
+    max-height: calc(100vh - 24px) !important;
+    border-radius: 14px 14px 10px 10px !important;
+  }
+
+  .staff-settings-page .staff-email-modal-header {
+    padding: 20px 18px 16px !important;
+  }
+
+  .staff-settings-page .staff-email-modal-header > div {
+    align-items: flex-start !important;
+  }
+
+  .staff-settings-page .staff-email-steps {
+    grid-template-columns: 1fr !important;
+    padding: 16px 18px 0 !important;
+  }
+
+  .staff-settings-page .staff-email-modal-message {
+    margin: 14px 18px 0 !important;
+  }
+
+  .staff-settings-page .staff-email-modal-body {
+    padding: 20px 18px 22px !important;
+  }
+
+  .staff-settings-page .staff-email-modal-actions {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+  }
+
+  .staff-settings-page .staff-email-modal-actions button {
+    width: 100% !important;
+  }
+}
