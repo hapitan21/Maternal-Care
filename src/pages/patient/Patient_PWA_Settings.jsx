@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import PatientPushNotificationSettings from "../../components/patient/PatientPushNotificationSettings";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
 import { supabase } from "../../lib/supabaseClient";
+import "../../styles/patient_PWA_settings.css";
 
 const settingsTabs = [
   { key: "profile", label: "Profile", icon: "solar:user-rounded-linear" },

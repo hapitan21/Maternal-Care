@@ -6,6 +6,7 @@ import PatientNotificationPanel from "./PatientNotificationPanel";
 
 export default function PatientNotificationBell({ onNavigate }) {
   const wrapperRef = useRef(null);
+  const bellRef = useRef(null);
   const [open, setOpen] = useState(false);
   const {
     notifications,
@@ -13,19 +14,25 @@ export default function PatientNotificationBell({ onNavigate }) {
     loading,
     updating,
     error,
+    online,
     refresh,
     markAsRead,
     markAllAsRead,
   } = usePatientNotifications();
 
   useEffect(() => {
+    if (!open) return undefined;
+
     const closeOnOutside = (event) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setOpen(false);
       }
     };
     const closeOnEscape = (event) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        window.requestAnimationFrame(() => bellRef.current?.focus());
+      }
     };
 
     document.addEventListener("pointerdown", closeOnOutside);
@@ -35,12 +42,18 @@ export default function PatientNotificationBell({ onNavigate }) {
       document.removeEventListener("pointerdown", closeOnOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, []);
+  }, [open]);
+
+  const closePanel = () => {
+    setOpen(false);
+    window.requestAnimationFrame(() => {
+      wrapperRef.current?.querySelector(".pwa-notification-bell")?.focus();
+    });
+  };
 
   const handleSelect = async (notification) => {
     if (!notification.read_at) {
-      const marked = await markAsRead(notification.id);
-      if (!marked) return;
+      await markAsRead(notification.id);
     }
 
     setOpen(false);
@@ -53,10 +66,12 @@ export default function PatientNotificationBell({ onNavigate }) {
       ref={wrapperRef}
     >
       <button
+        ref={bellRef}
         type="button"
         className="pwa-notification-bell"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
+        aria-controls="patient-notification-panel"
         aria-haspopup="dialog"
         aria-label={`Notifications, ${unreadCount} unread`}
         title="Notifications"
@@ -71,14 +86,21 @@ export default function PatientNotificationBell({ onNavigate }) {
 
       {open ? (
         <PatientNotificationPanel
+          id="patient-notification-panel"
           notifications={notifications}
           unreadCount={unreadCount}
           loading={loading}
           updating={updating}
           error={error}
+          online={online}
           onRetry={refresh}
           onMarkAllAsRead={markAllAsRead}
           onSelect={handleSelect}
+          onClose={closePanel}
+          onOpenSettings={() => {
+            setOpen(false);
+            onNavigate("/patient/settings");
+          }}
         />
       ) : null}
     </div>

@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import "../../styles/doctor-settings.css";
 import "../../styles/staff-settings.css";
 import { supabase } from "../../lib/supabaseClient";
 import {

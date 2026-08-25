@@ -82,7 +82,7 @@ const DoctorNotificationPanel = forwardRef(function DoctorNotificationPanel(
       <DoctorPushNotificationControl />
 
       {error ? (
-        <div className="doctor-notification-error" role="status">
+        <div className="doctor-notification-error" role="alert">
           <Icon icon="solar:danger-triangle-bold" aria-hidden="true" />
           <span>{error}</span>
           <button type="button" onClick={onRetry}>Retry</button>
@@ -92,6 +92,7 @@ const DoctorNotificationPanel = forwardRef(function DoctorNotificationPanel(
       <div className="doctor-notification-list">
         {loading ? (
           <>
+            <span className="app-sr-only" role="status">Loading Doctor notifications...</span>
             <NotificationSkeleton />
             <NotificationSkeleton />
             <NotificationSkeleton />

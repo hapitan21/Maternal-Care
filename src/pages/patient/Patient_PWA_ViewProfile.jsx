@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import "../../styles/patient-PWA-viewprofile.css";
 
 const defaultProfile = {
   personalInfoId: null,

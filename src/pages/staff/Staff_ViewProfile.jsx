@@ -7,6 +7,7 @@ import {
   getStaffSettings,
   staffSettingsUpdatedEvent,
 } from "../../lib/staffProfile";
+import "../../styles/doctor-viewprofile.css";
 import "../../styles/staff-viewprofile.css";
 
 const staffProfilePhotoKey = "staff_profile_photo";

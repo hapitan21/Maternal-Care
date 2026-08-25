@@ -1,29 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
-import PatientPWADashboard from "./Patient_PWA_Dashboard";
-import PatientPWAViewProfile from "./Patient_PWA_ViewProfile";
-import PatientPWASettings from "./Patient_PWA_Settings";
-import PatientPWAMedicalRecords from "./Patient_PWA_MedicalRecords";
-import PatientPWAAppointments from "./Patient_PWA_Appointments";
-import PatientPWAReminder from "./Patient_PWA_Reminder";
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import PatientNotificationBell from "../../components/patient/PatientNotificationBell";
 import PatientNotificationsProvider from "../../components/patient/PatientNotificationsProvider";
+import PatientPwaStatus from "../../components/patient/PatientPwaStatus";
 import {
   isPatientRecordArchived,
   normalizePatientAccountStatus,
   patientAccountStatuses,
 } from "../../lib/patientAccountStatus";
 import "../../styles/patient-PWA.css";
-import "../../styles/patient-PWA-dashboard.css";
-import "../../styles/patient-PWA-viewprofile.css";
-import "../../styles/patient_PWA_settings.css";
-import "../../styles/patient-PWA-medicalrecords.css";
-import "../../styles/patient-PWA-appointments.css";
-import "../../styles/patient-PWA-reminder.css";
 import "../../styles/patient-notifications.css";
 import "../../styles/patient-pwa-ui-system.css";
+import "../../styles/patient-pwa-status.css";
+
+const PatientPWADashboard = lazy(() => import("./Patient_PWA_Dashboard"));
+const PatientPWAViewProfile = lazy(() => import("./Patient_PWA_ViewProfile"));
+const PatientPWASettings = lazy(() => import("./Patient_PWA_Settings"));
+const PatientPWAMedicalRecords = lazy(() => import("./Patient_PWA_MedicalRecords"));
+const PatientPWAAppointments = lazy(() => import("./Patient_PWA_Appointments"));
+const PatientPWAReminder = lazy(() => import("./Patient_PWA_Reminder"));
 
 const defaultPatientProfile = {
   recordId: "",
@@ -676,7 +674,12 @@ export default function PatientPWA() {
               />
             </div>
           </header>
-          <div className="pwa-content">{renderContent()}</div>
+          <PatientPwaStatus />
+          <div className="pwa-content">
+            <Suspense fallback={<WorkspaceSectionFallback label="Patient workspace" />}>
+              {renderContent()}
+            </Suspense>
+          </div>
         </main>
       </div>
     </PatientNotificationsProvider>
@@ -685,9 +688,12 @@ export default function PatientPWA() {
 
 function TopProfile({ profile, onNavigate, onLogout, onOpenChange }) {
   const wrapperRef = useRef(null);
+  const triggerRef = useRef(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    if (!open) return undefined;
+
     onOpenChange?.(open);
   }, [onOpenChange, open]);
 
@@ -699,7 +705,10 @@ function TopProfile({ profile, onNavigate, onLogout, onOpenChange }) {
     };
 
     const closeOnEscape = (event) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        window.requestAnimationFrame(() => triggerRef.current?.focus());
+      }
     };
 
     document.addEventListener("pointerdown", closeOnOutside);
@@ -709,7 +718,7 @@ function TopProfile({ profile, onNavigate, onLogout, onOpenChange }) {
       document.removeEventListener("pointerdown", closeOnOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, []);
+  }, [open]);
 
   const goTo = (page) => {
     onNavigate(page);
@@ -724,12 +733,13 @@ function TopProfile({ profile, onNavigate, onLogout, onOpenChange }) {
   return (
     <div className={`pwa-top-profile ${open ? "is-open" : ""}`} ref={wrapperRef}>
       <button
+        ref={triggerRef}
         className={`pwa-profile-pill ${open ? "is-open" : ""}`}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="Open patient profile menu"
+        aria-label={open ? "Close patient profile menu" : "Open patient profile menu"}
       >
         <Avatar profile={profile} className="pwa-profile-pill-avatar" />
         <span className="pwa-profile-pill-copy">
@@ -741,16 +751,16 @@ function TopProfile({ profile, onNavigate, onLogout, onOpenChange }) {
 
       {open ? (
         <div className="pwa-profile-menu" role="menu">
-          <button type="button" onClick={() => goTo("profile")}>
-            <Icon icon="solar:user-rounded-bold" />
+          <button type="button" role="menuitem" onClick={() => goTo("profile")}>
+            <Icon icon="solar:user-rounded-bold" aria-hidden="true" />
             <span>Profile</span>
           </button>
-          <button type="button" onClick={() => goTo("settings")}>
-            <Icon icon="solar:settings-bold" />
+          <button type="button" role="menuitem" onClick={() => goTo("settings")}>
+            <Icon icon="solar:settings-bold" aria-hidden="true" />
             <span>Settings</span>
           </button>
-          <button type="button" className="pwa-profile-logout" onClick={handleLogoutClick}>
-            <Icon icon="solar:logout-2-bold" />
+          <button type="button" role="menuitem" className="pwa-profile-logout" onClick={handleLogoutClick}>
+            <Icon icon="solar:logout-2-bold" aria-hidden="true" />
             <span>Log out</span>
           </button>
         </div>

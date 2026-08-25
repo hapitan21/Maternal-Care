@@ -19,12 +19,22 @@ export function useDoctorRouteAuthorization() {
   const requestIdRef = useRef(0);
   const [authorization, setAuthorization] = useState(createLoadingState);
 
+  const markAuthorizationLoading = useCallback(() => {
+    setAuthorization((current) => {
+      if (current.authorized && current.user?.id) {
+        return { ...current, loading: true };
+      }
+
+      return createLoadingState();
+    });
+  }, []);
+
   const resolveAuthorization = useCallback(async (authUserOverride) => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
     if (mountedRef.current) {
-      setAuthorization(createLoadingState());
+      markAuthorizationLoading();
     }
 
     let user = authUserOverride;
@@ -75,7 +85,7 @@ export function useDoctorRouteAuthorization() {
     }
 
     return decision;
-  }, []);
+  }, [markAuthorizationLoading]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -89,7 +99,7 @@ export function useDoctorRouteAuthorization() {
     const invalidateAndSchedule = (authUserOverride) => {
       requestIdRef.current += 1;
       clearTimers();
-      setAuthorization(createLoadingState());
+      markAuthorizationLoading();
 
       const timer = window.setTimeout(() => {
         timers.delete(timer);
@@ -126,7 +136,7 @@ export function useDoctorRouteAuthorization() {
       authListener.subscription.unsubscribe();
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [resolveAuthorization]);
+  }, [markAuthorizationLoading, resolveAuthorization]);
 
   return authorization;
 }

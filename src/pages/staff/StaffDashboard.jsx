@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
@@ -7,22 +7,15 @@ import {
   getStaffSettings,
   staffSettingsUpdatedEvent,
 } from "../../lib/staffProfile";
-import StaffAppointmentsContent from "./Staff_Appointments";
-import StaffPatientsContent from "./Staff_Patients";
-import StaffSettingsContent from "./Staff_Settings";
-import StaffViewProfileContent from "./Staff_ViewProfile";
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import "../../styles/doctor-dashboard.css";
-import "../../styles/doctor-patients.css";
-import "../../styles/doctor-appointments.css";
-import "../../styles/doctor-settings.css";
-import "../../styles/doctor-viewprofile.css";
 import "../../styles/staff-dashboard.css";
-import "../../styles/staff-settings.css";
-import "../../styles/staff-patients.css";
-import "../../styles/staff-appointments.css";
 import "../../styles/staff-doctor-parity.css";
-import "../../styles/appointment-ui-system.css";
-import "../../styles/patient-record-ui-system.css";
+
+const StaffAppointmentsContent = lazy(() => import("./Staff_Appointments"));
+const StaffPatientsContent = lazy(() => import("./Staff_Patients"));
+const StaffSettingsContent = lazy(() => import("./Staff_Settings"));
+const StaffViewProfileContent = lazy(() => import("./Staff_ViewProfile"));
 
 const staffProfilePhotoKey = "staff_profile_photo";
 const defaultStaffProfilePhoto = "/images/doctor-kempee-profile.svg";
@@ -184,7 +177,7 @@ function StaffProfileDropdown({
   const initials = getStaffInitials(settings.displayName);
 
   return (
-    <div className="doctor-profile-dropdown" role="menu">
+    <div className="doctor-profile-dropdown" role="menu" aria-label="Staff account">
       <div className="doctor-dropdown-user">
         <div className="doctor-dropdown-avatar">
           {profilePhoto ? <img src={profilePhoto} alt="" /> : initials}
@@ -197,18 +190,18 @@ function StaffProfileDropdown({
       </div>
 
       <div className="doctor-dropdown-menu">
-        <button type="button" onClick={onViewProfile}>
-          <Icon icon="solar:user-rounded-linear" />
+        <button type="button" role="menuitem" onClick={onViewProfile}>
+          <Icon icon="solar:user-rounded-linear" aria-hidden="true" />
           <span>View Profile</span>
         </button>
 
-        <button type="button" onClick={onSettings}>
-          <Icon icon="solar:settings-linear" />
+        <button type="button" role="menuitem" onClick={onSettings}>
+          <Icon icon="solar:settings-linear" aria-hidden="true" />
           <span>Settings</span>
         </button>
 
-        <button type="button" className="logout" onClick={onLogout}>
-          <Icon icon="solar:logout-2-linear" />
+        <button type="button" role="menuitem" className="logout" onClick={onLogout}>
+          <Icon icon="solar:logout-2-linear" aria-hidden="true" />
           <span>Logout</span>
         </button>
       </div>
@@ -219,10 +212,16 @@ function StaffProfileDropdown({
 function StaffProfileCard({ onNavigate }) {
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
+  const triggerRef = useRef(null);
+  const openRef = useRef(false);
 
   const [isOpen, setIsOpen] = useState(false);
   const [settings, setSettings] = useState(getStaffSettings);
   const [profilePhoto, setProfilePhoto] = useState(getStaffProfilePhoto);
+
+  useEffect(() => {
+    openRef.current = isOpen;
+  }, [isOpen]);
 
   useEffect(() => {
     const syncProfile = () => {
@@ -240,8 +239,9 @@ function StaffProfileCard({ onNavigate }) {
     };
 
     const handleEscape = (event) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && openRef.current) {
         setIsOpen(false);
+        window.requestAnimationFrame(() => triggerRef.current?.focus());
       }
     };
 
@@ -291,11 +291,13 @@ function StaffProfileCard({ onNavigate }) {
       ref={dropdownRef}
     >
       <button
+        ref={triggerRef}
         className={`doctor-profile-card staff-profile-card ${
           isOpen ? "open" : ""
         }`}
         type="button"
         onClick={() => setIsOpen((current) => !current)}
+        aria-label={isOpen ? "Close Staff account menu" : "Open Staff account menu"}
         aria-expanded={isOpen}
         aria-haspopup="menu"
       >
@@ -715,7 +717,7 @@ function DashboardHome({ onNavigate, headerAction }) {
       </section>
 
       {dashboardMessage ? (
-        <p className="staff-dashboard-status-message">
+        <p className="staff-dashboard-status-message" role="alert">
           {dashboardMessage}
         </p>
       ) : null}
@@ -956,9 +958,7 @@ function StaffDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [activePage, setActivePage] = useState(() =>
-    getInitialPage(location.pathname)
-  );
+  const activePage = getInitialPage(location.pathname);
 
   /*
    * This is the main refresh fix.
@@ -980,8 +980,6 @@ function StaffDashboard() {
           ? options.path
           : staffPagePaths[safePage];
 
-      setActivePage(safePage);
-
       const currentLocation =
         `${location.pathname}${location.search}`;
 
@@ -999,14 +997,11 @@ function StaffDashboard() {
   );
 
   /*
-   * Keep activePage synchronized with browser Back, Forward, direct URL,
-   * and localhost refresh.
+   * Normalize browser Back, Forward, direct URL, and localhost refresh.
+   * activePage is derived from location.pathname, so it cannot drift from
+   * the address bar and does not require a second synchronization render.
    */
   useEffect(() => {
-    const pageFromUrl = getInitialPage(location.pathname);
-
-    setActivePage(pageFromUrl);
-
     /*
      * Normalize /staff or an unknown /staff/... address to the dashboard
      * URL. This makes refresh behavior consistent.
@@ -1149,6 +1144,8 @@ function StaffDashboard() {
               <button
                 key={item.key}
                 type="button"
+                aria-label={item.label}
+                aria-current={activePage === item.key ? "page" : undefined}
                 onClick={() => navigateToPage(item.key)}
                 className={`doctor-nav-link ${
                   activePage === item.key ? "active" : ""
@@ -1164,7 +1161,9 @@ function StaffDashboard() {
 
       <main className="doctor-main">
         <div className="doctor-content">
-          {renderContent()}
+          <Suspense fallback={<WorkspaceSectionFallback label="Staff workspace" />}>
+            {renderContent()}
+          </Suspense>
         </div>
       </main>
     </div>

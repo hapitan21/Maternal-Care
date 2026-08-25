@@ -30,6 +30,7 @@ import {
   getSafeDoctorFollowupId,
 } from "../../lib/doctorNotifications";
 import "../../styles/doctor-followup-queue.css";
+import "../../styles/clinical-workflow-ui-system.css";
 
 function getPatientInitials(name) {
   return String(name || "Patient")

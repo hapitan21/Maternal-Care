@@ -15,6 +15,7 @@ import {
   getManilaTimeKey,
   toManilaISOString,
 } from "../../lib/appointmentDate";
+import "../../styles/patient-PWA-reminder.css";
 
 const reminderTabs = ["Today", "Tomorrow", "Upcoming"];
 const medicationOccurrenceStatuses = new Set([

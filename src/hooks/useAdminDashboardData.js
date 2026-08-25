@@ -163,6 +163,7 @@ async function queryRecentActivity() {
 export function useAdminDashboardData(dateRange, enabled = true) {
   const requestIdRef = useRef(0);
   const realtimeTimerRef = useRef(null);
+  const refreshPromiseRef = useRef(null);
   const range = useMemo(() => getDateRangeConfig(dateRange), [dateRange]);
   const [summary, setSummary] = useState(() => ({
     totals: emptyTotals,
@@ -177,46 +178,74 @@ export function useAdminDashboardData(dateRange, enabled = true) {
   const [summaryError, setSummaryError] = useState(null);
   const [activityError, setActivityError] = useState(null);
 
-  const refresh = useCallback(async () => {
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
+  const refresh = useCallback(() => {
+    const refreshKey = `${enabled ? "enabled" : "disabled"}:${range.key}`;
+    if (refreshPromiseRef.current?.key === refreshKey) {
+      return refreshPromiseRef.current.promise;
+    }
 
-    if (!enabled) {
+    const refreshPromise = (async () => {
+      const requestId = requestIdRef.current + 1;
+      requestIdRef.current = requestId;
+
+      if (!enabled) {
+        setSummaryLoading(false);
+        setActivityLoading(false);
+        return;
+      }
+
+      setSummaryLoading(true);
+      setActivityLoading(true);
+      setSummaryError(null);
+      setActivityError(null);
+
+      let summaryResult;
+      let activityResult;
+      try {
+        [summaryResult, activityResult] = await Promise.all([
+          querySummary(range),
+          queryRecentActivity(),
+        ]);
+      } catch (unexpectedError) {
+        if (requestIdRef.current !== requestId) return;
+        setSummaryError(unexpectedError);
+        setActivityError(unexpectedError);
+        setSummaryLoading(false);
+        setActivityLoading(false);
+        return;
+      }
+
+      if (requestIdRef.current !== requestId) return;
+
+      if (summaryResult.error) {
+        setSummaryError(summaryResult.error);
+      } else {
+        setSummary(mapSummary(summaryResult.data, range));
+      }
       setSummaryLoading(false);
+
+      if (activityResult.error) {
+        setActivityError(activityResult.error);
+      } else {
+        setRecentActivities((activityResult.data || []).map((row) => mapAdminAuditActivity(row, formatActivityTime)));
+      }
       setActivityLoading(false);
-      return;
-    }
+    })();
 
-    setSummaryLoading(true);
-    setActivityLoading(true);
-    setSummaryError(null);
-    setActivityError(null);
-
-    const [summaryResult, activityResult] = await Promise.all([
-      querySummary(range),
-      queryRecentActivity(),
-    ]);
-    if (requestIdRef.current !== requestId) return;
-
-    if (summaryResult.error) {
-      setSummaryError(summaryResult.error);
-    } else {
-      setSummary(mapSummary(summaryResult.data, range));
-    }
-    setSummaryLoading(false);
-
-    if (activityResult.error) {
-      setActivityError(activityResult.error);
-    } else {
-      setRecentActivities((activityResult.data || []).map((row) => mapAdminAuditActivity(row, formatActivityTime)));
-    }
-    setActivityLoading(false);
+    refreshPromiseRef.current = { key: refreshKey, promise: refreshPromise };
+    return refreshPromise.finally(() => {
+      if (refreshPromiseRef.current?.promise === refreshPromise) {
+        refreshPromiseRef.current = null;
+      }
+    });
   }, [enabled, range]);
 
   useEffect(() => {
     const initialTimer = window.setTimeout(refresh, 0);
     const pollingTimer = enabled ? window.setInterval(refresh, 60_000) : null;
-    const handleFocus = () => refresh();
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
     const scheduleRefresh = () => {
       window.clearTimeout(realtimeTimerRef.current);
       realtimeTimerRef.current = window.setTimeout(refresh, 250);
@@ -233,6 +262,7 @@ export function useAdminDashboardData(dateRange, enabled = true) {
 
     return () => {
       requestIdRef.current += 1;
+      refreshPromiseRef.current = null;
       window.clearTimeout(initialTimer);
       window.clearTimeout(realtimeTimerRef.current);
       if (pollingTimer) window.clearInterval(pollingTimer);

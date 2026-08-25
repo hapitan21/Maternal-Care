@@ -317,6 +317,36 @@
   margin: 0 0 28px;
 }
 
+.admin-report-export-group {
+  margin: 0 0 28px;
+}
+
+.admin-report-export-group .admin-report-export-actions {
+  margin-bottom: 0;
+}
+
+.admin-report-export-error {
+  width: max-content;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0 auto;
+  border: 1px solid #f3becd;
+  border-radius: 9px;
+  color: #a4244d;
+  background: #fff3f7;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-report-export-error svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
 .admin-report-export-actions button,
 .admin-report-reset {
   min-height: 42px;

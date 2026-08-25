@@ -174,27 +174,21 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
   const metricCards = [
     {
       icon: "solar:users-group-rounded-linear",
-      label: "Total Users",
-      value: totals.totalUsers,
-      helper: `${totals.patients} Patients, ${totals.doctors} Doctors, ${totals.staff} Staff, ${totals.admins} Admins`,
+      label: "Total Patients",
+      value: totals.patients,
+      helper: "Registered patient accounts",
     },
     {
-      icon: "solar:calendar-mark-linear",
-      label: "Total Appointments",
-      value: totals.totalAppointments,
-      helper: range.label,
+      icon: "solar:stethoscope-linear",
+      label: "Total Doctors",
+      value: totals.doctors,
+      helper: "Doctor accounts",
     },
     {
-      icon: "solar:calendar-search-linear",
-      label: "Pending / Upcoming",
-      value: totals.pendingAppointments,
-      helper: `${range.label} active appointments`,
-    },
-    {
-      icon: "solar:clipboard-heart-linear",
-      label: "Active Follow-up Alerts",
-      value: totals.activeFollowupAlerts,
-      helper: "Current due and overdue cases",
+      icon: "solar:user-id-linear",
+      label: "Total Staff",
+      value: totals.staff,
+      helper: "Staff accounts",
     },
     {
       icon: "solar:calendar-date-linear",
@@ -209,10 +203,8 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
       <section className="admin-hero">
         <div>
           <h1>Dashboard</h1>
-          <p>
-            {getGreeting()}, {identity.displayName || "Loading Admin profile..."}!
-          </p>
-            <span>Clinic-wide activity for {range.label.toLowerCase()}.</span>
+          <p>{getGreeting()}, {identity.displayName || "Admin"}!</p>
+          <span>Here is an overview of clinic activity for {range.label.toLowerCase()}.</span>
         </div>
 
         <div className="admin-dashboard-controls">

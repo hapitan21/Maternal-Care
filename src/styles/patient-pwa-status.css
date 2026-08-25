@@ -1,0 +1,151 @@
+.pwa-connectivity-toast {
+  position: fixed;
+  z-index: 175;
+  right: 28px;
+  bottom: 24px;
+  width: min(430px, calc(100vw - 32px));
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e2e7ef;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  color: #202636;
+  padding: 12px 14px;
+  box-shadow: 0 20px 48px rgba(31, 39, 55, 0.18);
+  backdrop-filter: blur(14px);
+  animation: pwa-status-enter 180ms ease-out both;
+}
+
+.pwa-connectivity-toast > span {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #f1f4f8;
+  color: #68758a;
+}
+
+.pwa-connectivity-toast > span svg {
+  width: 21px;
+  height: 21px;
+}
+
+.pwa-connectivity-toast strong,
+.pwa-connectivity-toast small {
+  display: block;
+}
+
+.pwa-connectivity-toast strong {
+  font-size: 12.5px;
+  line-height: 17px;
+  font-weight: 800;
+}
+
+.pwa-connectivity-toast small {
+  margin-top: 2px;
+  color: #6d788c;
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 550;
+}
+
+.pwa-connectivity-toast.is-offline {
+  border-color: #f0d7ae;
+}
+
+.pwa-connectivity-toast.is-offline > span {
+  background: #fff6e5;
+  color: #b87200;
+}
+
+.pwa-connectivity-toast.is-update > span {
+  background: #fff0f6;
+  color: #dd236b;
+}
+
+.pwa-connectivity-toast.is-online {
+  width: min(360px, calc(100vw - 32px));
+  grid-template-columns: 40px minmax(0, 1fr);
+  border-color: #ccebd9;
+}
+
+.pwa-connectivity-toast.is-online > span {
+  background: #e9f9f0;
+  color: #168b54;
+}
+
+.pwa-connectivity-toast > button:not(.is-dismiss) {
+  min-height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #fb2f7d;
+  color: #fff;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pwa-connectivity-toast .is-dismiss {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #7b8799;
+  padding: 0;
+}
+
+.pwa-connectivity-toast .is-dismiss svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pwa-connectivity-toast button:focus-visible {
+  outline: 3px solid rgba(251, 47, 125, 0.18);
+  outline-offset: 2px;
+}
+
+@keyframes pwa-status-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 780px) {
+  .pwa-connectivity-toast {
+    right: 12px;
+    bottom: calc(var(--pwa-bottom-nav-height) + 12px + env(safe-area-inset-bottom));
+    width: calc(100vw - 24px);
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    border-radius: 15px;
+    padding: 11px 12px;
+  }
+
+  .pwa-connectivity-toast.is-update > button:not(.is-dismiss) {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .pwa-connectivity-toast .is-dismiss {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .pwa-connectivity-toast.is-online {
+    width: calc(100vw - 24px);
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-connectivity-toast { animation: none; }
+}

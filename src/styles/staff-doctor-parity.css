@@ -428,3 +428,169 @@
     font-size: 28px !important;
   }
 }
+
+/* Final Staff shell guardrails.
+   This file is intentionally imported after every shared UI system so these
+   rules prevent page-level legacy styles from drifting away from Doctor. */
+
+.staff-dashboard-shell .staff-dashboard-home,
+.staff-dashboard-shell .staff-patients-page,
+.staff-dashboard-shell .staff-appointments-page,
+.staff-dashboard-shell .staff-settings-page,
+.staff-dashboard-shell .staff-profile-page {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home,
+.staff-dashboard-shell .staff-patients-page,
+.staff-dashboard-shell .staff-appointments-page,
+.staff-dashboard-shell .staff-settings-page,
+.staff-dashboard-shell .staff-profile-page,
+.staff-dashboard-shell .staff-dashboard-home *,
+.staff-dashboard-shell .staff-patients-page *,
+.staff-dashboard-shell .staff-appointments-page *,
+.staff-dashboard-shell .staff-settings-page *,
+.staff-dashboard-shell .staff-profile-page * {
+  box-sizing: border-box;
+}
+
+.staff-dashboard-shell
+  :where(
+    .staff-dashboard-home,
+    .staff-patients-page,
+    .staff-appointments-page,
+    .staff-settings-page,
+    .staff-profile-page
+  )
+  :where(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(255, 47, 125, 0.18) !important;
+  outline-offset: 2px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-empty-sessions,
+.staff-dashboard-shell .staff-patients-empty-cell,
+.staff-dashboard-shell .staff-appointments-empty-cell {
+  min-height: 132px !important;
+  padding: 26px !important;
+  color: #7d8799 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+  text-align: center !important;
+}
+
+.staff-dashboard-shell .staff-patients-empty-cell strong {
+  display: block !important;
+  margin-bottom: 4px !important;
+  color: #374052 !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.staff-dashboard-shell
+  .staff-patients-card:has(.staff-patients-empty-cell),
+.staff-dashboard-shell
+  .staff-appointments-table-card:has(.staff-appointments-empty-cell) {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.staff-dashboard-shell
+  .staff-patients-card:has(.staff-patients-empty-cell)
+  .staff-patients-table-scroll,
+.staff-dashboard-shell
+  .staff-appointments-table-card:has(.staff-appointments-empty-cell)
+  .staff-appointments-table-scroll {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+.staff-dashboard-shell .staff-patients-card,
+.staff-dashboard-shell .staff-appointments-table-card,
+.staff-dashboard-shell .doctor-settings-content,
+.staff-dashboard-shell .doctor-profile-hero-card,
+.staff-dashboard-shell .doctor-profile-tabs-card {
+  border-color: #e4e8ef !important;
+  border-radius: 18px !important;
+  box-shadow: 0 14px 34px rgba(24, 29, 43, 0.055) !important;
+}
+
+.staff-dashboard-shell .staff-patients-table-scroll,
+.staff-dashboard-shell .staff-appointments-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 47, 125, 0.42) transparent;
+}
+
+.staff-dashboard-shell .staff-patients-table-scroll::-webkit-scrollbar,
+.staff-dashboard-shell .staff-appointments-table-scroll::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.staff-dashboard-shell .staff-patients-table-scroll::-webkit-scrollbar-thumb,
+.staff-dashboard-shell .staff-appointments-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 47, 125, 0.42);
+}
+
+@media (max-width: 760px) {
+  .staff-dashboard-shell .staff-dashboard-home,
+  .staff-dashboard-shell .staff-patients-page,
+  .staff-dashboard-shell .staff-appointments-page,
+  .staff-dashboard-shell .staff-settings-page,
+  .staff-dashboard-shell .staff-profile-page {
+    padding-inline: 0 !important;
+  }
+
+  .staff-dashboard-shell .staff-patients-card,
+  .staff-dashboard-shell .staff-appointments-table-card,
+  .staff-dashboard-shell .doctor-settings-content,
+  .staff-dashboard-shell .doctor-profile-hero-card,
+  .staff-dashboard-shell .doctor-profile-tabs-card {
+    border-radius: 14px !important;
+  }
+
+  .staff-dashboard-shell
+    .staff-patients-card:has(.staff-patients-empty-cell)
+    .staff-patients-table,
+  .staff-dashboard-shell
+    .staff-appointments-table-card:has(.staff-appointments-empty-cell)
+    .staff-appointments-table {
+    width: 100% !important;
+    min-width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  .staff-dashboard-shell
+    .staff-patients-card:has(.staff-patients-empty-cell)
+    thead,
+  .staff-dashboard-shell
+    .staff-appointments-table-card:has(.staff-appointments-empty-cell)
+    thead {
+    display: none !important;
+  }
+
+  .staff-dashboard-shell .staff-patients-empty-cell,
+  .staff-dashboard-shell .staff-appointments-empty-cell {
+    width: 100% !important;
+    min-height: 122px !important;
+    white-space: normal !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-dashboard-shell .staff-dashboard-home *,
+  .staff-dashboard-shell .staff-patients-page *,
+  .staff-dashboard-shell .staff-appointments-page *,
+  .staff-dashboard-shell .staff-settings-page *,
+  .staff-dashboard-shell .staff-profile-page * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

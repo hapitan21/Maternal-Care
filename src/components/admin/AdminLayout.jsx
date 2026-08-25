@@ -11,6 +11,7 @@ const roleRoutes = { doctor: "/doctor", staff: "/staff", patient: "/patient" };
 const drawerId = "admin-navigation-drawer";
 
 function getSectionClasses(pathname) {
+  if (pathname === "/admin/dashboard") return { shell: "admin-dashboard-shell", main: "admin-dashboard-main" };
   if (pathname.includes("/user-management")) return { shell: "", main: "" };
   if (pathname.includes("/appointment-overview")) return { shell: "admin-appointment-shell", main: "admin-appointment-main" };
   if (pathname.includes("/follow-ups")) return { shell: "admin-followup-shell", main: "admin-followup-main" };

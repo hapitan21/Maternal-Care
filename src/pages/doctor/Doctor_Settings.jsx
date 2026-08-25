@@ -981,15 +981,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         current.availability
       );
     });
-  }, [
-    doctorIdentity?.loading,
-    doctorIdentity?.error,
-    doctorIdentity?.authUser?.id,
-    doctorIdentity?.doctorDisplayName,
-    doctorIdentity?.profile,
-    doctorIdentity?.personalInformation,
-    doctorIdentity?.professionalInformation,
-  ]);
+  }, [doctorIdentity]);
 
   React.useEffect(() => {
     let isCancelled = false;

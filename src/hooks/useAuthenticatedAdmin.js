@@ -34,6 +34,23 @@ function getMetadataAvatar(authUser) {
     : "";
 }
 
+function createAdminAccessError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function isMissingAuthSessionError(error) {
+  const errorName = cleanText(error?.name).toLowerCase();
+  const errorMessage = cleanText(error?.message).toLowerCase();
+
+  return (
+    errorName === "authsessionmissingerror" ||
+    errorMessage.includes("auth session missing") ||
+    errorMessage.includes("session missing")
+  );
+}
+
 export function useAuthenticatedAdmin() {
   const mountedRef = useRef(true);
   const requestIdRef = useRef(0);
@@ -58,12 +75,21 @@ export function useAuthenticatedAdmin() {
         error: authError,
       } = await supabase.auth.getUser();
 
-      if (authError) throw authError;
+      if (authError) {
+        if (isMissingAuthSessionError(authError)) {
+          throw createAdminAccessError(
+            "No authenticated Admin account was found.",
+            "admin_not_authenticated"
+          );
+        }
+        throw authError;
+      }
 
       if (!user?.id) {
-        const unauthenticatedError = new Error("No authenticated Admin account was found.");
-        unauthenticatedError.code = "admin_not_authenticated";
-        throw unauthenticatedError;
+        throw createAdminAccessError(
+          "No authenticated Admin account was found.",
+          "admin_not_authenticated"
+        );
       }
 
       const { data: profile, error: profileError } = await supabase
@@ -124,8 +150,10 @@ export function useAuthenticatedAdmin() {
     const timer = window.setTimeout(refresh, 0);
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
-        const unauthenticatedError = new Error("No authenticated Admin account was found.");
-        unauthenticatedError.code = "admin_not_authenticated";
+        const unauthenticatedError = createAdminAccessError(
+          "No authenticated Admin account was found.",
+          "admin_not_authenticated"
+        );
         identityRef.current = null;
         setIdentity(null);
         setError(unauthenticatedError);

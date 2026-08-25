@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import "../../styles/patient-PWA-medicalrecords.css";
 
 const medicalRecordColumns =
   "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, file_name, file_type, file_data_url, form_data, uploaded_at, uploaded_by";

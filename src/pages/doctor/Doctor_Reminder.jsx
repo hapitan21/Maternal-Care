@@ -15,6 +15,7 @@ import {
   toManilaISOString,
 } from "../../lib/appointmentDate";
 import "../../styles/doctor-reminder.css";
+import "../../styles/clinical-workflow-ui-system.css";
 
 const scheduleTableName = "schedule";
 const remindersTableName = "reminders";

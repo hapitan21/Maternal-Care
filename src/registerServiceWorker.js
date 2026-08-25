@@ -1,3 +1,29 @@
+export const patientPwaUpdateEvent = "maternal:patient-pwa-update-available";
+
+let pendingPatientPwaUpdate = null;
+
+export function getPendingPatientPwaUpdate() {
+  return pendingPatientPwaUpdate;
+}
+
+export function activatePatientPwaUpdate(registration = pendingPatientPwaUpdate) {
+  const waitingWorker = registration?.waiting;
+  if (!waitingWorker) return false;
+
+  sessionStorage.setItem("maternal-sw-refresh-ready", "1");
+  waitingWorker.postMessage({ type: "SKIP_WAITING" });
+  return true;
+}
+
+function announcePatientPwaUpdate(registration) {
+  if (!registration?.waiting) return;
+
+  pendingPatientPwaUpdate = registration;
+  window.dispatchEvent(
+    new CustomEvent(patientPwaUpdateEvent, { detail: registration })
+  );
+}
+
 export function registerServiceWorker() {
   if (!window.isSecureContext || !("serviceWorker" in navigator)) {
     return;
@@ -10,6 +36,7 @@ export function registerServiceWorker() {
     }
 
     refreshing = true;
+    pendingPatientPwaUpdate = null;
     sessionStorage.removeItem("maternal-sw-refresh-ready");
     window.location.reload();
   });
@@ -36,6 +63,8 @@ export function registerServiceWorker() {
       )
       .then(() => navigator.serviceWorker.register("/sw.js", { scope: "/patient/" }))
       .then((registration) => {
+        announcePatientPwaUpdate(registration);
+
         registration.addEventListener("updatefound", () => {
           const installingWorker = registration.installing;
           if (!installingWorker) return;
@@ -45,8 +74,7 @@ export function registerServiceWorker() {
               installingWorker.state === "installed" &&
               navigator.serviceWorker.controller
             ) {
-              sessionStorage.setItem("maternal-sw-refresh-ready", "1");
-              installingWorker.postMessage({ type: "SKIP_WAITING" });
+              announcePatientPwaUpdate(registration);
             }
           });
         });

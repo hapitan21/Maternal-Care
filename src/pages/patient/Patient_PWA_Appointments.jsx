@@ -7,6 +7,7 @@ import {
   getManilaTimeKey,
 } from "../../lib/appointmentDate";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import "../../styles/patient-PWA-appointments.css";
 
 const scheduleColumns =
   "id, patient_id, patient_name, doctor_name, title, description, start_time, end_time, status";

@@ -3,13 +3,17 @@
   "name": "Maternal Care Patient",
   "short_name": "Maternal Care",
   "description": "Patient pregnancy dashboard, appointments, medical records, and reminder notifications.",
+  "lang": "en-PH",
+  "dir": "ltr",
   "start_url": "/patient/",
   "scope": "/patient/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#ff0a55",
+  "theme_color": "#fb2f7d",
+  "prefer_related_applications": false,
+  "launch_handler": { "client_mode": "navigate-existing" },
   "categories": ["health", "medical", "productivity"],
   "shortcuts": [
     {
@@ -22,6 +26,12 @@
       "name": "My Reminders",
       "short_name": "Reminders",
       "url": "/patient/reminders",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "My Medical Record",
+      "short_name": "Medical Record",
+      "url": "/patient/medical-record",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ],

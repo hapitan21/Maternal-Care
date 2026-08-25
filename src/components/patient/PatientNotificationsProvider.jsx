@@ -28,6 +28,23 @@ const notificationColumns = `
   updated_at
 `;
 
+const offlineNotificationMessage =
+  "You're offline. Previously loaded notifications remain available.";
+
+function getNotificationErrorMessage(error, fallback) {
+  const message = `${error?.message || error || ""}`.toLowerCase();
+
+  if (navigator.onLine === false || message.includes("network") || message.includes("fetch")) {
+    return offlineNotificationMessage;
+  }
+
+  if (message.includes("permission") || message.includes("policy")) {
+    return "Notifications are temporarily unavailable for this account.";
+  }
+
+  return fallback;
+}
+
 function sortNotifications(rows) {
   return [...rows].sort(
     (left, right) =>
@@ -46,6 +63,7 @@ export default function PatientNotificationsProvider({ patientId, children }) {
   const [loading, setLoading] = useState(Boolean(patientId));
   const [error, setError] = useState("");
   const [realtimeError, setRealtimeError] = useState("");
+  const [online, setOnline] = useState(() => navigator.onLine !== false);
   const [updating, setUpdating] = useState(false);
   const requestSequence = useRef(0);
 
@@ -57,6 +75,12 @@ export default function PatientNotificationsProvider({ patientId, children }) {
       setNotifications([]);
       setLoading(false);
       setError("The authenticated Patient record is unavailable.");
+      return;
+    }
+
+    if (navigator.onLine === false) {
+      setLoading(false);
+      setRealtimeError(offlineNotificationMessage);
       return;
     }
 
@@ -73,9 +97,13 @@ export default function PatientNotificationsProvider({ patientId, children }) {
     if (requestSequence.current !== requestId) return;
 
     if (queryError) {
-      setNotifications([]);
       setLoadedPatientId(patientId);
-      setError(queryError.message || "Unable to load notifications.");
+      setError(
+        getNotificationErrorMessage(
+          queryError,
+          "We couldn't refresh notifications. Try again shortly."
+        )
+      );
       setLoading(false);
       return;
     }
@@ -138,9 +166,11 @@ export default function PatientNotificationsProvider({ patientId, children }) {
     }, 0);
 
     const handleOffline = () => {
-      setRealtimeError("You are offline. Previously loaded notifications remain available.");
+      setOnline(false);
+      setRealtimeError(offlineNotificationMessage);
     };
     const handleOnline = () => {
+      setOnline(true);
       setRealtimeError("");
       refresh();
     };
@@ -161,6 +191,11 @@ export default function PatientNotificationsProvider({ patientId, children }) {
   const markAsRead = useCallback(async (notificationId) => {
     if (!notificationId) return false;
 
+    if (navigator.onLine === false) {
+      setError(offlineNotificationMessage);
+      return false;
+    }
+
     setUpdating(true);
     setError("");
 
@@ -172,7 +207,12 @@ export default function PatientNotificationsProvider({ patientId, children }) {
     setUpdating(false);
 
     if (rpcError) {
-      setError(rpcError.message || "Unable to mark the notification as read.");
+      setError(
+        getNotificationErrorMessage(
+          rpcError,
+          "We couldn't mark this notification as read."
+        )
+      );
       return false;
     }
 
@@ -192,6 +232,11 @@ export default function PatientNotificationsProvider({ patientId, children }) {
   }, []);
 
   const markAllAsRead = useCallback(async () => {
+    if (navigator.onLine === false) {
+      setError(offlineNotificationMessage);
+      return false;
+    }
+
     setUpdating(true);
     setError("");
 
@@ -202,7 +247,12 @@ export default function PatientNotificationsProvider({ patientId, children }) {
     setUpdating(false);
 
     if (rpcError) {
-      setError(rpcError.message || "Unable to mark all notifications as read.");
+      setError(
+        getNotificationErrorMessage(
+          rpcError,
+          "We couldn't mark all notifications as read."
+        )
+      );
       return false;
     }
 
@@ -234,6 +284,7 @@ export default function PatientNotificationsProvider({ patientId, children }) {
       loading,
       updating,
       error: error || realtimeError,
+      online,
       refresh,
       markAsRead,
       markAllAsRead,
@@ -245,6 +296,7 @@ export default function PatientNotificationsProvider({ patientId, children }) {
       markAsRead,
       visibleNotifications,
       realtimeError,
+      online,
       refresh,
       unreadCount,
       updating,

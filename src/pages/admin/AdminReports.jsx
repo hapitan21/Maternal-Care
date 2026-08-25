@@ -664,9 +664,11 @@ function ReportState({ loading, error, empty, onRetry, children }) {
 
 function ExportActions({ getModel }) {
   const [busy, setBusy] = React.useState("");
+  const [exportError, setExportError] = React.useState("");
   const execute = async (type) => {
     if (busy) return;
     setBusy(type);
+    setExportError("");
     try {
       await new Promise((resolve) => window.requestAnimationFrame(resolve));
       const model = getModel();
@@ -683,26 +685,36 @@ function ExportActions({ getModel }) {
       });
     } catch (error) {
       logReportError(error);
-      window.alert(`Unable to ${type === "print" ? "prepare the report for printing" : `export ${type.toUpperCase()}`}.`);
+      setExportError(
+        `Unable to ${type === "print" ? "prepare the report for printing" : `export ${type.toUpperCase()}`}. Please try again.`
+      );
     } finally {
       setBusy("");
     }
   };
 
   return (
-    <div className="admin-report-export-actions" aria-label="Report export controls">
-      <button type="button" disabled={Boolean(busy)} onClick={() => execute("pdf")}>
-        <Icon icon="solar:download-minimalistic-linear" />
-        {busy === "pdf" ? "Exporting PDF..." : "Export PDF"}
-      </button>
-      <button type="button" disabled={Boolean(busy)} onClick={() => execute("excel")}>
-        <Icon icon="solar:file-text-linear" />
-        {busy === "excel" ? "Exporting Excel..." : "Export Excel"}
-      </button>
-      <button className="is-primary" type="button" disabled={Boolean(busy)} onClick={() => execute("print")}>
-        <Icon icon="solar:printer-linear" />
-        {busy === "print" ? "Preparing Print..." : "Print Report"}
-      </button>
+    <div className="admin-report-export-group">
+      <div className="admin-report-export-actions" aria-label="Report export controls">
+        <button type="button" disabled={Boolean(busy)} onClick={() => execute("pdf")}>
+          <Icon icon="solar:download-minimalistic-linear" />
+          {busy === "pdf" ? "Exporting PDF..." : "Export PDF"}
+        </button>
+        <button type="button" disabled={Boolean(busy)} onClick={() => execute("excel")}>
+          <Icon icon="solar:file-text-linear" />
+          {busy === "excel" ? "Exporting Excel..." : "Export Excel"}
+        </button>
+        <button className="is-primary" type="button" disabled={Boolean(busy)} onClick={() => execute("print")}>
+          <Icon icon="solar:printer-linear" />
+          {busy === "print" ? "Preparing Print..." : "Print Report"}
+        </button>
+      </div>
+      {exportError ? (
+        <p className="admin-report-export-error" role="alert">
+          <Icon icon="solar:danger-triangle-linear" aria-hidden="true" />
+          {exportError}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
-import { Component, useEffect, useState } from "react";
+import { Component, lazy, Suspense } from "react";
 import {
   BrowserRouter,
+  Link,
   Navigate,
   Route,
   Routes,
@@ -10,35 +11,142 @@ import {
 import Login from "./pages/auth/login";
 import ForgotPassword from "./pages/auth/forgot-password";
 
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminAppointmentOverview from "./pages/admin/AdminAppointmentOverview";
-import AdminAuditLogs from "./pages/admin/AdminAuditLogs";
-import AdminFollowUps from "./pages/admin/Admin_FollowUps";
-import AdminReports, {
-  AdminAppointmentSummaryReport,
-  AdminPatientSummaryReport,
-  AdminRegistrationAppointmentTrendsReport,
-} from "./pages/admin/AdminReports";
-import AdminUserManagement from "./pages/admin/AdminUserManagement";
-import AdminPatientProfile from "./pages/admin/AdminPatientProfile";
-import AdminUserDetails from "./pages/admin/AdminUserDetails";
-import AdminNotFound from "./pages/admin/AdminNotFound";
-import AdminPlaceholderPage from "./pages/admin/AdminPlaceholderPage";
-import AdminSystemSettings from "./pages/admin/AdminSystemSettings";
-import AdminLayout from "./components/admin/AdminLayout";
 import { AdminAuthProvider } from "./context/AdminAuthContext.jsx";
-
-import DoctorDashboard from "./pages/doctor/Doctor_Dashboard";
-
-import PatientAccess from "./pages/patient/Patient_Access";
-import PatientCreateAccount from "./pages/patient/Patient_CreateAccount";
-import PatientLogin from "./pages/patient/Patient_Login";
-import PatientPWA from "./pages/patient/Patient_PWA";
-
-import StaffDashboard from "./pages/staff/StaffDashboard";
 
 import { useAuthenticatedStaff } from "./hooks/useAuthenticatedStaff";
 import { useDoctorRouteAuthorization } from "./hooks/useDoctorRouteAuthorization";
+
+const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminAppointmentOverview = lazy(() =>
+  import("./pages/admin/AdminAppointmentOverview")
+);
+const AdminAuditLogs = lazy(() => import("./pages/admin/AdminAuditLogs"));
+const AdminFollowUps = lazy(() => import("./pages/admin/Admin_FollowUps"));
+const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
+const AdminAppointmentSummaryReport = lazy(() =>
+  import("./pages/admin/AdminReports").then((module) => ({
+    default: module.AdminAppointmentSummaryReport,
+  }))
+);
+const AdminPatientSummaryReport = lazy(() =>
+  import("./pages/admin/AdminReports").then((module) => ({
+    default: module.AdminPatientSummaryReport,
+  }))
+);
+const AdminRegistrationAppointmentTrendsReport = lazy(() =>
+  import("./pages/admin/AdminReports").then((module) => ({
+    default: module.AdminRegistrationAppointmentTrendsReport,
+  }))
+);
+const AdminUserManagement = lazy(() =>
+  import("./pages/admin/AdminUserManagement")
+);
+const AdminPatientProfile = lazy(() =>
+  import("./pages/admin/AdminPatientProfile")
+);
+const AdminUserDetails = lazy(() => import("./pages/admin/AdminUserDetails"));
+const AdminNotFound = lazy(() => import("./pages/admin/AdminNotFound"));
+const AdminProfile = lazy(() => import("./pages/admin/AdminProfile"));
+const AdminSystemSettings = lazy(() =>
+  import("./pages/admin/AdminSystemSettings")
+);
+
+const DoctorDashboard = lazy(() => import("./pages/doctor/Doctor_Dashboard"));
+const StaffDashboard = lazy(() => import("./pages/staff/StaffDashboard"));
+const PatientAccess = lazy(() => import("./pages/patient/Patient_Access"));
+const PatientCreateAccount = lazy(() =>
+  import("./pages/patient/Patient_CreateAccount")
+);
+const PatientLogin = lazy(() => import("./pages/patient/Patient_Login"));
+const PatientPWA = lazy(() => import("./pages/patient/Patient_PWA"));
+
+
+function RouteLoadingFallback() {
+  return (
+    <main className="app-route-loading" role="status" aria-live="polite">
+      <span aria-hidden="true" />
+      <p>Loading your workspace...</p>
+    </main>
+  );
+}
+
+function ApplicationNotFound() {
+  return (
+    <main className="app-error-fallback app-not-found">
+      <section>
+        <span aria-hidden="true">?</span>
+        <h1>Page not found</h1>
+        <p>The page you opened does not exist or is no longer available.</p>
+        <div>
+          <Link to="/login">Return to login</Link>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+
+class ApplicationErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Application route failed to load:", error, info);
+  }
+
+  componentDidUpdate(prevProps) {
+    if (
+      this.state.error &&
+      prevProps.resetKey !== this.props.resetKey
+    ) {
+      this.setState({ error: null });
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <main className="app-error-fallback" role="alert">
+          <section>
+            <span aria-hidden="true">!</span>
+            <h1>We could not open this workspace</h1>
+            <p>
+              Check your connection and try loading the page again. Your saved
+              information has not been changed.
+            </p>
+            {import.meta.env.DEV ? <pre>{this.state.error.message}</pre> : null}
+            <div>
+              <button type="button" onClick={() => window.location.reload()}>
+                Try again
+              </button>
+              <a href="/login">Return to login</a>
+            </div>
+          </section>
+        </main>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function RouteAwareApplicationErrorBoundary({ children }) {
+  const location = useLocation();
+  const routeKey = `${location.pathname}${location.search}`;
+
+  return (
+    <ApplicationErrorBoundary resetKey={routeKey}>
+      {children}
+    </ApplicationErrorBoundary>
+  );
+}
 
 
 /* ============================================================
@@ -145,56 +253,10 @@ function DoctorRoute() {
   const doctorAccess = useDoctorRouteAuthorization();
 
   /*
-   * Remember the last Doctor that completed authorization successfully.
-   *
-   * During short background authorization checks caused by browser focus,
-   * tab switching, screenshots, token refresh, etc., we keep the Doctor
-   * workspace mounted instead of replacing it with a loading screen.
-   */
-  const [lastAuthorizedDoctorId, setLastAuthorizedDoctorId] = useState(null);
-
-  useEffect(() => {
-    if (
-      !doctorAccess.loading &&
-      doctorAccess.authorized &&
-      doctorAccess.user?.id
-    ) {
-      setLastAuthorizedDoctorId((current) =>
-        current === doctorAccess.user.id
-          ? current
-          : doctorAccess.user.id
-      );
-
-      return;
-    }
-
-    /*
-     * Only clear remembered authorization after the authorization check
-     * has actually finished and the Doctor is no longer authorized.
-     */
-    if (!doctorAccess.loading && !doctorAccess.authorized) {
-      setLastAuthorizedDoctorId(null);
-    }
-  }, [
-    doctorAccess.loading,
-    doctorAccess.authorized,
-    doctorAccess.user?.id,
-  ]);
-
-  /*
-   * Prefer the currently authorized user. During a temporary background
-   * revalidation where user may briefly be unavailable, keep using the
-   * last successfully-authorized Doctor ID.
-   */
-  const effectiveDoctorId =
-    doctorAccess.user?.id ||
-    lastAuthorizedDoctorId;
-
-  /*
    * Initial login / first page load:
    * no Doctor has been successfully authorized yet.
    */
-  if (doctorAccess.loading && !effectiveDoctorId) {
+  if (doctorAccess.loading && !doctorAccess.authorized) {
     return (
       <main
         className="admin-auth-state"
@@ -223,7 +285,7 @@ function DoctorRoute() {
    * Safety fallback: never mount the Doctor workspace without a known
    * successfully-authorized Doctor ID.
    */
-  if (!effectiveDoctorId) {
+  if (!doctorAccess.user?.id) {
     return (
       <main
         className="admin-auth-state"
@@ -241,7 +303,7 @@ function DoctorRoute() {
    */
   return (
     <DoctorErrorBoundary>
-      <DoctorDashboard key={effectiveDoctorId} />
+      <DoctorDashboard key={doctorAccess.user.id} />
     </DoctorErrorBoundary>
   );
 }
@@ -269,37 +331,11 @@ function StaffRoute() {
   const staffAccess = useAuthenticatedStaff();
 
   /*
-   * Remember whether this mounted StaffRoute has already completed
-   * a successful Staff authorization check.
-   *
-   * Supabase can briefly revalidate the session when the browser tab
-   * regains focus, after taking a screenshot, or during token refresh.
-   * During that short background check, keep StaffDashboard mounted
-   * instead of replacing it with "Checking Staff account access...".
-   */
-  const [hasAuthorizedStaff, setHasAuthorizedStaff] = useState(false);
-
-  useEffect(() => {
-    if (!staffAccess.loading && !staffAccess.error) {
-      setHasAuthorizedStaff(true);
-      return;
-    }
-
-    /*
-     * Only forget the previously-authorized Staff session after
-     * revalidation has actually completed with an error.
-     */
-    if (!staffAccess.loading && staffAccess.error) {
-      setHasAuthorizedStaff(false);
-    }
-  }, [staffAccess.loading, staffAccess.error]);
-
-  /*
    * Initial login / direct first load:
    * show the authorization screen only before Staff has ever passed
    * authorization in this mounted route.
    */
-  if (staffAccess.loading && !hasAuthorizedStaff) {
+  if (staffAccess.loading && !staffAccess.identity) {
     return (
       <main
         className="admin-auth-state"
@@ -353,7 +389,7 @@ function StaffRoute() {
    * After successful authorization, StaffDashboard stays mounted while
    * Supabase performs background revalidation.
    */
-  if (!hasAuthorizedStaff && staffAccess.loading) {
+  if (!staffAccess.identity) {
     return (
       <main
         className="admin-auth-state"
@@ -396,7 +432,9 @@ function AdminRedirect({ to }) {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <RouteAwareApplicationErrorBoundary>
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Routes>
 
         {/* =====================================================
             AUTH
@@ -537,7 +575,7 @@ function App() {
 
           <Route
             path="profile"
-            element={<AdminPlaceholderPage page="profile" />}
+            element={<AdminProfile />}
           />
 
           <Route
@@ -551,61 +589,16 @@ function App() {
             DOCTOR
             ===================================================== */}
 
-        <Route
-          path="/doctor"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/dashboard"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/patients"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/appointments"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/appointments/:appointmentId/initial-visit"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/appointments/:appointmentId/follow-up"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/reminders"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/follow-ups"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/profile"
-          element={<DoctorRoute />}
-        />
-
-        <Route
-          path="/doctor/settings"
-          element={<DoctorRoute />}
-        />
-
+        {/*
+         * Keep the Doctor workspace on one persistent route branch.
+         * Doctor_Dashboard already reads location.pathname/search and
+         * renders the correct internal section, so separate sibling
+         * routes only create unnecessary remount opportunities.
+         */}
         <Route
           path="/doctor/*"
           element={<DoctorRoute />}
         />
-
 
         {/* =====================================================
             STAFF
@@ -706,7 +699,14 @@ function App() {
           element={<PatientRoute />}
         />
 
-      </Routes>
+        <Route
+          path="*"
+          element={<ApplicationNotFound />}
+        />
+
+          </Routes>
+        </Suspense>
+      </RouteAwareApplicationErrorBoundary>
     </BrowserRouter>
   );
 }

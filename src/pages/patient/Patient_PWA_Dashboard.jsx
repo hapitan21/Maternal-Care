@@ -10,6 +10,7 @@ import {
   getStoredHealthTips,
   patientMatchesValue,
 } from "../../lib/patientData";
+import "../../styles/patient-PWA-dashboard.css";
 
 const pregnancyMilestones = {
   12: { title: "First Trimester", note: "Initial prenatal milestones", icon: "ph:baby-fill" },

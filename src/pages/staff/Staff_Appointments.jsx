@@ -7,7 +7,8 @@ import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
 import StaffPreConsultationForm from "../appointments/StaffPreConsultationForm";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
-import { getStaffSettings, staffSettingsUpdatedEvent } from "../../lib/staffProfile";
+import "../../styles/doctor-appointments.css";
+import "../../styles/appointment-ui-system.css";
 import {
   AppointmentControlGroup,
   AppointmentPageHeader,
@@ -21,7 +22,6 @@ import {
   buildThirtyMinuteAppointmentRange,
   getAppointmentTypeCategory,
   getAppointmentTypeForCategory,
-  isKnownAppointmentType,
 } from "../../lib/appointmentTypes";
 import {
   classifyAppointment,
@@ -554,8 +554,6 @@ function StaffWeekCalendar({
 }
 
 function createFollowUpForm(appointment, patient) {
-  const settings = getStaffSettings();
-
   return {
     appointmentId: appointment?.appointmentId || "",
     patientId: patient?.patient_id || (patient?.id ? String(patient.id).slice(0, 8) : ""),
@@ -1182,7 +1180,6 @@ function StaffAppointmentsContent({ headerAction }) {
     const params = new URLSearchParams(location.search);
     return String(params.get("appointmentId") || "").trim();
   }, [location.search]);
-  const [staffSettings, setStaffSettings] = useState(getStaffSettings);
   const [activeFilter, setActiveFilter] = useState("All");
   const [appointmentView, setAppointmentView] = useState("Main");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1307,28 +1304,32 @@ function StaffAppointmentsContent({ headerAction }) {
         appointment.appointmentId === dashboardAppointmentTarget
     );
 
-    if (!target) {
-      setStatusMessage(
-        `Appointment ${dashboardAppointmentTarget} could not be found.`
-      );
-      return;
-    }
+    const frame = window.requestAnimationFrame(() => {
+      if (!target) {
+        setStatusMessage(
+          `Appointment ${dashboardAppointmentTarget} could not be found.`
+        );
+        return;
+      }
 
-    const classification = classifyAppointment(target);
+      const classification = classifyAppointment(target);
 
-    setActiveFilter("All");
-    setAppointmentView(classification.isHistory ? "History" : "Main");
-    setSearchQuery(target.appointmentId || dashboardAppointmentTarget);
-    setCurrentPage(1);
-    setDetailAppointment(target);
+      setActiveFilter("All");
+      setAppointmentView(classification.isHistory ? "History" : "Main");
+      setSearchQuery(target.appointmentId || dashboardAppointmentTarget);
+      setCurrentPage(1);
+      setDetailAppointment(target);
 
-    const targetDate = new Date(target.startTime);
-    if (!Number.isNaN(targetDate.getTime())) {
-      setCalendarDate(targetDate);
-      setMiniMonthDate(
-        new Date(targetDate.getFullYear(), targetDate.getMonth(), 1)
-      );
-    }
+      const targetDate = new Date(target.startTime);
+      if (!Number.isNaN(targetDate.getTime())) {
+        setCalendarDate(targetDate);
+        setMiniMonthDate(
+          new Date(targetDate.getFullYear(), targetDate.getMonth(), 1)
+        );
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [appointments, dashboardAppointmentTarget]);
 
   const updateStatusMenuPosition = useCallback((appointmentId) => {
@@ -1590,21 +1591,6 @@ function StaffAppointmentsContent({ headerAction }) {
       active = false;
     };
   }, [addAppointmentForm.date]);
-
-  useEffect(() => {
-    const syncStaffSettings = () => {
-      const nextSettings = getStaffSettings();
-      setStaffSettings(nextSettings);
-    };
-
-    window.addEventListener(staffSettingsUpdatedEvent, syncStaffSettings);
-    window.addEventListener("storage", syncStaffSettings);
-
-    return () => {
-      window.removeEventListener(staffSettingsUpdatedEvent, syncStaffSettings);
-      window.removeEventListener("storage", syncStaffSettings);
-    };
-  }, []);
 
   useEffect(() => {
     const closeStatusMenu = (event) => {

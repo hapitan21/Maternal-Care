@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
 import AppointmentVisitForm from "../appointments/AppointmentVisitForm";
 import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
+import "../../styles/appointment-ui-system.css";
 import {
   appointmentStatuses,
   classifyAppointment,

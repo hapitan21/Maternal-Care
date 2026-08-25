@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
 import DoctorNotificationBell from "../../components/doctor/DoctorNotificationBell";
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import { loadAssignedMedicationAdherenceFollowupQueue } from "../../lib/medicationAdherenceFollowupApi";
 import {
   buildMedicationFollowupQueueItems,
@@ -16,17 +17,34 @@ import {
   formatAppointmentTime,
   getManilaDayRange,
 } from "../../lib/appointmentDate";
-import { DoctorAppointmentsContent } from "./Doctor_Appointments";
-import DoctorMedicalRecords from "./Doctor_Medical_Records";
-import DoctorPatientsContent from "./Doctor_Patients";
-import DoctorReminderContent from "./Doctor_Reminder";
-import DoctorFollowupQueue from "./Doctor_Followup_Queue";
-import DoctorSettingsContent from "./Doctor_Settings";
-import DoctorViewProfileContent from "./Doctor_ViewProfile";
 import "../../styles/doctor-dashboard.css";
-import "../../styles/appointment-ui-system.css";
-import "../../styles/patient-record-ui-system.css";
-import "../../styles/clinical-workflow-ui-system.css";
+
+const doctorSectionLoaders = {
+  appointments: () => import("./Doctor_Appointments"),
+  medicalRecords: () => import("./Doctor_Medical_Records"),
+  patients: () => import("./Doctor_Patients"),
+  reminders: () => import("./Doctor_Reminder"),
+  followups: () => import("./Doctor_Followup_Queue"),
+  settings: () => import("./Doctor_Settings"),
+  profile: () => import("./Doctor_ViewProfile"),
+};
+
+function preloadDoctorSection(page) {
+  const loadSection = doctorSectionLoaders[page];
+  if (loadSection) void loadSection().catch(() => null);
+}
+
+const DoctorAppointmentsContent = lazy(() =>
+  doctorSectionLoaders.appointments().then((module) => ({
+    default: module.DoctorAppointmentsContent,
+  }))
+);
+const DoctorMedicalRecords = lazy(doctorSectionLoaders.medicalRecords);
+const DoctorPatientsContent = lazy(doctorSectionLoaders.patients);
+const DoctorReminderContent = lazy(doctorSectionLoaders.reminders);
+const DoctorFollowupQueue = lazy(doctorSectionLoaders.followups);
+const DoctorSettingsContent = lazy(doctorSectionLoaders.settings);
+const DoctorViewProfileContent = lazy(doctorSectionLoaders.profile);
 
 const defaultDoctorDashboardProfile = {
   displayName: "Doctor",
@@ -200,7 +218,7 @@ function ProfileDropdown({
   const initials = getInitials(profile.displayName || profile.roleLabel);
 
   return (
-    <div className="doctor-profile-dropdown">
+    <div className="doctor-profile-dropdown" role="menu" aria-label="Doctor account">
       <div className="doctor-dropdown-user">
         <div className="doctor-dropdown-avatar">
           {profilePhoto ? <img src={profilePhoto} alt="" /> : initials}
@@ -213,18 +231,18 @@ function ProfileDropdown({
       </div>
 
       <div className="doctor-dropdown-menu">
-        <button type="button" onClick={onViewProfile}>
-          <Icon icon="solar:user-rounded-linear" />
+        <button type="button" role="menuitem" onClick={onViewProfile}>
+          <Icon icon="solar:user-rounded-linear" aria-hidden="true" />
           <span>View Profile</span>
         </button>
 
-        <button type="button" onClick={onSettings}>
-          <Icon icon="solar:settings-linear" />
+        <button type="button" role="menuitem" onClick={onSettings}>
+          <Icon icon="solar:settings-linear" aria-hidden="true" />
           <span>Settings</span>
         </button>
 
-        <button type="button" className="logout" onClick={onLogout}>
-          <Icon icon="solar:logout-2-linear" />
+        <button type="button" role="menuitem" className="logout" onClick={onLogout}>
+          <Icon icon="solar:logout-2-linear" aria-hidden="true" />
           <span>Logout</span>
         </button>
       </div>
@@ -235,10 +253,13 @@ function ProfileDropdown({
 function ProfileCard({ setActivePage, profile }) {
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
+  const triggerRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const initials = getInitials(profile.displayName || profile.roleLabel);
 
   useEffect(() => {
+    if (!isDropdownOpen) return undefined;
+
     function handleClickOutside(event) {
       if (
         dropdownRef.current &&
@@ -251,6 +272,7 @@ function ProfileCard({ setActivePage, profile }) {
     function handleEscape(event) {
       if (event.key === "Escape") {
         setIsDropdownOpen(false);
+        window.requestAnimationFrame(() => triggerRef.current?.focus());
       }
     }
 
@@ -266,7 +288,7 @@ function ProfileCard({ setActivePage, profile }) {
       document.removeEventListener("keydown", handleEscape);
       window.removeEventListener("doctor:close-profile-menu", handleCloseProfileMenu);
     };
-  }, []);
+  }, [isDropdownOpen]);
 
   const handleViewProfile = () => {
     setActivePage("profile");
@@ -287,9 +309,11 @@ function ProfileCard({ setActivePage, profile }) {
   return (
     <div className="doctor-profile-wrapper" ref={dropdownRef}>
       <button
+        ref={triggerRef}
         className={`doctor-profile-card ${isDropdownOpen ? "open" : ""}`}
         type="button"
         onClick={() => setIsDropdownOpen((prev) => !prev)}
+        aria-label={isDropdownOpen ? "Close Doctor account menu" : "Open Doctor account menu"}
         aria-expanded={isDropdownOpen}
         aria-haspopup="menu"
       >
@@ -378,7 +402,7 @@ function DashboardHome({
       </section>
 
       {dashboardMessage ? (
-        <p className="doctor-dashboard-message">{dashboardMessage}</p>
+        <p className="doctor-dashboard-message" role="alert">{dashboardMessage}</p>
       ) : null}
 
       <section className="doctor-status-row">
@@ -778,6 +802,7 @@ function Doctor_Dashboard() {
   ]);
 
   const openMedicalRecordTarget = useCallback((target, options = {}) => {
+    preloadDoctorSection("medicalRecords");
     setDoctorPatientHeaderAction(null);
 
     const returnPage =
@@ -795,36 +820,41 @@ function Doctor_Dashboard() {
       returnPage,
     };
 
-    setMedicalRecordTarget(nextTarget);
-    setActivePage("medicalRecords");
+    startTransition(() => {
+      setMedicalRecordTarget(nextTarget);
+      setActivePage("medicalRecords");
 
-    if (nextTarget.patientId) {
-      navigate(
-        {
-          pathname: "/doctor",
-          search: buildDoctorMedicalRecordSearch(nextTarget),
-        },
-        { replace: options.replace === true }
-      );
-    }
+      if (nextTarget.patientId) {
+        navigate(
+          {
+            pathname: "/doctor",
+            search: buildDoctorMedicalRecordSearch(nextTarget),
+          },
+          { replace: options.replace === true }
+        );
+      }
+    });
   }, [activePage, medicalRecordTarget?.returnPage, navigate]);
 
   const navigateDoctorPage = useCallback((page) => {
     const safePage = doctorPagePaths[page] ? page : "dashboard";
     const destination = doctorPagePaths[safePage];
+    preloadDoctorSection(safePage);
 
-    if (safePage !== "medicalRecords") {
-      setDoctorPatientHeaderAction(null);
-    }
+    startTransition(() => {
+      if (safePage !== "medicalRecords") {
+        setDoctorPatientHeaderAction(null);
+      }
 
-    setActivePage(safePage);
+      setActivePage(safePage);
 
-    if (
-      safePage !== "medicalRecords" &&
-      (location.pathname !== destination || location.search)
-    ) {
-      navigate(destination, { replace: true });
-    }
+      if (
+        safePage !== "medicalRecords" &&
+        (location.pathname !== destination || location.search)
+      ) {
+        navigate(destination, { replace: true });
+      }
+    });
   }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
@@ -833,24 +863,30 @@ function Doctor_Dashboard() {
     if (!nextTarget) {
       const nextPage = getInitialDoctorPage(location.pathname, location.search);
       const pageTimer = window.setTimeout(() => {
-        setActivePage((current) => (current === nextPage ? current : nextPage));
+        preloadDoctorSection(nextPage);
+        startTransition(() => {
+          setActivePage((current) => (current === nextPage ? current : nextPage));
+        });
       }, 0);
       return () => window.clearTimeout(pageTimer);
     }
 
     const timer = window.setTimeout(() => {
-      setMedicalRecordTarget((current) => {
-        if (
-          current?.patientId === nextTarget.patientId &&
-          current?.recordId === nextTarget.recordId &&
-          current?.activeTab === nextTarget.activeTab
-        ) {
-          return current;
-        }
+      preloadDoctorSection("medicalRecords");
+      startTransition(() => {
+        setMedicalRecordTarget((current) => {
+          if (
+            current?.patientId === nextTarget.patientId &&
+            current?.recordId === nextTarget.recordId &&
+            current?.activeTab === nextTarget.activeTab
+          ) {
+            return current;
+          }
 
-        return nextTarget;
+          return nextTarget;
+        });
+        setActivePage("medicalRecords");
       });
-      setActivePage("medicalRecords");
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -1002,7 +1038,7 @@ function Doctor_Dashboard() {
       <div className="doctor-dashboard">
         <main className="doctor-main">
           <div className="doctor-content">
-            <p className="doctor-dashboard-message">{inactiveDoctorError.message}</p>
+            <p className="doctor-dashboard-message" role="alert">{inactiveDoctorError.message}</p>
           </div>
         </main>
       </div>
@@ -1052,6 +1088,9 @@ function Doctor_Dashboard() {
                   key={item.key}
                   type="button"
                   aria-label={accessibleLabel}
+                  aria-current={activePage === item.key ? "page" : undefined}
+                  onPointerEnter={() => preloadDoctorSection(item.key)}
+                  onFocus={() => preloadDoctorSection(item.key)}
                   onClick={() => navigateDoctorPage(item.key)}
                   className={`doctor-nav-link ${
                     activePage === item.key || (activePage === "settings" && item.key === "dashboard") ? "active" : ""
@@ -1090,7 +1129,11 @@ function Doctor_Dashboard() {
           </div>
         ) : null}
 
-        <div className="doctor-content">{renderContent()}</div>
+        <div className="doctor-content">
+          <Suspense fallback={<WorkspaceSectionFallback label="Doctor workspace" />}>
+            {renderContent()}
+          </Suspense>
+        </div>
       </main>
     </div>
   );

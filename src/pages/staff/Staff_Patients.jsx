@@ -20,6 +20,8 @@ import { getAvailabilityDayOfWeek } from "../../lib/availabilitySchedule";
 import { supabase } from "../../lib/supabaseClient";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
+import "../../styles/doctor-patients.css";
+import "../../styles/patient-record-ui-system.css";
 import {
   PatientDirectoryHeader,
   PatientDirectorySearch,
@@ -1527,17 +1529,17 @@ function StaffPatientsContent({ headerAction }) {
         patient.patientId === dashboardPatientTarget
     );
 
-    if (!target) {
-      setStatusMessage("The selected Patient could not be found.");
-      return;
-    }
+    const frame = window.requestAnimationFrame(() => {
+      if (!target) {
+        setStatusMessage("The selected Patient could not be found.");
+        return;
+      }
 
-    setScreen("list");
-    setPatientStatusFilter("All");
-    setQuery(target.id || target.name);
-    setStatusMessage("");
+      setScreen("list");
+      setPatientStatusFilter("All");
+      setQuery(target.id || target.name);
+      setStatusMessage("");
 
-    window.requestAnimationFrame(() => {
       const row = document.getElementById(
         `staff-patient-row-${target.recordId}`
       );
@@ -1547,6 +1549,8 @@ function StaffPatientsContent({ headerAction }) {
         block: "center",
       });
     });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [
     dashboardPatientTarget,
     isLoadingPatients,

@@ -11,6 +11,8 @@ import MedicationAdherenceFollowupModal, {
 } from "../../components/doctor/MedicationAdherenceFollowupModal";
 import MedicationAdherenceTrendCharts from "../../components/doctor/MedicationAdherenceTrendCharts";
 import MedicationAdherencePrintableReport from "../../components/reports/MedicationAdherencePrintableReport";
+import "../../styles/patient-record-ui-system.css";
+import "../../styles/clinical-workflow-ui-system.css";
 import {
   addMedicationAdherenceFollowupEvent,
   loadPatientMedicationAdherenceFollowups,
