@@ -13,17 +13,12 @@
   --mr-shadow: 0 4px 23px rgba(0, 0, 0, 0.08);
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
+html:has(.medical-records-page),
+body:has(.medical-records-page),
+#root:has(.medical-records-page) {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   margin: 0;
-  overflow: hidden;
 }
 
 /* 
@@ -33,8 +28,7 @@ body,
 
 .medical-records-page {
   width: 100%;
-  height: 100vh;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--mr-bg);
   color: var(--mr-text);
   font-family: "Poppins", sans-serif;
@@ -71,10 +65,6 @@ body,
   padding: 24px 16px 24px 0;
 }
 
-.doctor-dashboard--medicalRecords .doctor-main {
-  padding-left: 10px;
-}
-
 .doctor-dashboard .medical-records-content {
   width: calc(100% - 28px);
   margin-right: auto;
@@ -91,7 +81,6 @@ body,
 }
 
 .mr-back-btn,
-.mr-edit-btn,
 .mr-tab,
 .mr-outline-btn,
 .mr-link-btn {
@@ -114,18 +103,6 @@ body,
 .mr-back-btn svg {
   width: 18px;
   height: 18px;
-}
-
-.mr-edit-btn {
-  min-width: 146px;
-  height: 38px;
-  border: 1px solid var(--mr-pink-2);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--mr-pink-2);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.05em;
 }
 
 .mr-page-header {
@@ -391,77 +368,81 @@ body,
   align-items: start;
 }
 
-.mr-overview-left,
-.mr-overview-right {
-  display: grid;
-  gap: 20px;
-  min-width: 0;
+.mr-overview-alert {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(251, 56, 126, 0.24);
+  border-radius: 10px;
+  background: #fff3f7;
+  color: var(--mr-text);
+  padding: 10px 12px;
+  font-size: 12px;
 }
 
-.mr-overview-right {
-  gap: 18px;
+.mr-overview-alert button {
+  min-width: 72px;
+  height: 32px;
+  border: 1px solid var(--mr-pink-2);
+  border-radius: 8px;
+  color: var(--mr-pink-2);
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.mr-overview-bottom {
+.mr-prenatal-layout {
   display: grid;
-  grid-template-columns: 235px minmax(0, 1fr);
-  gap: 20px;
-  min-width: 0;
-}
-
-.mr-prenatal-scroll {
-  max-height: min(540px, calc(100vh - 430px));
-  display: grid;
-  gap: 22px;
-  padding: 0 3px 8px;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: visible;
   scroll-behavior: smooth;
   scroll-padding-top: 2px;
-  overscroll-behavior: contain;
-  scrollbar-color: rgba(251, 56, 126, 0.35) transparent;
-  scrollbar-width: thin;
 }
 
-.mr-prenatal-scroll:focus {
+.mr-prenatal-layout:focus {
   outline: none;
 }
 
-.mr-prenatal-scroll::-webkit-scrollbar {
-  width: 8px;
+.mr-prenatal-two-column-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+  min-width: 0;
 }
 
-.mr-prenatal-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.mr-prenatal-scroll::-webkit-scrollbar-thumb {
-  background: rgba(251, 56, 126, 0.25);
-  border-radius: 20px;
-}
-
-.mr-prenatal-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(251, 56, 126, 0.45);
+.mr-prenatal-section--full {
+  grid-column: 1 / -1;
 }
 
 .mr-prenatal-card {
   min-width: 0;
   min-height: 0;
-  padding: 16px 18px 20px;
+  padding: 22px 24px 24px;
+  border: 1px solid rgba(31, 35, 48, 0.07);
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(31, 35, 48, 0.05);
   scroll-margin-top: 2px;
 }
 
 .mr-prenatal-title {
   margin: 0;
   color: var(--mr-pink-2);
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 18px;
+  line-height: 1.3;
   font-weight: 600;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
 }
 
 .mr-prenatal-rule {
-  margin: 12px 0 18px;
+  margin: 14px 0 18px;
   border: 0;
   border-top: 1px solid var(--mr-border);
 }
@@ -469,18 +450,20 @@ body,
 .mr-obstetric-stats {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  margin: 0 0 20px;
+  gap: 12px;
+  margin: 0 0 22px;
 }
 
 .mr-obstetric-stat {
   min-width: 0;
-  min-height: 73px;
+  min-height: 70px;
   display: grid;
   place-items: center;
-  padding: 9px 8px;
+  gap: 6px;
+  padding: 12px 10px;
   border: 1px solid var(--mr-border);
-  border-radius: 15px;
+  border-radius: 12px;
+  background: #f8f9fb;
   text-align: center;
 }
 
@@ -488,32 +471,38 @@ body,
 .mr-obstetric-stat span {
   display: block;
   color: var(--mr-text);
-  font-size: 12px;
-  line-height: 18px;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
 }
 
 .mr-obstetric-stat strong {
+  color: #5f6574;
+  font-size: 11px;
+  line-height: 1.2;
   font-weight: 600;
+  text-transform: uppercase;
 }
 
 .mr-obstetric-stat span {
-  font-weight: 400;
+  color: var(--mr-pink-2);
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 700;
 }
 
 .mr-prenatal-subtitle {
-  margin: 0 0 18px;
+  margin: 0 0 14px;
   color: var(--mr-text);
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 1.35;
   font-weight: 600;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
 }
 
 .mr-prenatal-table-wrap {
   width: 100%;
   overflow-x: auto;
-  border-radius: 15px;
+  border: 1px solid rgba(31, 35, 48, 0.08);
+  border-radius: 12px;
   background: #ffffff;
 }
 
@@ -522,23 +511,23 @@ body,
   border-collapse: separate;
   border-spacing: 0;
   color: var(--mr-text);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 1.4;
   text-align: center;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
 }
 
 .mr-prenatal-table--narrow {
-  width: min(608px, 100%);
+  width: 100%;
   margin: 0 auto;
 }
 
 .mr-prenatal-table--wide {
-  min-width: 880px;
+  min-width: 760px;
 }
 
 .mr-prenatal-table th {
-  padding: 12px;
+  padding: 12px 14px;
   background: var(--mr-pink);
   color: #ffffff;
   font-weight: 600;
@@ -553,9 +542,12 @@ body,
 }
 
 .mr-prenatal-table td {
-  padding: 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--mr-border);
   font-weight: 400;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .mr-prenatal-table tr:last-child td {
@@ -565,52 +557,78 @@ body,
 .mr-prenatal-info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px 48px;
-  padding: 0 8px;
+  gap: 12px 34px;
+  padding: 0;
 }
 
 .mr-prenatal-info-column {
   display: grid;
-  gap: 12px;
+  gap: 0;
 }
 
 .mr-prenatal-info-row {
   display: grid;
-  grid-template-columns: minmax(150px, auto) 1fr;
-  gap: 24px;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1fr);
+  gap: 18px;
   align-items: center;
+  min-height: 34px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(31, 35, 48, 0.08);
   color: var(--mr-text);
-  font-size: 12px;
-  line-height: 18px;
-  letter-spacing: -0.05em;
+  font-size: 13px;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.mr-prenatal-info-row:last-child {
+  border-bottom: 0;
 }
 
 .mr-prenatal-info-row strong {
+  color: #4b5060;
   font-weight: 600;
 }
 
 .mr-prenatal-info-row span {
   font-weight: 400;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.mr-low-risk-badge {
-  width: 62px;
-  height: 19px;
+.mr-risk-badge {
+  min-width: 78px;
+  min-height: 22px;
+  padding: 3px 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 5px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mr-risk-badge--low {
   background: #c8ffcc;
   color: #00b783;
-  font-size: 11px;
-  line-height: 16px;
+}
+
+.mr-risk-badge--high {
+  background: #ffe4e9;
+  color: #fb387e;
+}
+
+.mr-risk-badge--neutral {
+  background: #e8edf3;
+  color: #677180;
 }
 
 .mr-condition-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px 32px;
-  padding: 4px 12px 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px 24px;
+  padding: 2px 0 0;
 }
 
 .mr-condition-item {
@@ -618,9 +636,9 @@ body,
   align-items: center;
   gap: 14px;
   color: var(--mr-text);
-  font-size: 12px;
-  line-height: 18px;
-  letter-spacing: -0.05em;
+  font-size: 13px;
+  line-height: 1.35;
+  letter-spacing: 0;
 }
 
 .mr-condition-box {
@@ -629,8 +647,21 @@ body,
   display: grid;
   place-items: center;
   flex: 0 0 18px;
-  border: 2px solid var(--mr-pink-2);
-  color: var(--mr-pink-2);
+  border: 2px solid #9aa1ae;
+  border-radius: 4px;
+  color: #9aa1ae;
+}
+
+.mr-condition-box.is-checked {
+  border-color: var(--mr-pink-2);
+  background: var(--mr-pink-2);
+  color: #ffffff;
+}
+
+.mr-lifestyle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 26px;
 }
 
 .mr-condition-box svg {
@@ -800,6 +831,20 @@ body,
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.05em;
+}
+
+.mr-outline-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.mr-overview-loading,
+.mr-overview-empty {
+  min-height: 96px;
+  align-content: center;
+  color: rgba(77, 73, 74, 0.68);
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .mr-vitals-card .mr-card-body {
@@ -1071,6 +1116,25 @@ body,
   display: block;
   font-weight: 600;
   margin-bottom: 1px;
+}
+
+.mr-notes-text span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.mr-notes-open-btn {
+  margin: 2px 8px 34px 31px;
+  border: 0;
+  background: transparent;
+  color: var(--mr-pink-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0;
 }
 
 .mr-last-updated {
@@ -2146,11 +2210,19 @@ body,
 
 .mr-pregnancy-milestone.is-completed {
   border-color: rgba(0, 183, 131, 0.68);
+  box-shadow: 0 5px 16px rgba(0, 183, 131, 0.08);
 }
 
 .mr-pregnancy-milestone.is-current {
-  border-color: #fb387e;
-  box-shadow: 0 8px 24px rgba(251, 56, 126, 0.14);
+  border: 2px solid #fb387e;
+  box-shadow:
+    0 0 0 3px rgba(251, 56, 126, 0.10),
+    0 8px 24px rgba(251, 56, 126, 0.14);
+}
+
+.mr-pregnancy-milestone.is-upcoming {
+  border-color: rgba(154, 152, 153, 0.48);
+  background: #ffffff;
 }
 
 .mr-pregnancy-milestone:hover {
@@ -2195,19 +2267,43 @@ body,
   background: #9a9899;
   font-size: 8px;
   line-height: 1;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+/*
+ * Reached milestones use the Figma-style check marker at the
+ * bottom-center of the card:
+ * - past milestones = green
+ * - current milestone = pink
+ * - future milestones keep the gray week badge at top-right
+ */
+.mr-pregnancy-milestone.has-reached .mr-pregnancy-milestone-status {
+  top: auto;
+  right: auto;
+  bottom: -10px;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translateX(-50%);
+  border: 2px solid #ffffff;
 }
 
 .mr-pregnancy-milestone.is-completed .mr-pregnancy-milestone-status {
   background: #00b783;
+  box-shadow: 0 3px 9px rgba(0, 183, 131, 0.24);
 }
 
 .mr-pregnancy-milestone.is-current .mr-pregnancy-milestone-status {
   background: #fb387e;
+  box-shadow: 0 3px 9px rgba(251, 56, 126, 0.24);
 }
 
 .mr-pregnancy-milestone-status svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 
 .mr-pregnancy-milestone small,
@@ -2223,6 +2319,15 @@ body,
   font-size: 10px;
   line-height: 15px;
   font-weight: 600;
+}
+
+.mr-pregnancy-milestone.is-completed small {
+  color: #00a978;
+}
+
+.mr-pregnancy-milestone.is-current small {
+  color: #fb387e;
+  font-weight: 700;
 }
 
 .mr-pregnancy-milestone strong {
@@ -2616,6 +2721,52 @@ body,
   gap: 14px;
 }
 
+.mr-medical-record-selector {
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+}
+
+.mr-medical-record-selector button {
+  flex: 0 0 auto;
+  min-width: 170px;
+  max-width: 230px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(199, 196, 215, 0.72);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--mr-text);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mr-medical-record-selector button.active {
+  border-color: rgba(251, 56, 126, 0.78);
+  box-shadow: 0 0 0 2px rgba(251, 56, 126, 0.12);
+}
+
+.mr-medical-record-selector strong,
+.mr-medical-record-selector span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mr-medical-record-selector strong {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.mr-medical-record-selector span {
+  color: rgba(77, 73, 74, 0.72);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .mr-medical-entry {
   min-width: 0;
   display: grid;
@@ -2624,6 +2775,33 @@ body,
   border-radius: 14px;
   background: #ffffff;
   box-shadow: var(--mr-shadow);
+}
+
+.mr-medical-entry.is-focused,
+.mr-next-appointment.is-focused,
+.mr-appointment-timeline article.is-focused {
+  outline: 2px solid rgba(251, 56, 126, 0.58);
+  outline-offset: 3px;
+}
+
+.mr-medical-entry.is-recently-focused {
+  animation: mr-record-focus-pulse 1200ms ease-in-out 2;
+}
+
+@keyframes mr-record-focus-pulse {
+  0%,
+  100% {
+    outline-color: rgba(251, 56, 126, 0.58);
+  }
+
+  45% {
+    outline-color: rgba(251, 56, 126, 0.95);
+    outline-offset: 6px;
+  }
+}
+
+.mr-appointment-history-table tr.is-focused {
+  box-shadow: inset 4px 0 0 var(--mr-pink);
 }
 
 .mr-medical-entry-meta {
@@ -2931,6 +3109,98 @@ body,
   line-height: 10px;
 }
 
+.mr-medical-data-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgba(77, 73, 74, 0.18);
+  border-radius: 8px;
+}
+
+.mr-medical-data-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  color: var(--mr-text);
+  font-size: 12px;
+}
+
+.mr-medical-data-table th,
+.mr-medical-data-table td {
+  border-bottom: 1px solid rgba(77, 73, 74, 0.16);
+  padding: 10px;
+  text-align: left;
+}
+
+.mr-medical-data-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.mr-medical-data-table th {
+  color: var(--mr-pink);
+  font-weight: 700;
+}
+
+.mr-medical-review-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.mr-medical-review-list div {
+  display: grid;
+  gap: 3px;
+}
+
+.mr-medical-review-list dt,
+.mr-medical-review-list dd {
+  margin: 0;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.mr-medical-review-list dt {
+  font-weight: 700;
+}
+
+.mr-medical-file-card {
+  width: min(260px, 100%);
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(77, 73, 74, 0.2);
+  border-radius: 8px;
+  color: var(--mr-text);
+  background: #ffffff;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
+.mr-medical-file-card svg {
+  width: 20px;
+  height: 20px;
+  color: var(--mr-pink);
+}
+
+.mr-medical-file-card strong,
+.mr-medical-file-card small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mr-medical-file-card strong {
+  font-size: 11px;
+}
+
+.mr-medical-file-card small {
+  color: rgba(77, 73, 74, 0.62);
+  font-size: 10px;
+}
+
 .mr-medical-record-count {
   margin: 8px 0 0;
   color: rgba(77, 73, 74, 0.5);
@@ -2971,6 +3241,21 @@ body,
   padding: 10px 12px;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.mr-medical-load-message p {
+  margin: 0;
+}
+
+.mr-medical-load-message button {
+  margin-top: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--mr-pink);
+  color: #ffffff;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 700;
 }
 
 .mr-record-modal {
@@ -3128,24 +3413,12 @@ body,
   opacity: 0.65;
 }
 
-/* SIDEBAR SAFETY FIX */
-
-.sidebar,
-.app-sidebar,
-.dashboard-sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
 /* RESPONSIVE */
 
 @media (max-width: 1024px) {
-  html,
-  body,
-  #root {
+  html:has(.medical-records-page),
+  body:has(.medical-records-page),
+  #root:has(.medical-records-page) {
     overflow: auto;
   }
 
@@ -3226,16 +3499,6 @@ body,
     min-height: 0;
   }
 
-  .mr-overview-bottom {
-    grid-template-columns: 1fr;
-  }
-
-  .mr-prenatal-scroll {
-    max-height: none;
-    overflow: visible;
-    padding-right: 0;
-  }
-
   .mr-obstetric-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3282,12 +3545,6 @@ body,
     bottom: -8px;
   }
 
-  .sidebar,
-  .app-sidebar,
-  .dashboard-sidebar {
-    position: relative;
-    height: auto;
-  }
 }
 
 @media (max-width: 640px) {
@@ -3492,5 +3749,2312 @@ body,
 
   .mr-tab {
     font-size: 13px;
+  }
+}
+
+/* Final scoped Doctor selected-Patient layout overrides. */
+.doctor-dashboard .medical-records-page {
+  min-height: 100%;
+  padding: 28px 0 52px;
+  overflow: visible;
+}
+
+.doctor-dashboard .medical-records-content {
+  width: min(1320px, calc(100% - 56px));
+  margin-left: 28px;
+  margin-right: auto;
+  padding-bottom: 48px;
+}
+
+.doctor-dashboard .mr-top-row,
+.doctor-dashboard .mr-page-header {
+  padding-right: var(--doctor-unified-profile-reserve, 320px);
+}
+
+.doctor-dashboard .mr-page-header h1 {
+  color: #20232d;
+  font-size: 40px;
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-page-header p {
+  margin-top: 6px;
+  color: #6f7280;
+  font-size: 17px;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-patient-card {
+  min-height: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 30%);
+  gap: 28px;
+  align-items: stretch;
+  margin-bottom: 28px;
+}
+
+.doctor-dashboard .mr-patient-main,
+.doctor-dashboard .mr-pregnancy-box,
+.doctor-dashboard .mr-card,
+.doctor-dashboard .mr-laboratory-table-wrap,
+.doctor-dashboard .mr-prescription-card {
+  border: 1px solid rgba(31, 35, 48, 0.08);
+  box-shadow: 0 18px 45px rgba(31, 35, 48, 0.06);
+}
+
+.doctor-dashboard .mr-patient-main {
+  min-width: 0;
+  min-height: 270px;
+  align-items: center;
+  gap: 34px;
+  border-radius: 22px;
+  background: #fff;
+  padding: 28px 36px;
+}
+
+.doctor-dashboard .mr-avatar {
+  width: 132px;
+  height: 132px;
+  flex-basis: 132px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #ffe7f0, #fb7fac);
+  color: #bc0f65;
+  font-size: 36px;
+}
+
+.doctor-dashboard .mr-name-row {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.doctor-dashboard .mr-name-row h2 {
+  color: #20232d;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-status {
+  min-width: 112px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.doctor-dashboard .mr-patient-id {
+  margin-bottom: 24px;
+  color: #4f5260;
+  font-size: 16px;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-details-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px 44px;
+}
+
+.doctor-dashboard .mr-divider {
+  display: none;
+}
+
+.doctor-dashboard .mr-info-row {
+  grid-template-columns: 24px minmax(100px, auto) minmax(0, 1fr);
+  gap: 10px 14px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.doctor-dashboard .mr-info-label {
+  color: #8d93a3;
+  text-transform: uppercase;
+}
+
+.doctor-dashboard .mr-info-value {
+  color: #30333e;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.doctor-dashboard .mr-pregnancy-box {
+  min-width: 0;
+  min-height: 270px;
+  border: 1px solid rgba(251, 56, 126, 0.35);
+  border-radius: 22px;
+  background: rgba(255, 240, 246, 0.9);
+  padding: 30px 28px;
+}
+
+.doctor-dashboard .mr-pregnancy-box h3 {
+  margin-bottom: 24px;
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.doctor-dashboard .mr-pregnancy-list {
+  gap: 0;
+}
+
+.doctor-dashboard .mr-pregnancy-list div {
+  min-height: 52px;
+  border-bottom: 1px solid rgba(251, 56, 126, 0.25);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.doctor-dashboard .mr-pregnancy-list div:last-child {
+  border-bottom: 0;
+}
+
+.doctor-dashboard .mr-pregnancy-list span {
+  max-width: 160px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.doctor-dashboard .mr-risk {
+  min-width: 86px;
+  width: auto;
+  height: 28px;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.doctor-dashboard .mr-record-panel {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.doctor-dashboard .mr-tabs {
+  justify-content: stretch;
+  gap: 6px;
+  border: 1px solid rgba(31, 35, 48, 0.08);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(31, 35, 48, 0.04);
+  padding: 8px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.doctor-dashboard .mr-tab {
+  flex: 1 0 auto;
+  min-height: 48px;
+  border-radius: 12px;
+  padding: 0 18px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-tab.active {
+  background: #fff1f6;
+}
+
+.doctor-dashboard .mr-tab.active::after {
+  left: 50%;
+  bottom: 2px;
+  width: 46px;
+  height: 3px;
+  transform: translateX(-50%);
+}
+
+.doctor-dashboard .mr-prenatal-layout {
+  gap: 24px;
+  padding: 0;
+}
+
+.doctor-dashboard .mr-prenatal-two-column-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.doctor-dashboard .mr-prenatal-card {
+  border-radius: 18px;
+  padding: 22px 24px 24px;
+}
+
+.doctor-dashboard .mr-prenatal-title {
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-appointment-section-header h3,
+.doctor-dashboard .mr-appointment-history-card > h3,
+.doctor-dashboard .mr-tracking-progress-content > h3,
+.doctor-dashboard .mr-tracking-detail-card h3,
+.doctor-dashboard .mr-pregnancy-journey-card h3 {
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-table-empty,
+.doctor-dashboard .mr-unavailable-action {
+  color: #737887;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.doctor-dashboard .mr-condition-box.is-readonly.is-checked {
+  border-radius: 5px;
+  background: #fb5a95;
+  color: #fff;
+}
+
+.doctor-dashboard .mr-condition-box.is-readonly:not(.is-checked) {
+  background: transparent;
+  color: #9aa1ae;
+}
+
+.doctor-dashboard .mr-appointment-summary {
+  gap: 18px;
+}
+
+.doctor-dashboard .mr-appointment-summary-card {
+  min-height: 118px;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+  border-radius: 18px;
+  padding: 18px 12px;
+}
+
+.doctor-dashboard .mr-appointment-summary-card p {
+  max-width: none;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.doctor-dashboard .mr-appointment-summary-card strong {
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.doctor-dashboard .mr-appointment-feature-grid {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 24px;
+}
+
+.doctor-dashboard .mr-laboratory-search,
+.doctor-dashboard .mr-prescriptions-search,
+.doctor-dashboard .mr-medical-search {
+  width: min(520px, 100%);
+  height: 56px;
+  border: 1px solid rgba(31, 35, 48, 0.08);
+  box-shadow: 0 12px 28px rgba(31, 35, 48, 0.04);
+}
+
+.doctor-dashboard .mr-laboratory-file,
+.doctor-dashboard .mr-prescription-footer a {
+  color: var(--mr-text);
+  text-decoration: none;
+}
+
+.doctor-dashboard .mr-medical-entry--primary {
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+  border-radius: 22px;
+}
+
+.doctor-dashboard .mr-medical-entry-meta {
+  padding: 32px 28px;
+}
+
+.doctor-dashboard .mr-medical-entry-content {
+  padding: 32px 34px;
+}
+
+.doctor-dashboard .mr-tracking-progress-ring {
+  background: conic-gradient(#fb387e 0 var(--mr-progress-percent, 0%), #ffc9d4 var(--mr-progress-percent, 0%) 100%);
+}
+
+@media (max-width: 1280px) {
+  .doctor-dashboard .medical-records-content {
+    width: min(100%, calc(100% - 40px));
+    margin-left: 20px;
+  }
+
+  .doctor-dashboard .mr-top-row,
+  .doctor-dashboard .mr-page-header {
+    padding-right: 260px;
+  }
+
+  .doctor-dashboard .mr-patient-card {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .doctor-dashboard .mr-details-grid,
+  .doctor-dashboard .mr-panel-grid,
+  .doctor-dashboard .mr-appointment-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-appointment-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .doctor-dashboard .medical-records-page {
+    padding: 20px 0 44px;
+  }
+
+  .doctor-dashboard .medical-records-content {
+    width: calc(100% - 28px);
+    margin-left: 14px;
+  }
+
+  .doctor-dashboard .mr-top-row,
+  .doctor-dashboard .mr-page-header {
+    padding-right: 0;
+  }
+
+  .doctor-dashboard .mr-patient-card,
+  .doctor-dashboard .mr-tracking-progress-card,
+  .doctor-dashboard .mr-tracking-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-patient-main {
+    align-items: flex-start;
+    padding: 24px;
+  }
+
+  .doctor-dashboard .mr-details-grid,
+  .doctor-dashboard .mr-prenatal-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-prenatal-two-column-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-lifestyle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-medical-entry--primary {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-laboratory-table,
+  .doctor-dashboard .mr-prescription-table {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 560px) {
+  .doctor-dashboard .mr-page-header h1 {
+    font-size: 32px;
+  }
+
+  .doctor-dashboard .mr-patient-main {
+    display: grid;
+    gap: 18px;
+  }
+
+  .doctor-dashboard .mr-avatar {
+    width: 96px;
+    height: 96px;
+    flex-basis: 96px;
+    font-size: 28px;
+  }
+
+  .doctor-dashboard .mr-name-row h2 {
+    font-size: 25px;
+  }
+
+  .doctor-dashboard .mr-appointment-summary,
+  .doctor-dashboard .mr-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-obstetric-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .doctor-dashboard .mr-top-row {
+    display: grid;
+    gap: 12px;
+    justify-content: stretch;
+  }
+
+}
+
+/* Compact Doctor selected-Patient Overview target pass. */
+.doctor-dashboard .medical-records-content {
+  width: min(1128px, calc(100% - 56px));
+}
+
+.doctor-dashboard .mr-top-row {
+  margin-bottom: 14px;
+}
+
+.doctor-dashboard .mr-back-btn {
+  min-height: 24px;
+  font-size: 13px;
+}
+
+.doctor-dashboard .mr-page-header {
+  margin-bottom: 22px;
+}
+
+.doctor-dashboard .mr-page-header h1 {
+  font-size: 38px;
+  line-height: 1.08;
+}
+
+.doctor-dashboard .mr-page-header p {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.doctor-dashboard .mr-patient-card {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.doctor-dashboard .mr-patient-main {
+  min-height: 220px;
+  gap: 28px;
+  border-radius: 20px;
+  padding: 22px 28px;
+}
+
+.doctor-dashboard .mr-avatar {
+  width: 112px;
+  height: 112px;
+  flex-basis: 112px;
+  border-radius: 20px;
+  font-size: 32px;
+}
+
+.doctor-dashboard .mr-name-row {
+  align-items: center;
+  gap: 12px;
+}
+
+.doctor-dashboard .mr-name-row h2 {
+  font-size: 27px;
+  line-height: 1.12;
+}
+
+.doctor-dashboard .mr-status {
+  min-width: 96px;
+  height: 26px;
+  font-size: 11px;
+}
+
+.doctor-dashboard .mr-patient-id {
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+
+.doctor-dashboard .mr-details-grid {
+  gap: 14px 28px;
+}
+
+.doctor-dashboard .mr-info-row {
+  grid-template-columns: 22px minmax(112px, max-content) minmax(0, 1fr);
+  gap: 8px 12px;
+  font-size: 13px;
+}
+
+.doctor-dashboard .mr-info-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.doctor-dashboard .mr-info-label {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.doctor-dashboard .mr-info-value {
+  font-size: 14px;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.doctor-dashboard .mr-info-row:has(.mr-info-label:nth-child(2)) .mr-info-value {
+  min-width: 0;
+}
+
+.doctor-dashboard .mr-pregnancy-box {
+  min-height: 220px;
+  border-radius: 20px;
+  padding: 24px 26px;
+}
+
+.doctor-dashboard .mr-pregnancy-box h3 {
+  margin-bottom: 20px;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.doctor-dashboard .mr-pregnancy-list div {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.doctor-dashboard .mr-pregnancy-list span {
+  max-width: 150px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.doctor-dashboard .mr-risk {
+  background: #edf0f4;
+  color: #6f7684;
+}
+
+.doctor-dashboard .mr-risk--low {
+  background: #d9f8e4;
+  color: #13a365;
+}
+
+.doctor-dashboard .mr-risk--high {
+  background: #ffe2e5;
+  color: #db3651;
+}
+
+.doctor-dashboard .mr-risk--neutral {
+  background: #edf0f4;
+  color: #6f7684;
+}
+
+.doctor-dashboard .mr-tabs {
+  min-height: 54px;
+  border-radius: 16px;
+  padding: 6px;
+  margin-bottom: 22px;
+}
+
+.doctor-dashboard .mr-tab {
+  min-height: 40px;
+  border-radius: 11px;
+  padding: 0 14px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.doctor-dashboard .mr-overview-dashboard-grid {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 22px;
+}
+
+.doctor-dashboard .mr-overview-main-column,
+.doctor-dashboard .mr-overview-side-column {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+  align-content: start;
+}
+
+.doctor-dashboard .mr-overview-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+  min-width: 0;
+}
+
+.doctor-dashboard .mr-card {
+  border-radius: 18px;
+  padding: 22px 24px;
+}
+
+.doctor-dashboard .mr-progress-card,
+.doctor-dashboard .mr-last-visit-card,
+.doctor-dashboard .mr-vitals-card,
+.doctor-dashboard .mr-schedule-card,
+.doctor-dashboard .mr-notes-card {
+  min-height: 0;
+}
+
+.doctor-dashboard .mr-section-header {
+  margin-bottom: 18px;
+}
+
+.doctor-dashboard .mr-section-title-text h3,
+.doctor-dashboard .mr-progress-header h3 {
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-section-title-text span {
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-icon-badge {
+  width: 36px;
+  height: 36px;
+}
+
+.doctor-dashboard .mr-card-body {
+  gap: 9px;
+  padding-bottom: 18px;
+}
+
+.doctor-dashboard .mr-record-row {
+  grid-template-columns: minmax(105px, 0.9fr) minmax(0, 1fr);
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-record-stack {
+  gap: 7px;
+  font-size: 14px;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-outline-btn {
+  min-width: 142px;
+  height: 38px;
+  border-radius: 10px;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-progress-card {
+  padding: 24px 26px;
+}
+
+.doctor-dashboard .mr-progress-header {
+  margin-bottom: 18px;
+}
+
+.doctor-dashboard .mr-progress-header strong {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.doctor-dashboard .mr-progress-bar {
+  height: 12px;
+  margin-bottom: 14px;
+}
+
+.doctor-dashboard .mr-progress-labels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-bottom: 28px;
+  color: #8f95a3;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.doctor-dashboard .mr-progress-labels span:nth-child(2) {
+  text-align: center;
+}
+
+.doctor-dashboard .mr-progress-labels span:last-child {
+  text-align: right;
+}
+
+.doctor-dashboard .mr-stat-grid {
+  gap: 14px;
+}
+
+.doctor-dashboard .mr-stat-card {
+  min-height: 92px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  border-radius: 14px;
+  box-shadow: none;
+  padding: 14px 12px;
+}
+
+.doctor-dashboard .mr-stat-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.doctor-dashboard .mr-stat-card p,
+.doctor-dashboard .mr-stat-card strong,
+.doctor-dashboard .mr-stat-card span {
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-stat-card p {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.doctor-dashboard .mr-stat-card strong {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.doctor-dashboard .mr-stat-card span {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.doctor-dashboard .mr-schedule-content {
+  margin-left: 2px;
+  gap: 8px;
+}
+
+.doctor-dashboard .mr-schedule-content div {
+  gap: 7px;
+}
+
+.doctor-dashboard .mr-schedule-content strong,
+.doctor-dashboard .mr-schedule-content span {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.doctor-dashboard .mr-notes-card {
+  min-height: 300px;
+}
+
+.doctor-dashboard .mr-notes-text {
+  margin: 0 0 16px 44px;
+}
+
+.doctor-dashboard .mr-notes-text p {
+  margin-bottom: 15px;
+  font-size: 13px;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-notes-text span {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.doctor-dashboard .mr-notes-open-btn {
+  margin: 0 0 24px 44px;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-last-updated {
+  left: 68px;
+  right: 24px;
+}
+
+@media (max-width: 1280px) {
+  .doctor-dashboard .medical-records-content {
+    width: min(100%, calc(100% - 40px));
+  }
+
+  .doctor-dashboard .mr-patient-card,
+  .doctor-dashboard .mr-overview-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-overview-lower-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .doctor-dashboard .mr-patient-main {
+    min-height: 0;
+  }
+
+  .doctor-dashboard .mr-overview-lower-grid,
+  .doctor-dashboard .mr-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .doctor-dashboard .mr-page-header h1 {
+    font-size: 34px;
+  }
+
+  .doctor-dashboard .mr-info-row {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .doctor-dashboard .mr-info-label {
+    grid-column: 2;
+  }
+
+  .doctor-dashboard .mr-info-value {
+    grid-column: 2;
+  }
+
+  .doctor-dashboard .mr-record-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .doctor-dashboard .mr-pregnancy-list div {
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+/* Shared Doctor selected-Patient rail alignment. */
+.doctor-dashboard .medical-records-page {
+  padding: 28px 0 52px;
+  overflow: visible;
+}
+
+.doctor-dashboard .medical-records-content {
+  --doctor-patient-rail-max: 1500px;
+  width: min(var(--doctor-patient-rail-max), calc(100% - 56px));
+  max-width: var(--doctor-patient-rail-max);
+  margin-right: auto;
+  margin-left: auto;
+  padding-bottom: 48px;
+  box-sizing: border-box;
+}
+
+.doctor-dashboard .doctor-patient-header-rail,
+.doctor-dashboard .doctor-patient-content-rail {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.doctor-dashboard .doctor-patient-header-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--doctor-unified-profile-width, 286px);
+  gap: 24px;
+  align-items: start;
+  min-height: 0;
+  margin-bottom: 22px;
+}
+
+.doctor-dashboard .doctor-patient-title {
+  min-width: 0;
+  align-self: start;
+  padding-top: 4px;
+}
+
+.doctor-dashboard .doctor-patient-header-action-slot {
+  display: flex;
+  height: auto;
+  min-height: 0;
+  align-self: start;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  justify-self: end;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.doctor-dashboard .medical-records-page .doctor-patient-header-actions {
+  display: flex !important;
+  width: var(--doctor-unified-profile-width, 286px) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: fit-content !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  justify-content: flex-start !important;
+  align-self: flex-start !important;
+  gap: 10px !important;
+  pointer-events: auto !important;
+}
+
+.doctor-dashboard .medical-records-page .doctor-profile-wrapper {
+  width: var(--doctor-unified-profile-width, 286px) !important;
+  flex: 0 0 auto !important;
+  align-self: flex-end !important;
+  margin: 0 !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 50002 !important;
+}
+
+.doctor-dashboard .medical-records-page .doctor-profile-card {
+  width: var(--doctor-unified-profile-width, 286px) !important;
+  height: var(--doctor-unified-profile-height, 60px) !important;
+  min-height: var(--doctor-unified-profile-height, 60px) !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+  box-shadow: 0 12px 30px rgba(20, 25, 40, 0.08) !important;
+  padding: 6px 14px !important;
+  box-sizing: border-box !important;
+}
+
+.doctor-dashboard .medical-records-page .doctor-profile-dropdown {
+  top: calc(100% + 12px) !important;
+  right: 0 !important;
+  width: min(286px, var(--doctor-unified-profile-width, 286px)) !important;
+  min-height: 0 !important;
+  padding: 14px !important;
+  pointer-events: auto !important;
+  z-index: 50003 !important;
+}
+
+.doctor-dashboard .medical-records-page .doctor-edit-record-button {
+  position: static !important;
+  align-self: flex-end !important;
+  margin: 0 !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 18px !important;
+  font-size: 14px !important;
+  pointer-events: auto !important;
+}
+
+.doctor-dashboard .mr-top-row,
+.doctor-dashboard .mr-page-header {
+  padding-right: 0 !important;
+}
+
+.doctor-dashboard .mr-top-row {
+  margin-bottom: 8px;
+}
+
+.doctor-dashboard .mr-page-header {
+  margin-bottom: 0;
+}
+
+.doctor-dashboard .mr-page-header h1 {
+  font-size: 38px;
+  line-height: 1.08;
+}
+
+.doctor-dashboard .mr-page-header p {
+  margin-top: 6px;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.doctor-dashboard .doctor-patient-content-rail {
+  margin-top: 0;
+}
+
+.doctor-dashboard .mr-patient-card,
+.doctor-dashboard .mr-record-panel,
+.doctor-dashboard .mr-tabs,
+.doctor-dashboard .mr-panel-grid,
+.doctor-dashboard .mr-appointment-summary,
+.doctor-dashboard .mr-appointment-feature-grid,
+.doctor-dashboard .mr-appointment-history-card,
+.doctor-dashboard .mr-laboratory-panel,
+.doctor-dashboard .mr-prescriptions-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.doctor-dashboard .mr-patient-card {
+  grid-template-columns: minmax(0, 2.25fr) minmax(340px, 1fr);
+  gap: 28px;
+  margin-bottom: 24px;
+}
+
+.doctor-dashboard .mr-appointment-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 1280px) {
+  .doctor-dashboard .medical-records-content {
+    width: min(100%, calc(100% - 48px));
+  }
+
+  .doctor-dashboard .doctor-patient-header-rail {
+    grid-template-columns: minmax(0, 1fr) minmax(252px, var(--doctor-unified-profile-width, 270px));
+    gap: 24px;
+  }
+
+  .doctor-dashboard .mr-patient-card {
+    grid-template-columns: minmax(0, 1fr) minmax(318px, 32%);
+  }
+
+  .doctor-dashboard .mr-appointment-summary {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .doctor-dashboard .mr-patient-card,
+  .doctor-dashboard .mr-overview-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-appointment-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .doctor-dashboard .medical-records-content {
+    width: calc(100% - 28px);
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  .doctor-dashboard .doctor-patient-header-rail {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 0;
+    gap: 18px;
+  }
+
+  .doctor-dashboard .doctor-patient-title {
+    order: 2;
+  }
+
+  .doctor-dashboard .doctor-patient-header-action-slot {
+    order: 1;
+    justify-self: stretch;
+  }
+
+  .doctor-dashboard .medical-records-page .doctor-patient-header-actions,
+  .doctor-dashboard .medical-records-page .doctor-profile-wrapper,
+  .doctor-dashboard .medical-records-page .doctor-profile-card {
+    width: 100% !important;
+    flex-basis: 100% !important;
+  }
+}
+
+/* Keep clinical navigation on one scrollable row with a visible end affordance. */
+.doctor-dashboard:not(.staff-dashboard-shell) .mr-tabs {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 20px 8px 6px;
+  scroll-padding-inline: 6px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(251, 56, 126, 0.38) transparent;
+  overscroll-behavior-inline: contain;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .mr-tabs::-webkit-scrollbar {
+  display: block;
+  height: 5px;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .mr-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .mr-tabs::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(251, 56, 126, 0.38);
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .mr-tab {
+  flex: 0 0 auto;
+  padding-right: 14px;
+  padding-left: 14px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .doctor-dashboard:not(.staff-dashboard-shell) .mr-tabs {
+    gap: 4px;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell) .mr-tab {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .doctor-dashboard .mr-appointment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-tabs {
+    justify-content: flex-start;
+  }
+}
+
+.mr-adherence-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.mr-adherence-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+}
+
+.mr-adherence-header h2,
+.mr-adherence-header p {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.mr-adherence-header h2 {
+  color: #1f2330;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 850;
+}
+
+.mr-adherence-header p {
+  margin-top: 6px;
+  color: #737887;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mr-adherence-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mr-adherence-header button,
+.mr-adherence-custom-range button,
+.mr-adherence-empty button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(251, 47, 125, 0.24);
+  border-radius: 10px;
+  background: #fff1f6;
+  color: #c41375;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 14px;
+}
+
+.mr-adherence-header button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.mr-adherence-report-feedback {
+  margin: -10px 0 0;
+  padding: 9px 11px;
+  border: 1px solid #d8dee7;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #475467;
+  font-size: 12px;
+}
+
+.mr-adherence-report-feedback:empty {
+  display: none;
+}
+
+.mr-adherence-report-feedback.is-success {
+  border-color: #9dcfb6;
+  background: #f1fbf6;
+  color: #226645;
+}
+
+.mr-adherence-report-feedback.is-error {
+  border-color: #e4a4af;
+  background: #fff5f6;
+  color: #992d3f;
+}
+
+.mr-adherence-header button:focus-visible,
+.mr-adherence-filter-group button:focus-visible,
+.mr-adherence-custom-range button:focus-visible,
+.mr-adherence-custom-range input:focus-visible,
+.mr-adherence-empty button:focus-visible {
+  outline: 3px solid rgba(251, 47, 125, 0.22);
+  outline-offset: 2px;
+}
+
+.mr-adherence-summary {
+  grid-template-columns: repeat(5, minmax(132px, 1fr));
+}
+
+.mr-adherence-filters {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(31, 35, 48, 0.08);
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.mr-adherence-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mr-adherence-filter-group button {
+  min-height: 36px;
+  border: 1px solid #e5e8ef;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #555d6d;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 14px;
+}
+
+.mr-adherence-filter-group button.is-active {
+  border-color: rgba(251, 47, 125, 0.32);
+  background: #fff1f6;
+  color: #c41375;
+}
+
+.mr-adherence-custom-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.mr-adherence-custom-range label {
+  min-width: 170px;
+  display: grid;
+  gap: 6px;
+  color: #4f5563;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mr-adherence-custom-range input {
+  min-height: 40px;
+  border: 1px solid #dfe3eb;
+  border-radius: 10px;
+  color: #1f2330;
+  font-size: 14px;
+  padding: 0 12px;
+}
+
+.mr-adherence-custom-range button:last-child {
+  border-color: #e5e8ef;
+  background: #f7f8fb;
+  color: #555d6d;
+}
+
+.mr-adherence-message {
+  margin: 0;
+  color: #9a5b13;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.mr-adherence-history-card {
+  padding: 18px;
+}
+
+.mr-adherence-history-card .mr-appointment-section-header {
+  align-items: start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.mr-adherence-history-card .mr-appointment-section-header p {
+  margin: 4px 0 0;
+  color: #737887;
+  font-size: 13px;
+}
+
+.mr-adherence-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.mr-adherence-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.mr-adherence-table th,
+.mr-adherence-table td {
+  border-bottom: 1px solid #edf0f5;
+  color: #303542;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+  vertical-align: middle;
+  padding: 13px 12px;
+}
+
+.mr-adherence-table th {
+  background: #f7f8fb;
+  color: #697181;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.mr-adherence-table th:first-child {
+  border-top-left-radius: 12px;
+}
+
+.mr-adherence-table th:last-child {
+  border-top-right-radius: 12px;
+}
+
+.mr-adherence-table td:nth-child(3) {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.mr-adherence-status {
+  min-width: 96px;
+  min-height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #d9dde7;
+  border-radius: 999px;
+  background: #f6f7fa;
+  color: #555d6d;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 850;
+  text-align: center;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.mr-adherence-status.is-processing {
+  border-color: #cfe0ff;
+  background: #f1f6ff;
+  color: #2d5fa8;
+}
+
+.mr-adherence-status.is-due {
+  border-color: #ffc8dc;
+  background: #fff1f6;
+  color: #c41375;
+}
+
+.mr-adherence-status.is-taken {
+  border-color: #bdebd5;
+  background: #effaf4;
+  color: #177245;
+}
+
+.mr-adherence-status.is-skipped {
+  border-color: #d8dce6;
+  background: #f5f6f9;
+  color: #5e6572;
+}
+
+.mr-adherence-status.is-missed {
+  border-color: #ffc4c4;
+  background: #fff2f2;
+  color: #a83232;
+}
+
+.mr-adherence-status.is-unavailable,
+.mr-adherence-status.is-unknown {
+  border-color: #d6d0ff;
+  background: #f5f3ff;
+  color: #5a46a0;
+}
+
+.mr-adherence-empty {
+  min-height: 126px;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  border: 1px dashed #dfe3eb;
+  border-radius: 14px;
+  color: #737887;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  padding: 24px;
+}
+
+.mr-adherence-empty p {
+  margin: 0;
+}
+
+.mr-adherence-empty.is-error {
+  border-color: #ffc4c4;
+  background: #fff8f8;
+  color: #a83232;
+}
+
+@media (max-width: 980px) {
+  .mr-adherence-summary {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .mr-adherence-header {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-adherence-header-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 680px) {
+  .mr-adherence-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-adherence-header-actions,
+  .mr-adherence-header-actions button {
+    width: 100%;
+  }
+
+  .mr-adherence-filter-group,
+  .mr-adherence-custom-range {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mr-adherence-filter-group button,
+  .mr-adherence-custom-range button,
+  .mr-adherence-custom-range label {
+    width: 100%;
+  }
+
+  .mr-adherence-table {
+    min-width: 0;
+  }
+
+  .mr-adherence-table thead {
+    display: none;
+  }
+
+  .mr-adherence-table,
+  .mr-adherence-table tbody,
+  .mr-adherence-table tr,
+  .mr-adherence-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .mr-adherence-table tr {
+    border: 1px solid #edf0f5;
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 12px;
+  }
+
+  .mr-adherence-table tr + tr {
+    margin-top: 10px;
+  }
+
+  .mr-adherence-table td {
+    display: grid;
+    grid-template-columns: 122px minmax(0, 1fr);
+    gap: 10px;
+    border-bottom: 0;
+    padding: 8px 0;
+  }
+
+  .mr-adherence-table td::before {
+    color: #697181;
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+  }
+
+  .mr-adherence-table td:nth-child(1)::before { content: "Scheduled Date"; }
+  .mr-adherence-table td:nth-child(2)::before { content: "Scheduled Time"; }
+  .mr-adherence-table td:nth-child(3)::before { content: "Medication"; }
+  .mr-adherence-table td:nth-child(4)::before { content: "Dosage"; }
+  .mr-adherence-table td:nth-child(5)::before { content: "Status"; }
+  .mr-adherence-table td:nth-child(6)::before { content: "Response Time"; }
+}
+
+.mr-adherence-alert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  border: 1px solid #dca947;
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: #fff9eb;
+  color: #5f440e;
+  padding: 18px;
+}
+
+.mr-adherence-alert.is-high {
+  border-color: #d65f70;
+  background: #fff3f5;
+  color: #842d39;
+}
+
+.mr-adherence-alert.is-critical {
+  border-color: #c93131;
+  background: #fff0f0;
+  color: #8e2222;
+}
+
+.mr-adherence-alert-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #ffedb7;
+  color: #815b0d;
+}
+
+.is-high .mr-adherence-alert-icon {
+  background: #ffdce2;
+  color: #a22e3d;
+}
+
+.is-critical .mr-adherence-alert-icon {
+  background: #ffd3d3;
+  color: #a32020;
+}
+
+.mr-adherence-alert-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mr-adherence-alert-content {
+  min-width: 0;
+}
+
+.mr-adherence-alert-label,
+.mr-adherence-alert-content small,
+.mr-adherence-alert-content strong {
+  display: block;
+  letter-spacing: 0;
+}
+
+.mr-adherence-alert-label {
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 850;
+}
+
+.mr-adherence-alert-content small {
+  margin-top: 2px;
+  color: #766947;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.is-high .mr-adherence-alert-content small,
+.is-critical .mr-adherence-alert-content small {
+  color: #825e64;
+}
+
+.mr-adherence-alert-content p {
+  margin: 8px 0 0;
+  color: #534b3b;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+.mr-adherence-alert-content strong {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.mr-adherence-alert-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.mr-adherence-alert-counts span {
+  border: 1px solid rgba(62, 53, 36, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #4e5562;
+  font-size: 11px;
+  font-weight: 750;
+  padding: 5px 8px;
+}
+
+.mr-adherence-alert-actions {
+  min-width: 168px;
+  display: grid;
+  gap: 8px;
+}
+
+.mr-adherence-alert .mr-adherence-alert-notification,
+.mr-adherence-alert-refresh {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mr-adherence-alert .mr-adherence-alert-notification {
+  border-color: #bf315e;
+  background: #ffffff;
+  color: #a61e4c;
+}
+
+.mr-adherence-alert-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #d5dae3;
+  background: #ffffff;
+  color: #4e5665;
+}
+
+.mr-adherence-alert-refresh:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.mr-adherence-alert .mr-adherence-alert-notification:focus-visible,
+.mr-adherence-alert-refresh:focus-visible,
+.mr-adherence-alert-load-error button:focus-visible {
+  outline: 3px solid rgba(62, 123, 218, 0.28);
+  outline-offset: 2px;
+}
+
+.mr-adherence-alert-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #efb1b1;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #922d2d;
+  font-size: 13px;
+  padding: 12px 14px;
+}
+
+.mr-adherence-alert-load-error button {
+  min-height: 34px;
+  border: 1px solid #d98282;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #8e2828;
+  font-weight: 750;
+  padding: 0 12px;
+}
+
+@media (max-width: 820px) {
+  .mr-adherence-alert {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .mr-adherence-alert-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .mr-adherence-alert {
+    grid-template-columns: 1fr;
+  }
+
+  .mr-adherence-alert-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .mr-adherence-alert-actions {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .mr-adherence-alert-load-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+/* ============================================================
+   MEDICAL RECORD TABS — 7 TAB SPACING FIX
+   ============================================================ */
+
+@media (min-width: 1025px) {
+  .medical-records-page .mr-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    align-items: center !important;
+    justify-content: stretch !important;
+
+    width: 100% !important;
+    gap: 0 !important;
+
+    padding: 0 14px 16px !important;
+    margin-bottom: 23px !important;
+
+    overflow: visible !important;
+  }
+
+  .medical-records-page .mr-tab {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 8px !important;
+
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  .medical-records-page .mr-tab.active::after {
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+
+    width: min(69px, 70%) !important;
+    max-width: 70% !important;
+  }
+}
+
+/* ============================================================
+   DOCTOR MEDICAL RECORD — POLISHED CLINICAL OVERVIEW
+   Keeps the page dense, aligned, and readable across viewports.
+   ============================================================ */
+
+.doctor-dashboard .medical-records-page {
+  --mr-overview-gap: 18px;
+  --mr-surface-border: #e7e9f0;
+  --mr-surface-shadow: 0 10px 28px rgba(31, 35, 48, 0.055);
+  padding: 22px 0 48px;
+}
+
+.doctor-dashboard .medical-records-content {
+  width: min(1480px, calc(100% - 48px));
+  margin-inline: auto;
+  padding-bottom: 32px;
+}
+
+.doctor-dashboard .doctor-patient-header-rail {
+  grid-template-columns: minmax(0, 1fr) 410px;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.doctor-dashboard .doctor-patient-title {
+  padding-top: 2px;
+}
+
+.doctor-dashboard .mr-top-row {
+  margin-bottom: 6px;
+}
+
+.doctor-dashboard .mr-back-btn {
+  min-height: 28px;
+  gap: 6px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.doctor-dashboard .mr-page-header h1 {
+  font-size: clamp(32px, 2.2vw, 38px);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.doctor-dashboard .mr-page-header p {
+  margin-top: 5px;
+  color: #697080;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* Flatten the supplied profile/action wrapper into a two-row action rail. */
+.doctor-dashboard .medical-records-page .doctor-patient-header-action-slot {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  grid-template-rows: auto auto;
+  justify-content: end;
+  align-items: center;
+  gap: 8px 10px;
+  width: 410px;
+}
+
+.doctor-dashboard .medical-records-page .doctor-patient-header-actions {
+  display: contents !important;
+}
+
+.doctor-dashboard .medical-records-page .doctor-shell-header-controls {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.doctor-dashboard .medical-records-page .doctor-edit-record-button {
+  grid-column: 1;
+  grid-row: 2;
+  width: 154px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  align-self: center !important;
+  justify-self: end;
+  border-radius: 10px !important;
+  padding-inline: 14px !important;
+  font-size: 13px !important;
+}
+
+.doctor-dashboard .medical-records-page .mr-header-notification-action {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 178px;
+  min-height: 40px;
+  height: 40px;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.doctor-dashboard .mr-patient-card {
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.36fr);
+  gap: var(--mr-overview-gap);
+  margin-bottom: var(--mr-overview-gap);
+}
+
+.doctor-dashboard .mr-patient-main,
+.doctor-dashboard .mr-pregnancy-box,
+.doctor-dashboard .mr-card,
+.doctor-dashboard .mr-tabs {
+  border-color: var(--mr-surface-border);
+  box-shadow: var(--mr-surface-shadow);
+}
+
+.doctor-dashboard .mr-patient-main {
+  min-height: 232px;
+  gap: 24px;
+  border-radius: 18px;
+  padding: 24px 28px;
+}
+
+.doctor-dashboard .mr-avatar {
+  width: 106px;
+  height: 106px;
+  flex-basis: 106px;
+  border-radius: 18px;
+  font-size: 31px;
+}
+
+.doctor-dashboard .mr-name-row {
+  gap: 12px;
+}
+
+.doctor-dashboard .mr-name-row h2 {
+  font-size: 27px;
+  line-height: 1.15;
+}
+
+.doctor-dashboard .mr-status {
+  min-width: 92px;
+  height: 26px;
+  font-size: 11px;
+}
+
+.doctor-dashboard .mr-patient-id {
+  margin-top: 3px;
+  margin-bottom: 17px;
+  font-size: 14px;
+}
+
+.doctor-dashboard .mr-details-grid {
+  gap: 10px 28px;
+}
+
+.doctor-dashboard .mr-details-column {
+  gap: 9px;
+}
+
+.doctor-dashboard .mr-info-row {
+  grid-template-columns: 20px minmax(104px, max-content) minmax(0, 1fr);
+  gap: 8px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.doctor-dashboard .mr-info-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.doctor-dashboard .mr-info-label {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.doctor-dashboard .mr-info-value {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.doctor-dashboard .mr-pregnancy-box {
+  min-height: 232px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #fff3f7 0%, #fff8fb 100%);
+  padding: 24px 26px;
+}
+
+.doctor-dashboard .mr-pregnancy-box h3 {
+  margin-bottom: 14px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.doctor-dashboard .mr-pregnancy-list div {
+  min-height: 42px;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.doctor-dashboard .mr-pregnancy-list span {
+  max-width: 170px;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.doctor-dashboard .mr-risk {
+  min-width: 84px;
+  height: 26px;
+  padding-inline: 10px;
+  font-size: 11px;
+}
+
+.doctor-dashboard .mr-tabs {
+  min-height: 52px;
+  margin-bottom: var(--mr-overview-gap) !important;
+  border-radius: 14px;
+  padding: 6px !important;
+}
+
+.doctor-dashboard .mr-tab {
+  min-height: 40px;
+  border-radius: 9px;
+  padding-inline: 10px !important;
+  font-size: 13px;
+}
+
+.doctor-dashboard .mr-tab.active::after {
+  bottom: 1px;
+  width: 40px !important;
+  height: 3px;
+}
+
+.doctor-dashboard .mr-overview-dashboard-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.36fr);
+  gap: var(--mr-overview-gap);
+}
+
+.doctor-dashboard .mr-overview-main-column,
+.doctor-dashboard .mr-overview-side-column {
+  gap: var(--mr-overview-gap);
+}
+
+.doctor-dashboard .mr-overview-lower-grid {
+  gap: var(--mr-overview-gap);
+}
+
+.doctor-dashboard .mr-card {
+  border-radius: 16px;
+  padding: 20px 22px;
+}
+
+.doctor-dashboard .mr-progress-card {
+  padding: 22px 24px;
+}
+
+.doctor-dashboard .mr-progress-header {
+  margin-bottom: 14px;
+}
+
+.doctor-dashboard .mr-progress-header h3,
+.doctor-dashboard .mr-section-title-text h3 {
+  color: #343844;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.doctor-dashboard .mr-progress-header strong {
+  color: #454a57;
+  font-size: 15px;
+}
+
+.doctor-dashboard .mr-progress-bar {
+  height: 10px;
+  margin-bottom: 10px;
+}
+
+.doctor-dashboard .mr-progress-labels {
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 22px;
+  font-size: 10px;
+}
+
+.doctor-dashboard .mr-progress-labels span {
+  text-align: center;
+}
+
+.doctor-dashboard .mr-progress-labels span:first-child {
+  text-align: left;
+}
+
+.doctor-dashboard .mr-progress-labels span:last-child {
+  text-align: right;
+}
+
+.doctor-dashboard .mr-stat-grid {
+  gap: 10px;
+}
+
+.doctor-dashboard .mr-stat-card {
+  min-height: 84px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  border: 1px solid rgba(31, 35, 48, 0.045);
+  border-radius: 12px;
+  padding: 12px 10px;
+}
+
+.doctor-dashboard .mr-stat-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.doctor-dashboard .mr-stat-card p {
+  font-size: 11px;
+}
+
+.doctor-dashboard .mr-stat-card strong {
+  font-size: 13px;
+}
+
+.doctor-dashboard .mr-stat-card span {
+  font-size: 10px;
+}
+
+.doctor-dashboard .mr-section-header {
+  margin-bottom: 16px;
+}
+
+.doctor-dashboard .mr-icon-badge {
+  width: 34px;
+  height: 34px;
+}
+
+.doctor-dashboard .mr-card-body {
+  gap: 8px;
+  padding-bottom: 16px;
+}
+
+.doctor-dashboard .mr-record-row {
+  grid-template-columns: minmax(112px, 0.8fr) minmax(0, 1fr);
+  gap: 10px;
+  font-size: 13px;
+}
+
+.doctor-dashboard .mr-record-stack {
+  gap: 5px;
+  font-size: 13px;
+}
+
+.doctor-dashboard .mr-vitals-card,
+.doctor-dashboard .mr-schedule-card,
+.doctor-dashboard .mr-last-visit-card {
+  min-height: 280px;
+}
+
+.doctor-dashboard .mr-notes-card {
+  min-height: 270px;
+  display: flex;
+  flex-direction: column;
+}
+
+.doctor-dashboard .mr-schedule-content {
+  margin-left: 0;
+  gap: 8px;
+}
+
+.doctor-dashboard .mr-schedule-content div {
+  gap: 6px;
+}
+
+.doctor-dashboard .mr-notes-text {
+  margin: 0 0 12px;
+}
+
+.doctor-dashboard .mr-notes-text p {
+  margin-bottom: 12px;
+}
+
+.doctor-dashboard .mr-notes-open-btn {
+  align-self: flex-start;
+  margin: 0 0 14px;
+  font-weight: 600;
+}
+
+.doctor-dashboard .mr-last-updated {
+  position: static;
+  display: block;
+  margin-top: auto;
+  border-top: 1px solid #eceef3;
+  padding-top: 12px;
+  color: #9096a4;
+  line-height: 1.4;
+}
+
+.doctor-dashboard .mr-outline-btn {
+  align-self: flex-start;
+  min-width: 0;
+  height: 38px;
+  border-radius: 9px;
+  padding-inline: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 1260px) {
+  .doctor-dashboard .medical-records-content {
+    width: min(100%, calc(100% - 36px));
+  }
+
+  .doctor-dashboard .mr-patient-card,
+  .doctor-dashboard .mr-overview-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-pregnancy-box {
+    min-height: 0;
+  }
+
+  .doctor-dashboard .mr-pregnancy-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 20px;
+  }
+}
+
+@media (max-width: 960px) {
+  .doctor-dashboard .doctor-patient-header-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .doctor-patient-title {
+    order: 1;
+  }
+
+  .doctor-dashboard .doctor-patient-header-action-slot {
+    order: 2;
+  }
+
+  .doctor-dashboard .medical-records-page .doctor-patient-header-action-slot {
+    justify-content: start;
+    width: 100%;
+  }
+
+  .doctor-dashboard .medical-records-page .doctor-shell-header-controls {
+    justify-self: start;
+  }
+
+  .doctor-dashboard .mr-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-overview-lower-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .doctor-dashboard .medical-records-page {
+    padding-top: 16px;
+  }
+
+  .doctor-dashboard .medical-records-content {
+    width: calc(100% - 24px);
+  }
+
+  .doctor-dashboard .medical-records-page .doctor-patient-header-action-slot {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .doctor-dashboard .medical-records-page .doctor-shell-header-controls {
+    width: 100% !important;
+  }
+
+  .doctor-dashboard .medical-records-page .doctor-edit-record-button,
+  .doctor-dashboard .medical-records-page .mr-header-notification-action {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .doctor-dashboard .mr-patient-main {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .doctor-dashboard .mr-avatar {
+    width: 82px;
+    height: 82px;
+    flex-basis: 82px;
+    font-size: 26px;
+  }
+
+  .doctor-dashboard .mr-name-row h2 {
+    font-size: 24px;
+  }
+
+  .doctor-dashboard .mr-pregnancy-box,
+  .doctor-dashboard .mr-card {
+    padding: 18px;
+  }
+
+  .doctor-dashboard .mr-pregnancy-list {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .doctor-dashboard .mr-progress-labels {
+    font-size: 9px;
   }
 }

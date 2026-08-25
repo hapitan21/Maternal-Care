@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import {
+  cacheStaffSettings,
   getStaffInitials,
   getStaffSettings,
   staffSettingsUpdatedEvent,
@@ -9,15 +10,47 @@ import {
 import "../../styles/staff-viewprofile.css";
 
 const staffProfilePhotoKey = "staff_profile_photo";
-const defaultStaffProfilePhoto = "/images/doctor-kempee-profile.svg";
+const defaultStaffProfilePhoto = "";
+const staffPersonalSelect = `
+  auth_user_id,
+  full_name,
+  birthdate,
+  civil_status,
+  gender,
+  nationality,
+  address
+`;
+const staffPersonalLegacySelect = `
+  auth_user_id,
+  full_name,
+  birthdate,
+  civil_status,
+  gender,
+  nationality
+`;
+const staffProfessionalSelect = `
+  auth_user_id,
+  staff_code,
+  position,
+  date_hired,
+  employment_status,
+  email_address,
+  contact_number,
+  clinic_hospital_name,
+  clinic_address
+`;
+const staffProfessionalLegacySelect = `
+  auth_user_id,
+  staff_code,
+  email_address,
+  contact_number,
+  clinic_hospital_name,
+  clinic_address
+`;
 
 function getStaffProfilePhoto() {
   try {
-    return (
-      window.localStorage.getItem(staffProfilePhotoKey) ||
-      window.localStorage.getItem("doctor_profile_photo") ||
-      defaultStaffProfilePhoto
-    );
+    return window.localStorage.getItem(staffProfilePhotoKey) || "";
   } catch {
     return defaultStaffProfilePhoto;
   }
@@ -67,7 +100,7 @@ function normalizeDateForInput(value) {
 }
 
 function formatBirthdate(value) {
-  if (!value) return "Not set";
+  if (!value) return "Not provided";
 
   const parts = String(value).split("-");
 
@@ -93,32 +126,158 @@ function formatBirthdate(value) {
 }
 
 function displayValue(value) {
-  return hasValue(value) ? value : "Not set";
+  return hasValue(value) ? value : "Not provided";
 }
 
-function getFallbackProfile() {
-  const settings = getStaffSettings();
+function isSchemaColumnError(error) {
+  if (!error) return false;
+  const message = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("could not find") ||
+    message.includes("column")
+  );
+}
 
-  const experienceValue = String(
-    settings.yearsExperience ?? ""
-  ).replace(/[^\d]/g, "");
+async function loadStaffRecord(tableName, selectColumns, fallbackColumns, userId) {
+  let { data, error } = await supabase
+    .from(tableName)
+    .select(selectColumns)
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+
+  if (error && isSchemaColumnError(error) && fallbackColumns) {
+    const fallbackResult = await supabase
+      .from(tableName)
+      .select(fallbackColumns)
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
+
+  return { data, error };
+}
+
+function getEmptyProfile() {
+  return {
+    displayName: "",
+    birthdate: "",
+    civilStatus: "",
+    gender: "",
+    nationality: "",
+    address: "",
+    employeeId: "",
+    position: "",
+    dateHired: "",
+    employmentStatus: "",
+    email: "",
+    contactNumber: "",
+    clinicName: "",
+    clinicAddress: "",
+    accountStatus: "",
+  };
+}
+
+let cachedStaffProfile = null;
+
+let cachedStaffAppointmentStats = null;
+
+function getSharedProfileSnapshot() {
+  const sharedSettings = getStaffSettings();
+
+  const cachedEmail = String(
+    cachedStaffProfile?.email || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const sharedEmail = String(
+    sharedSettings.email || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  /*
+   * Reuse the module snapshot only when it belongs to the currently
+   * authorized Staff identity. This avoids showing a previous Staff account
+   * after logout/login in the same browser tab.
+   */
+  if (
+    cachedStaffProfile &&
+    sharedEmail &&
+    cachedEmail === sharedEmail
+  ) {
+    return {
+      ...cachedStaffProfile,
+    };
+  }
+
+  if (
+    cachedStaffProfile &&
+    (!sharedEmail || cachedEmail !== sharedEmail)
+  ) {
+    cachedStaffProfile = null;
+    cachedStaffAppointmentStats = null;
+  }
 
   return {
-    displayName: settings.displayName || "",
-    birthdate: normalizeDateForInput(settings.birthdate),
-    civilStatus: settings.civilStatus || "",
-    gender: settings.gender || "",
-    nationality: settings.nationality || "",
-    yearsExperience: experienceValue,
-
-    staffCode: settings.doctorId || "",
-    licenseNumber: settings.licenseNumber || "",
-    boardCertification: settings.boardCertification || "",
-    email: settings.email || "",
-    contactNumber: settings.contactNumber || "",
-    clinicName: settings.clinicName || "",
-    clinicAddress: settings.clinicAddress || "",
+    ...getEmptyProfile(),
+    displayName: sharedSettings.displayName || "",
+    birthdate: sharedSettings.birthdate || "",
+    civilStatus: sharedSettings.civilStatus || "",
+    gender: sharedSettings.gender || "",
+    nationality: sharedSettings.nationality || "",
+    address: sharedSettings.address || "",
+    employeeId:
+      sharedSettings.employeeId ||
+      sharedSettings.doctorId ||
+      "",
+    position: sharedSettings.position || "",
+    dateHired: sharedSettings.dateHired || "",
+    employmentStatus:
+      sharedSettings.employmentStatus || "",
+    email: sharedSettings.email || "",
+    contactNumber: sharedSettings.contactNumber || "",
+    clinicName: sharedSettings.clinicName || "",
+    clinicAddress: sharedSettings.clinicAddress || "",
   };
+}
+
+function hasProfileSnapshot(profile) {
+  return Boolean(
+    profile?.displayName ||
+      profile?.email ||
+      profile?.employeeId ||
+      profile?.contactNumber
+  );
+}
+
+function getDefaultAppointmentStats() {
+  return [
+    {
+      icon: "solar:calendar-remove-linear",
+      label: "Canceled",
+      value: "0",
+    },
+    {
+      icon: "solar:calendar-mark-linear",
+      label: "Today's",
+      value: "0",
+    },
+    {
+      icon: "solar:clock-circle-linear",
+      label: "Pending",
+      value: "0",
+    },
+    {
+      icon: "solar:check-circle-linear",
+      label: "Completed",
+      value: "0",
+    },
+  ];
 }
 
 function ProfileInfoRow({ item }) {
@@ -146,40 +305,47 @@ function ProfileDetailRow({ item }) {
 }
 
 function StaffViewProfileContent({ headerAction }) {
+  const initialProfileSnapshot = getSharedProfileSnapshot();
+
   const [activeTab, setActiveTab] = useState("personal");
   const [profilePhoto, setProfilePhoto] = useState(getStaffProfilePhoto);
 
-  const [profile, setProfile] = useState(getFallbackProfile);
+  const [profile, setProfile] = useState(
+    initialProfileSnapshot
+  );
 
-  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState(
+    !hasProfileSnapshot(initialProfileSnapshot)
+  );
 
   const [profileError, setProfileError] = useState("");
 
-  const [appointmentStats, setAppointmentStats] = useState([
-    {
-      icon: "solar:calendar-remove-linear",
-      label: "Canceled",
-      value: "0",
-    },
-    {
-      icon: "solar:calendar-mark-linear",
-      label: "Today's",
-      value: "0",
-    },
-    {
-      icon: "solar:clock-circle-linear",
-      label: "Pending",
-      value: "0",
-    },
-    {
-      icon: "solar:check-circle-linear",
-      label: "Completed",
-      value: "0",
-    },
-  ]);
+  const [appointmentStats, setAppointmentStats] = useState(
+    () =>
+      cachedStaffProfile &&
+      cachedStaffAppointmentStats
+        ? cachedStaffAppointmentStats.map((item) => ({
+            ...item,
+          }))
+        : getDefaultAppointmentStats()
+  );
 
   const loadStaffProfile = useCallback(async () => {
-    setLoadingProfile(true);
+    /*
+     * Keep the last successful profile visible while Supabase refreshes.
+     * Only show the blocking profile loader when there is no usable snapshot.
+     */
+    if (!cachedStaffProfile) {
+      const sharedSnapshot = getSharedProfileSnapshot();
+
+      if (!hasProfileSnapshot(sharedSnapshot)) {
+        setLoadingProfile(true);
+      } else {
+        setProfile(sharedSnapshot);
+        setLoadingProfile(false);
+      }
+    }
+
     setProfileError("");
 
     try {
@@ -198,40 +364,29 @@ function StaffViewProfileContent({ headerAction }) {
         );
       }
 
-      const [personalResult, professionalResult] = await Promise.all([
+      const [profileResult, personalResult, professionalResult] = await Promise.all([
         supabase
-          .from("staff_personal_information")
-          .select(
-            `
-              auth_user_id,
-              full_name,
-              birthdate,
-              civil_status,
-              gender,
-              nationality,
-              years_of_experience
-            `
-          )
-          .eq("auth_user_id", user.id)
+          .from("profiles")
+          .select("full_name, email, account_status")
+          .eq("id", user.id)
           .maybeSingle(),
-
-        supabase
-          .from("staff_professional_information")
-          .select(
-            `
-              auth_user_id,
-              staff_code,
-              license_number,
-              board_certification,
-              email_address,
-              contact_number,
-              clinic_hospital_name,
-              clinic_address
-            `
-          )
-          .eq("auth_user_id", user.id)
-          .maybeSingle(),
+        loadStaffRecord(
+          "staff_personal_information",
+          staffPersonalSelect,
+          staffPersonalLegacySelect,
+          user.id
+        ),
+        loadStaffRecord(
+          "staff_professional_information",
+          staffProfessionalSelect,
+          staffProfessionalLegacySelect,
+          user.id
+        ),
       ]);
+
+      if (profileResult.error) {
+        throw profileResult.error;
+      }
 
       if (personalResult.error) {
         throw personalResult.error;
@@ -241,68 +396,96 @@ function StaffViewProfileContent({ headerAction }) {
         throw professionalResult.error;
       }
 
-      const fallbackProfile = getFallbackProfile();
+      const authMetadataName =
+        user.user_metadata?.full_name || user.user_metadata?.name || "";
+      const profileData = profileResult.data;
       const personalData = personalResult.data;
       const professionalData = professionalResult.data;
 
       const loadedProfile = {
         displayName:
-          personalData?.full_name ??
-          fallbackProfile.displayName,
+          personalData?.full_name ||
+          profileData?.full_name ||
+          authMetadataName ||
+          "",
 
         birthdate:
-          normalizeDateForInput(personalData?.birthdate) ||
-          fallbackProfile.birthdate,
+          normalizeDateForInput(personalData?.birthdate),
 
         civilStatus:
-          personalData?.civil_status ??
-          fallbackProfile.civilStatus,
+          personalData?.civil_status || "",
 
         gender:
-          personalData?.gender ??
-          fallbackProfile.gender,
+          personalData?.gender || "",
 
         nationality:
-          personalData?.nationality ??
-          fallbackProfile.nationality,
+          personalData?.nationality || "",
 
-        yearsExperience: hasValue(
-          personalData?.years_of_experience
-        )
-          ? String(personalData.years_of_experience)
-          : fallbackProfile.yearsExperience,
+        address:
+          personalData?.address || "",
 
-        staffCode:
-          professionalData?.staff_code ??
-          fallbackProfile.staffCode,
+        employeeId:
+          professionalData?.staff_code || "",
 
-        licenseNumber:
-          professionalData?.license_number ??
-          fallbackProfile.licenseNumber,
+        position:
+          professionalData?.position || "",
 
-        boardCertification:
-          professionalData?.board_certification ??
-          fallbackProfile.boardCertification,
+        dateHired:
+          normalizeDateForInput(professionalData?.date_hired),
+
+        employmentStatus:
+          professionalData?.employment_status || "",
 
         email:
-          professionalData?.email_address ??
-          user.email ??
-          fallbackProfile.email,
+          professionalData?.email_address ||
+          profileData?.email ||
+          user.email ||
+          "",
 
         contactNumber:
-          professionalData?.contact_number ??
-          fallbackProfile.contactNumber,
+          professionalData?.contact_number || "",
 
         clinicName:
-          professionalData?.clinic_hospital_name ??
-          fallbackProfile.clinicName,
+          professionalData?.clinic_hospital_name || "",
 
         clinicAddress:
-          professionalData?.clinic_address ??
-          fallbackProfile.clinicAddress,
+          professionalData?.clinic_address || "",
+
+        accountStatus:
+          profileData?.account_status || "",
+      };
+
+      cachedStaffProfile = {
+        ...loadedProfile,
       };
 
       setProfile(loadedProfile);
+
+      /*
+       * Synchronize the shared Staff UI snapshot after the Supabase read.
+       * Supabase remains authoritative; this only prevents cross-page flashes.
+       */
+      cacheStaffSettings(
+        {
+          ...getStaffSettings(),
+          displayName: loadedProfile.displayName,
+          birthdate: loadedProfile.birthdate,
+          civilStatus: loadedProfile.civilStatus,
+          gender: loadedProfile.gender,
+          nationality: loadedProfile.nationality,
+          address: loadedProfile.address,
+          employeeId: loadedProfile.employeeId,
+          position: loadedProfile.position,
+          dateHired: loadedProfile.dateHired,
+          employmentStatus:
+            loadedProfile.employmentStatus,
+          email: loadedProfile.email,
+          contactNumber: loadedProfile.contactNumber,
+          clinicName: loadedProfile.clinicName,
+          clinicAddress: loadedProfile.clinicAddress,
+        },
+        { broadcast: false }
+      );
     } catch (error) {
       console.error("Unable to load staff profile:", error);
 
@@ -315,7 +498,11 @@ function StaffViewProfileContent({ headerAction }) {
   }, []);
 
   useEffect(() => {
-    loadStaffProfile();
+    const loadProfileTimer = window.setTimeout(loadStaffProfile, 0);
+
+    return () => {
+      window.clearTimeout(loadProfileTimer);
+    };
   }, [loadStaffProfile]);
 
   useEffect(() => {
@@ -386,12 +573,12 @@ function StaffViewProfileContent({ headerAction }) {
         supabase
           .from("schedule")
           .select("id", { count: "exact", head: true })
-          .in("status", ["completed", "checked_in"]),
+          .in("status", ["completed"]),
       ]);
 
       if (!active) return;
 
-      setAppointmentStats([
+      const nextAppointmentStats = [
         {
           icon: "solar:calendar-remove-linear",
           label: "Canceled",
@@ -412,7 +599,14 @@ function StaffViewProfileContent({ headerAction }) {
           label: "Completed",
           value: String(completedResult.count ?? 0),
         },
-      ]);
+      ];
+
+      cachedStaffAppointmentStats =
+        nextAppointmentStats.map((item) => ({
+          ...item,
+        }));
+
+      setAppointmentStats(nextAppointmentStats);
     };
 
     loadAppointmentSummary();
@@ -449,7 +643,7 @@ function StaffViewProfileContent({ headerAction }) {
     },
     {
       icon: "solar:map-point-linear",
-      label: "Practice Location",
+      label: "Clinic Address",
       value: profile.clinicAddress,
     },
   ];
@@ -475,43 +669,37 @@ function StaffViewProfileContent({ headerAction }) {
       label: "Nationality",
       value: profile.nationality,
     },
-  ];
-
-  const personalProfessionalInfo = [
-    {
-      icon: "solar:case-round-linear",
-      label: "Years of Experience",
-      value: hasValue(profile.yearsExperience)
-        ? `${profile.yearsExperience} years`
-        : "",
-    },
-    {
-      icon: "solar:medical-kit-linear",
-      label: "Specialization",
-      value: profile.boardCertification,
-    },
     {
       icon: "solar:heart-linear",
       label: "Civil Status",
       value: profile.civilStatus,
     },
+    {
+      icon: "solar:map-point-linear",
+      label: "Address",
+      value: profile.address,
+    },
   ];
 
   const professionalInfo = [
     {
-      label: "Staff ID",
-      value: profile.staffCode,
+      label: "Employee ID",
+      value: profile.employeeId,
     },
     {
-      label: "Employee Number",
-      value: profile.licenseNumber,
+      label: "Position",
+      value: profile.position,
     },
     {
-      label: "Department",
-      value: "Maternal Care Operations",
+      label: "Date Hired",
+      value: formatBirthdate(profile.dateHired),
     },
     {
-      label: "Clinic/Hospital",
+      label: "Employment Status",
+      value: profile.employmentStatus,
+    },
+    {
+      label: "Clinic/Hospital Name",
       value: profile.clinicName,
     },
     {
@@ -528,10 +716,8 @@ function StaffViewProfileContent({ headerAction }) {
     },
   ];
 
-  const professionalColumns = [
-    professionalInfo.slice(0, 4),
-    professionalInfo.slice(4),
-  ];
+  const personalColumns = [personalInfo.slice(0, 3), personalInfo.slice(3)];
+  const professionalColumns = [professionalInfo.slice(0, 4), professionalInfo.slice(4)];
 
   const initials = getStaffInitials(
     profile.displayName || "Staff"
@@ -561,7 +747,8 @@ function StaffViewProfileContent({ headerAction }) {
         <div className="doctor-profile-main-info">
           <div className="doctor-profile-name-line">
             <h3>
-              {loadingProfile
+              {loadingProfile &&
+              !hasProfileSnapshot(profile)
                 ? "Loading..."
                 : displayValue(profile.displayName)}
             </h3>
@@ -572,11 +759,10 @@ function StaffViewProfileContent({ headerAction }) {
             </span>
           </div>
 
-          <p>Maternal Care Staff</p>
+          <p>{displayValue(profile.position || "Staff")}</p>
 
           <span>
-            Employee No.:{" "}
-            {displayValue(profile.licenseNumber)}
+            Employee ID: {displayValue(profile.employeeId)}
           </span>
         </div>
 
@@ -655,30 +841,27 @@ function StaffViewProfileContent({ headerAction }) {
           key={activeTab}
           role="tabpanel"
         >
-          {loadingProfile ? (
+          {loadingProfile &&
+          !hasProfileSnapshot(profile) ? (
             <div className="staff-profile-loading">
               <Icon icon="solar:refresh-linear" />
               Loading staff information...
             </div>
           ) : activeTab === "personal" ? (
             <>
-              <div className="doctor-profile-info-column">
-                {personalInfo.map((item) => (
-                  <ProfileInfoRow
-                    item={item}
-                    key={item.label}
-                  />
-                ))}
-              </div>
-
-              <div className="doctor-profile-info-column">
-                {personalProfessionalInfo.map((item) => (
-                  <ProfileInfoRow
-                    item={item}
-                    key={item.label}
-                  />
-                ))}
-              </div>
+              {personalColumns.map((column, index) => (
+                <div
+                  className="doctor-profile-info-column"
+                  key={`personal-${index}`}
+                >
+                  {column.map((item) => (
+                    <ProfileInfoRow
+                      item={item}
+                      key={item.label}
+                    />
+                  ))}
+                </div>
+              ))}
             </>
           ) : (
             professionalColumns.map((column, index) => (

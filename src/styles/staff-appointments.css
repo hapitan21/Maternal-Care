@@ -49,6 +49,10 @@
 }
 
 .staff-appointments-status-message {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   margin: -42px 0 24px;
   color: var(--staff-appointments-pink);
   font-size: 13px;
@@ -56,13 +60,28 @@
   line-height: 1.4;
 }
 
+.staff-appointments-status-message button {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.staff-appointments-status-message button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .staff-appointments-toolbar {
   display: grid;
-  grid-template-columns: minmax(280px, 390px) max-content;
+  grid-template-columns: minmax(280px, 390px) 195px;
   justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  margin: -42px 0 10px;
+  align-items: start;
+  gap: 22px;
+  margin: -42px 0 14px;
 }
 
 .staff-appointments-status-message + .staff-appointments-toolbar {
@@ -328,6 +347,123 @@
   width: 100%;
 }
 
+.staff-appointments-view-switch {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 4px;
+  border: 1px solid #d9dce8;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.staff-appointments-view-switch button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #596174;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.staff-appointments-view-switch button:hover,
+.staff-appointments-view-switch button.is-active {
+  background: #fff0f6;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointments-action-stack {
+  width: 195px;
+  display: grid;
+  gap: 9px;
+}
+
+.staff-appointments-action-stack .staff-add-appointment-btn {
+  width: 100%;
+  min-width: 0;
+}
+
+.staff-appointments-month-filter {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  color: #596174;
+  font-size: 10.5px;
+  font-weight: 850;
+}
+
+.staff-appointments-month-control {
+  position: relative;
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 12px;
+  border: 1px solid #cfd2e0;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #414755;
+}
+
+.staff-appointments-month-control:focus-within {
+  border-color: rgba(255, 47, 125, 0.65);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-appointments-month-control > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointments-month-control input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #2d3340;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.staff-appointments-month-control input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+.staff-appointments-month-clear {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #7a8294;
+}
+
+.staff-appointments-month-clear:hover,
+.staff-appointments-month-clear:focus-visible {
+  outline: 0;
+  background: #fff0f6;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-appointments-month-clear svg {
+  width: 17px;
+  height: 17px;
+}
+
 /* Table */
 .staff-appointments-table-card {
   width: 100%;
@@ -395,6 +531,54 @@
   height: 120px !important;
   color: var(--staff-appointments-muted) !important;
   text-align: center;
+}
+
+.staff-appointments-pagination {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 20px;
+  border-top: 1px solid #cfd2e0;
+  color: #596174;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.staff-appointments-pagination label,
+.staff-appointments-pagination div {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.staff-appointments-pagination select {
+  min-height: 32px;
+  border: 1px solid #cfd2e0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #343945;
+  font: inherit;
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.staff-appointments-pagination button {
+  min-height: 32px;
+  border: 1px solid #cfd2e0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #414755;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 0 12px;
+}
+
+.staff-appointments-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* Status select */
@@ -2582,12 +2766,23 @@
   color: var(--staff-appointments-pink-dark, #ee1768);
 }
 
+@media (max-width: 900px) {
+  .staff-appointments-toolbar {
+    grid-template-columns: minmax(0, 1fr) 185px;
+  }
+
+  .staff-appointments-action-stack {
+    width: 185px;
+  }
+}
+
 @media (max-width: 760px) {
   .staff-appointments-toolbar {
     grid-template-columns: 1fr;
     margin-top: -12px;
   }
 
+  .staff-appointments-action-stack,
   .staff-add-appointment-btn,
   .staff-appointments-search-wrap,
   .staff-appointments-search {
@@ -3172,4 +3367,289 @@
 .staff-add-appointment-modal footer button[type="submit"]:disabled {
   color: #ffffff !important;
   opacity: 0.78 !important;
+}
+
+/* Appointment type category overrides shared with Doctor appointments. */
+.staff-week-event-prenatal,
+.staff-fullcalendar-event-prenatal {
+  color: var(--staff-appointments-pink);
+  background: #ffe3ef;
+}
+
+.staff-week-event-laboratory,
+.staff-fullcalendar-event-laboratory {
+  color: #147a86;
+  background: #dff7f8;
+}
+
+.staff-week-event-ultrasound,
+.staff-fullcalendar-event-ultrasound {
+  color: #5264f2;
+  background: #e6ebff;
+}
+
+.staff-week-event-vaccination,
+.staff-fullcalendar-event-vaccination {
+  color: #8b4dff;
+  background: #f0ddff;
+}
+
+.staff-week-event-fallback,
+.staff-fullcalendar-event-fallback {
+  color: #697386;
+  background: #eef1f6;
+}
+
+.staff-week-event strong,
+.staff-week-event span,
+.staff-week-event small,
+.staff-fullcalendar-card strong,
+.staff-fullcalendar-card span,
+.staff-fullcalendar-card small {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.staff-category-item.is-prenatal span {
+  background: #ffe0ee;
+  color: var(--staff-appointments-pink);
+}
+
+.staff-category-item.is-laboratory span {
+  background: #dff7f8;
+  color: #147a86;
+}
+
+.staff-category-item.is-ultrasound span {
+  background: #e6ebff;
+  color: #5264f2;
+}
+
+.staff-category-item.is-vaccination span {
+  background: #f0ddff;
+  color: #8b4dff;
+}
+
+.staff-category-item strong {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   FINAL CATEGORY TEXT WRAP FIX
+   Keeps the desktop 2x2 layout while allowing every long
+   appointment-category label to wrap without being clipped.
+   ========================================================= */
+
+.staff-categories-card {
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.staff-category-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+}
+
+.staff-category-item {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 86px !important;
+  height: auto !important;
+  display: grid !important;
+  grid-template-columns: 40px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 12px 11px !important;
+  overflow: visible !important;
+  border-radius: 14px !important;
+}
+
+.staff-category-item span {
+  width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 40px !important;
+}
+
+.staff-category-item strong {
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block !important;
+  color: #344052 !important;
+  font-size: 10.5px !important;
+  line-height: 1.35 !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  text-align: left !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  overflow-wrap: break-word !important;
+  word-break: normal !important;
+  hyphens: auto !important;
+}
+
+@media (max-width: 560px) {
+  .staff-category-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-category-item {
+    min-height: 72px !important;
+  }
+
+  .staff-category-item strong {
+    font-size: 12px !important;
+  }
+}
+
+/* =========================================================
+   STAFF APPOINTMENTS — COMPACT CONTROL TOOLBAR
+   ---------------------------------------------------------
+   [ View ] [ Search ........ ] [ Month ] [ Add Appointment ]
+   ========================================================= */
+
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-header {
+  margin-bottom: 22px !important;
+}
+
+.staff-appointments-page
+  .staff-appointments-toolbar.staff-appointments-toolbar-labeled {
+  display: grid !important;
+  grid-template-columns: max-content minmax(280px, 1fr) 210px 210px !important;
+  grid-template-areas: "view search month action" !important;
+  column-gap: 14px !important;
+  row-gap: 0 !important;
+  justify-content: stretch !important;
+  justify-items: stretch !important;
+  align-items: start !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 0 20px !important;
+}
+
+.staff-appointments-page .staff-appointments-view-group {
+  grid-area: view !important;
+}
+
+.staff-appointments-page .staff-appointments-action-group {
+  grid-area: action !important;
+}
+
+.staff-appointments-page .staff-appointments-search-group {
+  grid-area: search !important;
+}
+
+.staff-appointments-page .staff-appointments-month-filter {
+  grid-area: month !important;
+}
+
+.staff-appointments-page .staff-appointments-control-group {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 7px !important;
+  align-content: start !important;
+  margin: 0 !important;
+}
+
+.staff-appointments-page .staff-appointments-control-label {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #687082 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+.staff-appointments-page .staff-appointments-view-switch {
+  width: max-content !important;
+  min-height: 52px !important;
+  margin: 0 !important;
+}
+
+.staff-appointments-page .staff-appointments-search-group,
+.staff-appointments-page .staff-appointments-search-wrap,
+.staff-appointments-page .staff-appointments-search {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.staff-appointments-page .staff-appointments-action-group,
+.staff-appointments-page .staff-appointments-month-filter,
+.staff-appointments-page .staff-add-appointment-btn,
+.staff-appointments-page .staff-appointments-month-control {
+  width: 210px !important;
+  min-width: 210px !important;
+  max-width: 210px !important;
+}
+
+.staff-appointments-page .staff-add-appointment-btn {
+  min-height: 52px !important;
+  white-space: nowrap !important;
+}
+
+.staff-appointments-page .staff-appointments-search,
+.staff-appointments-page .staff-appointments-month-control {
+  min-height: 52px !important;
+}
+
+.staff-appointments-page .staff-appointment-summary {
+  margin-top: 0 !important;
+}
+
+/* Add Appointment modal: keep footer reachable on shorter screens. */
+.staff-add-appointment-modal {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  .staff-appointments-page
+    .staff-appointments-toolbar.staff-appointments-toolbar-labeled {
+    grid-template-columns: minmax(0, 1fr) 210px !important;
+    grid-template-areas:
+      "view action"
+      "search month" !important;
+    column-gap: 14px !important;
+    row-gap: 16px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-appointments-page
+    .staff-appointments-toolbar.staff-appointments-toolbar-labeled {
+    width: 100% !important;
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "view"
+      "search"
+      "month"
+      "action" !important;
+    gap: 14px !important;
+  }
+
+  .staff-appointments-page .staff-appointments-view-switch,
+  .staff-appointments-page .staff-appointments-search-group,
+  .staff-appointments-page .staff-appointments-search-wrap,
+  .staff-appointments-page .staff-appointments-search,
+  .staff-appointments-page .staff-appointments-action-group,
+  .staff-appointments-page .staff-appointments-month-filter,
+  .staff-appointments-page .staff-add-appointment-btn,
+  .staff-appointments-page .staff-appointments-month-control {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
 }

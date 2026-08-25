@@ -1,0 +1,904 @@
+.appointment-visit-page {
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  padding: 8px 0 44px;
+  color: #20283a;
+}
+
+.doctor-main--appointment-visit .doctor-content {
+  max-width: none;
+}
+
+.appointment-visit-header {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(320px, 1.4fr) minmax(160px, 1fr);
+  align-items: start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.appointment-visit-back {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: #ff3f80;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-visit-heading {
+  text-align: center;
+}
+
+.appointment-visit-heading h1 {
+  margin: 0;
+  color: #ff3f80;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+.appointment-visit-heading p {
+  margin: 5px 0 0;
+  color: #6f7889;
+  font-size: 13px;
+}
+
+.appointment-visit-id-badge {
+  justify-self: end;
+  width: 156px;
+  min-width: 136px;
+  padding: 10px 13px;
+  border: 1px solid #eef0f4;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(32, 40, 58, 0.08);
+  text-align: left;
+}
+
+.appointment-visit-id-badge span,
+.appointment-visit-id-badge strong {
+  display: block;
+}
+
+.appointment-visit-id-badge span {
+  margin-bottom: 2px;
+  color: #7d8492;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.appointment-visit-id-badge strong {
+  overflow-wrap: anywhere;
+  color: #ff3f80;
+  font-size: 13px;
+}
+
+.appointment-visit-form {
+  display: grid;
+  gap: 18px;
+}
+
+.appointment-visit-top-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 14px;
+}
+
+.appointment-visit-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #e9ebf1;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(32, 40, 58, 0.06);
+}
+
+.appointment-visit-summary-card {
+  padding: 18px 20px;
+}
+
+.appointment-visit-card-header {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+
+.appointment-visit-card-header h2 {
+  margin: 0;
+  color: #ff3f80;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.appointment-visit-field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 11px 14px;
+}
+
+.appointment-visit-field-grid.is-two-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.appointment-visit-field-grid.is-three-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.appointment-visit-field-span {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.appointment-visit-field {
+  min-width: 0;
+}
+
+.appointment-visit-field > label,
+.appointment-visit-attachment > label {
+  display: block;
+  margin-bottom: 5px;
+  color: #50596c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-visit-field > label span {
+  color: #e92f70;
+}
+
+.appointment-visit-field input,
+.appointment-visit-field select,
+.appointment-visit-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #dce1e9;
+  border-radius: 6px;
+  background: #fff;
+  color: #263047;
+  font: inherit;
+  font-size: 13px;
+}
+
+.appointment-visit-field input,
+.appointment-visit-field select {
+  height: 40px;
+  padding: 0 12px;
+}
+
+.appointment-visit-field select {
+  cursor: pointer;
+}
+
+.appointment-visit-field input[readonly],
+.appointment-visit-field input:disabled,
+.appointment-visit-field select:disabled,
+.appointment-visit-field textarea:disabled {
+  background: #f5f7fa;
+  color: #586276;
+  opacity: 1;
+}
+
+.appointment-visit-field input::placeholder,
+.appointment-visit-field textarea::placeholder {
+  color: #a3aab7;
+}
+
+.appointment-visit-field input:focus-visible,
+.appointment-visit-field select:focus-visible,
+.appointment-visit-field textarea:focus-visible,
+.appointment-visit-page button:focus-visible,
+.appointment-visit-choice-group button:focus-visible,
+.appointment-visit-checkbox-grid input:focus-visible {
+  outline: 3px solid rgba(255, 63, 128, 0.18);
+  outline-offset: 1px;
+  border-color: #ff3f80;
+}
+
+.appointment-visit-textarea-control {
+  position: relative;
+}
+
+.appointment-visit-textarea textarea {
+  display: block;
+  min-height: 94px;
+  padding: 9px 11px 24px;
+  resize: vertical;
+}
+
+.appointment-visit-textarea.is-compact textarea {
+  min-height: 90px;
+}
+
+.appointment-visit-textarea.is-medium textarea {
+  min-height: 106px;
+}
+
+.appointment-visit-textarea.is-large textarea {
+  min-height: 118px;
+}
+
+.appointment-visit-counter {
+  position: absolute;
+  right: 9px;
+  bottom: 7px;
+  color: #98a0af;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.appointment-visit-field-error {
+  display: block;
+  margin-top: 4px;
+  color: #c52b4e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.appointment-visit-choice-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.appointment-visit-choice-group legend {
+  margin-bottom: 6px;
+  color: #50596c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-visit-choice-group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.appointment-visit-choice-group button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 11px 4px 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #5d6678;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.appointment-visit-choice-group button::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  border: 2px solid #c7ccd5;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: inset 0 0 0 3px #fff;
+}
+
+.appointment-visit-choice-group button[aria-pressed="true"] {
+  color: #cf2861;
+  font-weight: 700;
+}
+
+.appointment-visit-choice-group button[aria-pressed="true"]::before {
+  border-color: #ff5b93;
+  background: #ff5b93;
+}
+
+.appointment-visit-choice-group button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.appointment-visit-clinical-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: end;
+  gap: 14px;
+  margin: 14px 0 10px;
+}
+
+.appointment-visit-paired-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 14px;
+}
+
+.appointment-visit-add-button,
+.appointment-visit-actions button,
+.appointment-visit-editor-actions button,
+.appointment-visit-state button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid #dce1e9;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f586a;
+  font-weight: 700;
+}
+
+.appointment-visit-add-button {
+  min-height: 32px;
+  border-color: #ff3f80;
+  background: #ff3f80;
+  color: #fff;
+  font-size: 12px;
+}
+
+.appointment-visit-add-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.appointment-visit-inline-editor {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 13px;
+  padding: 12px;
+  border: 1px solid #f1dce5;
+  border-radius: 8px;
+  background: #fff8fb;
+}
+
+.appointment-visit-inline-editor.is-medication-editor {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.appointment-visit-editor-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.appointment-visit-inline-editor.is-medication-editor .appointment-visit-editor-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+.appointment-visit-editor-actions button:first-child {
+  border-color: #ff3f80;
+  background: #ff3f80;
+  color: #fff;
+}
+
+.appointment-visit-editor-actions button:disabled,
+.appointment-visit-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.appointment-visit-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #eceef3;
+  border-radius: 7px;
+}
+
+.appointment-visit-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.appointment-visit-table th,
+.appointment-visit-table td {
+  padding: 11px 13px;
+  border-bottom: 1px solid #eef0f4;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.appointment-visit-table th {
+  background: #ff3f80;
+  color: #fff;
+  font-weight: 700;
+}
+
+.appointment-visit-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.appointment-visit-table-actions {
+  width: 82px;
+  white-space: nowrap;
+}
+
+.appointment-visit-table-actions button,
+.appointment-visit-file button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #e73070;
+}
+
+.appointment-visit-table-actions button:hover,
+.appointment-visit-file button:hover {
+  background: #fff0f5;
+}
+
+.appointment-visit-empty-row {
+  height: 48px;
+  color: #8b93a2;
+  text-align: center !important;
+}
+
+.appointment-visit-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.appointment-visit-checkbox-grid label {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  color: #4f586a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.appointment-visit-checkbox-grid input {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin: 1px 0 0;
+  accent-color: #ff3f80;
+}
+
+.appointment-visit-prescriber,
+.appointment-visit-legacy-note {
+  margin: 0 0 11px;
+  color: #697386;
+  font-size: 12px;
+}
+
+.appointment-visit-legacy-note {
+  margin: 11px 0 0;
+  padding: 9px 11px;
+  border-left: 3px solid #ff8eb4;
+  background: #fff7fa;
+  overflow-wrap: anywhere;
+}
+
+.appointment-visit-attachment {
+  margin-top: 12px;
+}
+
+.appointment-visit-upload-control {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px dashed #d9dee7;
+  border-radius: 7px;
+  background: #fafbfc;
+  color: #5c6576;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.appointment-visit-upload-control input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.appointment-visit-upload-control span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: #fff0f5;
+  color: #d72e69;
+  font-weight: 700;
+}
+
+.appointment-visit-upload-control small {
+  min-width: 0;
+  color: #7c8595;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appointment-visit-attachment > input[type="file"] {
+  width: 100%;
+  padding: 7px;
+  border: 1px dashed #d9dee7;
+  border-radius: 6px;
+  background: #fafbfc;
+  color: #5c6576;
+  font-size: 12px;
+}
+
+.appointment-visit-file {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  padding: 5px 8px;
+  border: 1px solid #f1dce5;
+  border-radius: 6px;
+  background: #fff7fa;
+  color: #5b6475;
+  font-size: 11px;
+}
+
+.appointment-visit-file span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appointment-visit-message {
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.appointment-visit-message.is-error {
+  border: 1px solid #ffd6df;
+  background: #fff1f4;
+  color: #b9294b;
+}
+
+.appointment-visit-message.is-success {
+  border: 1px solid #cdeedb;
+  background: #ebf9f1;
+  color: #187647;
+}
+
+.appointment-visit-baseline-disclosure {
+  margin: 0 0 13px;
+  border: 1px solid #f0dce5;
+  border-radius: 8px;
+  background: #fff8fb;
+  color: #5b6475;
+  font-size: 12px;
+}
+
+.appointment-visit-baseline-disclosure summary,
+.appointment-visit-optional-disclosure summary {
+  padding: 10px 13px;
+  color: #d72e69;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.appointment-visit-baseline-disclosure > div {
+  display: grid;
+  gap: 7px;
+  padding: 0 13px 12px;
+}
+
+.appointment-visit-baseline-disclosure p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.appointment-visit-optional-disclosure {
+  margin: 12px 0;
+  border: 1px solid #e6e9ef;
+  border-radius: 7px;
+  background: #fafbfc;
+}
+
+.appointment-visit-optional-disclosure[open] > summary {
+  border-bottom: 1px solid #e8ebf0;
+}
+
+.appointment-visit-optional-disclosure > .appointment-visit-field-grid,
+.appointment-visit-optional-disclosure > .appointment-visit-legacy-note {
+  margin: 0;
+}
+
+.appointment-visit-optional-disclosure > .appointment-visit-field-grid {
+  padding: 12px;
+}
+
+.appointment-visit-lifestyle-disclosure {
+  margin: 0;
+  border-color: #e9ebf1;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(32, 40, 58, 0.045);
+}
+
+.appointment-visit-lifestyle-disclosure > .appointment-visit-legacy-note {
+  margin: 0 12px 12px;
+}
+
+.appointment-visit-form--follow-up {
+  gap: 16px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-top-grid,
+.appointment-visit-form--follow-up .appointment-visit-paired-grid {
+  gap: 12px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-card {
+  padding: 15px 16px;
+  border-radius: 11px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-card-header {
+  margin-bottom: 10px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-card-header h2 {
+  font-size: 13px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-field-grid {
+  gap: 9px 12px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-field input,
+.appointment-visit-form--follow-up .appointment-visit-field select {
+  height: 36px;
+  font-size: 12px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-field > label,
+.appointment-visit-form--follow-up .appointment-visit-choice-group legend,
+.appointment-visit-form--follow-up .appointment-visit-attachment > label {
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-textarea.is-compact textarea {
+  min-height: 88px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-textarea.is-medium textarea {
+  min-height: 102px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-textarea.is-large textarea {
+  min-height: 112px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-review-card .appointment-visit-textarea.is-compact textarea {
+  min-height: 72px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-review-card .appointment-visit-textarea.is-medium textarea {
+  min-height: 96px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-clinical-row {
+  grid-template-columns: 1fr;
+  margin: 10px 0;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-table th,
+.appointment-visit-form--follow-up .appointment-visit-table td {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-empty-row {
+  height: 44px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-checkbox-grid {
+  gap: 8px 14px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-checkbox-grid label {
+  font-size: 11px;
+}
+
+.appointment-visit-form--follow-up .appointment-visit-prescriber {
+  margin-bottom: 8px;
+}
+
+.appointment-visit-actions {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 0;
+  background: transparent;
+}
+
+.appointment-visit-actions .is-primary {
+  min-width: 150px;
+  border-color: #ff3f80;
+  background: #ff3f80;
+  color: #fff;
+}
+
+.appointment-visit-actions .is-secondary {
+  border-color: #ffd0de;
+  background: #fff;
+  color: #d72e69;
+}
+
+.appointment-visit-state {
+  display: flex;
+  min-height: 340px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 30px;
+  color: #667085;
+}
+
+.appointment-visit-page button:not(:disabled) {
+  cursor: pointer;
+}
+
+@media (max-width: 1080px) {
+  .appointment-visit-top-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appointment-visit-summary-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 840px) {
+  .appointment-visit-header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .appointment-visit-heading {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding: 0 150px;
+  }
+
+  .appointment-visit-back {
+    grid-column: 1;
+    grid-row: 1;
+    z-index: 1;
+  }
+
+  .appointment-visit-id-badge {
+    grid-column: 2;
+    grid-row: 1;
+    z-index: 1;
+  }
+
+  .appointment-visit-field-grid.is-three-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appointment-visit-paired-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-visit-inline-editor,
+  .appointment-visit-inline-editor.is-medication-editor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appointment-visit-inline-editor .appointment-visit-editor-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 640px) {
+  .appointment-visit-page {
+    padding: 0 0 32px;
+  }
+
+  .appointment-visit-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .appointment-visit-heading {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 5px 0 0;
+    text-align: left;
+  }
+
+  .appointment-visit-heading h1 {
+    font-size: 24px;
+  }
+
+  .appointment-visit-back,
+  .appointment-visit-id-badge {
+    grid-row: 1;
+  }
+
+  .appointment-visit-id-badge {
+    min-width: 118px;
+  }
+
+  .appointment-visit-form {
+    gap: 13px;
+  }
+
+  .appointment-visit-top-grid,
+  .appointment-visit-field-grid.is-two-columns,
+  .appointment-visit-field-grid.is-three-columns,
+  .appointment-visit-clinical-row,
+  .appointment-visit-inline-editor,
+  .appointment-visit-inline-editor.is-medication-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-visit-summary-card:last-child {
+    grid-column: auto;
+  }
+
+  .appointment-visit-card,
+  .appointment-visit-summary-card {
+    padding: 15px;
+    border-radius: 10px;
+  }
+
+  .appointment-visit-card-header {
+    align-items: flex-start;
+  }
+
+  .appointment-visit-add-button {
+    flex: 0 0 auto;
+  }
+
+  .appointment-visit-checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-visit-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .appointment-visit-actions button,
+  .appointment-visit-actions .is-primary {
+    width: 100%;
+  }
+}

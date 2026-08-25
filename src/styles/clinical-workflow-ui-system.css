@@ -1,0 +1,1164 @@
+/* Shared clinical workflow system
+   Loaded after legacy Doctor styles so Reminders and Medication Follow-ups
+   use the same spacing, type scale, controls, cards, and dialog behavior. */
+
+:root {
+  --clinical-primary: #ff2f7d;
+  --clinical-primary-dark: #c91668;
+  --clinical-primary-soft: #fff0f6;
+  --clinical-ink: #20232b;
+  --clinical-copy: #485164;
+  --clinical-muted: #7f899b;
+  --clinical-line: #e4e8ef;
+  --clinical-surface: #ffffff;
+  --clinical-surface-soft: #f7f9fc;
+  --clinical-success: #21835a;
+  --clinical-warning: #986716;
+  --clinical-danger: #b32849;
+  --clinical-radius: 18px;
+  --clinical-control-height: 46px;
+  --clinical-shadow: 0 12px 30px rgba(33, 40, 56, 0.06);
+}
+
+.clinical-workflow,
+.clinical-workflow *,
+.clinical-workflow-dialog,
+.clinical-workflow-dialog * {
+  box-sizing: border-box;
+}
+
+.clinical-workflow {
+  width: 100%;
+  color: var(--clinical-ink);
+}
+
+.clinical-workflow-header {
+  width: 100% !important;
+  min-height: 88px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 24px !important;
+  margin: 0 0 22px !important;
+  padding: 4px 0 0 !important;
+}
+
+.clinical-workflow-title-block {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.clinical-workflow-header .clinical-workflow-title-block h1 {
+  margin: 0 !important;
+  color: var(--clinical-ink) !important;
+  font-size: clamp(28px, 2.35vw, 36px) !important;
+  line-height: 1.08 !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.clinical-workflow-header .clinical-workflow-title-block p {
+  max-width: 660px;
+  margin: 8px 0 0 !important;
+  color: var(--clinical-muted) !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.clinical-workflow-card {
+  border: 1px solid var(--clinical-line) !important;
+  border-radius: var(--clinical-radius) !important;
+  background: var(--clinical-surface) !important;
+  box-shadow: var(--clinical-shadow) !important;
+}
+
+.clinical-workflow-card-header {
+  min-height: 42px;
+  margin: 0 0 18px !important;
+}
+
+.clinical-workflow-card-header h2 {
+  color: var(--clinical-ink) !important;
+  font-size: 17px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.clinical-workflow-card-header > button {
+  color: var(--clinical-primary-dark) !important;
+  font-size: 12px !important;
+  font-weight: 750 !important;
+}
+
+.clinical-workflow-card-header > button:hover {
+  color: var(--clinical-primary) !important;
+}
+
+.clinical-workflow-tabs {
+  min-height: 40px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  border: 1px solid var(--clinical-line) !important;
+  border-radius: 11px !important;
+  background: var(--clinical-surface-soft) !important;
+  padding: 3px !important;
+}
+
+.clinical-workflow-tabs button {
+  min-height: 32px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  padding: 0 13px !important;
+  color: #626c7f !important;
+  font-size: 11.5px !important;
+  line-height: 1 !important;
+  font-weight: 750 !important;
+}
+
+.clinical-workflow-tabs button.is-active {
+  background: #ffffff !important;
+  color: var(--clinical-primary-dark) !important;
+  box-shadow: 0 2px 8px rgba(34, 40, 54, 0.08) !important;
+}
+
+.clinical-workflow-primary-action {
+  min-width: 148px !important;
+  min-height: 42px !important;
+  border: 1px solid var(--clinical-primary) !important;
+  border-radius: 10px !important;
+  background: var(--clinical-primary) !important;
+  padding: 0 16px !important;
+  color: #ffffff !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 8px 18px rgba(255, 47, 125, 0.2) !important;
+}
+
+.clinical-workflow-primary-action:hover {
+  border-color: var(--clinical-primary-dark) !important;
+  background: var(--clinical-primary-dark) !important;
+  transform: translateY(-1px);
+}
+
+.clinical-workflow-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  border: 1px solid #edf0f4 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 47, 125, 0.4) transparent;
+}
+
+.clinical-workflow-search {
+  position: relative;
+  width: min(100%, 540px) !important;
+  height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 0 22px !important;
+  border: 1px solid #dce1e9 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  padding: 0 13px !important;
+  box-shadow: 0 5px 18px rgba(33, 40, 56, 0.035) !important;
+}
+
+.clinical-workflow-search:focus-within {
+  border-color: var(--clinical-primary) !important;
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.1) !important;
+}
+
+.clinical-workflow-search > svg {
+  width: 20px !important;
+  height: 20px !important;
+  flex: 0 0 20px;
+  color: #778196 !important;
+}
+
+.clinical-workflow-search input {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  color: var(--clinical-ink) !important;
+  font: inherit !important;
+  font-size: 13.5px !important;
+}
+
+.clinical-workflow-search input::placeholder {
+  color: #9aa3b3 !important;
+}
+
+.clinical-workflow-search > button {
+  width: 30px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  padding: 0 !important;
+  color: #7e8798 !important;
+}
+
+/* Reminder overview */
+
+.clinical-workflow--reminders.doctor-reminder-page {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 24px 48px !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-layout {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 380px) !important;
+  grid-template-areas:
+    "appointments tips"
+    "medication tips" !important;
+  align-items: stretch !important;
+  gap: 18px !important;
+  margin: 0 !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-appointments-card {
+  grid-area: appointments;
+}
+
+.clinical-workflow--reminders .doctor-medication-card {
+  grid-area: medication;
+}
+
+.clinical-workflow--reminders .doctor-health-tips-card {
+  grid-area: tips;
+}
+
+.clinical-workflow--reminders .doctor-reminder-card {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 20px !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-card__header {
+  display: grid !important;
+  grid-template-columns: 40px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 11px !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-card__icon {
+  width: 40px !important;
+  height: 40px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 11px !important;
+  background: var(--clinical-primary-soft) !important;
+  color: var(--clinical-primary) !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-card__icon svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-toolbar {
+  min-height: 42px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+  margin: 0 0 14px !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-appointment-head,
+.clinical-workflow--reminders .doctor-reminder-appointment-row,
+.clinical-workflow--reminders .doctor-medication-head,
+.clinical-workflow--reminders .doctor-medication-row {
+  min-width: 760px !important;
+  min-height: 58px !important;
+  padding: 0 14px !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-appointment-head,
+.clinical-workflow--reminders .doctor-medication-head {
+  min-height: 44px !important;
+  background: #fafbfc !important;
+  color: #778196 !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  font-weight: 850 !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-appointment-row,
+.clinical-workflow--reminders .doctor-medication-row {
+  color: #3f485a !important;
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-appointment-row + .doctor-reminder-appointment-row,
+.clinical-workflow--reminders .doctor-medication-row + .doctor-medication-row {
+  border-top: 1px solid #edf0f4 !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-avatar-dot {
+  width: 30px !important;
+  height: 30px !important;
+  flex: 0 0 30px !important;
+  font-size: 10px !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-row-action,
+.clinical-workflow--reminders .doctor-medication-actions button {
+  min-height: 30px !important;
+  border-radius: 8px !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+}
+
+.clinical-workflow--reminders .doctor-health-tips-panel {
+  display: grid !important;
+  gap: 14px !important;
+}
+
+.clinical-workflow--reminders .doctor-health-tip-tabs {
+  width: 100% !important;
+  justify-content: stretch !important;
+}
+
+.clinical-workflow--reminders .doctor-health-tip-tabs button {
+  flex: 1 1 0 !important;
+}
+
+.clinical-workflow--reminders .doctor-health-tip-list {
+  display: grid !important;
+  gap: 9px !important;
+}
+
+.clinical-workflow--reminders .doctor-health-tip-list article {
+  min-height: 78px !important;
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 11px !important;
+  margin: 0 !important;
+  border: 1px solid #edf0f4 !important;
+  border-radius: 12px !important;
+  background: #fbfcfe !important;
+  padding: 12px !important;
+}
+
+.clinical-workflow--reminders .doctor-health-tip-logo {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+}
+
+.clinical-workflow--reminders .doctor-health-tip-list strong {
+  color: var(--clinical-ink) !important;
+  font-size: 12.5px !important;
+  line-height: 1.3 !important;
+}
+
+.clinical-workflow--reminders .doctor-health-tip-list p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 4px 0 0 !important;
+  color: #717b8e !important;
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+}
+
+.clinical-workflow--reminders .doctor-reminder-outline-action {
+  width: 100% !important;
+  min-height: 40px !important;
+  border: 1px solid #f1b2cb !important;
+  border-radius: 10px !important;
+  background: #fff8fb !important;
+  color: var(--clinical-primary-dark) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+/* Dialog shell and reminder forms */
+
+.clinical-workflow-backdrop {
+  z-index: 2147483000 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  background: rgba(24, 29, 39, 0.58) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+.clinical-workflow-dialog {
+  position: relative !important;
+  width: min(720px, 100%) !important;
+  max-width: 100% !important;
+  max-height: calc(100dvh - 48px) !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(228, 232, 239, 0.9) !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  padding: 0 !important;
+  box-shadow: 0 30px 80px rgba(16, 22, 34, 0.24) !important;
+}
+
+.clinical-workflow-dialog--medication {
+  width: min(880px, 100%) !important;
+}
+
+.clinical-workflow-dialog--health-tip {
+  width: min(680px, 100%) !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__header,
+.clinical-workflow-dialog-header {
+  position: relative !important;
+  z-index: 2 !important;
+  min-height: 84px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--clinical-line) !important;
+  background: #ffffff !important;
+  padding: 18px 22px !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__headline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__icon,
+.clinical-workflow-dialog .doctor-health-tip-form__icon {
+  width: 42px !important;
+  height: 42px !important;
+  flex: 0 0 42px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 12px !important;
+  background: var(--clinical-primary-soft) !important;
+  color: var(--clinical-primary) !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__header h2 {
+  margin: 0 !important;
+  color: var(--clinical-ink) !important;
+  font-size: 21px !important;
+  line-height: 1.2 !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__header p {
+  margin: 4px 0 0 !important;
+  color: var(--clinical-muted) !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__header > button,
+.clinical-workflow-dialog .doctor-medication-reminder-close,
+.clinical-workflow-dialog .doctor-health-tip-form__close {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #f5f6f9 !important;
+  padding: 0 !important;
+  color: #687286 !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__body,
+.clinical-workflow-dialog-body {
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-gutter: stable !important;
+  padding: 20px 22px !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__actions {
+  position: relative !important;
+  z-index: 2 !important;
+  min-height: 70px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  border-top: 1px solid var(--clinical-line) !important;
+  background: #ffffff !important;
+  padding: 13px 22px !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__actions button {
+  width: auto !important;
+  min-width: 118px !important;
+  min-height: 42px !important;
+  border: 1px solid #d9dee7 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  padding: 0 17px !important;
+  color: #596377 !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-dialog__actions button[type="submit"] {
+  border-color: var(--clinical-primary) !important;
+  background: var(--clinical-primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(255, 47, 125, 0.2) !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-preference-block,
+.clinical-workflow-dialog .doctor-medication-reminder-section {
+  margin: 0 !important;
+  border: 1px solid #e8ebf1 !important;
+  border-radius: 14px !important;
+  background: #fbfcfe !important;
+  padding: 16px !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-form__body,
+.clinical-workflow-dialog .doctor-medication-reminder-form__body {
+  display: grid !important;
+  gap: 14px !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-preference-heading strong,
+.clinical-workflow-dialog .doctor-medication-reminder-section h3 {
+  color: #30384a !important;
+  font-size: 14px !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-preference-heading > span,
+.clinical-workflow-dialog .doctor-medication-reminder-section h3 > span {
+  color: #8d96a7 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-option-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin-top: 12px !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-option {
+  min-width: 0 !important;
+  min-height: 68px !important;
+  border: 1px solid #dfe4ec !important;
+  border-radius: 11px !important;
+  background: #ffffff !important;
+  padding: 10px !important;
+  color: #4d5669 !important;
+  font-size: 11px !important;
+}
+
+.clinical-workflow-dialog .doctor-reminder-option:has(input:checked) {
+  border-color: var(--clinical-primary) !important;
+  background: var(--clinical-primary-soft) !important;
+  color: var(--clinical-primary-dark) !important;
+  box-shadow: 0 0 0 2px rgba(255, 47, 125, 0.08) !important;
+}
+
+.clinical-workflow-dialog input,
+.clinical-workflow-dialog select,
+.clinical-workflow-dialog textarea {
+  border: 1px solid #dce2ea !important;
+  outline: 0 !important;
+  background: #ffffff !important;
+  color: #31394a !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+}
+
+.clinical-workflow-dialog input,
+.clinical-workflow-dialog select {
+  min-height: var(--clinical-control-height) !important;
+  border-radius: 10px !important;
+  padding-inline: 13px !important;
+}
+
+.clinical-workflow-dialog textarea {
+  min-height: 96px !important;
+  border-radius: 10px !important;
+  padding: 12px 13px !important;
+}
+
+.clinical-workflow-dialog input:focus,
+.clinical-workflow-dialog select:focus,
+.clinical-workflow-dialog textarea:focus {
+  border-color: var(--clinical-primary) !important;
+  box-shadow: 0 0 0 3px rgba(255, 47, 125, 0.1) !important;
+}
+
+.clinical-workflow-dialog .doctor-medication-reminder-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 13px 16px !important;
+}
+
+.clinical-workflow-dialog .doctor-medication-reminder-field,
+.clinical-workflow-dialog .doctor-health-tip-form__field {
+  color: #485164 !important;
+  font-size: 11.5px !important;
+  font-weight: 750 !important;
+}
+
+.clinical-workflow-dialog .doctor-medication-reminder-time-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 8px !important;
+}
+
+.clinical-workflow-dialog .doctor-medication-reminder-add-time {
+  min-height: var(--clinical-control-height) !important;
+  border: 1px solid #f1aac6 !important;
+  border-radius: 10px !important;
+  background: #fff8fb !important;
+  color: var(--clinical-primary-dark) !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+}
+
+.clinical-workflow-dialog--health-tip .doctor-health-tip-form__body {
+  display: grid !important;
+  gap: 16px !important;
+}
+
+.clinical-workflow-dialog--health-tip textarea {
+  min-height: 140px !important;
+}
+
+/* Medication follow-up queue */
+
+.clinical-workflow--followups.doctor-followup-queue-page {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 24px 48px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-header {
+  max-width: none !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-results-heading {
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 0 0 12px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-results-heading h2 {
+  margin: 0 !important;
+  color: var(--clinical-ink) !important;
+  font-size: 18px !important;
+  line-height: 1.25 !important;
+  font-weight: 820 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-results-heading p {
+  margin: 4px 0 0 !important;
+  color: var(--clinical-muted) !important;
+  font-size: 11.5px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-list {
+  display: grid !important;
+  gap: 12px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-card {
+  display: grid !important;
+  gap: 13px !important;
+  margin: 0 !important;
+  border-left: 4px solid #d9dee7 !important;
+  padding: 17px 18px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-card.is-overdue {
+  border-left-color: var(--clinical-danger) !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-card.is-due-today {
+  border-left-color: #d69a2d !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-card.is-upcoming {
+  border-left-color: #4e86c6 !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-card-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-avatar {
+  width: 42px !important;
+  height: 42px !important;
+  flex: 0 0 42px !important;
+  border-radius: 12px !important;
+  background: var(--clinical-primary-soft) !important;
+  color: var(--clinical-primary-dark) !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-patient h2 {
+  margin: 0 !important;
+  color: var(--clinical-ink) !important;
+  font-size: 15px !important;
+  line-height: 1.25 !important;
+  font-weight: 820 !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-patient p {
+  margin: 3px 0 0 !important;
+  color: var(--clinical-muted) !important;
+  font-size: 11px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-details {
+  display: grid !important;
+  grid-template-columns: 0.7fr 0.7fr 1.3fr 1.3fr !important;
+  gap: 9px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-details > div {
+  min-height: 60px !important;
+  border: 1px solid #eef1f5 !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
+  padding: 10px 12px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-details span {
+  color: #8791a2 !important;
+  font-size: 9.5px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.025em !important;
+  text-transform: uppercase !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-details strong {
+  color: #343c4d !important;
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-due {
+  min-height: 34px !important;
+  border-radius: 9px !important;
+  padding: 7px 10px !important;
+  font-size: 10.5px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-actions {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  border-top: 1px solid #e9edf2 !important;
+  padding-top: 12px !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-actions button {
+  min-height: 38px !important;
+  border: 1px solid #d9dee7 !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  padding: 0 13px !important;
+  color: #4f596c !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-actions button.is-primary {
+  border-color: var(--clinical-primary-dark) !important;
+  background: var(--clinical-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+.clinical-workflow--followups .doctor-followup-simple-actions button.is-resolve {
+  border-color: #a9d8c4 !important;
+  background: #f4fbf7 !important;
+  color: var(--clinical-success) !important;
+}
+
+/* Medication follow-up review dialog */
+
+.clinical-workflow-dialog--followup {
+  width: min(960px, 100%) !important;
+  max-width: 960px !important;
+  max-height: calc(100dvh - 48px) !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  border-radius: 20px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-header {
+  min-height: 82px !important;
+  padding: 17px 22px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-header > div {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-header-icon {
+  width: 42px !important;
+  height: 42px !important;
+  flex: 0 0 42px !important;
+  border-radius: 12px !important;
+  background: var(--clinical-primary-soft) !important;
+  color: var(--clinical-primary-dark) !important;
+}
+
+.clinical-workflow-dialog--followup .maf-header h2 {
+  margin: 0 !important;
+  color: var(--clinical-ink) !important;
+  font-size: 21px !important;
+  line-height: 1.2 !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.clinical-workflow-dialog--followup .maf-header p {
+  margin: 3px 0 0 !important;
+  color: var(--clinical-muted) !important;
+  font-size: 12px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-header > button {
+  width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #f5f6f9 !important;
+  color: #687286 !important;
+}
+
+.clinical-workflow-dialog--followup .maf-body {
+  padding: 20px 22px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-case-heading {
+  margin: 0 0 13px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-summary-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-summary-grid > section {
+  min-width: 0 !important;
+  border: 1px solid #e5e9f0 !important;
+  border-radius: 14px !important;
+  background: #fbfcfe !important;
+  padding: 15px 16px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-summary-grid > section h3 {
+  margin: 0 0 11px !important;
+  color: #30384a !important;
+  font-size: 14px !important;
+  font-weight: 820 !important;
+}
+
+.clinical-workflow-dialog--followup .maf-summary-grid > section dl,
+.clinical-workflow-dialog--followup .maf-summary-grid > section dl > div {
+  gap: 7px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-summary-grid > section dt {
+  color: #7f899b !important;
+  font-size: 11px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-summary-grid > section dd {
+  color: #30384a !important;
+  font-size: 11.5px !important;
+  font-weight: 750 !important;
+}
+
+.clinical-workflow-dialog--followup .maf-actions,
+.clinical-workflow-dialog--followup .maf-timeline-section {
+  margin-top: 18px !important;
+  border-top: 1px solid var(--clinical-line) !important;
+  padding-top: 16px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-actions h3,
+.clinical-workflow-dialog--followup .maf-timeline-section h3 {
+  color: #30384a !important;
+  font-size: 14px !important;
+  font-weight: 820 !important;
+}
+
+.clinical-workflow-dialog--followup .maf-actions > div {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+.clinical-workflow-dialog--followup .maf-actions button,
+.clinical-workflow-dialog--followup .maf-actions .send-patient-notification-trigger {
+  width: auto !important;
+  min-height: 38px !important;
+  border-radius: 9px !important;
+  padding: 0 12px !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+}
+
+.clinical-workflow-dialog--followup .maf-timeline-section > header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.clinical-workflow-dialog--followup .maf-timeline {
+  margin-top: 13px !important;
+}
+
+@media (max-width: 1180px) {
+  .clinical-workflow--reminders .doctor-reminder-layout {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "appointments"
+      "medication"
+      "tips" !important;
+  }
+
+  .clinical-workflow--reminders .doctor-health-tips-panel {
+    grid-template-columns: 1fr !important;
+  }
+
+  .clinical-workflow--reminders .doctor-health-tip-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .clinical-workflow--followups .doctor-followup-simple-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .clinical-workflow-dialog--followup .maf-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .clinical-workflow--reminders.doctor-reminder-page,
+  .clinical-workflow--followups.doctor-followup-queue-page {
+    padding: 0 12px 36px !important;
+  }
+
+  .clinical-workflow-header {
+    min-height: 76px !important;
+    margin-bottom: 16px !important;
+    padding-top: 0 !important;
+  }
+
+  .clinical-workflow-header .clinical-workflow-title-block h1 {
+    font-size: 27px !important;
+  }
+
+  .clinical-workflow-header .clinical-workflow-title-block p {
+    margin-top: 6px !important;
+    font-size: 12.5px !important;
+  }
+
+  .clinical-workflow--reminders .doctor-reminder-card {
+    padding: 16px !important;
+  }
+
+  .clinical-workflow--reminders .doctor-reminder-toolbar {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  .clinical-workflow--reminders .clinical-workflow-tabs,
+  .clinical-workflow--reminders .clinical-workflow-primary-action {
+    width: 100% !important;
+  }
+
+  .clinical-workflow--reminders .clinical-workflow-tabs button {
+    flex: 1 1 0 !important;
+    padding-inline: 7px !important;
+  }
+
+  .clinical-workflow--reminders .doctor-health-tip-list {
+    grid-template-columns: 1fr !important;
+  }
+
+  .clinical-workflow--followups .doctor-followup-simple-card-header {
+    align-items: flex-start !important;
+  }
+
+  .clinical-workflow--followups .doctor-followup-simple-details {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .clinical-workflow--followups .doctor-followup-simple-actions button {
+    flex: 1 1 calc(50% - 8px) !important;
+  }
+
+  .clinical-workflow-backdrop {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .clinical-workflow-dialog,
+  .clinical-workflow-dialog--medication,
+  .clinical-workflow-dialog--health-tip,
+  .clinical-workflow-dialog--followup {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: 96dvh !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    border-left: 0 !important;
+    border-radius: 18px 18px 0 0 !important;
+  }
+
+  .clinical-workflow-dialog .doctor-reminder-dialog__header,
+  .clinical-workflow-dialog-header {
+    min-height: 76px !important;
+    padding: 15px 16px !important;
+  }
+
+  .clinical-workflow-dialog .doctor-reminder-dialog__body,
+  .clinical-workflow-dialog-body {
+    padding: 16px !important;
+  }
+
+  .clinical-workflow-dialog .doctor-reminder-dialog__actions {
+    min-height: 68px !important;
+    padding: 12px 16px 14px !important;
+  }
+
+  .clinical-workflow-dialog .doctor-reminder-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .clinical-workflow-dialog .doctor-reminder-option:last-child {
+    grid-column: 1 / -1 !important;
+  }
+
+  .clinical-workflow-dialog .doctor-medication-reminder-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .clinical-workflow-dialog--followup .maf-header-icon {
+    display: grid !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .clinical-workflow--reminders .doctor-reminder-card__header {
+    grid-template-columns: 38px minmax(0, 1fr) auto !important;
+    gap: 9px !important;
+  }
+
+  .clinical-workflow--reminders .doctor-reminder-card__header h2 {
+    font-size: 15px !important;
+  }
+
+  .clinical-workflow--reminders .doctor-reminder-card__header > button {
+    width: auto !important;
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    white-space: nowrap !important;
+  }
+
+  .clinical-workflow--followups .doctor-followup-simple-actions button {
+    width: 100% !important;
+    flex-basis: 100% !important;
+  }
+
+  .clinical-workflow-dialog .doctor-reminder-dialog__actions button {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+  }
+
+  .clinical-workflow-dialog--followup .maf-header-icon {
+    display: none !important;
+  }
+
+  .clinical-workflow-dialog--followup .maf-actions > div {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .clinical-workflow-dialog--followup .maf-actions button,
+  .clinical-workflow-dialog--followup .maf-actions .send-patient-notification-trigger {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 350px) {
+  .clinical-workflow--followups .doctor-followup-simple-details {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clinical-workflow *,
+  .clinical-workflow-dialog * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

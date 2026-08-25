@@ -1,210 +1,798 @@
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap");
 
+.patient-access-container,
+.patient-access-container * {
+  box-sizing: border-box;
+}
+
 .patient-access-container {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: #fafafc;
-  color: #3f3a3c;
+  padding: clamp(24px, 4vw, 74px);
+  overflow-x: hidden;
+  background: #f7f8fc;
+  color: #202636;
   font-family: "Poppins", sans-serif;
 }
 
 .patient-access-shell {
-  width: min(1180px, 94vw);
-  min-height: min(720px, calc(100vh - 48px));
+  position: relative;
+  width: min(1740px, 92vw);
+  min-height: min(1080px, calc(100dvh - clamp(48px, 8vw, 148px)));
   display: grid;
-  grid-template-columns: 42% 58%;
+  grid-template-columns: minmax(520px, 43%) minmax(0, 1fr);
   overflow: hidden;
-  border-radius: 24px;
-  background: #ffffff;
-  box-shadow: 0 18px 46px rgba(34, 34, 42, 0.08);
+  border: 0;
+  border-radius: 30px;
+  background: #fff;
+  box-shadow: 0 26px 64px rgba(27, 35, 52, 0.08);
 }
 
 .patient-access-panel {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
   display: grid;
-  align-content: center;
-  padding: 42px 64px;
-  background: #ffffff;
+  align-content: start;
+  padding: clamp(72px, 8vh, 108px) clamp(44px, 5vw, 96px) clamp(44px, 6vw, 92px);
+  background: #fff;
 }
 
 .patient-access-brand {
   display: grid;
   justify-items: center;
-  margin-bottom: 52px;
+  margin-bottom: 72px;
   text-align: center;
 }
 
+.patient-access-brand.is-compact {
+  margin-bottom: 68px;
+}
+
 .patient-access-brand img {
-  width: 96px;
-  height: 96px;
+  width: 118px;
+  height: 118px;
   object-fit: contain;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.patient-access-brand.is-compact img {
+  width: 112px;
+  height: 112px;
 }
 
 .patient-access-brand h1 {
   margin: 0;
-  color: #ff4772;
-  font-size: 1.9rem;
-  line-height: 1;
+  color: #ff3f7f;
+  font-size: 1.7rem;
+  line-height: 1.1;
   font-weight: 800;
-  letter-spacing: -0.075em;
+  letter-spacing: 0;
 }
 
 .patient-access-brand p {
   margin: 8px 0 0;
-  color: #3f3a3c;
-  font-size: 0.88rem;
-  line-height: 1.4;
-  letter-spacing: -0.055em;
+  color: #333846;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  letter-spacing: 0;
 }
 
-.patient-access-form {
+.patient-access-heading {
+  width: min(100%, 590px);
+  justify-self: center;
+  margin-bottom: 20px;
+}
+
+.patient-access-heading h2 {
+  margin: 0 0 5px;
+  font-size: 1.15rem;
+}
+
+.patient-access-heading p {
+  margin: 0;
+  color: #7b8495;
+  font-size: 0.84rem;
+}
+
+.patient-access-details {
   width: min(100%, 390px);
   justify-self: center;
   display: grid;
-  gap: 22px;
+  gap: 12px;
+}
+
+.patient-access-details section {
+  min-width: 0;
+  padding: 15px 16px;
+  border: 1px solid #e5e9f0;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.patient-access-details span {
+  display: block;
+  margin-bottom: 6px;
+  color: #7c8799;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.patient-access-details strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #222a3a;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.patient-access-details section > div {
+  display: flex;
+  gap: 16px;
+}
+
+.patient-access-details button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #e93269;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.patient-access-notice {
+  width: min(100%, 390px);
+  justify-self: center;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 9px;
+  margin: 14px 0 18px;
+  padding: 12px 14px;
+  border-left: 3px solid #f1a72e;
+  background: #fff9ed;
+  color: #66583f;
+  font-size: 0.73rem;
+  line-height: 1.5;
+}
+
+.patient-access-notice svg {
+  width: 18px;
+  height: 18px;
+  color: #dc8b0c;
+}
+
+.patient-access-actions,
+.patient-access-form,
+.patient-access-result {
+  width: min(100%, 590px);
+  justify-self: center;
+  display: grid;
+  gap: 12px;
+}
+
+.patient-access-actions button,
+.patient-access-form button,
+.patient-access-result button {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid #ff3f7f;
+  border-radius: 8px;
+  background: #ff3f7f;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.patient-access-actions button.is-secondary,
+.patient-access-result button.is-secondary {
+  background: #fff;
+  color: #e93269;
+}
+
+.patient-access-actions button.is-link,
+.patient-access-form .patient-access-link-button {
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  color: #727b8c;
+  box-shadow: none;
+  font-size: 0.75rem;
+}
+
+.patient-access-actions button:disabled,
+.patient-access-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.patient-access-form {
+  gap: 18px;
 }
 
 .patient-access-form label {
   display: grid;
-  gap: 9px;
-  color: #4c4749;
-  font-size: 0.92rem;
-  font-weight: 500;
-  letter-spacing: -0.035em;
+  gap: 10px;
+  color: #4d5565;
+  font-size: 0.94rem;
+  font-weight: 600;
 }
 
 .patient-access-form input {
   width: 100%;
-  height: 48px;
+  height: 62px;
   box-sizing: border-box;
-  border: 1px solid #9d9a9c;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #292527;
-  font: inherit;
-  font-size: 0.95rem;
-  padding: 0 14px;
+  padding: 0 13px;
+  border: 1px solid #cfd5df;
+  border-radius: 8px;
   outline: none;
+  background: #fff;
+  color: #222a3a;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.patient-access-form input[readonly] {
+  background: #f4f6f9;
+  color: #596274;
 }
 
 .patient-access-form input:focus {
-  border-color: #ff4772;
-  box-shadow: 0 0 0 4px rgba(255, 71, 114, 0.13);
+  border-color: #f43f75;
+  box-shadow: 0 0 0 3px rgba(244, 63, 117, 0.12);
 }
 
-.patient-access-form button {
-  width: 100%;
-  min-height: 48px;
-  border: 0;
-  border-radius: 6px;
-  background: #ff2f7d;
-  color: #ffffff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.patient-access-form button:disabled {
-  cursor: wait;
-  opacity: 0.68;
-}
-
-.patient-access-form .patient-access-link-button {
-  min-height: auto;
-  border-radius: 0;
-  background: transparent;
-  color: #ff2f7d;
-  box-shadow: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.patient-access-message {
+.patient-access-message,
+.patient-access-toast {
   width: min(100%, 390px);
   justify-self: center;
-  margin: 18px 0 0;
-  color: #ff2f7d;
-  font-size: 0.82rem;
+  margin: 16px 0 0;
+  color: #c72d5b;
+  font-size: 0.78rem;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.5;
   text-align: center;
 }
 
+.patient-access-message.is-notice {
+  border: 1px solid #f4d28b;
+  border-radius: 10px;
+  background: #fff9e9;
+  color: #8a5b0a;
+  padding: 10px 12px;
+}
+
+.patient-access-toast {
+  color: #198754;
+}
+
+.patient-access-result {
+  margin-top: 14px;
+}
+
 .patient-access-hero {
-  position: relative;
   min-height: 100%;
   overflow: hidden;
-  background: #eef3ff;
-  clip-path: polygon(10% 0, 100% 0, 91% 100%, 0 100%);
+  background: #edf2f9;
+  clip-path: polygon(10% 0, 100% 0, 100% 100%, 0 100%);
+  margin-left: -9%;
 }
 
 .patient-access-hero img {
-  width: 112%;
+  width: 100%;
   height: 100%;
   min-height: 100%;
   display: block;
   object-fit: cover;
   object-position: center;
-  transform: translateX(-4%);
 }
 
-@media (max-width: 940px) {
+/* Keep the sign-in experience inside a normal desktop viewport. */
+.patient-login-container {
+  height: 100dvh;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.patient-login-shell {
+  height: min(720px, calc(100dvh - 48px));
+  min-height: 0;
+  max-height: none;
+  grid-template-columns: minmax(420px, 42%) minmax(0, 1fr);
+}
+
+.patient-login-shell .patient-access-panel {
+  height: 100%;
+  min-height: 0;
+  align-content: center;
+  padding-block: 40px;
+}
+
+.patient-login-shell .patient-access-hero {
+  height: 100%;
+  min-height: 0;
+}
+
+.patient-login-shell .patient-access-brand.is-compact {
+  margin-bottom: 34px;
+}
+
+.patient-login-shell .patient-access-brand.is-compact img {
+  width: 82px;
+  height: 82px;
+  margin-bottom: 12px;
+}
+
+.patient-login-shell .patient-access-form {
+  width: min(100%, 480px);
+  gap: 14px;
+}
+
+.patient-login-shell .patient-access-form label {
+  gap: 7px;
+}
+
+.patient-login-shell .patient-access-form input {
+  height: 54px;
+}
+
+@media (max-width: 900px) {
+  .patient-access-container { padding: 18px; }
+  .patient-access-shell { width: 100%; min-height: auto; grid-template-columns: 1fr; }
+  .patient-access-panel { padding: 36px 24px; }
+  .patient-access-hero { display: none; }
+  .patient-access-brand,
+  .patient-access-brand.is-compact { margin-bottom: 34px; }
+  .patient-login-container { height: auto; min-height: 100dvh; overflow-y: auto; }
+  .patient-login-shell { height: auto; min-height: auto; max-height: none; }
+  .patient-login-shell .patient-access-panel { padding-block: 36px; }
+}
+
+@media (max-width: 520px) {
+  .patient-access-container { padding: 0; background: #fff; }
+  .patient-access-shell { min-height: 100vh; border: 0; border-radius: 0; box-shadow: none; }
+  .patient-access-panel { align-content: start; padding: 28px 18px; }
+  .patient-access-brand { margin-bottom: 26px; }
+  .patient-access-brand img { width: 72px; height: 72px; }
+}
+
+/* =========================================================
+   PATIENT ACCESS REFINEMENT
+   Shared sign-in, invitation, and account-creation experience.
+========================================================= */
+.patient-access-container {
+  min-height: 100dvh;
+  place-items: center;
+  overflow-y: auto;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(255, 47, 125, 0.09), transparent 30%),
+    radial-gradient(circle at 92% 88%, rgba(138, 92, 246, 0.08), transparent 32%),
+    #f6f8fb;
+}
+
+.patient-access-shell,
+.patient-login-shell {
+  width: min(1120px, 100%);
+  height: auto;
+  min-height: min(720px, calc(100dvh - 48px));
+  max-height: none;
+  grid-template-columns: minmax(430px, 46%) minmax(0, 1fr);
+  border: 1px solid rgba(226, 230, 238, 0.9);
+  border-radius: 28px;
+  box-shadow: 0 24px 70px rgba(34, 43, 61, 0.12);
+}
+
+.patient-access-panel,
+.patient-login-shell .patient-access-panel {
+  height: auto;
+  min-height: 0;
+  align-content: center;
+  padding: clamp(34px, 4vw, 54px);
+}
+
+.patient-access-brand,
+.patient-access-brand.is-compact,
+.patient-login-shell .patient-access-brand.is-compact {
+  width: min(100%, 480px);
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  justify-self: center;
+  justify-items: start;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 2px;
+  margin: 0 0 28px;
+  text-align: left;
+}
+
+.patient-access-brand img,
+.patient-access-brand.is-compact img,
+.patient-login-shell .patient-access-brand.is-compact img {
+  grid-row: 1 / 3;
+  width: 58px;
+  height: 58px;
+  margin: 0;
+  border-radius: 16px;
+  object-fit: contain;
+}
+
+.patient-access-brand h1 {
+  align-self: end;
+  font-size: 19px;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+
+.patient-access-brand p {
+  align-self: start;
+  margin: 1px 0 0;
+  color: #758095;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.patient-access-heading {
+  width: min(100%, 480px);
+  justify-self: center;
+  margin-bottom: 22px;
+}
+
+.patient-access-eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: #d91862;
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.patient-access-heading h2 {
+  margin: 0 0 7px;
+  color: #202636;
+  font-size: clamp(22px, 2.2vw, 28px);
+  line-height: 1.18;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.patient-access-heading p {
+  max-width: 440px;
+  color: #747f93;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.patient-access-details {
+  width: min(100%, 480px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.patient-access-details section {
+  min-height: 124px;
+  padding: 15px;
+  border-color: #e3e7ee;
+  border-radius: 14px;
+  background: #fafbfc;
+}
+
+.patient-access-details span {
+  margin-bottom: 7px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.patient-access-details strong {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.patient-access-details section > div {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.patient-access-details button {
+  margin-top: 10px;
+  font-size: 10.5px;
+}
+
+.patient-access-notice {
+  width: min(100%, 480px);
+  margin: 13px 0 17px;
+  border: 1px solid #f3dfb7;
+  border-left: 4px solid #eaa52a;
+  border-radius: 11px;
+  background: #fffaf0;
+  padding: 11px 13px;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.patient-access-actions,
+.patient-access-form,
+.patient-access-result {
+  width: min(100%, 480px);
+}
+
+.patient-access-form {
+  gap: 15px;
+}
+
+.patient-access-field {
+  display: grid;
+  gap: 7px;
+}
+
+.patient-access-field > label {
+  gap: 7px;
+  color: #475368;
+  font-size: 11.5px;
+  font-weight: 750;
+}
+
+.patient-access-input-wrap {
+  position: relative;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #d7dce6;
+  border-radius: 13px;
+  background: #fbfcfe;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.patient-access-input-wrap:focus-within {
+  border-color: #f43f75;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(244, 63, 117, 0.11);
+}
+
+.patient-access-input-wrap.is-readonly {
+  background: #f3f5f8;
+}
+
+.patient-access-input-wrap > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-left: 14px;
+  color: #8a96aa;
+}
+
+.patient-access-form .patient-access-input-wrap input {
+  height: 50px;
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  padding: 0 13px 0 10px;
+  font-size: 12px;
+}
+
+.patient-access-form .patient-access-input-wrap input:focus {
+  border: 0;
+  box-shadow: none;
+}
+
+.patient-access-form .patient-access-password-toggle {
+  position: static;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  flex: 0 0 42px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #69758a;
+  padding: 0;
+  box-shadow: none;
+}
+
+.patient-access-password-toggle > svg {
+  width: 19px;
+  height: 19px;
+}
+
+.patient-access-actions button,
+.patient-access-form > button,
+.patient-access-result button {
+  min-height: 50px;
+  border-radius: 13px;
+  font-size: 12px;
+  box-shadow: 0 12px 24px rgba(244, 63, 117, 0.18);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.patient-access-actions button:hover:not(:disabled),
+.patient-access-form > button:hover:not(:disabled),
+.patient-access-result button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 15px 28px rgba(244, 63, 117, 0.23);
+}
+
+.patient-access-actions button.is-secondary {
+  background: #fff;
+  box-shadow: none;
+}
+
+.patient-access-actions button.is-link,
+.patient-access-form .patient-access-link-button {
+  min-height: 30px;
+  color: #68758a;
+  font-size: 10.5px;
+  box-shadow: none;
+}
+
+.patient-access-form-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -2px 0 0;
+  border-radius: 10px;
+  background: #f7f8fb;
+  color: #6f7b8f;
+  padding: 10px 12px;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.patient-access-form-note > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  color: #d91862;
+}
+
+.patient-access-message,
+.patient-access-toast {
+  width: min(100%, 480px);
+  border-radius: 11px;
+  padding: 10px 12px;
+  background: #fff1f2;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.patient-access-toast {
+  background: #ecfdf3;
+}
+
+.patient-access-hero,
+.patient-login-shell .patient-access-hero {
+  position: relative;
+  min-height: 100%;
+  height: auto;
+  margin: 0;
+  clip-path: none;
+  background: #f5dce8;
+}
+
+.patient-access-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(21, 23, 32, 0.02) 42%, rgba(22, 20, 30, 0.62) 100%);
+}
+
+.patient-access-hero img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-position: center;
+}
+
+.patient-access-hero-copy {
+  position: absolute;
+  z-index: 1;
+  left: clamp(26px, 4vw, 46px);
+  right: clamp(26px, 4vw, 46px);
+  bottom: clamp(28px, 5vw, 48px);
+  display: grid;
+  gap: 7px;
+  color: #fff;
+}
+
+.patient-access-hero-copy span {
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.patient-access-hero-copy strong {
+  max-width: 500px;
+  font-size: clamp(20px, 2.25vw, 29px);
+  line-height: 1.28;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+@media (max-width: 900px) {
   .patient-access-container {
-    min-height: 100vh;
     padding: 18px;
   }
 
-  .patient-access-shell {
-    width: 100%;
+  .patient-access-shell,
+  .patient-login-shell {
+    width: min(620px, 100%);
     min-height: auto;
     grid-template-columns: 1fr;
+    border-radius: 24px;
   }
 
-  .patient-access-panel {
-    padding: 34px 22px;
-  }
-
-  .patient-access-brand {
-    margin-bottom: 34px;
+  .patient-access-panel,
+  .patient-login-shell .patient-access-panel {
+    padding: 36px 30px;
   }
 
   .patient-access-hero {
-    min-height: 280px;
-    clip-path: none;
-  }
-
-  .patient-access-hero img {
-    min-height: 280px;
-    transform: none;
+    display: none;
   }
 }
 
 @media (max-width: 520px) {
   .patient-access-container {
     padding: 0;
-    background: #ffffff;
+    background: #fff;
   }
 
-  .patient-access-shell {
-    min-height: 100vh;
+  .patient-access-shell,
+  .patient-login-shell {
+    min-height: 100dvh;
+    border: 0;
     border-radius: 0;
     box-shadow: none;
   }
 
-  .patient-access-panel {
+  .patient-access-panel,
+  .patient-login-shell .patient-access-panel {
     align-content: start;
-    padding: 32px 20px 26px;
+    padding: 24px 18px 36px;
   }
 
-  .patient-access-brand img {
-    width: 82px;
-    height: 82px;
+  .patient-access-brand,
+  .patient-access-brand.is-compact,
+  .patient-login-shell .patient-access-brand.is-compact {
+    grid-template-columns: 50px minmax(0, 1fr);
+    margin-bottom: 28px;
   }
 
-  .patient-access-hero {
-    display: none;
+  .patient-access-brand img,
+  .patient-access-brand.is-compact img,
+  .patient-login-shell .patient-access-brand.is-compact img {
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+  }
+
+  .patient-access-heading h2 {
+    font-size: 24px;
+  }
+
+  .patient-access-details {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-access-details section {
+    min-height: 108px;
   }
 }

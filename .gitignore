@@ -27,3 +27,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!supabase/functions/.env.web-push.example
+
+# Local reference videos
+references/videos/

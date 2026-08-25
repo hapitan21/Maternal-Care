@@ -44,6 +44,11 @@
   font-weight: 500;
 }
 
+.pwa-medical-search input:disabled {
+  cursor: wait;
+  color: var(--pwa-soft-muted);
+}
+
 .pwa-medical-alert {
   width: min(680px, 100%);
   margin: -18px 0 24px;
@@ -62,6 +67,8 @@
   display: flex;
   gap: 12px;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
   padding: 2px 2px 16px;
   margin: -10px 0 18px;
 }
@@ -78,6 +85,7 @@
 .pwa-medical-record-tabs button {
   min-width: 214px;
   max-width: 280px;
+  scroll-snap-align: start;
   border: 1px solid var(--pwa-border);
   border-radius: 12px;
   background: #ffffff;
@@ -143,7 +151,8 @@
   font-size: 21px;
   line-height: 28px;
   font-weight: 800;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .pwa-medical-side h2 svg {
@@ -212,6 +221,7 @@
   font-size: 14px;
   line-height: 18px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .pwa-medical-body {
@@ -259,7 +269,7 @@
   font-size: 16.5px;
   line-height: 23px;
   font-weight: 800;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
 }
 
 .pwa-dot-title {
@@ -283,6 +293,7 @@
   font-size: 14.5px;
   line-height: 1.55;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .pwa-findings-grid {
@@ -337,6 +348,8 @@
   font-size: 14.5px;
   line-height: 21px;
   font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .pwa-assessment-list svg {
@@ -387,6 +400,7 @@
   font-size: 14px;
   line-height: 19px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .pwa-diagnosis-title,
@@ -406,6 +420,7 @@
   font-size: 13.5px;
   line-height: 19px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .pwa-treatment-list {
@@ -420,6 +435,7 @@
   font-size: 14.5px;
   line-height: 1.58;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .pwa-treatment-list li::before {
@@ -484,6 +500,7 @@
   font-size: 14px;
   line-height: 17px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .pwa-attachment-card small {
@@ -502,34 +519,52 @@
 
 .pwa-medical-empty {
   width: min(620px, 100%);
-  min-height: 240px;
+  min-height: 168px;
   border: 1px solid var(--pwa-border);
   border-radius: 18px;
   background: #ffffff;
   box-shadow: var(--pwa-soft-shadow);
   display: grid;
-  place-items: center;
+  grid-template-columns: 48px minmax(0, 1fr);
+  place-items: center start;
   align-content: center;
-  gap: 10px;
-  text-align: center;
-  padding: 34px;
+  gap: 16px;
+  text-align: left;
+  padding: 26px;
+}
+
+.pwa-medical-empty > span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--pwa-pink-soft);
+  color: var(--pwa-pink);
 }
 
 .pwa-medical-empty svg {
-  width: 40px;
-  height: 40px;
-  color: var(--pwa-pink);
+  width: 26px;
+  height: 26px;
+}
+
+.pwa-medical-empty.is-loading svg {
+  animation: pwa-records-spin 900ms linear infinite;
+}
+
+@keyframes pwa-records-spin {
+  to { transform: rotate(360deg); }
 }
 
 .pwa-medical-empty h2 {
   margin: 0;
   color: var(--pwa-text);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
 }
 
 .pwa-medical-empty p {
-  margin: 0;
+  margin: 5px 0 0;
   color: var(--pwa-muted);
   font-size: 14px;
 }
@@ -594,6 +629,18 @@
     padding-bottom: 22px;
   }
 
+  .pwa-medical-record-tabs {
+    gap: 10px;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+  }
+
+  .pwa-medical-record-tabs button {
+    flex: 0 0 min(76vw, 270px);
+    min-width: 0;
+    max-width: none;
+  }
+
   .pwa-medical-search {
     width: 100%;
     margin-bottom: 22px;
@@ -601,7 +648,7 @@
 
   .pwa-medical-side,
   .pwa-medical-body {
-    padding: 24px 18px;
+    padding: 22px 16px;
   }
 
   .pwa-medical-side {
@@ -611,6 +658,23 @@
   .pwa-findings-grid,
   .pwa-obstetric-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .pwa-medical-meta {
+    margin-top: 22px;
+  }
+
+  .pwa-medical-meta.is-empty {
+    display: none;
+  }
+
+  .pwa-medical-empty {
+    width: 100%;
+    min-height: 152px;
+    grid-template-columns: 1fr;
+    place-items: center;
+    text-align: center;
+    padding: 24px 20px;
   }
 }
 

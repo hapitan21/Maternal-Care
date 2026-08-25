@@ -1,6 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  classifyAppointment,
+  getManilaDateKey,
+  getManilaTimeKey,
+} from "../../lib/appointmentDate";
+import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
 
 const scheduleColumns =
   "id, patient_id, patient_name, doctor_name, title, description, start_time, end_time, status";
@@ -50,6 +56,11 @@ function toDate(value) {
   return new Date(value);
 }
 
+function toManilaCalendarDate(value) {
+  const [year, month, day] = getManilaDateKey(value).split("-").map(Number);
+  return year && month && day ? new Date(year, month - 1, day) : new Date(value);
+}
+
 function getMonday(date) {
   const copied = cloneDate(date);
   const day = copied.getDay();
@@ -85,6 +96,7 @@ function formatRange(start, end) {
 
 function formatTime(date) {
   return date.toLocaleTimeString("en-US", {
+    timeZone: "Asia/Manila",
     hour: "numeric",
     minute: "2-digit",
   });
@@ -112,7 +124,7 @@ function buildMonthCells(monthDate) {
   const mondayIndex = (firstDay.getDay() + 6) % 7;
   const start = addDays(firstDay, -mondayIndex);
 
-  return Array.from({ length: 35 }, (_, index) => {
+  return Array.from({ length: 42 }, (_, index) => {
     const date = addDays(start, index);
     return {
       date,
@@ -122,28 +134,27 @@ function buildMonthCells(monthDate) {
 }
 
 function getAppointmentOnDate(date, appointments) {
-  return appointments.find((appointment) => isSameDay(toDate(appointment.start), date));
+  return appointments.find((appointment) =>
+    isSameDay(toManilaCalendarDate(appointment.start), date)
+  );
 }
 
-function getEventForCell(day, hour, appointments) {
-  return appointments.find((appointment) => {
-    const start = toDate(appointment.start);
-    return isSameDay(start, day) && start.getHours() === hour;
+function getEventsForCell(day, hour, appointments) {
+  return appointments.filter((appointment) => {
+    const start = toManilaCalendarDate(appointment.start);
+    const appointmentHour = Number(getManilaTimeKey(appointment.start).split(":")[0]);
+    return isSameDay(start, day) && appointmentHour === hour;
   });
 }
 
-function isClosedAppointmentStatus(status) {
-  const normalized = String(status || "").toLowerCase();
-  return normalized === "completed" || normalized === "cancelled";
+function isCancelledOrCompleted(appointment) {
+  const normalized = String(appointment?.status || appointment?.displayStatus || "").toLowerCase();
+  return normalized.includes("cancel") || normalized.includes("complete");
 }
 
 function isUpcomingAppointment(appointment) {
-  if (!appointment?.start || isClosedAppointmentStatus(appointment.status)) {
-    return false;
-  }
-
-  const start = toDate(appointment.start);
-  return !Number.isNaN(start.getTime()) && start >= new Date();
+  if (isCancelledOrCompleted(appointment)) return false;
+  return classifyAppointment(appointment).isUpcoming;
 }
 
 function getAppointmentSortTime(appointment) {
@@ -156,17 +167,21 @@ function getStatusClass(status) {
 
   if (normalized === "completed") return "is-completed";
   if (normalized === "cancelled") return "is-cancelled";
+  if (normalized === "missed") return "is-missed";
+  if (normalized.includes("checked")) return "is-checked-in";
   return "is-upcoming";
 }
 
-function getStatusLabel(status) {
-  const normalized = String(status || "scheduled").toLowerCase();
-  if (normalized === "completed") return "Completed";
-  if (normalized === "cancelled") return "Cancelled";
-  return "Next Upcoming";
+function sortAppointmentsAscending(first, second) {
+  return getAppointmentSortTime(first) - getAppointmentSortTime(second);
+}
+
+function sortAppointmentsDescending(first, second) {
+  return getAppointmentSortTime(second) - getAppointmentSortTime(first);
 }
 
 function mapScheduleToAppointment(row) {
+  const classification = classifyAppointment(row);
   return {
     id: row.id,
     patientId: row.patient_id || "",
@@ -174,8 +189,9 @@ function mapScheduleToAppointment(row) {
     title: row.title || row.description || "Appointment",
     start: row.start_time,
     end: row.end_time,
-    doctor: row.doctor_name || "Maternal Care Clinic",
-    status: getStatusLabel(row.status),
+    doctor: row.doctor_name || "Doctor not recorded",
+    status: row.status || "scheduled",
+    displayStatus: classification.displayStatus,
     color: "pink",
   };
 }
@@ -206,8 +222,13 @@ function mapReminderToAppointment(row) {
     title: String(row.title || "Appointment Reminder").replace(/\s*Reminder$/i, ""),
     start: start.toISOString(),
     end: end.toISOString(),
-    doctor: schedule?.doctor_name || "Maternal Care Clinic",
-    status: getStatusLabel(row.status),
+    doctor: schedule?.doctor_name || "Doctor not recorded",
+    status: row.status || "scheduled",
+    displayStatus: classifyAppointment({
+      start: start.toISOString(),
+      end: end.toISOString(),
+      status: row.status,
+    }).displayStatus,
     color: "pink",
   };
 }
@@ -226,9 +247,8 @@ async function loadAuthenticatedPatientRow() {
   console.info("[Patient Appointment Flow] authenticated user ID:", user.id);
 
   const { data, error } = await supabase
-    .from("patients")
+    .rpc("get_patient_own_record")
     .select("id, full_name, patient_id, user_id, email, contact_number")
-    .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
 
@@ -275,11 +295,6 @@ async function fetchPatientAppointmentReminderRows(patient) {
     title,
     remind_at,
     status,
-    patients (
-      id,
-      full_name,
-      patient_id
-    ),
     schedule (
       ${scheduleColumns}
     )
@@ -302,6 +317,7 @@ async function fetchPatientAppointmentReminderRows(patient) {
 export default function PatientPWAAppointments({ profile }) {
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeView, setActiveView] = useState("upcoming");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const today = new Date();
@@ -337,14 +353,13 @@ export default function PatientPWAAppointments({ profile }) {
           (appointment, index, source) =>
             source.findIndex((item) => item.id === appointment.id) === index
         )
-        .sort((first, second) => getAppointmentSortTime(first) - getAppointmentSortTime(second));
+        .sort(sortAppointmentsAscending);
       setAppointments(mapped);
 
-      const firstVisibleAppointment =
-        mapped.find(isUpcomingAppointment) || mapped[0] || null;
+      const firstVisibleAppointment = mapped.find(isUpcomingAppointment) || null;
 
       if (firstVisibleAppointment?.start) {
-        const appointmentDate = toDate(firstVisibleAppointment.start);
+        const appointmentDate = toManilaCalendarDate(firstVisibleAppointment.start);
         setSelectedDate(appointmentDate);
         setCalendarMonth(new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), 1));
       }
@@ -390,17 +405,22 @@ export default function PatientPWAAppointments({ profile }) {
     };
   }, [profile]);
 
-  const selectedAppointment = useMemo(
-    () => getAppointmentOnDate(selectedDate, appointments),
-    [appointments, selectedDate]
-  );
-  const nextUpcomingAppointment = useMemo(
-    () => appointments.find(isUpcomingAppointment) || null,
+  const upcomingAppointments = useMemo(
+    () => appointments.filter(isUpcomingAppointment).sort(sortAppointmentsAscending),
     [appointments]
   );
-  const displayedAppointment =
-    selectedAppointment || nextUpcomingAppointment || appointments[0] || null;
-  const displayedDate = displayedAppointment ? toDate(displayedAppointment.start) : selectedDate;
+  const historyAppointments = useMemo(
+    () => appointments.filter((appointment) => !isUpcomingAppointment(appointment)).sort(sortAppointmentsDescending),
+    [appointments]
+  );
+  const visibleAppointments = activeView === "history"
+    ? historyAppointments
+    : upcomingAppointments;
+  const nextUpcomingAppointment = upcomingAppointments[0] || null;
+  const displayedAppointment = nextUpcomingAppointment;
+  const displayedDate = displayedAppointment
+    ? toManilaCalendarDate(displayedAppointment.start)
+    : null;
 
   const weekStart = useMemo(() => getMonday(selectedDate), [selectedDate]);
   const weekDays = useMemo(
@@ -409,6 +429,15 @@ export default function PatientPWAAppointments({ profile }) {
   );
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const monthCells = useMemo(() => buildMonthCells(calendarMonth), [calendarMonth]);
+  const selectedDayAppointments = useMemo(
+    () =>
+      visibleAppointments
+        .filter((appointment) =>
+          isSameDay(toManilaCalendarDate(appointment.start), selectedDate)
+        )
+        .sort(activeView === "history" ? sortAppointmentsDescending : sortAppointmentsAscending),
+    [activeView, selectedDate, visibleAppointments]
+  );
 
   const handleSelectDate = (date) => {
     setSelectedDate(cloneDate(date));
@@ -425,33 +454,59 @@ export default function PatientPWAAppointments({ profile }) {
     setCalendarMonth(nextMonth);
   };
 
+  const handleViewChange = (nextView) => {
+    setActiveView(nextView);
+
+    const firstAppointment = nextView === "history"
+      ? historyAppointments[0]
+      : upcomingAppointments[0];
+
+    if (!firstAppointment?.start) return;
+
+    const appointmentDate = toManilaCalendarDate(firstAppointment.start);
+    setSelectedDate(appointmentDate);
+    setCalendarMonth(new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), 1));
+  };
+
   return (
     <section className="pwa-page pwa-appointments-page">
-      <header className="pwa-page-title pwa-appointments-title">
-        <h1>My Appointments</h1>
-      </header>
+      <PatientPageHeader
+        title="My Appointments"
+        subtitle="Track upcoming clinic visits and review your appointment history."
+        className="pwa-appointments-title"
+        action={(
+          <span className="pwa-appointment-total" aria-live="polite">
+            <Icon icon="solar:calendar-mark-bold-duotone" />
+            <strong>{upcomingAppointments.length}</strong>
+            <span>upcoming</span>
+          </span>
+        )}
+      />
 
       <div className="pwa-appointments-top-grid">
         <section
           className={`pwa-next-appointment-card ${displayedAppointment ? "" : "is-empty"}`}
           aria-label="Next appointment"
         >
-          <button
-            type="button"
-            className="pwa-appointment-date"
-            onClick={() => handleSelectDate(displayedDate)}
-            aria-label="Select appointment date"
-          >
-            <strong>{displayedDate.getDate()}</strong>
-            <span>{SHORT_MONTHS[displayedDate.getMonth()]}</span>
-          </button>
+          {displayedAppointment && displayedDate ? (
+            <button
+              type="button"
+              className="pwa-appointment-date"
+              onClick={() => handleSelectDate(displayedDate)}
+              aria-label="Select appointment date"
+            >
+              <strong>{displayedDate.getDate()}</strong>
+              <span>{SHORT_MONTHS[displayedDate.getMonth()]}</span>
+            </button>
+          ) : null}
 
           <div className="pwa-appointment-info">
+            <span className="pwa-appointment-card-eyebrow">Next appointment</span>
             {displayedAppointment ? (
               <>
                 <p>
-                  <span className={`pwa-appointment-status ${getStatusClass(displayedAppointment.status)}`}>
-                    {displayedAppointment.status}
+                  <span className={`pwa-appointment-status ${getStatusClass(displayedAppointment.displayStatus)}`}>
+                    {displayedAppointment.displayStatus}
                   </span>
                   <b className="pwa-appointment-dot" aria-hidden="true" />
                   {daysUntil(displayedDate)}
@@ -475,7 +530,7 @@ export default function PatientPWAAppointments({ profile }) {
                     {isLoading ? "Loading" : "No Appointment"}
                   </span>
                 </p>
-                <h2>{isLoading ? "Checking your schedule" : "No appointments yet"}</h2>
+                <h2>{isLoading ? "Checking your schedule" : "No upcoming appointment scheduled"}</h2>
                 <ul>
                   <li>
                     <Icon icon="solar:calendar-linear" />
@@ -489,9 +544,12 @@ export default function PatientPWAAppointments({ profile }) {
 
         <section className="pwa-mini-calendar-card" aria-label="Mini calendar">
           <header>
-            <h2>
-              {MONTH_NAMES[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
-            </h2>
+            <div>
+              <span className="pwa-calendar-eyebrow">Browse dates</span>
+              <h2>
+                {MONTH_NAMES[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
+              </h2>
+            </div>
             <div>
               <button type="button" aria-label="Previous month" onClick={goToPreviousMonth}>
                 <Icon icon="solar:alt-arrow-left-linear" />
@@ -511,7 +569,7 @@ export default function PatientPWAAppointments({ profile }) {
           <div className="pwa-calendar-days">
             {monthCells.map(({ date, muted }, index) => {
               const active = isSameDay(date, selectedDate);
-              const hasAppointment = Boolean(getAppointmentOnDate(date, appointments));
+              const hasAppointment = Boolean(getAppointmentOnDate(date, visibleAppointments));
 
               return (
                 <button
@@ -526,11 +584,82 @@ export default function PatientPWAAppointments({ profile }) {
               );
             })}
           </div>
+          <p className="pwa-calendar-legend">
+            <span aria-hidden="true" /> Dates with {activeView} appointments
+          </p>
         </section>
       </div>
 
       <section className="pwa-weekly-card" aria-label="Weekly appointment timeline">
-        <h2>Weekly Timeline ({formatRange(weekStart, weekEnd)})</h2>
+        <header className="pwa-appointment-section-header">
+          <div>
+            <span className="pwa-appointment-section-eyebrow">Your schedule</span>
+            <h2>Appointment timeline</h2>
+            <p>{formatRange(weekStart, weekEnd)}</p>
+          </div>
+          <div className="pwa-appointment-view-tabs" role="tablist" aria-label="Appointment views">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === "upcoming"}
+              className={activeView === "upcoming" ? "is-active" : ""}
+              onClick={() => handleViewChange("upcoming")}
+            >
+              Upcoming <span>{upcomingAppointments.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === "history"}
+              className={activeView === "history" ? "is-active" : ""}
+              onClick={() => handleViewChange("history")}
+            >
+              History <span>{historyAppointments.length}</span>
+            </button>
+          </div>
+        </header>
+
+        <div className="pwa-mobile-agenda">
+          <div className="pwa-mobile-day-strip" aria-label="Select appointment day">
+            {weekDays.map((day) => (
+              <button
+                type="button"
+                key={day.toISOString()}
+                className={isSameDay(day, selectedDate) ? "is-active" : ""}
+                onClick={() => handleSelectDate(day)}
+              >
+                <small>{SHORT_DAYS[day.getDay()]}</small>
+                <strong>{day.getDate()}</strong>
+              </button>
+            ))}
+          </div>
+
+          <div className="pwa-mobile-agenda-list">
+            <div className="pwa-mobile-agenda-heading">
+              <strong>{SHORT_DAYS[selectedDate.getDay()]}, {MONTH_NAMES[selectedDate.getMonth()]} {selectedDate.getDate()}</strong>
+              <span>{selectedDayAppointments.length} {selectedDayAppointments.length === 1 ? "visit" : "visits"}</span>
+            </div>
+            {selectedDayAppointments.length ? (
+              selectedDayAppointments.map((appointment) => (
+                <article
+                  className="pwa-mobile-agenda-item"
+                  key={`${appointment.id}-${appointment.start}`}
+                >
+                  <time>{formatAppointmentTime(appointment)}</time>
+                  <div>
+                    <strong>{appointment.title}</strong>
+                    <span><Icon icon="solar:user-rounded-linear" />{appointment.doctor}</span>
+                  </div>
+                  <em className={getStatusClass(appointment.displayStatus)}>
+                    {appointment.displayStatus}
+                  </em>
+                </article>
+              ))
+            ) : (
+              <p className="pwa-mobile-agenda-empty">No appointments for this day.</p>
+            )}
+          </div>
+        </div>
 
         <div className="pwa-weekly-scroll">
           <div className="pwa-week-header">
@@ -553,22 +682,23 @@ export default function PatientPWAAppointments({ profile }) {
               <Fragment key={time.label}>
                 <div className="pwa-time-label">{time.label}</div>
                 {weekDays.map((day) => {
-                  const appointment = getEventForCell(day, time.hour, appointments);
+                  const cellAppointments = getEventsForCell(day, time.hour, appointments);
                   return (
                     <div
                       key={`${time.label}-${day.toISOString()}`}
                       className={`pwa-time-cell ${isSameDay(day, selectedDate) ? "is-selected-day" : ""}`}
                     >
-                      {appointment ? (
+                      {cellAppointments.map((appointment) => (
                         <button
                           type="button"
                           className="pwa-schedule-event"
-                          onClick={() => handleSelectDate(toDate(appointment.start))}
+                          key={`${appointment.id}-${appointment.start}`}
+                          onClick={() => handleSelectDate(toManilaCalendarDate(appointment.start))}
                         >
                           <strong>{appointment.title}</strong>
                           <small>{formatTime(toDate(appointment.start))}</small>
                         </button>
-                      ) : null}
+                      ))}
                     </div>
                   );
                 })}

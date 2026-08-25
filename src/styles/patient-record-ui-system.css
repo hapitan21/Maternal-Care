@@ -1,0 +1,816 @@
+/* Shared Patients + Medical Records design system layer. */
+
+.patient-directory,
+.medical-record-workspace {
+  --clinical-primary: #ff2f7d;
+  --clinical-primary-dark: #c91668;
+  --clinical-primary-soft: #fff0f6;
+  --clinical-ink: #20232b;
+  --clinical-muted: #687082;
+  --clinical-line: #d9dce6;
+  --clinical-line-soft: #eceef4;
+  --clinical-surface: #ffffff;
+  --clinical-bg-soft: #f7f8fb;
+  --clinical-radius-control: 12px;
+  --clinical-radius-card: 18px;
+  --clinical-control-height: 52px;
+  --clinical-card-shadow: 0 14px 34px rgba(24, 29, 43, 0.055);
+  --clinical-focus-ring: 0 0 0 4px rgba(255, 47, 125, 0.1);
+  color: var(--clinical-ink);
+  font-family: "Poppins", sans-serif;
+}
+
+.patient-directory *,
+.patient-directory *::before,
+.patient-directory *::after,
+.medical-record-workspace *,
+.medical-record-workspace *::before,
+.medical-record-workspace *::after {
+  box-sizing: border-box;
+}
+
+/* Patient directory */
+
+.patient-ui-header {
+  width: 100% !important;
+  min-height: var(--doctor-page-header-min-height, 88px) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 28px !important;
+  margin: 0 0 22px !important;
+  padding: 0 !important;
+}
+
+.patient-ui-title-block {
+  min-width: 0;
+  max-width: 680px;
+}
+
+.patient-ui-title-block h1 {
+  margin: 0 !important;
+  color: var(--clinical-ink) !important;
+  font-size: var(--doctor-page-title-size, 32px) !important;
+  font-weight: 800 !important;
+  line-height: var(--doctor-page-title-line, 1.12) !important;
+  letter-spacing: -0.055em !important;
+}
+
+.patient-ui-title-block p {
+  margin: 7px 0 0 !important;
+  color: #5f6676 !important;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: var(--doctor-page-subtitle-size, 14px) !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.patient-ui-toolbar {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(300px, 520px) minmax(0, 1fr) !important;
+  align-items: end !important;
+  gap: 16px !important;
+  margin: 0 0 20px !important;
+}
+
+.patient-ui-toolbar--search-only {
+  grid-template-columns: minmax(300px, 520px) !important;
+}
+
+.patient-ui-search {
+  position: relative !important;
+  width: 100% !important;
+  height: var(--clinical-control-height) !important;
+  min-height: var(--clinical-control-height) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 !important;
+  border: 1px solid var(--clinical-line) !important;
+  border-radius: var(--clinical-radius-control) !important;
+  padding: 0 16px !important;
+  background: var(--clinical-surface) !important;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.patient-ui-search:focus-within {
+  border-color: var(--clinical-primary) !important;
+  box-shadow: var(--clinical-focus-ring) !important;
+}
+
+.patient-ui-search > svg {
+  position: static !important;
+  width: 19px !important;
+  height: 19px !important;
+  flex: 0 0 19px;
+  color: #657084 !important;
+  transform: none !important;
+}
+
+.patient-ui-search > input {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  border: 0 !important;
+  outline: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: #2d3340 !important;
+  font-family: "Plus Jakarta Sans", sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+
+.patient-ui-search > input::placeholder {
+  color: #969dac !important;
+}
+
+.patient-directory .staff-patients-toolbar-right {
+  min-width: 0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+}
+
+.patient-directory .staff-patients-status-select,
+.patient-directory .staff-register-patient-btn {
+  height: var(--clinical-control-height) !important;
+  min-height: var(--clinical-control-height) !important;
+  border-radius: var(--clinical-radius-control) !important;
+}
+
+.patient-directory .staff-patients-status-select {
+  width: 210px !important;
+  border-color: var(--clinical-line) !important;
+}
+
+.patient-directory .staff-patients-status-select:focus-within {
+  border-color: var(--clinical-primary) !important;
+  box-shadow: var(--clinical-focus-ring) !important;
+}
+
+.patient-directory .staff-patients-status-select select {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.patient-directory .staff-register-patient-btn {
+  min-width: 220px !important;
+  padding: 0 20px !important;
+  background: var(--clinical-primary) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.18) !important;
+}
+
+.patient-directory .staff-register-patient-btn:hover {
+  background: #ee1768 !important;
+  transform: translateY(-1px);
+}
+
+.patient-ui-table-card {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 0 36px !important;
+  border: 1px solid var(--clinical-line) !important;
+  border-radius: var(--clinical-radius-card) !important;
+  background: var(--clinical-surface) !important;
+  box-shadow: var(--clinical-card-shadow) !important;
+  overflow: hidden !important;
+}
+
+.patient-ui-table-scroll {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: clamp(380px, calc(100vh - 330px), 620px) !important;
+  overflow: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 47, 125, 0.48) transparent;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .patient-directory
+  .patient-ui-table-card {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .patient-directory
+  .patient-ui-table-scroll {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.patient-directory .doctor-patients-table,
+.patient-directory .staff-patients-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.patient-directory .doctor-patients-table {
+  min-width: 880px !important;
+}
+
+.patient-directory .staff-patients-table {
+  min-width: 1120px !important;
+}
+
+.patient-directory .doctor-patients-table thead,
+.patient-directory .staff-patients-table thead {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 3 !important;
+}
+
+.patient-directory .doctor-patients-table th,
+.patient-directory .staff-patients-table th {
+  height: 58px !important;
+  padding: 0 28px !important;
+  background: var(--clinical-primary) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 16px !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap;
+}
+
+.patient-directory .doctor-patients-table td,
+.patient-directory .staff-patients-table td {
+  height: 82px !important;
+  padding: 0 28px !important;
+  border-top: 1px solid var(--clinical-line-soft) !important;
+  color: #343945 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+}
+
+.patient-directory .doctor-patients-table tbody tr,
+.patient-directory .staff-patients-table tbody tr {
+  background: #ffffff !important;
+  transition: background-color 160ms ease;
+}
+
+.patient-directory .doctor-patients-table tbody tr:hover,
+.patient-directory .staff-patients-table tbody tr:hover {
+  background: #fff8fb !important;
+}
+
+.patient-directory .doctor-patient-avatar,
+.patient-directory .staff-patient-avatar {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  flex-basis: 48px !important;
+  border-radius: 50% !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+.patient-directory .doctor-patient-info-cell,
+.patient-directory .staff-patient-info-cell {
+  gap: 14px !important;
+}
+
+.patient-directory .doctor-patient-info-cell strong,
+.patient-directory .staff-patient-info-cell strong {
+  color: #222731 !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1.3 !important;
+}
+
+.patient-directory .doctor-patient-info-cell small,
+.patient-directory .staff-patient-info-cell small {
+  margin-top: 3px !important;
+  color: #737b8d !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+}
+
+.patient-directory .staff-patient-status,
+.patient-directory .staff-patient-medical-access {
+  min-height: 30px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.patient-directory .staff-patient-medical-access {
+  min-width: 128px !important;
+  justify-content: center !important;
+  padding: 0 12px !important;
+  border: 1px solid #d8dce7 !important;
+  background: #f8f9fc !important;
+  color: #596174 !important;
+}
+
+.patient-directory .staff-patient-action-menu-trigger {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  border: 1px solid var(--clinical-line) !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #303644 !important;
+  font-size: 15px !important;
+}
+
+.patient-directory .staff-patient-action-menu-trigger:hover,
+.patient-directory .staff-patient-action-menu-trigger.is-open {
+  border-color: var(--clinical-primary) !important;
+  background: var(--clinical-primary-soft) !important;
+  color: var(--clinical-primary-dark) !important;
+}
+
+.patient-directory .doctor-patient-view-btn {
+  min-width: 122px !important;
+  height: 38px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  border: 1px solid var(--clinical-primary) !important;
+  border-radius: 10px !important;
+  padding: 0 13px !important;
+  background: #ffffff !important;
+  color: var(--clinical-primary-dark) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  white-space: nowrap;
+}
+
+.patient-directory .doctor-patient-view-btn:hover {
+  background: var(--clinical-primary-soft) !important;
+}
+
+.patient-directory .doctor-patient-view-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Medical record workspace */
+
+.doctor-dashboard .medical-record-workspace {
+  width: 100%;
+  padding: 22px 0 52px !important;
+  overflow: visible !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-content {
+  width: min(1480px, calc(100% - 48px)) !important;
+  max-width: none !important;
+  margin-inline: auto !important;
+  padding: 0 0 32px !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-header {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 410px) !important;
+  align-items: start !important;
+  gap: 24px !important;
+  margin: 0 0 20px !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-top-row {
+  margin: 0 0 7px !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-back-btn {
+  min-height: 28px !important;
+  gap: 7px !important;
+  color: var(--clinical-primary-dark) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-page-header h1 {
+  margin: 0 !important;
+  color: var(--clinical-ink) !important;
+  font-size: var(--doctor-page-title-size, 32px) !important;
+  font-weight: 800 !important;
+  line-height: 1.12 !important;
+  letter-spacing: -0.055em !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-page-header p {
+  margin: 7px 0 0 !important;
+  color: #5f6676 !important;
+  font-family: "Plus Jakarta Sans", sans-serif !important;
+  font-size: var(--doctor-page-subtitle-size, 14px) !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-actions {
+  width: 410px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-rows: auto auto !important;
+  justify-content: end !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.doctor-dashboard .medical-record-workspace .doctor-patient-header-actions {
+  display: contents !important;
+}
+
+.doctor-dashboard .medical-record-workspace .doctor-shell-header-controls {
+  grid-column: 1 / -1 !important;
+  grid-row: 1 !important;
+  justify-self: end !important;
+}
+
+.doctor-dashboard .medical-record-workspace .doctor-edit-record-button,
+.doctor-dashboard .medical-record-workspace .mr-header-notification-action {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  border-radius: 10px !important;
+  padding: 0 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-patient-card {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.36fr) !important;
+  gap: 18px !important;
+  margin: 0 0 18px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-summary,
+.doctor-dashboard .medical-record-workspace .medical-record-ui-pregnancy {
+  min-height: 228px !important;
+  border: 1px solid var(--clinical-line-soft) !important;
+  border-radius: var(--clinical-radius-card) !important;
+  box-shadow: var(--clinical-card-shadow) !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-summary {
+  gap: 24px !important;
+  padding: 24px 28px !important;
+  background: #ffffff !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-avatar {
+  width: 96px !important;
+  height: 96px !important;
+  flex-basis: 96px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(145deg, #ffd2e1, #f79ac0) !important;
+  color: #ad0f5b !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-name-row {
+  gap: 12px !important;
+  flex-wrap: wrap;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-name-row h2 {
+  color: #20232b !important;
+  font-size: 25px !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-status,
+.doctor-dashboard .medical-record-workspace .mr-risk {
+  min-width: 88px !important;
+  height: 28px !important;
+  border-radius: 999px !important;
+  padding: 0 11px !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-patient-id {
+  margin: 4px 0 17px !important;
+  color: #596174 !important;
+  font-size: 13px !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-details-grid {
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr) !important;
+  gap: 12px 24px !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-divider {
+  display: block !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-details-column {
+  gap: 9px !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-info-row {
+  grid-template-columns: 20px minmax(100px, max-content) minmax(0, 1fr) !important;
+  gap: 8px 10px !important;
+  color: #343945 !important;
+  font-size: 12.5px !important;
+  line-height: 1.35 !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-info-label {
+  color: #8a91a1 !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-info-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #343945 !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  white-space: normal !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-pregnancy {
+  padding: 24px 26px !important;
+  background: linear-gradient(145deg, #fff2f7 0%, #fff9fb 100%) !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-pregnancy h3 {
+  margin: 0 0 14px !important;
+  color: var(--clinical-primary-dark) !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-pregnancy-list div {
+  min-height: 42px !important;
+  gap: 12px !important;
+  border-bottom: 1px solid rgba(255, 47, 125, 0.16) !important;
+  font-size: 12.5px !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-pregnancy-list div:last-child {
+  border-bottom: 0 !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-pregnancy-list span {
+  max-width: 170px;
+  color: #343945 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-align: right;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-panel {
+  margin: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-tabs {
+  width: 100% !important;
+  min-height: 58px !important;
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  margin: 0 0 18px !important;
+  border: 1px solid var(--clinical-line-soft) !important;
+  border-radius: 14px !important;
+  padding: 6px !important;
+  background: #ffffff !important;
+  box-shadow: var(--clinical-card-shadow) !important;
+  overflow: visible !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-tabs .mr-tab {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  border-radius: 9px !important;
+  padding: 7px 9px !important;
+  color: #4d5362 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-tabs .mr-tab:hover,
+.doctor-dashboard .medical-record-workspace .medical-record-ui-tabs .mr-tab.active {
+  background: var(--clinical-primary-soft) !important;
+  color: var(--clinical-primary-dark) !important;
+}
+
+.doctor-dashboard .medical-record-workspace .medical-record-ui-tabs .mr-tab.active::after {
+  right: 18px !important;
+  bottom: 2px !important;
+  left: 18px !important;
+  width: auto !important;
+  height: 3px !important;
+  border-radius: 999px !important;
+  transform: none !important;
+}
+
+.doctor-dashboard .medical-record-workspace .mr-card {
+  border: 1px solid var(--clinical-line-soft) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--clinical-card-shadow) !important;
+}
+
+@media (max-width: 1180px) {
+  .patient-ui-toolbar {
+    grid-template-columns: minmax(280px, 1fr) auto !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-patient-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-pregnancy {
+    min-height: 0 !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-pregnancy-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0 22px !important;
+  }
+}
+
+@media (max-width: 960px) {
+  .patient-ui-header {
+    min-height: auto !important;
+    flex-direction: column !important;
+  }
+
+  .patient-ui-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .patient-directory .staff-patients-toolbar-right {
+    justify-content: flex-start !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-header {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-actions {
+    width: min(100%, 410px) !important;
+    justify-content: start !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .doctor-shell-header-controls {
+    justify-self: start !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-divider {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .patient-ui-toolbar,
+  .patient-ui-toolbar--search-only {
+    grid-template-columns: 1fr !important;
+  }
+
+  .patient-directory .staff-patients-toolbar-right {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    width: 100% !important;
+  }
+
+  .patient-directory .staff-patients-status-select,
+  .patient-directory .staff-register-patient-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .patient-directory .doctor-patients-table th,
+  .patient-directory .doctor-patients-table td,
+  .patient-directory .staff-patients-table th,
+  .patient-directory .staff-patients-table td {
+    padding-right: 20px !important;
+    padding-left: 20px !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-content {
+    width: calc(100% - 24px) !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-summary {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    padding: 20px !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-patient-info {
+    width: 100% !important;
+    text-align: left !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-name-row {
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-direction: row !important;
+    text-align: left !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-info-row {
+    grid-template-columns: 20px minmax(0, 1fr) !important;
+    gap: 3px 10px !important;
+    align-items: start !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-info-row > :first-child {
+    grid-row: 1 / 3;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-info-label,
+  .doctor-dashboard .medical-record-workspace .mr-info-value {
+    grid-column: 2 !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-pregnancy-list {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-tabs {
+    display: flex !important;
+    justify-content: flex-start !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    scrollbar-width: thin;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-tabs .mr-tab {
+    width: auto !important;
+    min-width: 132px !important;
+    white-space: nowrap !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .patient-directory .staff-patients-toolbar-right {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace {
+    padding-top: 14px !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-actions {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .doctor-shell-header-controls {
+    width: 100% !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .doctor-edit-record-button,
+  .doctor-dashboard .medical-record-workspace .mr-header-notification-action {
+    padding-inline: 8px !important;
+    font-size: 11.5px !important;
+    white-space: nowrap !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-avatar {
+    width: 78px !important;
+    height: 78px !important;
+    flex-basis: 78px !important;
+    font-size: 24px !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .mr-name-row h2 {
+    font-size: 22px !important;
+  }
+
+  .doctor-dashboard .medical-record-workspace .medical-record-ui-pregnancy {
+    padding: 20px !important;
+  }
+}

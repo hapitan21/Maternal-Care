@@ -1,0 +1,430 @@
+/*
+ * Staff / Doctor visual parity
+ *
+ * Staff pages reuse the Doctor shell, but legacy Staff styles are imported
+ * later and enlarge (or shrink) individual controls. This final Staff-only
+ * layer restores the current Doctor workspace scale without affecting Doctor
+ * pages or feature-specific layout behavior.
+ */
+
+.staff-dashboard-shell {
+  --staff-page-title-size: var(--doctor-page-title-size, 32px);
+  --staff-unified-title-size: var(--doctor-page-title-size, 32px);
+  --staff-unified-title-weight: 800;
+  --staff-unified-title-line-height: var(--doctor-page-title-line, 1.12);
+  --staff-unified-title-letter-spacing: -0.055em;
+}
+
+/* Shared page headers */
+.staff-dashboard-shell .staff-dashboard-home > .staff-section-header,
+.staff-dashboard-shell .staff-patients-page > .staff-section-header,
+.staff-dashboard-shell .staff-appointments-page > .staff-section-header,
+.staff-dashboard-shell .staff-settings-page > .staff-section-header,
+.staff-dashboard-shell .staff-profile-page > .staff-section-header {
+  min-height: var(--doctor-page-header-min-height, 88px) !important;
+  margin: 0 0 22px !important;
+}
+
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  > h2,
+.staff-dashboard-shell
+  .staff-patients-page
+  > .staff-patients-header.staff-section-header
+  h2,
+.staff-dashboard-shell
+  .staff-appointments-page
+  > .staff-appointments-header.staff-section-header
+  h1,
+.staff-dashboard-shell
+  .staff-settings-page
+  > .doctor-dashboard-header.staff-section-header
+  h1,
+.staff-dashboard-shell
+  .staff-profile-page
+  > .doctor-profile-page-header.staff-section-header
+  h2 {
+  margin: 0 !important;
+  color: #20232b !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: var(--doctor-page-title-size, 32px) !important;
+  font-weight: 800 !important;
+  line-height: var(--doctor-page-title-line, 1.12) !important;
+  letter-spacing: -0.055em !important;
+}
+
+.staff-dashboard-shell .staff-patients-header p,
+.staff-dashboard-shell .staff-appointments-header p,
+.staff-dashboard-shell .staff-settings-page .doctor-settings-breadcrumb,
+.staff-dashboard-shell .staff-profile-page .doctor-profile-page-header p {
+  margin: 7px 0 0 !important;
+  color: #5f6676 !important;
+  font-family: "Plus Jakarta Sans", sans-serif !important;
+  font-size: var(--doctor-page-subtitle-size, 14px) !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Dashboard content: exact Doctor compact type scale */
+.staff-dashboard-shell .staff-dashboard-home .doctor-hero-text h1 {
+  width: 390px !important;
+  max-width: 100% !important;
+  font-size: 32px !important;
+  font-weight: 700 !important;
+  line-height: 1.22 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-hero-text p {
+  width: 455px !important;
+  max-width: 100% !important;
+  margin-top: 16px !important;
+  font-size: 15px !important;
+  font-weight: 400 !important;
+  line-height: 1.45 !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-status-copy p {
+  width: 112px !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  line-height: 15px !important;
+  letter-spacing: 0.04em !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-status-copy h3 {
+  font-size: 31px !important;
+  font-weight: 700 !important;
+  line-height: 35px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-growth-badge {
+  width: 96px !important;
+  min-height: 34px !important;
+  font-size: 10.5px !important;
+  line-height: 13px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-section-header h2 {
+  font-size: 24px !important;
+  line-height: 31px !important;
+  letter-spacing: -0.04em !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-section-header button {
+  font-size: 15px !important;
+  line-height: 21px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-sessions-table th {
+  font-size: 11.5px !important;
+  line-height: 15px !important;
+  letter-spacing: 0.1em !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-sessions-table td {
+  font-size: 15.5px !important;
+  font-weight: 500 !important;
+  line-height: 22px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-patient-avatar {
+  font-size: 13.5px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-time-pill {
+  font-size: 11.5px !important;
+  line-height: 15px !important;
+}
+
+/* Patients directory: match the Doctor patient-list density */
+.staff-dashboard-shell .staff-patients-page .staff-patients-search,
+.staff-dashboard-shell .staff-patients-page .staff-patients-status-select,
+.staff-dashboard-shell .staff-patients-page .staff-register-patient-btn {
+  height: 42px !important;
+  min-height: 42px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patients-search {
+  width: 390px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patients-search svg {
+  width: 19px !important;
+  height: 19px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patients-search input,
+.staff-dashboard-shell .staff-patients-page .staff-patients-status-select select {
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-register-patient-btn {
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patients-table th {
+  height: 54px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 14px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patients-table td {
+  height: 82px !important;
+  font-size: 14.5px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patient-info-cell {
+  gap: 14px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patient-avatar {
+  width: 44px !important;
+  height: 44px !important;
+  flex-basis: 44px !important;
+  font-size: 15px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patient-name-wrap strong {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  line-height: 20px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patient-name-wrap small {
+  margin-top: 2px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 17px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patient-id,
+.staff-dashboard-shell .staff-patients-page .staff-patient-date {
+  font-size: 14.5px !important;
+  line-height: 20px !important;
+}
+
+.staff-dashboard-shell .staff-patients-page .staff-patient-status,
+.staff-dashboard-shell .staff-patients-page .staff-patient-medical-access,
+.staff-dashboard-shell .staff-patients-page .staff-patient-action-menu-item {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+/* Appointments: match Doctor controls and list scale */
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-tabs {
+  margin-top: 18px !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-tabs button {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 19px !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-control-label {
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-view-switch,
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-search,
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-month-control,
+.staff-dashboard-shell .staff-appointments-page .staff-add-appointment-btn {
+  min-height: 52px !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-view-switch button,
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-month-control input {
+  font-size: 12px !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-search input,
+.staff-dashboard-shell .staff-appointments-page .staff-add-appointment-btn {
+  font-size: 15px !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-add-appointment-btn {
+  font-weight: 700 !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-table th {
+  height: 62px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0.08em !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-appointments-table td {
+  height: 80px !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+}
+
+.staff-dashboard-shell .staff-appointments-page .staff-status-trigger {
+  min-width: 108px !important;
+  min-height: 31px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.staff-status-portal-menu .staff-status-option {
+  min-height: 28px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+/* Settings: preserve Staff data structure while using Doctor text roles */
+.staff-dashboard-shell .staff-settings-page .doctor-settings-sidebar button {
+  min-height: 46px !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  line-height: 18px !important;
+}
+
+.staff-dashboard-shell .staff-settings-page .doctor-settings-section-header h2 {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  line-height: 27px !important;
+  letter-spacing: -0.06em !important;
+}
+
+.staff-dashboard-shell .staff-settings-page .doctor-settings-section-header p {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 18px !important;
+  letter-spacing: -0.03em !important;
+}
+
+.staff-dashboard-shell .staff-settings-page .doctor-settings-info-card h3,
+.staff-dashboard-shell .staff-settings-page .doctor-settings-account-card h3,
+.staff-dashboard-shell .staff-settings-page .doctor-settings-security-card h3 {
+  font-size: 22px !important;
+  line-height: 28px !important;
+}
+
+.staff-dashboard-shell .staff-settings-page .doctor-settings-info-item span {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  line-height: 16px !important;
+}
+
+.staff-dashboard-shell .staff-settings-page .doctor-settings-info-item strong {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 23px !important;
+}
+
+.staff-dashboard-shell .staff-settings-page .doctor-settings-info-item input,
+.staff-dashboard-shell .staff-settings-page .doctor-settings-info-item select,
+.staff-dashboard-shell .staff-settings-page .doctor-settings-form-grid input,
+.staff-dashboard-shell .staff-settings-page .doctor-settings-form-grid select,
+.staff-dashboard-shell .staff-settings-page .doctor-settings-password-field input {
+  font-size: 15px !important;
+}
+
+/* Profile: mirror the final Doctor profile hierarchy */
+.staff-dashboard-shell .staff-profile-page .doctor-profile-main-photo {
+  width: 124px !important;
+  height: 124px !important;
+  border-width: 5px !important;
+  font-size: 26px !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-name-line h3 {
+  max-width: 190px !important;
+  font-size: 30px !important;
+  line-height: 1.08 !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-main-info p {
+  max-width: 170px !important;
+  font-size: 19px !important;
+  line-height: 1.18 !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-main-info > span {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-contact-item span {
+  font-size: 10.5px !important;
+  line-height: 14px !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-contact-item strong {
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-tabs button {
+  font-size: 15px !important;
+  line-height: 21px !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-row-text span,
+.staff-dashboard-shell .staff-profile-page .doctor-profile-row-text strong,
+.staff-dashboard-shell .staff-profile-page .doctor-profile-detail-row strong {
+  font-size: 15px !important;
+  line-height: 21px !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-detail-row span {
+  font-size: 13px !important;
+  line-height: 18px !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-summary-header h3 {
+  font-size: 21px !important;
+  line-height: 28px !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-summary-header button {
+  font-size: 12px !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-summary-card span {
+  font-size: 11px !important;
+  line-height: 15px !important;
+}
+
+.staff-dashboard-shell .staff-profile-page .doctor-profile-summary-card strong {
+  font-size: 26px !important;
+  line-height: 30px !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell .staff-dashboard-home > .staff-section-header,
+  .staff-dashboard-shell .staff-patients-page > .staff-section-header,
+  .staff-dashboard-shell .staff-appointments-page > .staff-section-header,
+  .staff-dashboard-shell .staff-settings-page > .staff-section-header,
+  .staff-dashboard-shell .staff-profile-page > .staff-section-header {
+    min-height: auto !important;
+    margin-bottom: 24px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-dashboard-shell .staff-patients-page .staff-patients-search,
+  .staff-dashboard-shell .staff-patients-page .staff-patients-status-select,
+  .staff-dashboard-shell .staff-patients-page .staff-register-patient-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .staff-dashboard-shell .staff-profile-page .doctor-profile-name-line h3 {
+    max-width: none !important;
+    font-size: 28px !important;
+  }
+}

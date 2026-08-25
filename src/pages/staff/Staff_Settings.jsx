@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "../../styles/staff-settings.css";
 import { supabase } from "../../lib/supabaseClient";
 import {
+  cacheStaffSettings,
   getStaffSettings,
   saveStaffSettings,
 } from "../../lib/staffProfile";
@@ -108,10 +109,11 @@ const EMPTY_STAFF_SETTINGS = {
   civilStatus: "",
   gender: "",
   nationality: "",
-  yearsExperience: "",
-  doctorId: "",
-  boardCertification: "",
-  licenseNumber: "",
+  address: "",
+  employeeId: "",
+  position: "",
+  dateHired: "",
+  employmentStatus: "",
   email: "",
   clinicName: "",
   contactNumber: "",
@@ -120,14 +122,46 @@ const EMPTY_STAFF_SETTINGS = {
   loginNotifications: false,
 };
 
+const staffPersonalSelect = `
+  full_name,
+  birthdate,
+  civil_status,
+  gender,
+  nationality,
+  address
+`;
+const staffPersonalLegacySelect = `
+  full_name,
+  birthdate,
+  civil_status,
+  gender,
+  nationality
+`;
+const staffProfessionalSelect = `
+  staff_code,
+  position,
+  date_hired,
+  employment_status,
+  email_address,
+  contact_number,
+  clinic_hospital_name,
+  clinic_address
+`;
+const staffProfessionalLegacySelect = `
+  staff_code,
+  email_address,
+  contact_number,
+  clinic_hospital_name,
+  clinic_address
+`;
+
 // This component is named StaffSettingsContent, but the SQL supplied by the
 // project uses doctor_account_settings. Keep this value consistent with the
 // exact Supabase table name.
-const ACCOUNT_SETTINGS_TABLE = "doctor_account_settings";
+const ACCOUNT_SETTINGS_TABLE = "staff_account_settings";
 const OTP_COOLDOWN_SECONDS = 60;
 const AUTH_REQUEST_TIMEOUT_MS = 45000;
 const EMAIL_CHANGE_SEND_FALLBACK_MS = 6000;
-const EMAIL_CHANGE_VERIFY_FALLBACK_MS = 6000;
 const CHANGE_EMAIL_INITIAL_STATE = {
   isOpen: false,
   step: "details",
@@ -248,33 +282,6 @@ function sendEmailChangeWithFallback(newEmail) {
   });
 }
 
-function verifyEmailChangeWithFallback(email, token) {
-  let timeoutId;
-
-  const verifyPromise = supabase.auth.verifyOtp({
-    email,
-    token,
-    type: "email_change",
-  });
-
-  const fallbackPromise = new Promise((resolve) => {
-    timeoutId = window.setTimeout(() => {
-      resolve({
-        data: null,
-        error: null,
-        didFallback: true,
-      });
-    }, EMAIL_CHANGE_VERIFY_FALLBACK_MS);
-  });
-
-  return Promise.race([verifyPromise, fallbackPromise]).finally(() => {
-    window.clearTimeout(timeoutId);
-    verifyPromise.catch((error) => {
-      console.warn("Late email-change verification failed:", error);
-    });
-  });
-}
-
 function getFriendlyAuthError(error) {
   const message = String(error?.message || "").toLowerCase();
   const status = error?.status;
@@ -318,33 +325,29 @@ function getFriendlyAuthError(error) {
   return error?.message || "The request could not be completed.";
 }
 
-function parseYearsExperience(value) {
-  const cleanedValue = String(value ?? "").replace(/[^\d]/g, "");
-
-  if (!cleanedValue) {
-    return 0;
-  }
-
-  const numberValue = Number(cleanedValue);
-
-  return Number.isFinite(numberValue) ? numberValue : 0;
-}
-
-function normalizeYearsExperienceForSettings(value) {
-  const cleanedValue = String(value ?? "").replace(/[^\d]/g, "");
-  return cleanedValue;
-}
-
 function getStaffSettingsFallback() {
   const cachedSettings = getStaffSettings();
 
   return {
     ...EMPTY_STAFF_SETTINGS,
     ...cachedSettings,
-    yearsExperience: normalizeYearsExperienceForSettings(
-      cachedSettings.yearsExperience
+    twoFactorAuth: Boolean(cachedSettings.twoFactorAuth),
+    loginNotifications: Boolean(
+      cachedSettings.loginNotifications
     ),
   };
+}
+
+function isSchemaColumnError(error) {
+  if (!error) return false;
+  const message = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("could not find") ||
+    message.includes("column")
+  );
 }
 
 function formatDateTime(value) {
@@ -506,6 +509,47 @@ async function saveStaffTableRecord(tableName, payload) {
   return Array.isArray(data) ? data[0] : data;
 }
 
+async function loadStaffTableRecord(tableName, selectColumns, fallbackColumns, userId) {
+  let { data, error } = await supabase
+    .from(tableName)
+    .select(selectColumns)
+    .eq("auth_user_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error && isSchemaColumnError(error) && fallbackColumns) {
+    const fallbackResult = await supabase
+      .from(tableName)
+      .select(fallbackColumns)
+      .eq("auth_user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
+
+  return { data, error };
+}
+
+async function saveStaffTableRecordWithSchemaFallback(
+  tableName,
+  payload,
+  fallbackPayload
+) {
+  try {
+    return await saveStaffTableRecord(tableName, payload);
+  } catch (error) {
+    if (!isSchemaColumnError(error) || !fallbackPayload) {
+      throw error;
+    }
+
+    console.warn(
+      `${tableName} is missing one or more optional Staff profile columns; saved only the currently available columns.`
+    );
+    return saveStaffTableRecord(tableName, fallbackPayload);
+  }
+}
+
 async function syncConfirmedStaffEmail(userId, email, settingsSnapshot) {
   const confirmedEmail = normalizeEmail(email);
 
@@ -538,43 +582,111 @@ async function syncConfirmedStaffEmail(userId, email, settingsSnapshot) {
     throw profileError;
   }
 
-  await saveStaffTableRecord("staff_professional_information", {
+  const currentTimestamp = new Date().toISOString();
+  const professionalPayload = {
     auth_user_id: userId,
-    staff_code: nullableText(settingsSnapshot.doctorId),
-    license_number: nullableText(
-      settingsSnapshot.licenseNumber
-    ),
-    board_certification: nullableText(
-      settingsSnapshot.boardCertification
-    ),
+    staff_code: nullableText(settingsSnapshot.employeeId),
+    position: nullableText(settingsSnapshot.position),
+    date_hired: nullableText(settingsSnapshot.dateHired),
+    employment_status: nullableText(settingsSnapshot.employmentStatus),
     email_address: confirmedEmail,
-    contact_number: nullableText(
-      settingsSnapshot.contactNumber
-    ),
-    clinic_hospital_name: nullableText(
-      settingsSnapshot.clinicName
-    ),
-    clinic_address: nullableText(
-      settingsSnapshot.clinicAddress
-    ),
-    updated_at: new Date().toISOString(),
-  });
+    contact_number: nullableText(settingsSnapshot.contactNumber),
+    clinic_hospital_name: nullableText(settingsSnapshot.clinicName),
+    clinic_address: nullableText(settingsSnapshot.clinicAddress),
+    updated_at: currentTimestamp,
+  };
+
+  await saveStaffTableRecordWithSchemaFallback(
+    "staff_professional_information",
+    professionalPayload,
+    {
+      auth_user_id: userId,
+      staff_code: nullableText(settingsSnapshot.employeeId),
+      email_address: confirmedEmail,
+      contact_number: nullableText(settingsSnapshot.contactNumber),
+      clinic_hospital_name: nullableText(settingsSnapshot.clinicName),
+      clinic_address: nullableText(settingsSnapshot.clinicAddress),
+      updated_at: currentTimestamp,
+    }
+  );
+}
+
+let cachedStaffSettingsView = null;
+
+let cachedStaffAuthenticatedUser = null;
+
+function getInitialStaffSettingsSnapshot() {
+  const sharedSnapshot = getStaffSettingsFallback();
+
+  const sharedEmail = normalizeEmail(
+    sharedSnapshot.email
+  );
+
+  const cachedEmail = normalizeEmail(
+    cachedStaffSettingsView?.email
+  );
+
+  if (
+    cachedStaffSettingsView &&
+    sharedEmail &&
+    cachedEmail === sharedEmail
+  ) {
+    return {
+      ...cachedStaffSettingsView,
+    };
+  }
+
+  if (
+    cachedStaffSettingsView &&
+    (!sharedEmail || cachedEmail !== sharedEmail)
+  ) {
+    cachedStaffSettingsView = null;
+    cachedStaffAuthenticatedUser = null;
+  }
+
+  return sharedSnapshot;
+}
+
+function hasSettingsSnapshot(settings) {
+  return Boolean(
+    settings?.displayName ||
+      settings?.email ||
+      settings?.employeeId ||
+      settings?.contactNumber
+  );
 }
 
 function StaffSettingsContent({ headerAction }) {
   const navigate = useNavigate();
   const [activePanel, setActivePanel] = React.useState("profile");
 
+  const initialSettingsSnapshot =
+    getInitialStaffSettingsSnapshot();
+
   const [authenticatedUser, setAuthenticatedUser] =
-    React.useState(null);
+    React.useState(() => {
+      const cachedUserEmail = normalizeEmail(
+        cachedStaffAuthenticatedUser?.email
+      );
 
-  const [settings, setSettings] = React.useState({
-    ...EMPTY_STAFF_SETTINGS,
-  });
+      const snapshotEmail = normalizeEmail(
+        initialSettingsSnapshot.email
+      );
 
-  const [draftSettings, setDraftSettings] = React.useState({
-    ...EMPTY_STAFF_SETTINGS,
-  });
+      return cachedUserEmail &&
+        snapshotEmail &&
+        cachedUserEmail === snapshotEmail
+        ? cachedStaffAuthenticatedUser
+        : null;
+    });
+
+  const [settings, setSettings] = React.useState(
+    initialSettingsSnapshot
+  );
+
+  const [draftSettings, setDraftSettings] = React.useState(
+    initialSettingsSnapshot
+  );
 
   const [editing, setEditing] = React.useState({
     personal: false,
@@ -594,7 +706,9 @@ function StaffSettingsContent({ headerAction }) {
   });
 
   const [isLoadingSettings, setIsLoadingSettings] =
-    React.useState(true);
+    React.useState(
+      !hasSettingsSnapshot(initialSettingsSnapshot)
+    );
 
   const [isSavingSettings, setIsSavingSettings] =
     React.useState(false);
@@ -633,12 +747,31 @@ function StaffSettingsContent({ headerAction }) {
     let isMounted = true;
 
     async function loadSettingsFromSupabase() {
-      setIsLoadingSettings(true);
+      /*
+       * Keep the last successful snapshot visible while Supabase refreshes.
+       * A blocking loading state is only needed when we have no useful Staff
+       * data yet.
+       */
+      if (!cachedStaffSettingsView) {
+        const sharedSnapshot =
+          getInitialStaffSettingsSnapshot();
+
+        if (hasSettingsSnapshot(sharedSnapshot)) {
+          setSettings(sharedSnapshot);
+          setDraftSettings(sharedSnapshot);
+          setIsLoadingSettings(false);
+        } else {
+          setIsLoadingSettings(true);
+        }
+      }
+
       setSettingsError("");
       setSettingsMessage("");
 
       try {
         const user = await getAuthenticatedUser();
+
+        cachedStaffAuthenticatedUser = user;
 
         if (isMounted) {
           setAuthenticatedUser(user);
@@ -650,38 +783,18 @@ function StaffSettingsContent({ headerAction }) {
 
         const [personalResult, professionalResult] =
           await Promise.all([
-            supabase
-              .from("staff_personal_information")
-              .select(
-                `
-                full_name,
-                birthdate,
-                civil_status,
-                gender,
-                nationality,
-                years_of_experience
-                `
-              )
-              .eq("auth_user_id", user.id)
-              .limit(1)
-              .maybeSingle(),
-
-            supabase
-              .from("staff_professional_information")
-              .select(
-                `
-                staff_code,
-                license_number,
-                board_certification,
-                email_address,
-                contact_number,
-                clinic_hospital_name,
-                clinic_address
-                `
-              )
-              .eq("auth_user_id", user.id)
-              .limit(1)
-              .maybeSingle(),
+            loadStaffTableRecord(
+              "staff_personal_information",
+              staffPersonalSelect,
+              staffPersonalLegacySelect,
+              user.id
+            ),
+            loadStaffTableRecord(
+              "staff_professional_information",
+              staffProfessionalSelect,
+              staffProfessionalLegacySelect,
+              user.id
+            ),
           ]);
 
         // Account settings still load even if one of these optional profile
@@ -723,21 +836,22 @@ function StaffSettingsContent({ headerAction }) {
             personal?.nationality ??
             fallbackSettings.nationality,
 
-          yearsExperience:
-            personal?.years_of_experience === null ||
-            personal?.years_of_experience === undefined
-              ? fallbackSettings.yearsExperience
-              : String(personal.years_of_experience),
+          address:
+            personal?.address ??
+            fallbackSettings.address,
 
-          doctorId:
+          employeeId:
             professional?.staff_code ??
-            fallbackSettings.doctorId,
-          boardCertification:
-            professional?.board_certification ??
-            fallbackSettings.boardCertification,
-          licenseNumber:
-            professional?.license_number ??
-            fallbackSettings.licenseNumber,
+            fallbackSettings.employeeId,
+          position:
+            professional?.position ??
+            fallbackSettings.position,
+          dateHired:
+            professional?.date_hired ??
+            fallbackSettings.dateHired,
+          employmentStatus:
+            professional?.employment_status ??
+            fallbackSettings.employmentStatus,
 
           email:
             user.email ??
@@ -766,6 +880,14 @@ function StaffSettingsContent({ headerAction }) {
             account?.login_notifications ??
             fallbackSettings.loginNotifications,
         };
+
+        cachedStaffSettingsView = {
+          ...loadedSettings,
+        };
+
+        cacheStaffSettings(loadedSettings, {
+          broadcast: false,
+        });
 
         if (isMounted) {
           setSettings(loadedSettings);
@@ -914,8 +1036,14 @@ function StaffSettingsContent({ headerAction }) {
               nextSettings
             );
 
+            cachedStaffSettingsView = {
+              ...nextSettings,
+            };
+
             setSettings(nextSettings);
             setDraftSettings(nextSettings);
+            saveStaffSettings(nextSettings);
+
             setSettingsMessage(
               "Email changed successfully. Please log in again."
             );
@@ -962,55 +1090,59 @@ function StaffSettingsContent({ headerAction }) {
 
     const currentTimestamp = new Date().toISOString();
 
-    await saveStaffTableRecord(
+    const personalPayload = {
+      auth_user_id: user.id,
+      full_name: nullableText(nextSettings.displayName),
+      birthdate: nullableText(nextSettings.birthdate),
+      civil_status: nullableText(nextSettings.civilStatus),
+      gender: nullableText(nextSettings.gender),
+      nationality: nullableText(nextSettings.nationality),
+      address: nullableText(nextSettings.address),
+      updated_at: currentTimestamp,
+    };
+
+    await saveStaffTableRecordWithSchemaFallback(
       "staff_personal_information",
+      personalPayload,
       {
         auth_user_id: user.id,
         full_name: nullableText(nextSettings.displayName),
         birthdate: nullableText(nextSettings.birthdate),
-        civil_status: nullableText(
-          nextSettings.civilStatus
-        ),
+        civil_status: nullableText(nextSettings.civilStatus),
         gender: nullableText(nextSettings.gender),
-        nationality: nullableText(
-          nextSettings.nationality
-        ),
-        years_of_experience: parseYearsExperience(
-          nextSettings.yearsExperience
-        ),
+        nationality: nullableText(nextSettings.nationality),
         updated_at: currentTimestamp,
       }
     );
 
-    await saveStaffTableRecord(
+    const professionalPayload = {
+      auth_user_id: user.id,
+      staff_code: nullableText(nextSettings.employeeId),
+      position: nullableText(nextSettings.position),
+      date_hired: nullableText(nextSettings.dateHired),
+      employment_status: nullableText(nextSettings.employmentStatus),
+      email_address: nullableText(nextSettings.email) || user.email || null,
+      contact_number: nullableText(nextSettings.contactNumber),
+      clinic_hospital_name: nullableText(nextSettings.clinicName),
+      clinic_address: nullableText(nextSettings.clinicAddress),
+      updated_at: currentTimestamp,
+    };
+
+    await saveStaffTableRecordWithSchemaFallback(
       "staff_professional_information",
+      professionalPayload,
       {
         auth_user_id: user.id,
-        staff_code: nullableText(nextSettings.doctorId),
-        license_number: nullableText(
-          nextSettings.licenseNumber
-        ),
-        board_certification: nullableText(
-          nextSettings.boardCertification
-        ),
-        email_address:
-          nullableText(nextSettings.email) ||
-          user.email ||
-          null,
-        contact_number: nullableText(
-          nextSettings.contactNumber
-        ),
-        clinic_hospital_name: nullableText(
-          nextSettings.clinicName
-        ),
-        clinic_address: nullableText(
-          nextSettings.clinicAddress
-        ),
+        staff_code: nullableText(nextSettings.employeeId),
+        email_address: nullableText(nextSettings.email) || user.email || null,
+        contact_number: nullableText(nextSettings.contactNumber),
+        clinic_hospital_name: nullableText(nextSettings.clinicName),
+        clinic_address: nullableText(nextSettings.clinicAddress),
         updated_at: currentTimestamp,
       }
     );
 
-    // Keep the Account tab and doctor_account_settings table synchronized
+    // Keep the Account tab and staff_account_settings table synchronized
     // when email/contact values are changed from Professional Information.
     await saveAccountSettingsRecord({
       user_id: user.id,
@@ -1035,6 +1167,10 @@ function StaffSettingsContent({ headerAction }) {
 
     try {
       await saveProfileSettingsToSupabase(nextSettings);
+
+      cachedStaffSettingsView = {
+        ...nextSettings,
+      };
 
       setSettings(nextSettings);
       setDraftSettings(nextSettings);
@@ -1130,8 +1266,13 @@ function StaffSettingsContent({ headerAction }) {
         contactNumber,
       };
 
+      cachedStaffSettingsView = {
+        ...nextSettings,
+      };
+
       setSettings(nextSettings);
       setDraftSettings(nextSettings);
+      saveStaffSettings(nextSettings);
 
       setSettingsMessage("Contact number saved successfully.");
     } catch (error) {
@@ -1256,9 +1397,6 @@ function StaffSettingsContent({ headerAction }) {
 
   const verifyEmailChangeOtp = async (target) => {
     const isCurrentEmailStep = target === "current";
-    const currentEmail = normalizeEmail(
-      changeEmail.currentEmail || authenticatedUser?.email
-    );
     const pendingEmail = normalizeEmail(changeEmail.pendingEmail);
     const token = normalizeOtp(
       isCurrentEmailStep
@@ -1739,21 +1877,22 @@ function StaffSettingsContent({ headerAction }) {
 
   const personalFields = [
     ["Full Name", "displayName"],
-    ["Birthdate", "birthdate"],
-    ["Civil Status", "civilStatus"],
     ["Gender", "gender"],
+    ["Birthdate", "birthdate"],
     ["Nationality", "nationality"],
-    ["Years of Experience", "yearsExperience"],
+    ["Civil Status", "civilStatus"],
+    ["Address", "address"],
   ];
 
   const professionalFields = [
-    ["Doctor ID", "doctorId"],
-    ["Board Certification", "boardCertification"],
-    ["License Number", "licenseNumber"],
-    ["Email Address", "email"],
+    ["Employee ID", "employeeId"],
+    ["Position", "position"],
+    ["Date Hired", "dateHired"],
+    ["Employment Status", "employmentStatus"],
     ["Clinic/Hospital Name", "clinicName"],
-    ["Contact Number", "contactNumber"],
     ["Clinic Address", "clinicAddress"],
+    ["Contact Number", "contactNumber"],
+    ["Email", "email"],
   ];
 
   const breadcrumbLabel =

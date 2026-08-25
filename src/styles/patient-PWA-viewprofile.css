@@ -2,6 +2,15 @@
   max-width: 1040px;
 }
 
+.pwa-profile-sync-message {
+  max-width: 560px;
+  margin: 8px 0 0;
+  color: var(--pwa-muted);
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 600;
+}
+
 .pwa-profile-hero,
 .pwa-info-card {
   background: #ffffff;
@@ -64,7 +73,8 @@
   font-size: 30px;
   line-height: 36px;
   font-weight: 800;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .pwa-profile-name-row span {
@@ -80,7 +90,7 @@
   font-size: 10px;
   line-height: 14px;
   font-weight: 800;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .pwa-profile-main-copy > p {
@@ -252,6 +262,7 @@
   gap: 7px;
   font-size: 12px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .pwa-info-card header button.is-muted {
@@ -353,6 +364,7 @@
   font: inherit;
   font-size: 13px;
   font-weight: 700;
+  scroll-margin-bottom: calc(var(--pwa-bottom-nav-height, 82px) + 28px + env(safe-area-inset-bottom));
 }
 
 .pwa-edit-field input:focus {
@@ -387,8 +399,8 @@
 
   .pwa-profile-hero {
     grid-template-columns: 1fr;
-    padding: 24px 20px;
-    gap: 18px;
+    padding: 22px 18px;
+    gap: 16px;
   }
 
   .pwa-profile-contact-list,
@@ -398,7 +410,7 @@
 
   .pwa-profile-info-grid {
     grid-template-columns: 1fr;
-    gap: 22px;
+    gap: 18px;
   }
 
   .pwa-profile-info-grid .is-wide {
@@ -412,6 +424,8 @@
   .pwa-info-card header {
     align-items: flex-start;
     flex-wrap: wrap;
+    padding-bottom: 18px;
+    margin-bottom: 20px;
   }
 
   .pwa-info-actions {
@@ -421,13 +435,74 @@
 }
 
 @media (max-width: 520px) {
+  .pwa-profile-title {
+    margin-bottom: 16px !important;
+  }
+
+  .pwa-profile-sync-message {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .pwa-profile-hero {
+    padding: 20px 16px;
+    margin-bottom: 18px;
+  }
+
+  .pwa-profile-photo-ring {
+    width: 96px;
+    height: 96px;
+  }
+
+  .pwa-profile-photo-ring img,
+  .pwa-profile-photo-fallback {
+    width: 88px;
+    height: 88px;
+    font-size: 20px;
+  }
+
+  .pwa-profile-name-row h2 {
+    font-size: 27px;
+    line-height: 32px;
+  }
+
   .pwa-profile-main-copy ul {
     display: grid;
     gap: 8px;
   }
 
+  .pwa-profile-contact-list {
+    gap: 10px;
+  }
+
+  .pwa-profile-contact-list div {
+    gap: 10px;
+  }
+
+  .pwa-profile-contact-list dd {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .pwa-edit-profile-btn {
+    min-height: 44px;
+  }
+
+  .pwa-info-card {
+    padding: 20px 16px 22px;
+    margin-bottom: 18px;
+  }
+
+  .pwa-info-card header h2 {
+    font-size: 15px;
+    line-height: 20px;
+  }
+
   .pwa-profile-info-grid article {
     grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px 12px;
   }
 
   .pwa-profile-info-grid article div {
@@ -445,5 +520,323 @@
 
   .pwa-info-actions button {
     flex: 1;
+    min-height: 44px;
+  }
+}
+
+/* =========================================================
+   PROFILE REFINEMENT
+   Align the profile with the shared Patient PWA hierarchy.
+========================================================= */
+.pwa-profile-page {
+  width: 100%;
+  max-width: 1240px;
+}
+
+.pwa-profile-feedback {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -8px 0 18px;
+  border: 1px solid #f3d8e4;
+  border-radius: 12px;
+  background: #fff8fb;
+  color: #6d5260;
+  padding: 9px 13px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 650;
+}
+
+.pwa-profile-feedback > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--pwa-pink);
+}
+
+.pwa-profile-feedback.is-error {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #b42338;
+}
+
+.pwa-profile-hero {
+  min-height: 220px;
+  grid-template-columns: 112px minmax(260px, 0.92fr) minmax(330px, 1.08fr);
+  gap: 26px;
+  margin-bottom: 22px;
+  border-color: #e7eaf0;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 94% 8%, rgba(255, 47, 125, 0.09), transparent 32%),
+    linear-gradient(135deg, #ffffff 0%, #fffafd 100%);
+  padding: 30px;
+  box-shadow: 0 12px 30px rgba(37, 45, 61, 0.07);
+}
+
+.pwa-profile-photo-ring {
+  width: 104px;
+  height: 104px;
+  padding: 3px;
+  box-shadow: 0 12px 24px rgba(255, 61, 131, 0.15);
+}
+
+.pwa-profile-photo-ring img,
+.pwa-profile-photo-fallback {
+  width: 98px;
+  height: 98px;
+  border-width: 3px;
+}
+
+.pwa-profile-name-row h2 {
+  font-size: 27px;
+  line-height: 1.18;
+  letter-spacing: -0.035em;
+}
+
+.pwa-profile-main-copy > p {
+  margin: 6px 0 12px;
+  font-size: 12.5px;
+}
+
+.pwa-profile-main-copy ul {
+  gap: 8px 16px;
+  margin-bottom: 11px;
+}
+
+.pwa-profile-contact-list {
+  gap: 10px;
+  padding: 46px 0 0;
+}
+
+.pwa-profile-contact-list div {
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 11px;
+}
+
+.pwa-profile-contact-list dt {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+}
+
+.pwa-profile-contact-list dd {
+  color: #4e5c72;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.pwa-edit-profile-btn {
+  position: absolute;
+  top: 26px;
+  right: 28px;
+  min-width: 118px;
+  height: 38px;
+  border-radius: 11px;
+  background: #fff;
+  font-size: 11.5px;
+}
+
+.pwa-edit-profile-btn:hover:not(:disabled),
+.pwa-info-card header button:hover:not(:disabled) {
+  background: #fff0f6;
+}
+
+.pwa-edit-profile-btn:focus-visible,
+.pwa-info-card header button:focus-visible,
+.pwa-edit-field input:focus-visible {
+  outline: 3px solid rgba(255, 47, 125, 0.16);
+  outline-offset: 2px;
+}
+
+.pwa-info-card {
+  margin-bottom: 20px;
+  border-color: #e7eaf0;
+  border-radius: 20px;
+  padding: 24px 26px 28px;
+  box-shadow: 0 10px 26px rgba(37, 45, 61, 0.055);
+}
+
+.pwa-info-card header {
+  min-height: 40px;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+}
+
+.pwa-info-card header > span {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+}
+
+.pwa-info-card header h2 {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.pwa-profile-info-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 38px;
+}
+
+.pwa-profile-info-grid article,
+.pwa-profile-info-grid article:not(:has(> span)) {
+  min-height: 56px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.pwa-profile-info-grid article > span {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+}
+
+.pwa-profile-info-grid article div,
+.pwa-profile-info-grid article:not(:has(> span)) div {
+  display: grid;
+  gap: 3px;
+}
+
+.pwa-profile-info-grid small {
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.055em;
+}
+
+.pwa-profile-info-grid strong {
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 720;
+}
+
+.pwa-edit-field input {
+  height: 44px;
+  border-color: #d9deea;
+  background: #fbfcfe;
+  font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+  .pwa-profile-hero {
+    grid-template-columns: 104px minmax(0, 1fr);
+  }
+
+  .pwa-profile-contact-list {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 4px;
+  }
+}
+
+@media (max-width: 760px) {
+  .pwa-profile-feedback {
+    margin-top: -4px;
+  }
+
+  .pwa-profile-hero {
+    grid-template-columns: 86px minmax(0, 1fr);
+    gap: 16px;
+    padding: 18px;
+  }
+
+  .pwa-profile-photo-ring {
+    width: 82px;
+    height: 82px;
+  }
+
+  .pwa-profile-photo-ring img,
+  .pwa-profile-photo-fallback {
+    width: 76px;
+    height: 76px;
+  }
+
+  .pwa-profile-contact-list {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-edit-profile-btn {
+    position: static;
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .pwa-info-card {
+    padding: 20px 18px 22px;
+  }
+
+  .pwa-profile-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-profile-info-grid .is-wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .pwa-profile-title {
+    margin-bottom: 16px !important;
+  }
+
+  .pwa-profile-hero {
+    grid-template-columns: 72px minmax(0, 1fr);
+    border-radius: 17px;
+    padding: 16px;
+  }
+
+  .pwa-profile-photo-ring {
+    width: 68px;
+    height: 68px;
+  }
+
+  .pwa-profile-photo-ring img,
+  .pwa-profile-photo-fallback {
+    width: 62px;
+    height: 62px;
+    font-size: 17px;
+  }
+
+  .pwa-profile-name-row {
+    gap: 7px;
+  }
+
+  .pwa-profile-name-row h2 {
+    font-size: 21px;
+    line-height: 1.2;
+  }
+
+  .pwa-profile-main-copy ul {
+    display: flex;
+    gap: 5px 12px;
+  }
+
+  .pwa-profile-main-copy li {
+    font-size: 10.5px;
+  }
+
+  .pwa-profile-contact-list,
+  .pwa-edit-profile-btn {
+    grid-column: 1 / -1;
+  }
+
+  .pwa-info-card {
+    border-radius: 17px;
+    padding: 17px 15px 19px;
+  }
+
+  .pwa-profile-info-grid {
+    gap: 12px;
+  }
+
+  .pwa-profile-info-grid article,
+  .pwa-profile-info-grid article:not(:has(> span)) {
+    min-height: 50px;
   }
 }

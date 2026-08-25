@@ -17,6 +17,8 @@
 
 .pwa-reminder-card,
 .pwa-medication-card {
+  max-width: 100%;
+  box-sizing: border-box;
   border: 1px solid #fde1ea;
   border-radius: 14px;
   background: #fff;
@@ -29,10 +31,12 @@
 }
 
 .pwa-reminder-card-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   margin-bottom: 24px;
+  min-width: 0;
 }
 
 .pwa-reminder-card-header > span {
@@ -63,26 +67,42 @@
 }
 
 .pwa-reminder-card-header h2 {
-  flex: 1;
+  min-width: 0;
   margin: 0;
   color: var(--pwa-text, #12192b);
   font-family: "Poppins", sans-serif;
   font-size: 20px;
   line-height: 28px;
   font-weight: 800;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.patient-reminder-view-all {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #e91e75;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 4px 0;
   white-space: nowrap;
 }
 
-.pwa-reminder-card-header button {
-  border: 0;
-  background: transparent;
-  color: #c31572;
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 800;
-  white-space: nowrap;
+.patient-reminder-view-all:hover {
+  color: #c71567;
+  text-decoration: underline;
+}
+
+.patient-reminder-view-all:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid rgba(233, 30, 117, 0.35);
+  outline-offset: 4px;
 }
 
 .pwa-upcoming-inner {
@@ -125,7 +145,7 @@
   font-size: 34px;
   line-height: 38px;
   font-weight: 800;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .pwa-reminder-appointment-copy h3 {
@@ -134,6 +154,7 @@
   font-size: 15px;
   line-height: 22px;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .pwa-reminder-appointment-copy h3 span {
@@ -193,6 +214,7 @@
 .pwa-reminder-note span {
   font-size: 13px;
   line-height: 18px;
+  overflow-wrap: anywhere;
 }
 
 .pwa-reminder-note strong {
@@ -205,6 +227,9 @@
 }
 
 .pwa-daily-tip {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   border-radius: 12px;
   background: #dfeaff;
   padding: 24px;
@@ -251,16 +276,33 @@
   transform: translateY(8px);
 }
 
+.pwa-tip-phone-screen img {
+  width: 45px;
+  height: 58px;
+  object-fit: contain;
+  transform: translateY(8px);
+}
+
+.pwa-tip-phone-screen > svg {
+  width: 28px;
+  height: 28px;
+  color: #2490cb;
+  transform: translateY(8px);
+}
+
 .pwa-tip-copy h3 {
+  min-width: 0;
   margin: 0 0 8px;
   color: var(--pwa-text, #12192b);
   font-size: 21px;
   line-height: 26px;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .pwa-tip-copy p {
+  min-width: 0;
   margin: 0;
   color: #5d6170;
   font-size: 14px;
@@ -289,7 +331,7 @@
 }
 
 .pwa-medication-card {
-  min-height: 500px;
+  min-height: 0;
   padding: 30px 24px 34px;
 }
 
@@ -300,13 +342,14 @@
 .pwa-medication-tabs {
   width: 360px;
   max-width: 100%;
+  box-sizing: border-box;
   height: 44px;
   border-radius: 9px;
   background: #f0f3fb;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   padding: 4px;
-  margin-bottom: 34px;
+  margin-bottom: 24px;
 }
 
 .pwa-medication-tabs button {
@@ -365,6 +408,7 @@
   font-size: 16px;
   line-height: 22px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .pwa-medication-copy p {
@@ -376,6 +420,8 @@
   font-size: 12px;
   line-height: 16px;
   font-weight: 600;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
 }
 
 .pwa-medication-copy p svg {
@@ -391,7 +437,9 @@
 
 .pwa-status-wrap {
   position: relative;
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   justify-self: end;
 }
 
@@ -402,7 +450,10 @@
   border-radius: 999px;
   background: #eadfff;
   color: #6b2ce7;
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
   font-size: 10px;
   line-height: 14px;
   font-weight: 800;
@@ -414,7 +465,22 @@
   color: #7b37e8;
 }
 
+.pwa-status-chip.is-upcoming {
+  background: #f0e0ff;
+  color: #7b37e8;
+}
+
+.pwa-status-chip.is-due {
+  background: #ffe4ed;
+  color: #c31572;
+}
+
 .pwa-status-chip.is-completed {
+  background: #ccf3dc;
+  color: #17a464;
+}
+
+.pwa-status-chip.is-taken {
   background: #ccf3dc;
   color: #17a464;
 }
@@ -424,57 +490,158 @@
   color: #1769a8;
 }
 
+.pwa-status-chip.is-skipped,
+.pwa-status-chip.is-paused {
+  background: #f1e6ce;
+  color: #916019;
+}
+
 .pwa-status-chip.is-missed {
   background: #ffd6d6;
   color: #e45c5c;
 }
 
-.pwa-status-menu {
-  position: absolute;
-  right: -8px;
-  top: calc(100% + 8px);
-  z-index: 20;
-  width: 112px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 15px 28px rgba(22, 29, 45, 0.18);
-  padding: 8px;
-  display: grid;
-  gap: 6px;
+.pwa-status-chip.is-reminder-unavailable {
+  background: #eef0f4;
+  color: #5d6472;
 }
 
-.pwa-status-menu button {
-  border: 0;
-  border-radius: 999px;
-  min-height: 24px;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.pwa-status-menu button.is-pending {
-  background: #f0e0ff;
-  color: #7b37e8;
-}
-
-.pwa-status-menu button.is-completed {
-  background: #ccf3dc;
-  color: #17a464;
-}
-
-.pwa-status-menu button.is-sent {
+.pwa-status-chip.is-processing {
   background: #d8ecff;
   color: #1769a8;
 }
 
-.pwa-status-menu button.is-missed {
-  background: #ffd6d6;
-  color: #e45c5c;
+.pwa-status-chip.is-unavailable {
+  background: #eef0f4;
+  color: #5d6472;
+}
+
+.pwa-medication-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pwa-medication-actions button {
+  min-height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.pwa-medication-actions button:disabled {
+  cursor: progress;
+  opacity: 0.68;
+}
+
+.pwa-medication-action-primary {
+  border: 0;
+  background: #c31572;
+  color: #fff;
+}
+
+.pwa-medication-action-secondary {
+  border: 1px solid #e8cbd5;
+  background: #fff;
+  color: #7b6874;
+}
+
+.pwa-medication-action-primary:focus-visible,
+.pwa-medication-action-secondary:focus-visible {
+  outline: 2px solid rgba(195, 21, 114, 0.35);
+  outline-offset: 3px;
+}
+
+.pwa-medication-action-error {
+  margin: 7px 0 0;
+  color: #c31540;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.pwa-row-chevron-button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: #f6eefb;
+  color: #8054e8;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+}
+
+.pwa-row-chevron-button:focus-visible {
+  outline: 2px solid rgba(128, 84, 232, 0.35);
+  outline-offset: 3px;
 }
 
 .pwa-medication-row--empty {
-  grid-template-columns: 1fr;
-  padding: 24px;
+  min-height: 132px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  border: 1px dashed #eadce4;
+  border-radius: 14px;
+  background: #fcfafb;
+  padding: 22px 24px;
+}
+
+.pwa-medication-state-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #f0e9ff;
+  color: #8054e8;
+}
+
+.pwa-medication-state-icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.pwa-medication-row--empty.is-loading .pwa-medication-state-icon svg {
+  animation: pwa-medication-spin 900ms linear infinite;
+}
+
+.pwa-medication-row--empty.is-error .pwa-medication-state-icon {
+  background: #ffe8ea;
+  color: #c83f52;
+}
+
+.pwa-medication-empty-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+  border: 0;
+  border-radius: 10px;
+  background: #8054e8;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  padding: 0 13px;
+}
+
+.pwa-medication-empty-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+@keyframes pwa-medication-spin {
+  to { transform: rotate(360deg); }
 }
 
 .pwa-row-chevron {
@@ -486,12 +653,179 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
 }
 
 .pwa-row-chevron svg {
   width: 18px;
   height: 18px;
+}
+
+.patient-reminder-view-all-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(18, 25, 43, 0.38);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.patient-reminder-view-all-modal {
+  width: min(100%, 720px);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: hidden;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(18, 25, 43, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.patient-reminder-view-all-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  border-bottom: 1px solid #f2d5df;
+  padding: 22px 24px;
+}
+
+.patient-reminder-view-all-header h2 {
+  margin: 0;
+  color: var(--pwa-text, #12192b);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.patient-reminder-view-all-header p {
+  margin: 4px 0 0;
+  color: #7b6874;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+.patient-reminder-view-all-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff0f6;
+  color: #c31572;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.patient-reminder-view-all-close:hover {
+  background: #ffe4ed;
+}
+
+.patient-reminder-view-all-close:focus-visible {
+  outline: 2px solid #c31572;
+  outline-offset: 3px;
+}
+
+.patient-reminder-view-all-close svg {
+  width: 22px;
+  height: 22px;
+}
+
+.patient-reminder-health-tip-list,
+.patient-reminder-view-all-medication-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 24px 26px;
+}
+
+.patient-reminder-health-tip-list {
+  display: grid;
+  gap: 14px;
+}
+
+.patient-reminder-health-tip-item {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  border: 1px solid #dbe8ff;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 14px;
+}
+
+.patient-reminder-health-tip-image {
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  background: #eaf3ff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.patient-reminder-health-tip-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.patient-reminder-health-tip-image svg {
+  width: 28px;
+  height: 28px;
+  color: #2490cb;
+}
+
+.patient-reminder-health-tip-item span {
+  color: #2490cb;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.patient-reminder-health-tip-item h3,
+.patient-reminder-view-all-empty h3 {
+  margin: 3px 0 6px;
+  color: var(--pwa-text, #12192b);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.patient-reminder-health-tip-item p,
+.patient-reminder-view-all-empty p {
+  margin: 0;
+  color: #5d6170;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.patient-reminder-view-all-empty {
+  border: 1px dashed #e8cbd5;
+  border-radius: 12px;
+  background: #fff8fb;
+  padding: 20px;
+}
+
+.patient-reminder-view-all-tabs {
+  margin: 22px 24px 0;
+}
+
+.patient-reminder-view-all-medication-list {
+  gap: 22px;
+}
+
+.patient-reminder-view-all-medication-list .pwa-medication-row {
+  padding-inline: 0;
 }
 
 @media (max-width: 1180px) {
@@ -513,7 +847,11 @@
 
   .pwa-reminder-card,
   .pwa-medication-card {
-    padding: 20px;
+    padding: 20px 16px;
+  }
+
+  .pwa-reminder-card {
+    min-height: auto;
   }
 
   .pwa-reminder-appointment-main,
@@ -530,6 +868,15 @@
 
   .pwa-status-wrap {
     justify-self: start;
+    align-items: flex-start;
+  }
+
+  .pwa-medication-actions {
+    justify-content: flex-start;
+  }
+
+  .pwa-medication-action-error {
+    text-align: left;
   }
 
   .pwa-medication-times {
@@ -538,5 +885,609 @@
 
   .pwa-reminder-card-header h2 {
     white-space: normal;
+  }
+
+  .pwa-daily-tip {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 576px) {
+  .pwa-reminder-card,
+  .pwa-medication-card {
+    padding: 18px 16px;
+  }
+
+  .pwa-reminder-card-header {
+    gap: 12px;
+    margin-bottom: 18px;
+    align-items: center;
+  }
+
+  .pwa-reminder-card-header > span {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+  }
+
+  .pwa-reminder-card-header h2 {
+    font-size: 22px;
+    line-height: 28px;
+    overflow-wrap: anywhere;
+  }
+
+  .patient-reminder-view-all-modal {
+    max-height: calc(100vh - 28px);
+  }
+
+  .patient-reminder-view-all-header {
+    padding: 18px 16px;
+  }
+
+  .patient-reminder-health-tip-list,
+  .patient-reminder-view-all-medication-list {
+    padding: 18px 16px 22px;
+  }
+
+  .patient-reminder-health-tip-item {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-reminder-view-all-tabs {
+    margin: 18px 16px 0;
+  }
+
+  .pwa-upcoming-inner,
+  .pwa-daily-tip {
+    padding: 18px;
+  }
+
+  .pwa-tip-phone {
+    width: 96px;
+    height: 96px;
+  }
+
+  .pwa-medication-card {
+    min-height: 0;
+  }
+
+  .pwa-medication-tabs {
+    width: 100%;
+    margin-bottom: 24px;
+  }
+
+  .pwa-medication-row--empty {
+    padding: 18px 0 8px;
+  }
+}
+
+@media (max-width: 380px) {
+  .pwa-reminder-card-header h2 {
+    font-size: 20px;
+    line-height: 26px;
+  }
+}
+
+.pwa-medication-adherence-page {
+  width: min(100%, 1040px);
+  max-width: 1040px;
+  display: grid;
+  gap: 22px;
+  margin-right: auto;
+}
+
+.pwa-medication-adherence-title {
+  display: grid;
+  gap: 16px;
+}
+
+.pwa-medication-adherence-title > button {
+  width: fit-content;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff1f6;
+  color: #c31572;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 14px;
+}
+
+.pwa-medication-adherence-title > button:focus-visible,
+.pwa-medication-refresh:focus-visible,
+.pwa-medication-skip-dialog button:focus-visible {
+  outline: 2px solid rgba(195, 21, 114, 0.35);
+  outline-offset: 3px;
+}
+
+.pwa-medication-adherence-title h1,
+.pwa-medication-adherence-title p {
+  margin: 0;
+}
+
+.pwa-medication-adherence-title h1 {
+  color: var(--pwa-text, #12192b);
+  font-size: 34px;
+  line-height: 1.16;
+  font-weight: 850;
+}
+
+.pwa-medication-adherence-title p {
+  margin-top: 6px;
+  color: #7a6d75;
+  font-size: 16px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.pwa-medication-adherence-banner,
+.pwa-medication-schedule-card,
+.pwa-medication-history-card {
+  border: 1px solid #fde1ea;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(22, 29, 45, 0.04);
+}
+
+.pwa-medication-adherence-banner {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #fff3f8 0%, #f4edff 100%);
+  padding: 22px 24px;
+}
+
+.pwa-medication-adherence-rate {
+  min-width: 96px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #c31572;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 900;
+  text-transform: uppercase;
+  padding: 0 12px;
+  box-shadow: 0 8px 20px rgba(195, 21, 114, 0.08);
+}
+
+.pwa-medication-adherence-banner > span {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: #ffdce7;
+  color: #c31572;
+}
+
+.pwa-medication-adherence-banner svg {
+  width: 28px;
+  height: 28px;
+}
+
+.pwa-medication-adherence-banner h2,
+.pwa-medication-adherence-banner p {
+  margin: 0;
+}
+
+.pwa-medication-adherence-banner h2 {
+  color: #12192b;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 850;
+}
+
+.pwa-medication-adherence-banner p {
+  margin-top: 5px;
+  color: #6b5964;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.pwa-medication-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.pwa-medication-summary-card {
+  min-height: 112px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border-radius: 18px;
+  padding: 18px;
+  color: #5a438c;
+  background: #f1e9ff;
+  box-shadow: 0 12px 26px rgba(22, 29, 45, 0.05);
+}
+
+.pwa-medication-summary-card > span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.pwa-medication-summary-card svg {
+  width: 26px;
+  height: 26px;
+}
+
+.pwa-medication-summary-card p,
+.pwa-medication-summary-card strong {
+  display: block;
+  margin: 0;
+}
+
+.pwa-medication-summary-card p {
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pwa-medication-summary-card strong {
+  margin-top: 7px;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.pwa-medication-summary-card.is-green {
+  color: #177245;
+  background: #ddfff0;
+}
+
+.pwa-medication-summary-card.is-amber {
+  color: #916019;
+  background: #fff1d6;
+}
+
+.pwa-medication-summary-card.is-red {
+  color: #b73b3b;
+  background: #ffe0e0;
+}
+
+.pwa-medication-schedule-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.pwa-medication-schedule-toolbar .pwa-medication-tabs {
+  margin-bottom: 0;
+}
+
+.pwa-medication-refresh {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #f0cbd8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #c31572;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
+  padding: 0 14px;
+}
+
+.pwa-medication-refresh:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.pwa-medication-success {
+  margin: 0;
+  border-left: 4px solid #17a464;
+  border-radius: 10px;
+  background: #f0fff6;
+  color: #177245;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 12px 14px;
+}
+
+.pwa-medication-schedule-card,
+.pwa-medication-history-card {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.pwa-medication-schedule-card > header,
+.pwa-medication-history-card > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pwa-medication-schedule-card h2,
+.pwa-medication-history-card h2,
+.pwa-medication-schedule-card p,
+.pwa-medication-history-card p {
+  margin: 0;
+}
+
+.pwa-medication-schedule-card h2,
+.pwa-medication-history-card h2 {
+  color: #12192b;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 850;
+}
+
+.pwa-medication-schedule-card header p,
+.pwa-medication-history-card header p {
+  color: #7a6d75;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.pwa-medication-row--schedule {
+  grid-template-columns: 116px minmax(0, 1fr) auto;
+  min-height: 86px;
+  border: 1px solid #f4dbe5;
+  border-radius: 16px;
+  background: #fffbfd;
+  padding: 16px 18px;
+}
+
+.pwa-medication-row--schedule .pwa-medication-times,
+.pwa-medication-row--schedule .pwa-medication-times time {
+  width: 100%;
+}
+
+.pwa-medication-history-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.pwa-medication-history-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.pwa-medication-history-table th,
+.pwa-medication-history-table td {
+  border-bottom: 1px solid #f0e3ea;
+  color: #3f3340;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+  padding: 13px 12px;
+}
+
+.pwa-medication-history-table th {
+  background: #fff4f8;
+  color: #8a6678;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.pwa-medication-history-table th:first-child {
+  border-top-left-radius: 12px;
+}
+
+.pwa-medication-history-table th:last-child {
+  border-top-right-radius: 12px;
+}
+
+.pwa-medication-history-table td:nth-child(3) {
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.pwa-medication-history-empty {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #ead4dd;
+  border-radius: 14px;
+  color: #7a6d75;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  padding: 20px;
+}
+
+.pwa-medication-skip-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  background: rgba(18, 25, 43, 0.38);
+  padding: 20px;
+}
+
+.pwa-medication-skip-dialog {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 14px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 58px rgba(22, 29, 45, 0.18);
+  padding: 26px;
+}
+
+.pwa-medication-skip-dialog h2,
+.pwa-medication-skip-dialog p {
+  margin: 0;
+}
+
+.pwa-medication-skip-dialog h2 {
+  color: #12192b;
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 900;
+}
+
+.pwa-medication-skip-dialog p {
+  color: #6b5964;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.pwa-medication-skip-dialog > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.pwa-medication-skip-dialog button {
+  min-height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
+  padding: 0 14px;
+}
+
+.pwa-medication-skip-dialog button:first-child {
+  border: 1px solid #e8cbd5;
+  background: #ffffff;
+  color: #7b6874;
+}
+
+.pwa-medication-skip-dialog button:last-child {
+  border: 0;
+  background: #c31572;
+  color: #ffffff;
+}
+
+.pwa-medication-skip-dialog button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+@media (max-width: 900px) {
+  .pwa-medication-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .pwa-medication-adherence-page {
+    gap: 18px;
+  }
+
+  .pwa-medication-adherence-title h1 {
+    font-size: 28px;
+  }
+
+  .pwa-medication-row--schedule {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-medication-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pwa-medication-adherence-banner {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .pwa-medication-adherence-rate {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .pwa-medication-schedule-card,
+  .pwa-medication-history-card {
+    padding: 18px 16px;
+  }
+
+  .pwa-medication-schedule-card > header,
+  .pwa-medication-history-card > header,
+  .pwa-medication-schedule-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pwa-medication-refresh {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .pwa-medication-history-table {
+    min-width: 0;
+  }
+
+  .pwa-medication-history-table thead {
+    display: none;
+  }
+
+  .pwa-medication-history-table,
+  .pwa-medication-history-table tbody,
+  .pwa-medication-history-table tr,
+  .pwa-medication-history-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .pwa-medication-history-table tr {
+    border: 1px solid #f0e3ea;
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 12px;
+  }
+
+  .pwa-medication-history-table tr + tr {
+    margin-top: 10px;
+  }
+
+  .pwa-medication-history-table td {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
+    border-bottom: 0;
+    padding: 7px 0;
+  }
+
+  .pwa-medication-history-table td::before {
+    color: #8a6678;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .pwa-medication-history-table td:nth-child(1)::before { content: "Date"; }
+  .pwa-medication-history-table td:nth-child(2)::before { content: "Time"; }
+  .pwa-medication-history-table td:nth-child(3)::before { content: "Medication"; }
+  .pwa-medication-history-table td:nth-child(4)::before { content: "Status"; }
+  .pwa-medication-history-table td:nth-child(5)::before { content: "Response"; }
+}
+
+@media (max-width: 430px) {
+  .pwa-medication-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pwa-medication-row--empty {
+    min-height: 0;
+    grid-template-columns: 1fr;
+    padding: 20px;
   }
 }

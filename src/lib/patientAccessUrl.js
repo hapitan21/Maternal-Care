@@ -1,0 +1,61 @@
+export const patientAccessPath = "/patient/access";
+
+function normalizeBaseUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function warnIfLocalhostPatientAccessUrl(accessUrl) {
+  if (!import.meta.env.DEV || !accessUrl) return;
+
+  try {
+    const parsedUrl = new URL(accessUrl);
+    if (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1") {
+      console.warn(
+        "Patient Access URL uses localhost. A mobile device scanning this QR code cannot access the computer's localhost; set VITE_PATIENT_ACCESS_BASE_URL to the computer's LAN URL."
+      );
+    }
+  } catch {
+    // Relative URLs are allowed when no browser origin is available.
+  }
+}
+
+export function getPublicAppOrigin() {
+  const configuredOrigin = normalizeBaseUrl(
+    import.meta.env.VITE_PATIENT_ACCESS_BASE_URL
+  );
+
+  return (
+    configuredOrigin ||
+    (typeof window !== "undefined"
+      ? normalizeBaseUrl(window.location.origin)
+      : "")
+  );
+}
+
+export function buildPatientAccessUrl({ patientId, controlNumber } = {}) {
+  const normalizedPatientId = String(patientId || "").trim();
+  const normalizedControlNumber = String(controlNumber || "").trim();
+
+  if (!normalizedPatientId || !normalizedControlNumber) return "";
+
+  const params = new URLSearchParams({
+    patientId: normalizedPatientId,
+    control: normalizedControlNumber,
+  });
+  const publicOrigin = getPublicAppOrigin();
+
+  if (!publicOrigin) return `${patientAccessPath}?${params.toString()}`;
+
+  try {
+    const accessUrl = new URL(patientAccessPath, `${publicOrigin}/`);
+    accessUrl.search = params.toString();
+    const finalUrl = accessUrl.toString();
+    warnIfLocalhostPatientAccessUrl(finalUrl);
+    return finalUrl;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error("Unable to build the patient access URL:", error);
+    }
+    return "";
+  }
+}

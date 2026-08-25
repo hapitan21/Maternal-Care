@@ -20,10 +20,15 @@ import "../../styles/staff-dashboard.css";
 import "../../styles/staff-settings.css";
 import "../../styles/staff-patients.css";
 import "../../styles/staff-appointments.css";
+import "../../styles/staff-doctor-parity.css";
+import "../../styles/appointment-ui-system.css";
+import "../../styles/patient-record-ui-system.css";
 
 const staffProfilePhotoKey = "staff_profile_photo";
 const defaultStaffProfilePhoto = "/images/doctor-kempee-profile.svg";
-const STAFF_SIGN_OUT_TIMEOUT_MS = 8000;
+
+const staffDashboardScheduleColumns =
+  "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, description, start_time, end_time, status";
 
 const staffPagePaths = {
   dashboard: "/staff/dashboard",
@@ -32,32 +37,6 @@ const staffPagePaths = {
   profile: "/staff/profile",
   settings: "/staff/settings",
 };
-
-async function signOutStaffWithTimeout() {
-  return Promise.race([
-    supabase.auth.signOut(),
-    new Promise((_, reject) => {
-      window.setTimeout(
-        () => reject(new Error("Sign out timed out.")),
-        STAFF_SIGN_OUT_TIMEOUT_MS
-      );
-    }),
-  ]);
-}
-
-async function logoutStaff(navigate) {
-  try {
-    const { error } = await signOutStaffWithTimeout();
-
-    if (error) {
-      console.error("Unable to sign out:", error.message);
-    }
-  } catch (error) {
-    console.error("Unable to sign out:", error);
-  } finally {
-    navigate("/login?logout=1", { replace: true });
-  }
-}
 
 function getStaffProfilePhoto() {
   try {
@@ -68,76 +47,6 @@ function getStaffProfilePhoto() {
     );
   } catch {
     return defaultStaffProfilePhoto;
-  }
-}
-
-function getInitialStaffDashboardSettings() {
-  return {
-    ...getStaffSettings(),
-    displayName: "",
-  };
-}
-
-function getStaffAccountDisplayName(user, personal, profile, fallbackName) {
-  const metadataName =
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    "";
-  const emailName = user?.email ? user.email.split("@")[0] : "";
-
-  return (
-    String(personal?.full_name || "").trim() ||
-    String(profile?.full_name || "").trim() ||
-    String(metadataName || "").trim() ||
-    String(fallbackName || "").trim() ||
-    String(emailName || "").trim() ||
-    "Staff"
-  );
-}
-
-async function loadStaffDashboardSettings() {
-  const fallbackSettings = getStaffSettings();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return fallbackSettings;
-  }
-
-  const [personalResult, profileResult] = await Promise.all([
-    supabase
-      .from("staff_personal_information")
-      .select("full_name")
-      .eq("auth_user_id", user.id)
-      .limit(1)
-      .maybeSingle(),
-
-    supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", user.id)
-      .maybeSingle(),
-  ]);
-
-  return {
-    ...fallbackSettings,
-    displayName: getStaffAccountDisplayName(
-      user,
-      personalResult.error ? null : personalResult.data,
-      profileResult.error ? null : profileResult.data,
-      fallbackSettings.displayName
-    ),
-  };
-}
-
-async function getSafeStaffDashboardSettings() {
-  try {
-    return await loadStaffDashboardSettings();
-  } catch (error) {
-    console.error("Staff dashboard profile load failed:", error);
-    return getStaffSettings();
   }
 }
 
@@ -186,6 +95,28 @@ const dashboardStatusCards = [
   },
 ];
 
+
+const emptyStaffDashboardStats = {
+  totalPatients: 0,
+  todaysAppointments: 0,
+  completedSessions: 0,
+  completionProgress: 0,
+};
+
+/*
+ * Module-level UI snapshot.
+ *
+ * DashboardHome is intentionally unmounted when Staff opens Patients or
+ * Appointments. Keeping the last successful snapshot here prevents the cards
+ * and session table from flashing back to zero/empty when Staff returns.
+ * Supabase remains the source of truth and refreshes the snapshot immediately.
+ */
+let staffDashboardSnapshot = {
+  stats: null,
+  upcomingSessions: null,
+  message: "",
+};
+
 function formatDashboardDate(value) {
   if (!value) return "-";
 
@@ -218,16 +149,23 @@ function formatDashboardTime(value) {
 }
 
 function mapUpcomingSession(row) {
+  /*
+   * Prefer the new Maternal Appointment ID.
+   *
+   * The fallbacks keep the dashboard working while older rows are being
+   * migrated. Once every schedule row has maternal_appointment_id, that
+   * value will always be displayed.
+   */
+  const displayedAppointmentId =
+    row.maternal_appointment_id ||
+    row.appointment_id ||
+    row.id ||
+    "-";
+
   return {
-    // Keep the UUID only as the React key/internal database identifier.
     id: row.id,
-
-    // Display only the public-facing Maternal Appointment ID.
-    // Never fall back to row.id because row.id is the long UUID shown
-    // in the screenshot.
-    appointmentId:
-      row.maternal_appointment_id || "MA ID not assigned",
-
+    patientId: row.patient_id || "",
+    appointmentId: displayedAppointmentId,
     initials: getStaffInitials(row.patient_name || "Patient"),
     patient: row.patient_name || "Patient",
     date: formatDashboardDate(row.start_time),
@@ -241,9 +179,9 @@ function StaffProfileDropdown({
   onSettings,
   onLogout,
   profilePhoto,
-  displayName,
+  settings,
 }) {
-  const initials = getStaffInitials(displayName);
+  const initials = getStaffInitials(settings.displayName);
 
   return (
     <div className="doctor-profile-dropdown" role="menu">
@@ -253,7 +191,7 @@ function StaffProfileDropdown({
         </div>
 
         <div>
-          <strong>{displayName}</strong>
+          <strong>{settings.displayName}</strong>
           <span>Staff Account</span>
         </div>
       </div>
@@ -283,21 +221,13 @@ function StaffProfileCard({ onNavigate }) {
   const dropdownRef = useRef(null);
 
   const [isOpen, setIsOpen] = useState(false);
-  const [settings, setSettings] = useState(getInitialStaffDashboardSettings);
-  const [isProfileReady, setIsProfileReady] = useState(false);
+  const [settings, setSettings] = useState(getStaffSettings);
   const [profilePhoto, setProfilePhoto] = useState(getStaffProfilePhoto);
 
   useEffect(() => {
-    let active = true;
-
-    const syncProfile = async () => {
-      const nextSettings = await getSafeStaffDashboardSettings();
-
-      if (active) {
-        setSettings(nextSettings);
-        setProfilePhoto(getStaffProfilePhoto());
-        setIsProfileReady(true);
-      }
+    const syncProfile = () => {
+      setSettings(getStaffSettings());
+      setProfilePhoto(getStaffProfilePhoto());
     };
 
     const handleClickOutside = (event) => {
@@ -320,10 +250,8 @@ function StaffProfileCard({ onNavigate }) {
     window.addEventListener(staffSettingsUpdatedEvent, syncProfile);
     window.addEventListener("doctor-settings-updated", syncProfile);
     window.addEventListener("storage", syncProfile);
-    syncProfile();
 
     return () => {
-      active = false;
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
       window.removeEventListener(staffSettingsUpdatedEvent, syncProfile);
@@ -344,13 +272,18 @@ function StaffProfileCard({ onNavigate }) {
 
   const handleLogout = async () => {
     setIsOpen(false);
-    await logoutStaff(navigate);
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Unable to sign out:", error.message);
+      return;
+    }
+
+    navigate("/", { replace: true });
   };
 
-  const displayName = isProfileReady && settings.displayName
-    ? settings.displayName
-    : "Staff";
-  const initials = getStaffInitials(displayName);
+  const initials = getStaffInitials(settings.displayName);
 
   return (
     <div
@@ -371,7 +304,7 @@ function StaffProfileCard({ onNavigate }) {
         </div>
 
         <div className="doctor-profile-info">
-          <strong>{displayName}</strong>
+          <strong>{settings.displayName}</strong>
           <span>Staff</span>
         </div>
 
@@ -383,7 +316,7 @@ function StaffProfileCard({ onNavigate }) {
 
       {isOpen ? (
         <StaffProfileDropdown
-          displayName={displayName}
+          settings={settings}
           profilePhoto={profilePhoto}
           onViewProfile={handleViewProfile}
           onSettings={handleSettings}
@@ -408,39 +341,82 @@ function getTodayRange() {
 }
 
 function DashboardHome({ onNavigate, headerAction }) {
-  const [settings, setSettings] = useState(getInitialStaffDashboardSettings);
-  const [isProfileReady, setIsProfileReady] = useState(false);
+  const [settings, setSettings] = useState(getStaffSettings);
 
-  const [dashboardStats, setDashboardStats] = useState({
-    totalPatients: 0,
-    todaysAppointments: 0,
-    completedSessions: 0,
-    completionProgress: 0,
-  });
+  const [dashboardStats, setDashboardStats] = useState(
+    () =>
+      staffDashboardSnapshot.stats
+        ? { ...staffDashboardSnapshot.stats }
+        : { ...emptyStaffDashboardStats }
+  );
 
-  const [upcomingSessions, setUpcomingSessions] = useState([]);
-  const [dashboardMessage, setDashboardMessage] = useState("");
+  const [upcomingSessions, setUpcomingSessions] = useState(
+    () =>
+      staffDashboardSnapshot.upcomingSessions
+        ? staffDashboardSnapshot.upcomingSessions.map(
+            (session) => ({ ...session })
+          )
+        : []
+  );
+
+  const [dashboardMessage, setDashboardMessage] = useState(
+    staffDashboardSnapshot.message || ""
+  );
+
+  const [activeSessionActionId, setActiveSessionActionId] =
+    useState("");
 
   useEffect(() => {
-    let active = true;
-
-    const syncSettings = async () => {
-      const nextSettings = await getSafeStaffDashboardSettings();
-
-      if (active) {
-        setSettings(nextSettings);
-        setIsProfileReady(true);
-      }
+    const syncSettings = () => {
+      setSettings(getStaffSettings());
     };
 
     window.addEventListener(staffSettingsUpdatedEvent, syncSettings);
     window.addEventListener("storage", syncSettings);
-    syncSettings();
 
     return () => {
-      active = false;
       window.removeEventListener(staffSettingsUpdatedEvent, syncSettings);
       window.removeEventListener("storage", syncSettings);
+    };
+  }, []);
+
+  useEffect(() => {
+    const closeSessionActions = (event) => {
+      if (
+        event.type === "keydown" &&
+        event.key !== "Escape"
+      ) {
+        return;
+      }
+
+      if (
+        event.type === "mousedown" &&
+        event.target.closest?.(".staff-session-actions")
+      ) {
+        return;
+      }
+
+      setActiveSessionActionId("");
+    };
+
+    document.addEventListener(
+      "mousedown",
+      closeSessionActions
+    );
+    document.addEventListener(
+      "keydown",
+      closeSessionActions
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        closeSessionActions
+      );
+      document.removeEventListener(
+        "keydown",
+        closeSessionActions
+      );
     };
   }, []);
 
@@ -449,45 +425,34 @@ function DashboardHome({ onNavigate, headerAction }) {
 
     const loadDashboardStats = async () => {
       const todayRange = getTodayRange();
+      const nowIso = new Date().toISOString();
 
       /*
-       * The dashboard reads appointments from public.schedule.
-       * maternal_appointment_id is selected explicitly so the UI displays
-       * MA-0001 instead of the internal schedule.id UUID.
+       * IMPORTANT:
+       * Staff Patients intentionally uses the secure
+       * get_staff_patient_directory() RPC instead of direct SELECT access to
+       * public.patients. The old Dashboard used:
+       *
+       *   from("patients").select("id", { count: "exact", head: true })
+       *
+       * which now correctly returns HTTP 403 under the hardened Staff RLS.
+       *
+       * The Schedule page already has Staff SELECT access, so fetch the
+       * schedule rows once and calculate Dashboard totals client-side. This
+       * also avoids the HEAD/count requests that were producing the second
+       * 403 in the browser console.
        */
-      const [
-        patientsResult,
-        todaysResult,
-        completedResult,
-        upcomingResult,
-      ] = await Promise.all([
-        supabase
-          .from("patients")
-          .select("id", { count: "exact", head: true })
-          .ilike("status", "active"),
+      const [patientsResult, scheduleResult] =
+        await Promise.all([
+          supabase
+            .rpc("get_staff_patient_directory")
+            .order("created_at", { ascending: false }),
 
-        supabase
-          .from("schedule")
-          .select("id", { count: "exact", head: true })
-          .gte("start_time", todayRange.start)
-          .lt("start_time", todayRange.end),
-
-        supabase
-          .from("schedule")
-          .select("id", { count: "exact", head: true })
-          .ilike("status", "completed")
-          .gte("start_time", todayRange.start)
-          .lt("start_time", todayRange.end),
-
-        supabase
-          .from("schedule")
-          .select(
-            "id, maternal_appointment_id, patient_name, start_time, status"
-          )
-          .gte("start_time", new Date().toISOString())
-          .order("start_time", { ascending: true })
-          .limit(4),
-      ]);
+          supabase
+            .from("schedule")
+            .select(staffDashboardScheduleColumns)
+            .order("start_time", { ascending: true }),
+        ]);
 
       if (!active) {
         return;
@@ -495,26 +460,89 @@ function DashboardHome({ onNavigate, headerAction }) {
 
       const errors = [
         patientsResult.error,
-        todaysResult.error,
-        completedResult.error,
-        upcomingResult.error,
+        scheduleResult.error,
       ]
         .filter(Boolean)
         .map((error) => error.message);
 
+      const hasExistingSnapshot = Boolean(
+        staffDashboardSnapshot.stats
+      );
+
       if (errors.length > 0) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            "[Staff Dashboard] refresh error:",
+            errors
+          );
+        }
+
+        /*
+         * Keep the last successful Dashboard visible during a temporary
+         * background refresh error. Only show an error on the very first load
+         * when there is no valid snapshot yet.
+         */
         setDashboardMessage(
-          `Unable to load dashboard totals: ${errors.join(" ")}`
+          hasExistingSnapshot
+            ? ""
+            : "Dashboard data could not be loaded. Please refresh the page."
         );
       } else {
         setDashboardMessage("");
       }
 
-      const todaysAppointments = todaysResult.count ?? 0;
-      const completedSessions = completedResult.count ?? 0;
+      const previousStats =
+        staffDashboardSnapshot.stats || {
+          ...emptyStaffDashboardStats,
+        };
 
-      setDashboardStats({
-        totalPatients: patientsResult.count ?? 0,
+      const patientRows = patientsResult.error
+        ? null
+        : patientsResult.data || [];
+
+      const scheduleRows = scheduleResult.error
+        ? null
+        : scheduleResult.data || [];
+
+      const totalPatients =
+        patientRows === null
+          ? previousStats.totalPatients
+          : patientRows.length;
+
+      const todaysAppointments =
+        scheduleRows === null
+          ? previousStats.todaysAppointments
+          : scheduleRows.filter((appointment) => {
+              const startTime = appointment?.start_time;
+
+              return (
+                startTime &&
+                startTime >= todayRange.start &&
+                startTime < todayRange.end
+              );
+            }).length;
+
+      const completedSessions =
+        scheduleRows === null
+          ? previousStats.completedSessions
+          : scheduleRows.filter((appointment) => {
+              const startTime = appointment?.start_time;
+              const status = String(
+                appointment?.status || ""
+              )
+                .trim()
+                .toLowerCase();
+
+              return (
+                status === "completed" &&
+                startTime &&
+                startTime >= todayRange.start &&
+                startTime < todayRange.end
+              );
+            }).length;
+
+      const nextStats = {
+        totalPatients,
         todaysAppointments,
         completedSessions,
         completionProgress:
@@ -522,14 +550,51 @@ function DashboardHome({ onNavigate, headerAction }) {
             ? Math.min(
                 100,
                 Math.round(
-                  (completedSessions / todaysAppointments) * 100
+                  (completedSessions /
+                    todaysAppointments) *
+                    100
                 )
               )
             : 0,
-      });
+      };
 
+      const nextUpcomingSessions =
+        scheduleRows === null
+          ? staffDashboardSnapshot.upcomingSessions || []
+          : scheduleRows
+              .filter((appointment) => {
+                const startTime =
+                  appointment?.start_time;
+
+                return (
+                  startTime &&
+                  startTime >= nowIso
+                );
+              })
+              .slice(0, 4)
+              .map(mapUpcomingSession);
+
+      /*
+       * Only replace the shared snapshot with a fully successful refresh.
+       * If one request fails, preserve the last known-good snapshot for the
+       * failing section instead of flashing zero/empty content.
+       */
+      if (errors.length === 0) {
+        staffDashboardSnapshot = {
+          stats: {
+            ...nextStats,
+          },
+          upcomingSessions:
+            nextUpcomingSessions.map((session) => ({
+              ...session,
+            })),
+          message: "",
+        };
+      }
+
+      setDashboardStats(nextStats);
       setUpcomingSessions(
-        (upcomingResult.data || []).map(mapUpcomingSession)
+        nextUpcomingSessions
       );
     };
 
@@ -575,9 +640,6 @@ function DashboardHome({ onNavigate, headerAction }) {
       ? dashboardStats[card.progressKey]
       : card.progress,
   }));
-  const welcomeName = isProfileReady && settings.displayName
-    ? `, ${settings.displayName}`
-    : "";
 
   return (
     <div className="doctor-dashboard-home staff-dashboard-home">
@@ -591,12 +653,16 @@ function DashboardHome({ onNavigate, headerAction }) {
         <div className="doctor-hero-blur doctor-hero-blur-two" />
 
         <div className="doctor-hero-text">
-          <h1>Welcome back{welcomeName}!</h1>
+          <h1>
+            <span>Welcome back,</span>
+            <span>{settings.displayName}!</span>
+          </h1>
 
           <p>
-            Here&apos;s what&apos;s happening with your practice today. You
-            have
-            {` ${dashboardStats.todaysAppointments} appointments scheduled today.`}
+            <span>Here&apos;s what&apos;s happening with your practice today.</span>
+            <span>
+              You have {dashboardStats.todaysAppointments} appointments scheduled today.
+            </span>
           </p>
         </div>
 
@@ -706,14 +772,143 @@ function DashboardHome({ onNavigate, headerAction }) {
                     </td>
 
                     <td>
-                      <button
-                        type="button"
-                        className="doctor-table-action"
-                        aria-label={`Open actions for ${session.patient}`}
-                        onClick={() => onNavigate("appointments")}
+                      <div
+                        className={`staff-session-actions ${
+                          activeSessionActionId === session.id
+                            ? "is-open"
+                            : ""
+                        }`}
+                        style={{
+                          position: "relative",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          zIndex:
+                            activeSessionActionId === session.id
+                              ? 200
+                              : "auto",
+                        }}
                       >
-                        <Icon icon="solar:menu-dots-bold" />
-                      </button>
+                        <button
+                          type="button"
+                          className="doctor-table-action"
+                          aria-label={`Open actions for ${session.patient}`}
+                          aria-haspopup="menu"
+                          aria-expanded={
+                            activeSessionActionId === session.id
+                          }
+                          onClick={() =>
+                            setActiveSessionActionId(
+                              (current) =>
+                                current === session.id
+                                  ? ""
+                                  : session.id
+                            )
+                          }
+                        >
+                          <Icon icon="solar:menu-dots-bold" />
+                        </button>
+
+                        {activeSessionActionId === session.id ? (
+                          <div
+                            className="staff-session-action-menu"
+                            role="menu"
+                            aria-label={`Actions for ${session.patient}`}
+                            style={{
+                              position: "absolute",
+                              zIndex: 9999,
+                              top: "50%",
+                              right: "calc(100% + 10px)",
+                              transform: "translateY(-50%)",
+                              width: "188px",
+                              display: "grid",
+                              gap: "4px",
+                              padding: "8px",
+                              border: "1px solid #e7e9ef",
+                              borderRadius: "12px",
+                              background: "#ffffff",
+                              boxShadow:
+                                "0 16px 34px rgba(17, 24, 39, 0.16)",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              role="menuitem"
+                              style={{
+                                width: "100%",
+                                minHeight: "40px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "flex-start",
+                                gap: "9px",
+                                border: 0,
+                                borderRadius: "8px",
+                                background: "transparent",
+                                color: "#4b5160",
+                                padding: "0 10px",
+                                font: "inherit",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                textAlign: "left",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => {
+                                setActiveSessionActionId("");
+
+                                const appointmentTarget =
+                                  session.appointmentId &&
+                                  session.appointmentId !== "-"
+                                    ? session.appointmentId
+                                    : session.id;
+
+                                onNavigate("appointments", {
+                                  path: `/staff/appointments?appointmentId=${encodeURIComponent(
+                                    appointmentTarget
+                                  )}`,
+                                });
+                              }}
+                            >
+                              <Icon icon="solar:calendar-linear" />
+                              <span>View Appointment</span>
+                            </button>
+
+                            {session.patientId ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                style={{
+                                  width: "100%",
+                                  minHeight: "40px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "flex-start",
+                                  gap: "9px",
+                                  border: 0,
+                                  borderRadius: "8px",
+                                  background: "transparent",
+                                  color: "#4b5160",
+                                  padding: "0 10px",
+                                  font: "inherit",
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  textAlign: "left",
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => {
+                                  setActiveSessionActionId("");
+
+                                  onNavigate("patients", {
+                                    path: `/staff/patients/${session.patientId}`,
+                                  });
+                                }}
+                              >
+                                <Icon icon="solar:user-rounded-linear" />
+                                <span>View Patient</span>
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -775,18 +970,32 @@ function StaffDashboard() {
    */
   const navigateToPage = useCallback(
     (page, options = {}) => {
-      const safePage = staffPagePaths[page] ? page : "dashboard";
-      const destination = staffPagePaths[safePage];
+      const safePage = staffPagePaths[page]
+        ? page
+        : "dashboard";
+
+      const destination =
+        typeof options.path === "string" &&
+        options.path.startsWith("/staff/")
+          ? options.path
+          : staffPagePaths[safePage];
 
       setActivePage(safePage);
 
-      if (location.pathname !== destination) {
+      const currentLocation =
+        `${location.pathname}${location.search}`;
+
+      if (currentLocation !== destination) {
         navigate(destination, {
           replace: options.replace === true,
         });
       }
     },
-    [location.pathname, navigate]
+    [
+      location.pathname,
+      location.search,
+      navigate,
+    ]
   );
 
   /*
@@ -830,7 +1039,14 @@ function StaffDashboard() {
       }
 
       if (section === "logout") {
-        await logoutStaff(navigate);
+        const { error } = await supabase.auth.signOut();
+
+        if (error) {
+          console.error("Unable to sign out:", error.message);
+          return;
+        }
+
+        navigate("/", { replace: true });
         return;
       }
 

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
-import { patientMatchesValue } from "../../lib/patientData";
+import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
 
 const medicalRecordColumns =
-  "id, patient_id, patient_name, type, title, notes, file_name, file_type, file_data_url, form_data, uploaded_at, uploaded_by";
+  "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, file_name, file_type, file_data_url, form_data, uploaded_at, uploaded_by";
 
 const findingUnits = {
   "blood pressure": "mmHg",
@@ -20,6 +20,12 @@ const findingUnits = {
 
 function getFormData(row) {
   return row?.form_data && typeof row.form_data === "object" ? row.form_data : {};
+}
+
+function cleanRecordValue(value) {
+  if (value === null || value === undefined || typeof value === "object") return "";
+  const clean = String(value).trim();
+  return clean && clean !== "-" ? clean : "";
 }
 
 function toList(value) {
@@ -114,17 +120,24 @@ function normalizeFinding(item) {
 }
 
 function normalizeFindings(formData) {
+  const clinicalFindings =
+    formData.clinicalFindings && typeof formData.clinicalFindings === "object"
+      ? formData.clinicalFindings
+      : {};
+
   if (Array.isArray(formData.findings) && formData.findings.length) {
     return formData.findings.map(normalizeFinding);
   }
 
   return [
-    { label: "Blood Pressure", value: formData.bloodPressure || "-", unit: "mmHg" },
-    { label: "Weight", value: formData.weight || "-", unit: "kg" },
-    { label: "Temp", value: formData.temperature || "-", unit: "C" },
-    { label: "Heart Rate", value: formData.heartRate || "-", unit: "bpm" },
-    { label: "Height", value: formData.height || "-", unit: "cm" },
-    { label: "BMI", value: formData.bmi || "-", unit: "kg/m2" },
+    { label: "Blood Pressure", value: clinicalFindings.bloodPressure || formData.bloodPressure || "-", unit: "mmHg" },
+    { label: "Weight", value: clinicalFindings.weight || formData.weight || "-", unit: "kg" },
+    { label: "Temp", value: clinicalFindings.temperature || formData.temperature || "-", unit: "C" },
+    { label: "Heart Rate", value: clinicalFindings.heartRate || formData.heartRate || "-", unit: "bpm" },
+    { label: "Height", value: clinicalFindings.height || formData.height || "-", unit: "cm" },
+    { label: "BMI", value: clinicalFindings.bmi || formData.bmi || "-", unit: "kg/m2" },
+    { label: "Fetal Heart Rate", value: clinicalFindings.fetalHeartRate || formData.fetalHeartRate || "-", unit: "bpm" },
+    { label: "Fundal Height", value: clinicalFindings.fundalHeight || formData.fundalHeight || "-", unit: "cm" },
   ];
 }
 
@@ -153,6 +166,10 @@ function normalizeTreatment(formData) {
 
 function normalizeObstetric(formData) {
   const obstetric = Array.isArray(formData.obstetric) ? formData.obstetric : [];
+  const pregnancyStatus =
+    formData.pregnancyStatus && typeof formData.pregnancyStatus === "object"
+      ? formData.pregnancyStatus
+      : {};
 
   if (obstetric.length) {
     return obstetric.map((item) => ({
@@ -165,15 +182,15 @@ function normalizeObstetric(formData) {
   return [
     {
       label: "Gestational Age",
-      value: formData.gestationalAge || "-",
+      value: pregnancyStatus.gestationalAge || formData.gestationalAge || "-",
     },
     {
       label: "Pregnancy Status",
-      value: formData.pregnancyStatus || "-",
+      value: pregnancyStatus.riskLevel || cleanRecordValue(formData.pregnancyStatus) || "-",
     },
     {
       label: "Expected Delivery Date",
-      value: formData.expectedDeliveryDate || "-",
+      value: pregnancyStatus.expectedDeliveryDate || formData.expectedDeliveryDate || "-",
       wide: true,
     },
     {
@@ -214,22 +231,68 @@ function mapMedicalRecord(row) {
     row.type ||
     "Medical Record";
 
+  const appointmentReference = formatAppointmentReference(
+    formData.displayAppointmentId ||
+      formData.appointmentId ||
+      formData.maternalAppointmentId ||
+      ""
+  );
+
   return {
     id: row.id,
     date: displayDate,
     dayTime,
     visitType: formData.visitType || row.type || row.title || "Medical Record",
-    gestationalAge: formData.gestationalAge || "-",
-    doctor: formData.doctor || row.uploaded_by || "Healthcare provider",
+    gestationalAge: formData.gestationalAge || "Not recorded",
+    doctor: formData.doctor || row.uploaded_by || "Doctor not recorded",
+    appointmentReference,
+    createdDate: formatLongDate(row.uploaded_at, "Not recorded"),
+    updatedDate: formData.updatedAt || "Not recorded",
+    recordStatus: formatStatusLabel(formData.recordStatus || formData.status),
     complaint,
+    symptoms: formData.symptoms || "Not recorded",
     findings: normalizeFindings(formData),
     assessment: normalizeAssessment(formData, row),
     obstetric: normalizeObstetric(formData),
     treatment: normalizeTreatment(formData),
     diagnosis,
+    prescriptions: toList(formData.prescriptions),
+    diagnosticResults: toList(formData.diagnosticResults),
     attachment: getAttachmentMeta(row),
     sortTime: toValidDate(visitDate || row.uploaded_at)?.getTime() || 0,
   };
+}
+
+function formatAppointmentReference(value) {
+  const text = String(value || "").trim();
+  if (!text) return "No appointment reference";
+
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) {
+    return text.slice(0, 8);
+  }
+
+  return text.length > 24 ? text.slice(0, 8) : text;
+}
+
+function formatStatusLabel(value) {
+  const text = String(value || "").trim();
+  if (!text) return "Not recorded";
+
+  return text
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function hasMeaningfulRecordValue(value) {
+  const text = String(value || "").trim();
+  return Boolean(
+    text &&
+      !["not recorded", "no appointment reference", "n/a", "not provided"].includes(
+        text.toLowerCase()
+      )
+  );
 }
 
 function mapRegistrationMedicalRecord(patient, obstetric, medicalHistory, assessment) {
@@ -303,13 +366,18 @@ function mapRegistrationMedicalRecord(patient, obstetric, medicalHistory, assess
     date: formatLongDate(createdAt),
     dayTime: formatDayTime(createdAt),
     visitType: "Patient Registration Summary",
-    gestationalAge: patient?.gestational_age || "-",
-    doctor: "Maternal Care Clinic",
+    gestationalAge: patient?.gestational_age || "Not recorded",
+    doctor: "Doctor not recorded",
+    appointmentReference: "No appointment reference",
+    createdDate: formatLongDate(createdAt, "Not recorded"),
+    updatedDate: "Not recorded",
+    recordStatus: "Not recorded",
     complaint:
       assessment?.remarks ||
       assessment?.assessment_others ||
       patient?.medical_notes ||
       "Patient registration and initial maternal health assessment.",
+    symptoms: "Not recorded",
     findings,
     assessment: toList(assessmentItems.join("\n")).length
       ? toList(assessmentItems.join("\n"))
@@ -348,48 +416,31 @@ function mapRegistrationMedicalRecord(patient, obstetric, medicalHistory, assess
     treatment,
     diagnosis: patient?.trimester || patient?.status || "Registered Maternal Care Patient",
     attachment: null,
+    prescriptions: [],
+    diagnosticResults: [],
     sortTime: toValidDate(createdAt)?.getTime() || 0,
   };
 }
 
-async function loadPatientRow(profile) {
-  if (profile?.recordId) {
-    const { data, error } = await supabase
-      .from("patients")
-      .select("*")
-      .eq("id", profile.recordId)
-      .limit(1)
-      .maybeSingle();
+async function loadPatientRow() {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
 
-    if (!error && data) return data;
-    if (error) console.warn("Patient medical record patient-id lookup failed:", error);
+  if (authError || !authData?.user?.id) {
+    if (authError) console.warn("Patient medical record authentication lookup failed:", authError);
+    return null;
   }
 
-  if (profile?.patientId) {
-    const { data, error } = await supabase
-      .from("patients")
-      .select("*")
-      .eq("patient_id", profile.patientId)
-      .limit(1)
-      .maybeSingle();
+  const { data, error } = await supabase
+    .rpc("get_patient_own_record")
+    .limit(1)
+    .maybeSingle();
 
-    if (!error && data) return data;
-    if (error) console.warn("Patient medical record patient-code lookup failed:", error);
+  if (error) {
+    console.warn("Patient medical record patient-user lookup failed:", error);
+    return null;
   }
 
-  if (profile?.displayName) {
-    const { data, error } = await supabase
-      .from("patients")
-      .select("*")
-      .ilike("full_name", profile.displayName)
-      .limit(1)
-      .maybeSingle();
-
-    if (!error && data) return data;
-    if (error) console.warn("Patient medical record patient-name lookup failed:", error);
-  }
-
-  return null;
+  return data || null;
 }
 
 async function loadPatientDetailRow(table, patientId) {
@@ -424,11 +475,14 @@ export default function PatientPWAMedicalRecords({ profile }) {
       setIsLoading(true);
       setLoadError("");
 
-      const { data, error } = await supabase
-        .from("medical_records")
-        .select(medicalRecordColumns)
-        .order("uploaded_at", { ascending: false });
-      const patient = await loadPatientRow(profile);
+      const patient = await loadPatientRow();
+      const { data, error } = patient?.id
+        ? await supabase
+            .from("medical_records")
+            .select(medicalRecordColumns)
+            .eq("patient_id", patient.id)
+            .order("uploaded_at", { ascending: false })
+        : { data: [], error: null };
       const [obstetric, medicalHistory, initialAssessment] = patient?.id
         ? await Promise.all([
             loadPatientDetailRow("patient_obstetric_history", patient.id),
@@ -447,17 +501,7 @@ export default function PatientPWAMedicalRecords({ profile }) {
       }
 
       const formalRecords = error ? [] : (data || []);
-      const mappedRecords = formalRecords
-        .filter(
-          (row) =>
-            patientMatchesValue(profile, row.patient_id) ||
-            patientMatchesValue(profile, row.patient_name) ||
-            (patient?.id && row.patient_id === patient.id) ||
-            (patient?.full_name &&
-              String(row.patient_name || "").trim().toLowerCase() ===
-                String(patient.full_name).trim().toLowerCase())
-        )
-        .map(mapMedicalRecord);
+      const mappedRecords = formalRecords.map(mapMedicalRecord);
       const registrationRecord = patient
         ? mapRegistrationMedicalRecord(
             patient,
@@ -547,17 +591,20 @@ export default function PatientPWAMedicalRecords({ profile }) {
 
   return (
     <section className="pwa-page pwa-medical-page">
-      <header className="pwa-page-title pwa-medical-title">
-        <h1>My Medical Record</h1>
-      </header>
+      <PatientPageHeader
+        title="My Medical Record"
+        subtitle="Review visit summaries, clinical findings, and care plans from your clinic."
+        className="pwa-medical-title"
+      />
 
       <label className="pwa-medical-search" aria-label="Search medical records">
         <Icon icon="solar:magnifer-linear" />
         <input
           type="search"
-          placeholder="Search medical records..."
+          placeholder={isLoading ? "Loading records..." : "Search medical records..."}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          disabled={isLoading}
         />
       </label>
 
@@ -573,6 +620,8 @@ export default function PatientPWAMedicalRecords({ profile }) {
               type="button"
               className={record.id === selectedRecord?.id ? "is-active" : ""}
               onClick={() => setSelectedRecordId(record.id)}
+              title={record.visitType}
+              aria-label={`${record.date}, ${record.visitType}`}
             >
               <span>{record.date}</span>
               <strong>{record.visitType}</strong>
@@ -582,14 +631,32 @@ export default function PatientPWAMedicalRecords({ profile }) {
       ) : null}
 
       {!selectedRecord ? (
-        <section className="pwa-medical-empty">
-          <Icon icon="solar:folder-open-linear" />
-          <h2>{isLoading ? "Loading medical records" : "No medical record found"}</h2>
-          <p>
-            {isLoading
-              ? "Checking your clinic records."
-              : "Try searching by visit date, doctor, visit type, or diagnosis."}
-          </p>
+        <section
+          className={`pwa-medical-empty ${isLoading ? "is-loading" : ""}`}
+          aria-busy={isLoading}
+          role="status"
+        >
+          <span aria-hidden="true">
+            <Icon
+              icon={isLoading ? "solar:refresh-circle-bold" : "solar:folder-open-linear"}
+            />
+          </span>
+          <div>
+            <h2>
+              {isLoading
+                ? "Loading medical records"
+                : patientRecords.length
+                  ? "No matching medical record found"
+                  : "No medical records available yet"}
+            </h2>
+            <p>
+              {isLoading
+                ? "Checking your latest clinic records."
+                : patientRecords.length
+                  ? "Try searching by visit date, doctor, visit type, or diagnosis."
+                  : "Completed consultations will appear here once your clinic publishes them."}
+            </p>
+          </div>
         </section>
       ) : (
         <MedicalRecordCard record={selectedRecord} />
@@ -602,37 +669,79 @@ function MedicalRecordCard({ record }) {
   return (
     <section className="pwa-medical-card">
       <aside className="pwa-medical-side">
-        <h2>
-          <Icon icon="solar:calendar-linear" />
-          {record.date}
-        </h2>
-        <p>{record.dayTime}</p>
+        <div className="pwa-medical-record-date">
+          <div>
+            <h2>
+              <Icon icon="solar:calendar-linear" />
+              {record.date}
+            </h2>
+            <p>{record.dayTime}</p>
+          </div>
+          <mark>{record.recordStatus}</mark>
+        </div>
 
-        <MedicalMeta
-          icon="solar:camera-bold-duotone"
-          label="Visit Type"
-          value={record.visitType}
-          tone="pink"
-        />
-        <MedicalMeta
-          icon="solar:clock-circle-bold-duotone"
-          label="Gestational Age"
-          value={record.gestationalAge}
-          tone="blue"
-        />
-        <MedicalMeta
-          icon="solar:user-rounded-bold-duotone"
-          label="Doctor"
-          value={record.doctor}
-          tone="violet"
-        />
+        <div className="pwa-medical-primary-meta">
+          <MedicalMeta
+            icon="solar:camera-bold-duotone"
+            label="Visit Type"
+            value={record.visitType}
+            tone="pink"
+          />
+          <MedicalMeta
+            icon="solar:clock-circle-bold-duotone"
+            label="Gestational Age"
+            value={record.gestationalAge}
+            tone="blue"
+          />
+          <MedicalMeta
+            icon="solar:user-rounded-bold-duotone"
+            label="Doctor"
+            value={record.doctor}
+            tone="violet"
+          />
+        </div>
+
+        <details className="pwa-medical-secondary-meta">
+          <summary>
+            <span>Record details</span>
+            <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
+          </summary>
+          <div>
+            <MedicalMeta
+              icon="solar:calendar-mark-bold-duotone"
+              label="Appointment Reference"
+              value={record.appointmentReference}
+              tone="pink"
+            />
+            <MedicalMeta
+              icon="solar:document-add-bold-duotone"
+              label="Created"
+              value={record.createdDate}
+              tone="blue"
+            />
+            <MedicalMeta
+              icon="solar:refresh-circle-bold-duotone"
+              label="Last Updated"
+              value={record.updatedDate}
+              tone="violet"
+            />
+          </div>
+        </details>
       </aside>
 
       <article className="pwa-medical-body">
+        <header className="pwa-medical-body-header">
+          <span>Visit summary</span>
+          <h2>{record.visitType}</h2>
+          <p>{record.doctor} · {record.gestationalAge}</p>
+        </header>
+
         <div className="pwa-medical-top-grid">
           <section className="pwa-record-section pwa-chief-section">
             <SectionTitle title="Chief Complaint" />
             <p>{record.complaint}</p>
+            <h3>Symptoms / Concerns</h3>
+            <p>{record.symptoms}</p>
           </section>
 
           <section className="pwa-record-section pwa-findings-section">
@@ -687,24 +796,57 @@ function MedicalRecordCard({ record }) {
               ))}
             </ul>
 
+            {record.prescriptions.length ? (
+              <>
+                <h3>Prescriptions</h3>
+                <ul className="pwa-treatment-list">
+                  {record.prescriptions.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </>
+            ) : null}
+
+            {record.diagnosticResults.length ? (
+              <>
+                <h3>Diagnostic Results</h3>
+                <ul className="pwa-treatment-list">
+                  {record.diagnosticResults.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </>
+            ) : null}
+
             {record.attachment ? (
               <>
                 <h3 className="pwa-attachment-title">Attachments (1)</h3>
-                <a
-                  className="pwa-attachment-card"
-                  href={record.attachment.url || undefined}
-                  download={record.attachment.name}
-                  aria-disabled={!record.attachment.url}
-                >
-                  <span>
-                    <Icon icon="solar:file-text-bold-duotone" />
-                  </span>
-                  <strong>
-                    {record.attachment.name}
-                    <small>{record.attachment.type}</small>
-                  </strong>
-                  <Icon icon="solar:download-minimalistic-linear" />
-                </a>
+                {record.attachment.url ? (
+                  <a
+                    className="pwa-attachment-card"
+                    href={record.attachment.url}
+                    download={record.attachment.name}
+                  >
+                    <span>
+                      <Icon icon="solar:file-text-bold-duotone" />
+                    </span>
+                    <strong>
+                      {record.attachment.name}
+                      <small>{record.attachment.type}</small>
+                    </strong>
+                    <Icon icon="solar:download-minimalistic-linear" />
+                  </a>
+                ) : (
+                  <div
+                    className="pwa-attachment-card"
+                    aria-disabled="true"
+                  >
+                    <span>
+                      <Icon icon="solar:file-text-bold-duotone" />
+                    </span>
+                    <strong>
+                      {record.attachment.name}
+                      <small>{record.attachment.type}</small>
+                    </strong>
+                    <Icon icon="solar:file-check-linear" />
+                  </div>
+                )}
               </>
             ) : null}
           </section>
@@ -716,7 +858,9 @@ function MedicalRecordCard({ record }) {
 
 function MedicalMeta({ icon, label, value, tone }) {
   return (
-    <div className={`pwa-medical-meta is-${tone}`}>
+    <div className={`pwa-medical-meta is-${tone} ${
+      hasMeaningfulRecordValue(value) ? "" : "is-empty"
+    }`}>
       <span>
         <Icon icon={icon} />
       </span>

@@ -1,89 +1,37 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import { useAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
+import DoctorNotificationBell from "../../components/doctor/DoctorNotificationBell";
+import { loadAssignedMedicationAdherenceFollowupQueue } from "../../lib/medicationAdherenceFollowupApi";
+import {
+  buildMedicationFollowupQueueItems,
+  summarizeMedicationFollowupQueue,
+} from "../../lib/medicationFollowupQueue";
+import {
+  classifyAppointment,
+  compareUpcomingAppointments,
+  formatAppointmentDate,
+  formatAppointmentTime,
+  getManilaDayRange,
+} from "../../lib/appointmentDate";
 import { DoctorAppointmentsContent } from "./Doctor_Appointments";
+import DoctorMedicalRecords from "./Doctor_Medical_Records";
 import DoctorPatientsContent from "./Doctor_Patients";
 import DoctorReminderContent from "./Doctor_Reminder";
+import DoctorFollowupQueue from "./Doctor_Followup_Queue";
 import DoctorSettingsContent from "./Doctor_Settings";
 import DoctorViewProfileContent from "./Doctor_ViewProfile";
 import "../../styles/doctor-dashboard.css";
+import "../../styles/appointment-ui-system.css";
+import "../../styles/patient-record-ui-system.css";
+import "../../styles/clinical-workflow-ui-system.css";
 
-const doctorProfilePhotoKey = "doctor_profile_photo";
-const doctorSettingsKey = "doctor_dashboard_settings";
-const defaultDoctorProfilePhoto = "/images/doctor-kempee-profile.svg";
 const defaultDoctorDashboardProfile = {
   displayName: "Doctor",
   roleLabel: "Doctor",
 };
-
-function getDoctorProfilePhoto() {
-  try {
-    return window.localStorage.getItem(doctorProfilePhotoKey) || defaultDoctorProfilePhoto;
-  } catch {
-    return defaultDoctorProfilePhoto;
-  }
-}
-
-function getStoredDoctorDashboardProfile() {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(doctorSettingsKey));
-
-    return {
-      ...defaultDoctorDashboardProfile,
-      displayName:
-        String(saved?.displayName || "").trim() ||
-        defaultDoctorDashboardProfile.displayName,
-      roleLabel: "Doctor",
-    };
-  } catch {
-    return { ...defaultDoctorDashboardProfile };
-  }
-}
-
-function getAccountDisplayName(user, profile, fallbackName) {
-  const metadataName =
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    "";
-  const emailName = user?.email ? user.email.split("@")[0] : "";
-
-  return (
-    String(profile?.full_name || "").trim() ||
-    String(metadataName || "").trim() ||
-    String(fallbackName || "").trim() ||
-    String(emailName || "").trim() ||
-    defaultDoctorDashboardProfile.displayName
-  );
-}
-
-async function loadDoctorDashboardProfile() {
-  const fallbackProfile = getStoredDoctorDashboardProfile();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return fallbackProfile;
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return {
-    ...fallbackProfile,
-    displayName: getAccountDisplayName(
-      user,
-      profile,
-      fallbackProfile.displayName
-    ),
-    roleLabel: "Doctor",
-  };
-}
 
 const navItems = [
   {
@@ -106,7 +54,22 @@ const navItems = [
     label: "Reminders",
     icon: "solar:bell-linear",
   },
+  {
+    key: "followups",
+    label: "Medication Follow-ups",
+    icon: "solar:clipboard-heart-linear",
+  },
 ];
+
+const doctorPagePaths = {
+  dashboard: "/doctor/dashboard",
+  patients: "/doctor/patients",
+  appointments: "/doctor/appointments",
+  reminders: "/doctor/reminders",
+  followups: "/doctor/follow-ups",
+  profile: "/doctor/profile",
+  settings: "/doctor/settings",
+};
 
 const dashboardStatusCards = [
   {
@@ -118,15 +81,14 @@ const dashboardStatusCards = [
     target: "patients",
   },
   {
-    label: "Today's Appointment",
+    label: "Today's Appointments",
     statKey: "todaysAppointments",
     icon: "solar:clock-circle-bold",
     tone: "pink",
-    avatars: true,
     target: "appointments",
   },
   {
-    label: "Session Completed",
+    label: "Sessions Completed",
     statKey: "completedSessions",
     icon: "solar:check-circle-bold",
     tone: "blue",
@@ -134,6 +96,76 @@ const dashboardStatusCards = [
     target: "appointments",
   },
 ];
+
+const dashboardFollowupLimit = 24;
+
+const medicalRecordTabParamByLabel = {
+  Overview: "overview",
+  "Prenatal History": "prenatal-history",
+  Appointments: "appointments",
+  "Medical Record": "medical-record",
+  "Diagnostic Results": "diagnostic-results",
+  Prescriptions: "prescriptions",
+  "Medication Adherence": "medication-adherence",
+  "Pregnancy Tracking": "pregnancy-tracking",
+};
+
+const medicalRecordTabLabelByParam = {
+  ...Object.fromEntries(
+    Object.entries(medicalRecordTabParamByLabel).map(([label, param]) => [param, label])
+  ),
+  // Backwards compatibility for old bookmarked/shared URLs only.
+  // The Laboratory Results tab itself has been removed.
+  "laboratory-results": "Diagnostic Results",
+};
+
+function getMedicalRecordTargetFromSearch(search) {
+  const params = new URLSearchParams(search || "");
+  const patientId = params.get("patientId") || "";
+  const recordId = params.get("recordId") || "";
+  const tab = params.get("tab") || "";
+  const view = params.get("view") || "";
+  const activeTab = medicalRecordTabLabelByParam[tab] || "";
+
+  if (!patientId || !activeTab) {
+    return null;
+  }
+
+  return {
+    patientId,
+    activeTab,
+    recordId,
+    returnPage: doctorPagePaths[view] ? view : "patients",
+  };
+}
+
+function getInitialDoctorPage(pathname, search) {
+  const medicalRecordTarget = getMedicalRecordTargetFromSearch(search);
+
+  if (medicalRecordTarget) return "medicalRecords";
+  if (pathname.includes("/doctor/patients")) return "patients";
+  if (pathname.includes("/doctor/appointments")) return "appointments";
+  if (pathname.includes("/doctor/reminders")) return "reminders";
+  if (pathname.includes("/doctor/follow-ups")) return "followups";
+  if (pathname.includes("/doctor/profile")) return "profile";
+  if (pathname.includes("/doctor/settings")) return "settings";
+
+  return "dashboard";
+}
+
+function buildDoctorMedicalRecordSearch(target = {}) {
+  const params = new URLSearchParams();
+  const returnPage = doctorPagePaths[target.returnPage] ? target.returnPage : "patients";
+  const tab = medicalRecordTabParamByLabel[target.activeTab] || "medical-record";
+
+  params.set("view", returnPage);
+  params.set("tab", tab);
+
+  if (target.patientId) params.set("patientId", target.patientId);
+  if (target.recordId) params.set("recordId", target.recordId);
+
+  return `?${params.toString()}`;
+}
 
 function getInitials(name) {
   const parts = String(name || "Patient").trim().split(/\s+/).filter(Boolean);
@@ -146,49 +178,14 @@ function getInitials(name) {
     .toUpperCase();
 }
 
-function formatDashboardDate(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatDashboardTime(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function getTodayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(start.getDate() + 1);
-
-  return {
-    start: start.toISOString(),
-    end: end.toISOString(),
-  };
-}
-
 function mapUpcomingSession(row) {
   return {
     id: row.id,
+    appointmentId: row.maternal_appointment_id || "MA ID not assigned",
     initials: getInitials(row.patient_name),
     patient: row.patient_name || "Patient",
-    date: formatDashboardDate(row.start_time),
-    time: formatDashboardTime(row.start_time),
+    date: formatAppointmentDate(row.start_time, { month: "short", day: "2-digit" }),
+    time: formatAppointmentTime(row.start_time),
     avatarClass: "avatar-pink",
   };
 }
@@ -239,12 +236,7 @@ function ProfileCard({ setActivePage, profile }) {
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [profilePhoto, setProfilePhoto] = useState(getDoctorProfilePhoto);
   const initials = getInitials(profile.displayName || profile.roleLabel);
-
-  const syncProfilePhoto = () => {
-    setProfilePhoto(getDoctorProfilePhoto());
-  };
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -262,16 +254,17 @@ function ProfileCard({ setActivePage, profile }) {
       }
     }
 
+    function handleCloseProfileMenu() {
+      setIsDropdownOpen(false);
+    }
+
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
-    window.addEventListener("doctor-settings-updated", syncProfilePhoto);
-    window.addEventListener("storage", syncProfilePhoto);
-
+    window.addEventListener("doctor:close-profile-menu", handleCloseProfileMenu);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
-      window.removeEventListener("doctor-settings-updated", syncProfilePhoto);
-      window.removeEventListener("storage", syncProfilePhoto);
+      window.removeEventListener("doctor:close-profile-menu", handleCloseProfileMenu);
     };
   }, []);
 
@@ -301,7 +294,7 @@ function ProfileCard({ setActivePage, profile }) {
         aria-haspopup="menu"
       >
         <div className="doctor-profile-avatar">
-          {profilePhoto ? <img src={profilePhoto} alt="" /> : initials}
+          {initials}
         </div>
 
         <div className="doctor-profile-info">
@@ -321,9 +314,22 @@ function ProfileCard({ setActivePage, profile }) {
           onSettings={handleSettings}
           onLogout={handleLogout}
           profile={profile}
-          profilePhoto={profilePhoto}
+          profilePhoto=""
         />
       )}
+    </div>
+  );
+}
+
+function DoctorHeaderControls({ doctorId, setActivePage, profile, profileKey }) {
+  return (
+    <div className="doctor-shell-header-controls">
+      <DoctorNotificationBell doctorId={doctorId} />
+      <ProfileCard
+        key={profileKey}
+        setActivePage={setActivePage}
+        profile={profile}
+      />
     </div>
   );
 }
@@ -398,13 +404,6 @@ function DashboardHome({
               <span className="doctor-growth-badge">{card.badge}</span>
             )}
 
-            {card.avatars && (
-              <div className="doctor-mini-avatars">
-                <span />
-                <span />
-              </div>
-            )}
-
             {card.progress && (
               <div className="doctor-progress-track">
                 <span style={{ width: `${card.progress}%` }} />
@@ -440,7 +439,7 @@ function DashboardHome({
               <tbody>
                 {upcomingSessions.map((session) => (
                   <tr key={session.id}>
-                    <td>{session.id}</td>
+                    <td>{session.appointmentId}</td>
 
                     <td>
                       <div className="doctor-patient-cell">
@@ -464,10 +463,10 @@ function DashboardHome({
                       <button
                         type="button"
                         className="doctor-table-action"
-                        aria-label={`Open actions for ${session.patient}`}
+                        aria-label={`View appointment for ${session.patient}`}
                         onClick={() => setActivePage("appointments")}
                       >
-                        <Icon icon="solar:menu-dots-bold" />
+                        <Icon icon="lucide:ellipsis" />
                       </button>
                     </td>
                   </tr>
@@ -475,7 +474,7 @@ function DashboardHome({
 
                 {!upcomingSessions.length ? (
                   <tr>
-                    <td colSpan="5">No upcoming sessions found.</td>
+                    <td colSpan="5">No upcoming sessions.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -488,8 +487,14 @@ function DashboardHome({
 }
 
 function Doctor_Dashboard() {
-  const [activePage, setActivePage] = useState("dashboard");
-  const [profile, setProfile] = useState(getStoredDoctorDashboardProfile);
+  const location = useLocation();
+  const isAppointmentVisitRoute = /^\/doctor\/appointments\/[^/]+\/(?:initial-visit|follow-up)\/?$/i.test(
+    location.pathname
+  );
+  const [activePage, setActivePage] = useState(() =>
+    getInitialDoctorPage(location.pathname, location.search)
+  );
+  const doctorIdentity = useAuthenticatedDoctor();
   const [dashboardStats, setDashboardStats] = useState({
     totalPatients: 0,
     todaysAppointments: 0,
@@ -498,119 +503,363 @@ function Doctor_Dashboard() {
   });
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [dashboardMessage, setDashboardMessage] = useState("");
+  const [followupAttentionDataset, setFollowupAttentionDataset] = useState({
+    doctorId: "",
+    followups: [],
+    patients: [],
+    events: [],
+    controlEventsLimited: false,
+    generatedAt: "",
+  });
+  const [followupAttentionStatus, setFollowupAttentionStatus] =
+    useState("loading");
+  const [followupAttentionNow, setFollowupAttentionNow] = useState(
+    () => new Date()
+  );
+  const [medicalRecordTarget, setMedicalRecordTarget] = useState(() =>
+    getMedicalRecordTargetFromSearch(location.search)
+  );
+  const [doctorPatientHeaderAction, setDoctorPatientHeaderAction] = useState(null);
+  const dashboardStatsRequestRef = useRef(0);
+  const followupAttentionRequestRef = useRef(0);
+  const followupAttentionInFlightRef = useRef(false);
   const navigate = useNavigate();
+  const authenticatedDoctorId = doctorIdentity.profile?.id || "";
+  const inactiveDoctorError =
+    doctorIdentity.error?.code === "doctor_account_inactive"
+      ? doctorIdentity.error
+      : null;
+  const profile = {
+    ...defaultDoctorDashboardProfile,
+    displayName: doctorIdentity.doctorDisplayName ||
+      (doctorIdentity.loading
+        ? "Loading Doctor profile..."
+        : doctorIdentity.error
+          ? "Doctor profile not found"
+          : defaultDoctorDashboardProfile.displayName),
+  };
+  const followupAttentionQueueItems = useMemo(
+    () =>
+      buildMedicationFollowupQueueItems({
+        followups:
+          followupAttentionDataset.doctorId === authenticatedDoctorId
+            ? followupAttentionDataset.followups
+            : [],
+        patients:
+          followupAttentionDataset.doctorId === authenticatedDoctorId
+            ? followupAttentionDataset.patients
+            : [],
+        events:
+          followupAttentionDataset.doctorId === authenticatedDoctorId
+            ? followupAttentionDataset.events
+            : [],
+        doctorName: profile.displayName,
+        now: followupAttentionNow,
+      }),
+    [
+      followupAttentionDataset.followups,
+      followupAttentionDataset.patients,
+      followupAttentionDataset.events,
+      followupAttentionDataset.doctorId,
+      followupAttentionNow,
+      authenticatedDoctorId,
+      profile.displayName,
+    ]
+  );
+  const followupAttentionSummary = useMemo(
+    () => summarizeMedicationFollowupQueue(followupAttentionQueueItems),
+    [followupAttentionQueueItems]
+  );
+  const effectiveFollowupAttentionStatus = authenticatedDoctorId
+    ? followupAttentionDataset.doctorId === authenticatedDoctorId
+      ? followupAttentionStatus
+      : "loading"
+    : doctorIdentity.loading
+      ? "loading"
+      : "error";
 
   useEffect(() => {
+    if (!inactiveDoctorError) {
+      return undefined;
+    }
+
     let active = true;
 
-    const syncProfile = async () => {
-      const nextProfile = await loadDoctorDashboardProfile();
-
-      if (active) {
-        setProfile(nextProfile);
+    const redirectInactiveDoctor = async () => {
+      try {
+        await supabase.auth.signOut();
+      } catch (error) {
+        console.error("Inactive Doctor sign out failed:", error);
       }
+
+      if (!active) {
+        return;
+      }
+
+      navigate(
+        `/login?logout=1&reason=${encodeURIComponent(inactiveDoctorError.message)}`,
+        { replace: true }
+      );
     };
 
-    syncProfile();
-
-    window.addEventListener("doctor-settings-updated", syncProfile);
-    window.addEventListener("storage", syncProfile);
+    redirectInactiveDoctor();
 
     return () => {
       active = false;
-      window.removeEventListener("doctor-settings-updated", syncProfile);
-      window.removeEventListener("storage", syncProfile);
     };
-  }, []);
+  }, [inactiveDoctorError, navigate]);
+
+  const loadDashboardStats = useCallback(async () => {
+    const doctorId = authenticatedDoctorId;
+    if (!doctorId) return;
+
+    const requestId = dashboardStatsRequestRef.current + 1;
+    dashboardStatsRequestRef.current = requestId;
+    const todayRange = getManilaDayRange();
+
+    const [patientsResult, scheduleResult] = await Promise.all([
+      supabase
+        .rpc("get_doctor_patient_directory", {}, { count: "exact", head: true })
+        .select("id")
+        .ilike("status", "active"),
+      supabase
+        .from("schedule")
+        .select(
+          "id, maternal_appointment_id, patient_name, start_time, end_time, status"
+        )
+        .gte("start_time", todayRange.start.toISOString())
+        .order("start_time", { ascending: true }),
+    ]);
+
+    if (dashboardStatsRequestRef.current !== requestId) return;
+
+    const errors = [patientsResult.error, scheduleResult.error]
+      .filter(Boolean)
+      .map((error) => error.message);
+    setDashboardMessage(
+      errors.length ? `Unable to load dashboard totals: ${errors.join(" ")}` : ""
+    );
+
+    const scheduleRows = scheduleResult.error ? [] : scheduleResult.data || [];
+    const todaysAppointments = scheduleRows.filter(
+      (appointment) => classifyAppointment(appointment).isToday
+    );
+    const completedSessions = todaysAppointments.filter(
+      (appointment) => classifyAppointment(appointment).category === "completed"
+    ).length;
+
+    setDashboardStats({
+      totalPatients: patientsResult.count ?? 0,
+      todaysAppointments: todaysAppointments.length,
+      completedSessions,
+      completionProgress: todaysAppointments.length
+        ? Math.min(
+            100,
+            Math.round((completedSessions / todaysAppointments.length) * 100)
+          )
+        : 0,
+    });
+
+    setUpcomingSessions(
+      scheduleRows
+        .filter((appointment) => classifyAppointment(appointment).isUpcoming)
+        .sort(compareUpcomingAppointments)
+        .slice(0, 4)
+        .map(mapUpcomingSession)
+    );
+  }, [authenticatedDoctorId]);
+
+  const loadFollowupAttention = useCallback(async () => {
+    const doctorId = authenticatedDoctorId;
+    if (!doctorId || followupAttentionInFlightRef.current) return;
+
+    followupAttentionInFlightRef.current = true;
+    const requestId = followupAttentionRequestRef.current + 1;
+    followupAttentionRequestRef.current = requestId;
+    setFollowupAttentionStatus((current) =>
+      current === "ready" || current === "error" ? "refreshing" : "loading"
+    );
+
+    try {
+      const dataset = await loadAssignedMedicationAdherenceFollowupQueue(
+        doctorId,
+        { limit: dashboardFollowupLimit }
+      );
+      if (followupAttentionRequestRef.current !== requestId) return;
+
+      setFollowupAttentionDataset({ ...dataset, doctorId });
+      setFollowupAttentionNow(new Date());
+      setFollowupAttentionStatus("ready");
+    } catch (error) {
+      if (followupAttentionRequestRef.current !== requestId) return;
+      console.error("Doctor follow-up attention load failed.", {
+        name: error?.name || "unknown",
+      });
+      setFollowupAttentionDataset((current) =>
+        current.doctorId === doctorId
+          ? current
+          : {
+              doctorId,
+              followups: [],
+              patients: [],
+              events: [],
+              controlEventsLimited: false,
+              generatedAt: "",
+            }
+      );
+      setFollowupAttentionStatus("error");
+    } finally {
+      if (followupAttentionRequestRef.current === requestId) {
+        followupAttentionInFlightRef.current = false;
+      }
+    }
+  }, [authenticatedDoctorId]);
+
+  const refreshDashboardData = useCallback(
+    async () => {
+      await Promise.all([
+        loadDashboardStats(),
+        loadFollowupAttention(),
+      ]);
+    },
+    [loadDashboardStats, loadFollowupAttention]
+  );
 
   useEffect(() => {
-    let active = true;
+    if (activePage !== "dashboard" || !authenticatedDoctorId) {
+      return undefined;
+    }
 
-    const loadDashboardStats = async () => {
-      const todayRange = getTodayRange();
+    followupAttentionRequestRef.current += 1;
+    followupAttentionInFlightRef.current = false;
 
-      const [patientsResult, todaysResult, completedResult, upcomingResult] = await Promise.all([
-        supabase
-          .from("patients")
-          .select("id", { count: "exact", head: true })
-          .ilike("status", "active"),
-        supabase
-          .from("schedule")
-          .select("id", { count: "exact", head: true })
-          .gte("start_time", todayRange.start)
-          .lt("start_time", todayRange.end),
-        supabase
-          .from("schedule")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "completed"),
-        supabase
-          .from("schedule")
-          .select("id, patient_name, start_time, status")
-          .gte("start_time", new Date().toISOString())
-          .order("start_time", { ascending: true })
-          .limit(4),
-      ]);
-
-      if (!active) return;
-
-      const errors = [
-        patientsResult.error,
-        todaysResult.error,
-        completedResult.error,
-        upcomingResult.error,
-      ]
-        .filter(Boolean)
-        .map((error) => error.message);
-
-      setDashboardMessage(
-        errors.length ? `Unable to load dashboard totals: ${errors.join(" ")}` : ""
-      );
-
-      const todaysAppointments = todaysResult.count ?? 0;
-      const completedSessions = completedResult.count ?? 0;
-
-      setDashboardStats({
-        totalPatients: patientsResult.count ?? 0,
-        todaysAppointments,
-        completedSessions,
-        completionProgress: todaysAppointments
-          ? Math.min(100, Math.round((completedSessions / todaysAppointments) * 100))
-          : 0,
-      });
-
-      setUpcomingSessions((upcomingResult.data || []).map(mapUpcomingSession));
+    const refresh = () => {
+      setFollowupAttentionNow(new Date());
+      refreshDashboardData();
     };
+    const handleWindowFocus = () => refresh();
+    const initialLoadTimer = window.setTimeout(refresh, 0);
+    const refreshTimer = window.setInterval(refresh, 60_000);
+    window.addEventListener("focus", handleWindowFocus);
 
-    loadDashboardStats();
-
-    const patientsChannel = supabase
-      .channel("doctor-dashboard-patients-count")
+    const dashboardChannel = supabase
+      .channel(`doctor-dashboard-${authenticatedDoctorId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "patients" },
         loadDashboardStats
       )
-      .subscribe();
-
-    const scheduleChannel = supabase
-      .channel("doctor-dashboard-schedule-count")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "schedule" },
+        {
+          event: "*",
+          schema: "public",
+          table: "schedule",
+          filter: `doctor_id=eq.${authenticatedDoctorId}`,
+        },
         loadDashboardStats
       )
       .subscribe();
 
     return () => {
-      active = false;
-      supabase.removeChannel(patientsChannel);
-      supabase.removeChannel(scheduleChannel);
+      dashboardStatsRequestRef.current += 1;
+      followupAttentionRequestRef.current += 1;
+      followupAttentionInFlightRef.current = false;
+      window.clearTimeout(initialLoadTimer);
+      window.clearInterval(refreshTimer);
+      window.removeEventListener("focus", handleWindowFocus);
+      supabase.removeChannel(dashboardChannel);
     };
-  }, []);
+  }, [
+    activePage,
+    authenticatedDoctorId,
+    loadDashboardStats,
+    refreshDashboardData,
+  ]);
+
+  const openMedicalRecordTarget = useCallback((target, options = {}) => {
+    setDoctorPatientHeaderAction(null);
+
+    const returnPage =
+      doctorPagePaths[target?.returnPage]
+        ? target.returnPage
+        : activePage === "medicalRecords"
+          ? medicalRecordTarget?.returnPage || "patients"
+          : doctorPagePaths[activePage]
+            ? activePage
+            : "patients";
+    const nextTarget = {
+      patientId: target?.patientId || "",
+      activeTab: target?.activeTab || "Medical Record",
+      recordId: target?.recordId || "",
+      returnPage,
+    };
+
+    setMedicalRecordTarget(nextTarget);
+    setActivePage("medicalRecords");
+
+    if (nextTarget.patientId) {
+      navigate(
+        {
+          pathname: "/doctor",
+          search: buildDoctorMedicalRecordSearch(nextTarget),
+        },
+        { replace: options.replace === true }
+      );
+    }
+  }, [activePage, medicalRecordTarget?.returnPage, navigate]);
+
+  const navigateDoctorPage = useCallback((page) => {
+    const safePage = doctorPagePaths[page] ? page : "dashboard";
+    const destination = doctorPagePaths[safePage];
+
+    if (safePage !== "medicalRecords") {
+      setDoctorPatientHeaderAction(null);
+    }
+
+    setActivePage(safePage);
+
+    if (
+      safePage !== "medicalRecords" &&
+      (location.pathname !== destination || location.search)
+    ) {
+      navigate(destination, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    const nextTarget = getMedicalRecordTargetFromSearch(location.search);
+
+    if (!nextTarget) {
+      const nextPage = getInitialDoctorPage(location.pathname, location.search);
+      const pageTimer = window.setTimeout(() => {
+        setActivePage((current) => (current === nextPage ? current : nextPage));
+      }, 0);
+      return () => window.clearTimeout(pageTimer);
+    }
+
+    const timer = window.setTimeout(() => {
+      setMedicalRecordTarget((current) => {
+        if (
+          current?.patientId === nextTarget.patientId &&
+          current?.recordId === nextTarget.recordId &&
+          current?.activeTab === nextTarget.activeTab
+        ) {
+          return current;
+        }
+
+        return nextTarget;
+      });
+      setActivePage("medicalRecords");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const handleDoctorNavigation = async (event) => {
-      const section = event.detail?.section;
+      const detail = event.detail || {};
+      const section = detail.section;
 
       if (!section) {
         return;
@@ -622,7 +871,12 @@ function Doctor_Dashboard() {
         return;
       }
 
-      setActivePage(section);
+      if (section === "medicalRecords") {
+        openMedicalRecordTarget(detail?.medicalRecordTarget || null);
+        return;
+      }
+
+      navigateDoctorPage(section);
     };
 
     window.addEventListener("doctor:navigate", handleDoctorNavigation);
@@ -630,41 +884,130 @@ function Doctor_Dashboard() {
     return () => {
       window.removeEventListener("doctor:navigate", handleDoctorNavigation);
     };
-  }, [navigate]);
+  }, [navigate, navigateDoctorPage, openMedicalRecordTarget]);
 
   const renderContent = () => {
+    const doctorPatientHeaderActions = (
+      <div className="doctor-patient-header-actions">
+        <DoctorHeaderControls
+          doctorId={authenticatedDoctorId}
+          profileKey={`medical-records-${location.pathname}-${location.search}`}
+          setActivePage={navigateDoctorPage}
+          profile={profile}
+        />
+
+        {doctorPatientHeaderAction ? (
+          <button
+            className="doctor-edit-record-button"
+            type="button"
+            onClick={doctorPatientHeaderAction.onClick}
+            disabled={doctorPatientHeaderAction.disabled}
+          >
+            <Icon icon="solar:pen-new-square-linear" />
+            <span>{doctorPatientHeaderAction.label}</span>
+          </button>
+        ) : null}
+      </div>
+    );
+
     switch (activePage) {
       case "patients":
-        return <DoctorPatientsContent />;
+        return (
+          <DoctorPatientsContent
+            headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />}
+          />
+        );
 
       case "appointments":
-        return <DoctorAppointmentsContent headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />} />;
+        return (
+          <DoctorAppointmentsContent
+            doctorIdentity={doctorIdentity}
+            headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />}
+            onOpenMedicalRecord={(target) => {
+              openMedicalRecordTarget(target);
+            }}
+          />
+        );
+
+      case "medicalRecords":
+        return (
+          <DoctorMedicalRecords
+            key={medicalRecordTarget?.patientId || "none"}
+            initialPatient={medicalRecordTarget?.patientId ? { id: medicalRecordTarget.patientId } : null}
+            initialActiveTab={medicalRecordTarget?.activeTab || "Medical Record"}
+            focusedRecordId={medicalRecordTarget?.recordId || ""}
+            headerActions={doctorPatientHeaderActions}
+            doctorName={profile.displayName}
+            onHeaderActionChange={setDoctorPatientHeaderAction}
+            onRecordSelect={(recordId) => {
+              if (!medicalRecordTarget?.patientId || !recordId) return;
+              openMedicalRecordTarget(
+                {
+                  ...medicalRecordTarget,
+                  recordId,
+                },
+                { replace: true }
+              );
+            }}
+            onBackToPatients={() => navigateDoctorPage(medicalRecordTarget?.returnPage || "patients")}
+          />
+        );
 
       case "reminders":
-        return <DoctorReminderContent headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />} />;
+        return <DoctorReminderContent doctorIdentity={doctorIdentity} headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />} />;
+
+      case "followups":
+        return (
+          <DoctorFollowupQueue
+            doctorIdentity={doctorIdentity}
+            doctorName={profile.displayName}
+            onViewAdherence={(patientId) =>
+              openMedicalRecordTarget({
+                patientId,
+                activeTab: "Medication Adherence",
+                returnPage: "followups",
+              })
+            }
+          />
+        );
 
       case "profile":
-        return <DoctorViewProfileContent setActivePage={setActivePage} />;
+        return (
+          <DoctorViewProfileContent
+            doctorIdentity={doctorIdentity}
+            headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />}
+          />
+        );
 
       case "settings":
-        return <DoctorSettingsContent headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />} />;
+        return <DoctorSettingsContent doctorIdentity={doctorIdentity} headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />} />;
 
       case "dashboard":
       default:
         return (
           <DashboardHome
-            setActivePage={setActivePage}
-            headerAction={
-              <ProfileCard setActivePage={setActivePage} profile={profile} />
-            }
+            setActivePage={navigateDoctorPage}
+            headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />}
             dashboardStats={dashboardStats}
             upcomingSessions={upcomingSessions}
-            dashboardMessage={dashboardMessage}
+            dashboardMessage={doctorIdentity.error?.message || dashboardMessage}
             accountName={profile.displayName}
           />
         );
     }
   };
+
+  if (inactiveDoctorError) {
+    return (
+      <div className="doctor-dashboard">
+        <main className="doctor-main">
+          <div className="doctor-content">
+            <p className="doctor-dashboard-message">{inactiveDoctorError.message}</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="doctor-dashboard">
@@ -696,27 +1039,54 @@ function Doctor_Dashboard() {
           </div>
 
           <nav className="doctor-nav" aria-label="Doctor dashboard navigation">
-            {navItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setActivePage(item.key)}
-                className={`doctor-nav-link ${
-                  activePage === item.key || (activePage === "settings" && item.key === "dashboard") ? "active" : ""
-                }`}
-              >
-                <Icon icon={item.icon} />
-                <span>{item.label}</span>
-              </button>
-            ))}
+            {navItems.map((item) => {
+              const attentionCount = followupAttentionSummary.attention;
+              const isFollowups = item.key === "followups";
+              const accessibleLabel =
+                isFollowups && attentionCount
+                  ? `Medication Follow-ups, ${attentionCount} tasks require attention`
+                  : item.label;
+
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  aria-label={accessibleLabel}
+                  onClick={() => navigateDoctorPage(item.key)}
+                  className={`doctor-nav-link ${
+                    activePage === item.key || (activePage === "settings" && item.key === "dashboard") ? "active" : ""
+                  }`}
+                >
+                  <Icon icon={item.icon} />
+                  <span>{item.label}</span>
+                  {isFollowups && attentionCount ? (
+                    <span className="doctor-followup-nav-badge" aria-hidden="true">
+                      {attentionCount > 99 ? "99+" : attentionCount}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+            <span className="doctor-visually-hidden" role="status" aria-live="polite">
+              {effectiveFollowupAttentionStatus === "ready"
+                ? `${followupAttentionSummary.attention} medication follow-up tasks require attention.`
+                : ""}
+            </span>
           </nav>
         </div>
       </aside>
 
-      <main className="doctor-main">
-        {activePage !== "dashboard" ? (
+      <main className={`doctor-main${isAppointmentVisitRoute ? " doctor-main--appointment-visit" : ""}`}>
+        {activePage !== "medicalRecords" && !isAppointmentVisitRoute ? (
           <div className="doctor-global-profile-slot">
-            <ProfileCard setActivePage={setActivePage} profile={profile} />
+            <div className="doctor-patient-header-actions">
+              <DoctorHeaderControls
+                doctorId={authenticatedDoctorId}
+                profileKey={`${activePage}-${location.pathname}-${location.search}`}
+                setActivePage={navigateDoctorPage}
+                profile={profile}
+              />
+            </div>
           </div>
         ) : null}
 

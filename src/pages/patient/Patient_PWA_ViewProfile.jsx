@@ -1,36 +1,37 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
+import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
 
 const defaultProfile = {
   personalInfoId: null,
   emergencyContactId: null,
 
-  displayName: "Maria Makiling",
-  patientId: "PAT-2026-00125",
-  pregnancyStatus: "ACTIVE",
+  displayName: "Patient",
+  patientId: "Not provided",
+  pregnancyStatus: "Not provided",
   avatar: "",
 
-  gender: "Female",
-  birthdate: "1998-01-10",
-  nationality: "Filipino",
-  email: "maria.makiling@gmail.com",
-  address: "La Paz, Iloilo City, Philippines",
-  bloodType: "O+",
-  civilStatus: "Married",
-  phone: "0912 345 6789",
+  gender: "",
+  birthdate: "",
+  nationality: "",
+  email: "",
+  address: "",
+  bloodType: "",
+  civilStatus: "",
+  phone: "",
 
-  emergencyName: "Juan Makiling",
-  emergencyRelation: "Husband",
-  emergencyPhone: "0912 987 6543",
+  emergencyName: "",
+  emergencyRelation: "",
+  emergencyPhone: "",
 
-  trimester: "2nd Trimester",
-  pregnancyWeek: "18",
-  gravida: "1",
-  para: "0",
-  dueDate: "N/A",
-  physician: "N/A",
-  clinic: "N/A",
+  trimester: "",
+  pregnancyWeek: "",
+  gravida: "",
+  para: "",
+  dueDate: "",
+  physician: "",
+  clinic: "",
 };
 
 export default function PatientPWAViewProfile({ profile }) {
@@ -51,11 +52,6 @@ export default function PatientPWAViewProfile({ profile }) {
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [savingEmergency, setSavingEmergency] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
-
-  useEffect(() => {
-    loadProfileFromSupabase();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function getCurrentUserSafe() {
     const { data, error } = await supabase.auth.getUser();
@@ -82,27 +78,20 @@ export default function PatientPWAViewProfile({ profile }) {
       if (data) return data;
     }
 
-    const { data: byEmail, error: emailError } = await supabase
-      .from("patient_personal_information")
-      .select("*")
-      .eq("email", defaultProfile.email)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    if (profile?.recordId) {
+      const { data, error } = await supabase
+        .from("patient_personal_information")
+        .select("*")
+        .eq("patient_record_id", profile.recordId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (emailError) throw emailError;
-    if (byEmail) return byEmail;
+      if (error) throw error;
+      if (data) return data;
+    }
 
-    const { data: latestPatient, error: latestError } = await supabase
-      .from("patient_personal_information")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (latestError) throw latestError;
-
-    return latestPatient || null;
+    return null;
   }
 
   async function loadProfileFromSupabase() {
@@ -117,7 +106,11 @@ export default function PatientPWAViewProfile({ profile }) {
         setProfileData(initialProfile);
         setPersonalDraft(createPersonalDraft(initialProfile));
         setEmergencyDraft(createEmergencyDraft(initialProfile));
-        setSyncMessage("No database profile found yet. Edit then Save to create one.");
+        setSyncMessage(
+          hasLinkedPatientRecord(initialProfile)
+            ? "Some optional profile details have not been added yet."
+            : "Profile details are not available yet."
+        );
         return;
       }
 
@@ -139,6 +132,9 @@ export default function PatientPWAViewProfile({ profile }) {
       setProfileData(mappedProfile);
       setPersonalDraft(createPersonalDraft(mappedProfile));
       setEmergencyDraft(createEmergencyDraft(mappedProfile));
+      setSyncMessage(
+        emergencyData ? "" : "Some optional profile details have not been added yet."
+      );
     } catch (error) {
       console.error("Load profile error:", error);
       setSyncMessage(`Failed to load profile: ${error.message}`);
@@ -146,6 +142,12 @@ export default function PatientPWAViewProfile({ profile }) {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(loadProfileFromSupabase, 0);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updatePersonalDraft = (field, value) => {
     setPersonalDraft((draft) => ({ ...draft, [field]: value }));
@@ -174,14 +176,16 @@ export default function PatientPWAViewProfile({ profile }) {
 
       const user = await getCurrentUserSafe();
 
-      const oldEmail =
-        cleanText(profileData.email) ||
-        cleanText(defaultProfile.email) ||
-        "maria.makiling@gmail.com";
+      const oldEmail = cleanText(profileData.email) || cleanText(profile.email);
 
       const newEmail = cleanText(personalDraft.email) || oldEmail;
 
       const personalPayload = {
+        patient_record_id: profile.recordId || null,
+        patient_code:
+          profile.patientId && profile.patientId !== "Not provided"
+            ? profile.patientId
+            : null,
         full_name: cleanText(personalDraft.displayName) || "Unnamed Patient",
         gender: cleanText(personalDraft.gender),
         birthdate: toDatabaseDate(personalDraft.birthdate),
@@ -213,11 +217,11 @@ export default function PatientPWAViewProfile({ profile }) {
         targetPatientId = data?.id || null;
       }
 
-      if (!targetPatientId && oldEmail) {
+      if (!targetPatientId && profile.recordId) {
         const { data, error } = await supabase
           .from("patient_personal_information")
           .select("id")
-          .eq("email", oldEmail)
+          .eq("patient_record_id", profile.recordId)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -363,23 +367,36 @@ export default function PatientPWAViewProfile({ profile }) {
   }
 
   const ageText = calculateAge(profileData.birthdate, profileData.age);
+  const pregnancySummary = formatPregnancySummary(
+    profileData.trimester,
+    profileData.pregnancyWeek
+  );
+  const emergencySummary = formatCombinedValues([
+    profileData.emergencyName,
+    profileData.emergencyRelation,
+    profileData.emergencyPhone,
+  ]);
 
   return (
     <main className="pwa-page pwa-profile-page">
-      <section className="pwa-page-title pwa-profile-title">
-        <h1>Profile</h1>
-        <p>View and manage your personal and pregnancy information.</p>
+      <PatientPageHeader
+        title="My Profile"
+        subtitle="Review your personal, pregnancy, and emergency contact information."
+        className="pwa-profile-title"
+      />
 
-        {loading ? (
-          <p className="pwa-profile-sync-message">
-            Loading profile from Supabase...
-          </p>
-        ) : null}
-
-        {syncMessage ? (
-          <p className="pwa-profile-sync-message">{syncMessage}</p>
-        ) : null}
-      </section>
+      {loading || syncMessage ? (
+        <div
+          className={`pwa-profile-feedback ${syncMessage?.toLowerCase().includes("failed") ? "is-error" : ""}`.trim()}
+          role="status"
+        >
+          <Icon
+            icon={loading ? "solar:refresh-linear" : "solar:info-circle-bold-duotone"}
+            aria-hidden="true"
+          />
+          <span>{loading ? "Loading your latest profile information..." : syncMessage}</span>
+        </div>
+      ) : null}
 
       <section className="pwa-profile-hero">
         <div className="pwa-profile-photo-ring">
@@ -388,50 +405,47 @@ export default function PatientPWAViewProfile({ profile }) {
 
         <div className="pwa-profile-main-copy">
           <div className="pwa-profile-name-row">
-            <h2>{profileData.displayName || "N/A"}</h2>
-            <span>{profileData.pregnancyStatus || "N/A"}</span>
+            <h2>{formatDisplayValue(profileData.displayName)}</h2>
+            <span>{formatStatusLabel(profileData.pregnancyStatus)}</span>
           </div>
 
-          <p>Patient ID: {profileData.patientId || "N/A"}</p>
+          <p>Patient ID: {formatDisplayValue(profileData.patientId)}</p>
 
           <ul>
             <li>
-              <Icon icon="solar:user-rounded-linear" /> {ageText}
+              <Icon icon="solar:user-rounded-linear" /> {formatDisplayValue(ageText)}
             </li>
             <li>
               <Icon icon="solar:users-group-rounded-linear" />{" "}
-              {profileData.gender || "N/A"}
+              {formatDisplayValue(profileData.gender)}
             </li>
             <li>
               <Icon icon="solar:heart-linear" />{" "}
-              {profileData.civilStatus || "N/A"}
+              {formatDisplayValue(profileData.civilStatus)}
             </li>
           </ul>
 
           <strong>
-            <Icon icon="solar:heart-bold" /> {profileData.trimester || "N/A"} - Week{" "}
-            {profileData.pregnancyWeek || "N/A"}
+            <Icon icon="solar:heart-bold" /> {pregnancySummary}
           </strong>
         </div>
 
         <dl className="pwa-profile-contact-list">
           <Contact
             icon="solar:letter-bold-duotone"
-            value={profileData.email || "N/A"}
+            value={formatDisplayValue(profileData.email)}
           />
           <Contact
             icon="solar:phone-bold-duotone"
-            value={profileData.phone || "N/A"}
+            value={formatDisplayValue(profileData.phone)}
           />
           <Contact
             icon="solar:map-point-bold-duotone"
-            value={profileData.address || "N/A"}
+            value={formatDisplayValue(profileData.address)}
           />
           <Contact
             icon="solar:users-group-rounded-bold-duotone"
-            value={`${profileData.emergencyName || "N/A"} (${
-              profileData.emergencyRelation || "N/A"
-            }) - ${profileData.emergencyPhone || "N/A"}`}
+            value={emergencySummary}
           />
         </dl>
 
@@ -554,7 +568,7 @@ export default function PatientPWAViewProfile({ profile }) {
       <InfoCard title="Pregnancy Information" icon="solar:heart-bold-duotone">
         <Info
           label="Pregnancy Status"
-          value={profileData.pregnancyStatus}
+          value={formatStatusLabel(profileData.pregnancyStatus)}
           icon="solar:user-linear"
         />
         <Info
@@ -564,11 +578,7 @@ export default function PatientPWAViewProfile({ profile }) {
         />
         <Info
           label="Current Pregnancy Week"
-          value={
-            profileData.pregnancyWeek
-              ? `${profileData.pregnancyWeek} Weeks`
-              : "N/A"
-          }
+          value={formatPregnancyWeek(profileData.pregnancyWeek)}
           icon="solar:clock-circle-linear"
         />
         <Info
@@ -643,6 +653,64 @@ function normalizeProfile(profile) {
   };
 }
 
+function hasMeaningfulValue(value) {
+  const text = String(value ?? "").trim();
+  return Boolean(
+    text &&
+      !["n/a", "na", "not provided", "not recorded", "none", "null", "undefined"].includes(
+        text.toLowerCase()
+      )
+  );
+}
+
+function formatDisplayValue(value, fallback = "Not provided") {
+  return hasMeaningfulValue(value) ? String(value).trim() : fallback;
+}
+
+function formatStatusLabel(value) {
+  if (!hasMeaningfulValue(value)) return "Not provided";
+
+  return String(value)
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function formatCombinedValues(values) {
+  const parts = values.map((value) => formatDisplayValue(value, "")).filter(Boolean);
+  return parts.length ? parts.join(" — ") : "Not provided";
+}
+
+function formatPregnancySummary(trimester, pregnancyWeek) {
+  const normalizedWeek = normalizePregnancyWeek(pregnancyWeek);
+  const weekText = normalizedWeek ? `Week ${normalizedWeek}` : "";
+
+  return formatCombinedValues([trimester, weekText]);
+}
+
+function normalizePregnancyWeek(value) {
+  const match = String(value ?? "").match(/\d+/);
+  const week = match ? Number.parseInt(match[0], 10) : Number.NaN;
+  return Number.isFinite(week) && week >= 1 && week <= 45 ? week : null;
+}
+
+function formatPregnancyWeek(value) {
+  const week = normalizePregnancyWeek(value);
+  if (!week) return "Not provided";
+  return `${week} ${week === 1 ? "Week" : "Weeks"}`;
+}
+
+function hasLinkedPatientRecord(profile) {
+  return [
+    profile?.recordId,
+    profile?.patientId,
+    profile?.email,
+    profile?.phone,
+  ].some(hasMeaningfulValue);
+}
+
 function createPersonalDraft(profile) {
   return {
     displayName: profile.displayName || "",
@@ -670,15 +738,15 @@ function mapPersonalInformationRow(row, currentProfile) {
     ...currentProfile,
     personalInfoId: row.id,
     patientId: row.patient_code || currentProfile.patientId,
-    displayName: row.full_name || "",
+    displayName: row.full_name || currentProfile.displayName || "",
     gender: row.gender || "",
     birthdate: row.birthdate || "",
     nationality: row.nationality || "",
-    email: row.email || "",
+    email: row.email || currentProfile.email || "",
     address: row.address || "",
     bloodType: row.blood_type || "",
     civilStatus: row.civil_status || "",
-    phone: row.contact_number || "",
+    phone: row.contact_number || currentProfile.phone || "",
   };
 }
 
@@ -732,7 +800,7 @@ function toDateInputValue(value) {
 function formatDateForDisplay(value) {
   const date = getDateObject(value);
 
-  if (!date) return value || "N/A";
+  if (!date) return formatDisplayValue(value);
 
   return date.toLocaleDateString("en-US", {
     month: "long",
@@ -741,12 +809,13 @@ function formatDateForDisplay(value) {
   });
 }
 
-function calculateAge(birthdate, fallback = "N/A") {
+function calculateAge(birthdate, fallback = "Not provided") {
   const birth = getDateObject(birthdate);
 
-  if (!birth) return fallback || "N/A";
+  if (!birth) return fallback || "Not provided";
 
   const today = new Date();
+  if (birth > today) return "Not provided";
 
   let age = today.getFullYear() - birth.getFullYear();
   const monthDifference = today.getMonth() - birth.getMonth();
@@ -767,7 +836,7 @@ function Contact({ icon, value }) {
       <dt>
         <Icon icon={icon} />
       </dt>
-      <dd>{value || "N/A"}</dd>
+      <dd>{formatDisplayValue(value)}</dd>
     </div>
   );
 }
@@ -873,7 +942,7 @@ function Info({ label, value, icon, wide }) {
 
       <div>
         <small>{label}</small>
-        <strong>{value || "N/A"}</strong>
+        <strong>{formatDisplayValue(value)}</strong>
       </div>
     </article>
   );

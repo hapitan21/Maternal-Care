@@ -38,15 +38,18 @@
 .staff-profile-page .staff-profile-wrapper,
 .staff-profile-page .doctor-profile-wrapper {
   margin-left: auto;
-  flex: 0 0 320px;
-  width: 320px;
+  flex: 0 0 var(--doctor-top-profile-width, 292px);
+  width: var(--doctor-top-profile-width, 292px);
+  max-width: var(--doctor-top-profile-width, 292px);
   align-self: flex-start;
 }
 
 .staff-profile-page .staff-profile-card,
 .staff-profile-page .doctor-profile-card {
-  width: 320px;
-  min-height: 74px;
+  width: var(--doctor-top-profile-width, 292px);
+  max-width: var(--doctor-top-profile-width, 292px);
+  height: var(--doctor-top-profile-height, 66px);
+  min-height: var(--doctor-top-profile-height, 66px);
 }
 
 /* =========================
@@ -56,11 +59,11 @@
 .staff-profile-page .doctor-profile-hero-card {
   width: 100%;
   display: grid;
-  grid-template-columns: 180px minmax(280px, 1fr) minmax(300px, 420px);
+  grid-template-columns: 150px minmax(260px, 1fr) minmax(280px, 390px);
   align-items: center;
-  gap: 24px;
-  padding: 34px 42px;
-  border-radius: 28px;
+  gap: 22px;
+  padding: 28px 34px;
+  border-radius: 22px;
   background: #ffffff;
   border: 1px solid #eef1f7;
   box-shadow: 0 18px 44px rgba(31, 41, 64, 0.06);
@@ -74,8 +77,8 @@
 }
 
 .staff-profile-page .doctor-profile-main-photo {
-  width: 148px;
-  height: 148px;
+  width: 126px;
+  height: 126px;
   border-radius: 50%;
   border: 6px solid #ff4b93;
   background: linear-gradient(180deg, #fff8fb 0%, #ffe8f1 100%);
@@ -84,7 +87,7 @@
   justify-content: center;
   overflow: hidden;
   color: #ff4b93;
-  font-size: 42px;
+  font-size: 34px;
   font-weight: 800;
   line-height: 1;
   box-shadow: 0 12px 28px rgba(255, 75, 147, 0.14);
@@ -99,7 +102,7 @@
 .staff-profile-page .doctor-profile-main-info {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -113,24 +116,24 @@
 .staff-profile-page .doctor-profile-name-line h3 {
   margin: 0;
   color: #172033;
-  font-size: clamp(34px, 2.5vw, 52px);
+  font-size: clamp(28px, 2.1vw, 32px);
   font-weight: 900;
-  line-height: 0.96;
-  letter-spacing: -0.05em;
-  max-width: 320px;
+  line-height: 1.05;
+  letter-spacing: 0;
+  max-width: 360px;
 }
 
 .staff-profile-page .doctor-profile-main-info p {
   margin: 0;
   color: #ff3b87;
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 19px;
+  font-weight: 650;
   line-height: 1.15;
 }
 
 .staff-profile-page .doctor-profile-main-info > span {
   color: #7d879c;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 500;
   line-height: 1.5;
 }
@@ -139,11 +142,11 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border-radius: 999px;
   background: #ffe8f1;
   color: #ff3b87;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -161,28 +164,28 @@
 .staff-profile-page .doctor-profile-contact-list {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding-left: 36px;
+  gap: 14px;
+  padding-left: 28px;
   border-left: 1px solid #edf0f5;
 }
 
 .staff-profile-page .doctor-profile-contact-item {
   display: grid;
-  grid-template-columns: 52px 1fr;
+  grid-template-columns: 42px 1fr;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .staff-profile-page .doctor-profile-contact-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   background: #ffe8f1;
   color: #ff4b93;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 20px;
   flex-shrink: 0;
 }
 
@@ -194,16 +197,16 @@
   display: block;
   margin-bottom: 4px;
   color: #ff4b93;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 650;
   line-height: 1.2;
 }
 
 .staff-profile-page .doctor-profile-contact-item strong {
   display: block;
   color: #25314c;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 550;
   line-height: 1.4;
   word-break: break-word;
 }
@@ -215,7 +218,7 @@
 .staff-profile-page .doctor-profile-tabs-card {
   width: 100%;
   overflow: hidden;
-  border-radius: 28px;
+  border-radius: 22px;
   background: #ffffff;
   border: 1px solid #edf1f7;
   box-shadow: 0 16px 42px rgba(31, 41, 64, 0.05);
@@ -226,7 +229,7 @@
   align-items: center;
   gap: 0;
   border-bottom: 1px solid #edf1f7;
-  padding: 0 26px;
+  padding: 0 22px;
 }
 
 .staff-profile-page .doctor-profile-tabs button {
@@ -235,10 +238,10 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  padding: 18px 10px 17px;
-  margin-right: 34px;
+  padding: 14px 8px 13px;
+  margin-right: 28px;
   color: #556179;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   transition: color 0.2s ease;
 }
@@ -265,55 +268,55 @@
 .staff-profile-page .doctor-profile-tab-content {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 46px;
-  padding: 34px 36px 38px;
+  gap: 14px 38px;
+  padding: 24px 28px 28px;
 }
 
 .staff-profile-page .doctor-profile-info-column,
 .staff-profile-page .doctor-profile-detail-column {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 14px;
 }
 
 .staff-profile-page .doctor-profile-info-row {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .staff-profile-page .doctor-profile-row-icon {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: #ffe8f1;
   color: #ff4b93;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 21px;
+  font-size: 18px;
 }
 
 .staff-profile-page .doctor-profile-row-text {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
 }
 
 .staff-profile-page .doctor-profile-row-text span {
   color: #525f78;
-  font-size: 17px;
+  font-size: 14.5px;
   font-weight: 500;
   line-height: 1.4;
 }
 
 .staff-profile-page .doctor-profile-row-text strong {
   color: #1f2940;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.4;
   text-align: right;
 }
@@ -322,8 +325,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 16px;
+  gap: 12px;
+  padding-bottom: 12px;
   border-bottom: 1px dashed #edf0f5;
 }
 
@@ -334,15 +337,15 @@
 
 .staff-profile-page .doctor-profile-detail-row span {
   color: #667188;
-  font-size: 16px;
+  font-size: 14.5px;
   font-weight: 500;
   line-height: 1.4;
 }
 
 .staff-profile-page .doctor-profile-detail-row strong {
   color: #1f2940;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.4;
   text-align: right;
 }
@@ -353,11 +356,11 @@
 
 .staff-profile-page .doctor-profile-summary {
   width: 100%;
-  border-radius: 28px;
+  border-radius: 22px;
   background: #ffffff;
   border: 1px solid #edf1f7;
   box-shadow: 0 16px 42px rgba(31, 41, 64, 0.05);
-  padding: 28px 30px 30px;
+  padding: 22px 24px 24px;
   box-sizing: border-box;
 }
 
@@ -366,7 +369,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .staff-profile-page .doctor-profile-summary-header > div {
@@ -377,7 +380,7 @@
 
 .staff-profile-page .doctor-profile-summary-header > div .iconify {
   color: #ff4b93;
-  font-size: 24px;
+  font-size: 21px;
 }
 
 .staff-profile-page .doctor-profile-summary-header h3 {
@@ -410,39 +413,39 @@
 
 .staff-profile-page .doctor-profile-summary-card {
   display: grid;
-  grid-template-columns: 58px 1fr;
+  grid-template-columns: 48px 1fr;
   align-items: center;
-  gap: 14px;
-  padding: 18px 18px;
-  border-radius: 20px;
+  gap: 12px;
+  padding: 14px 15px;
+  border-radius: 16px;
   border: 1px solid #edf1f7;
   background: #fffefe;
 }
 
 .staff-profile-page .doctor-profile-summary-icon {
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   background: #ffe8f1;
   color: #ff4b93;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 22px;
 }
 
 .staff-profile-page .doctor-profile-summary-card span {
   display: block;
   margin-bottom: 6px;
   color: #667188;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 600;
   line-height: 1.2;
 }
 
 .staff-profile-page .doctor-profile-summary-card strong {
   color: #1f2940;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 800;
   line-height: 1;
 }
@@ -685,7 +688,7 @@
 .staff-dashboard-shell
   .staff-profile-page
   > .doctor-profile-page-header.staff-section-header {
-  margin: 0 0 32px !important;
+  margin: 0 0 24px !important;
 }
 
 /* Profile hero to information card */
@@ -693,7 +696,7 @@
   .staff-profile-page
   > .doctor-profile-hero-card {
   margin-top: 0 !important;
-  margin-bottom: 36px !important;
+  margin-bottom: 24px !important;
 }
 
 /* Information card to appointment summary */
@@ -701,7 +704,7 @@
   .staff-profile-page
   > .doctor-profile-tabs-card {
   margin-top: 0 !important;
-  margin-bottom: 36px !important;
+  margin-bottom: 24px !important;
 }
 
 /* Remove inherited extra space around the summary. */
@@ -725,7 +728,7 @@
 .staff-dashboard-shell
   .staff-profile-page
   .doctor-profile-detail-column {
-  gap: 20px !important;
+  gap: 14px !important;
 }
 
 @media (max-width: 900px) {
@@ -776,11 +779,11 @@
   .staff-profile-page
   > .doctor-profile-hero-card {
   grid-template-columns:
-    190px
-    minmax(320px, 1fr)
-    minmax(360px, 460px) !important;
-  gap: 30px !important;
-  padding: 38px 46px !important;
+    150px
+    minmax(280px, 1fr)
+    minmax(320px, 420px) !important;
+  gap: 22px !important;
+  padding: 28px 34px !important;
 }
 
 .staff-dashboard-shell
@@ -792,30 +795,31 @@
 .staff-dashboard-shell
   .staff-profile-page
   .doctor-profile-tab-content {
-  column-gap: 58px !important;
-  padding: 34px 42px 38px !important;
+  column-gap: 38px !important;
+  padding: 24px 28px 28px !important;
 }
 
 .staff-dashboard-shell
   .staff-profile-page
   > .doctor-profile-summary {
-  padding: 28px 34px 30px !important;
+  padding: 22px 24px 24px !important;
 }
 
 .staff-dashboard-shell
   .staff-profile-page
   .doctor-profile-summary-grid {
-  gap: 20px !important;
+  gap: 16px !important;
 }
 
-/* Keep the header and top-right account card aligned with the wider cards */
+/* Keep the header on the shared Staff shell grid.
+   The profile CONTENT cards may be centered/narrower, but the header must not be. */
 .staff-dashboard-shell
   .staff-profile-page
   > .doctor-profile-page-header.staff-section-header {
-  width: min(1320px, calc(100% - 24px)) !important;
-  max-width: 1320px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 /* Large screens */
@@ -828,12 +832,18 @@
     > .doctor-profile-tabs-card,
   .staff-dashboard-shell
     .staff-profile-page
-    > .doctor-profile-summary,
+    > .doctor-profile-summary {
+    width: min(1380px, calc(100% - 16px)) !important;
+    max-width: 1380px !important;
+  }
+
   .staff-dashboard-shell
     .staff-profile-page
     > .doctor-profile-page-header.staff-section-header {
-    width: min(1380px, calc(100% - 16px)) !important;
-    max-width: 1380px !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
 }
 
@@ -847,22 +857,28 @@
     > .doctor-profile-tabs-card,
   .staff-dashboard-shell
     .staff-profile-page
-    > .doctor-profile-summary,
-  .staff-dashboard-shell
-    .staff-profile-page
-    > .doctor-profile-page-header.staff-section-header {
+    > .doctor-profile-summary {
     width: min(1260px, calc(100% - 16px)) !important;
     max-width: 1260px !important;
   }
 
   .staff-dashboard-shell
     .staff-profile-page
+    > .doctor-profile-page-header.staff-section-header {
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .staff-dashboard-shell
+    .staff-profile-page
     > .doctor-profile-hero-card {
     grid-template-columns:
-      175px
+      140px
       minmax(280px, 1fr)
-      minmax(330px, 420px) !important;
-    padding: 34px 38px !important;
+      minmax(300px, 390px) !important;
+    padding: 26px 30px !important;
   }
 }
 
@@ -927,3 +943,89 @@
     padding: 24px 20px 26px !important;
   }
 }
+
+/* =========================================================
+   AUTHORITATIVE STAFF VIEW PROFILE HEADER LOCK
+   Dashboard / Patients / Appointments / Profile use the same
+   top-right profile-card anchor.
+   ========================================================= */
+.staff-dashboard-shell .staff-profile-page {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.staff-dashboard-shell
+  .staff-profile-page
+  > .doctor-profile-page-header.staff-section-header {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
+}
+
+.staff-dashboard-shell
+  .staff-profile-page
+  > .doctor-profile-page-header.staff-section-header
+  > .staff-profile-wrapper,
+.staff-dashboard-shell
+  .staff-profile-page
+  > .doctor-profile-page-header.staff-section-header
+  > .doctor-profile-wrapper {
+  width: var(--doctor-top-profile-width, 292px) !important;
+  min-width: var(--doctor-top-profile-width, 292px) !important;
+  max-width: var(--doctor-top-profile-width, 292px) !important;
+  flex: 0 0 var(--doctor-top-profile-width, 292px) !important;
+  margin: 0 0 0 auto !important;
+  align-self: flex-start !important;
+  transform: none !important;
+}
+
+.staff-dashboard-shell
+  .staff-profile-page
+  > .doctor-profile-page-header.staff-section-header
+  .staff-profile-card,
+.staff-dashboard-shell
+  .staff-profile-page
+  > .doctor-profile-page-header.staff-section-header
+  .doctor-profile-card {
+  width: var(--doctor-top-profile-width, 292px) !important;
+  min-width: var(--doctor-top-profile-width, 292px) !important;
+  max-width: var(--doctor-top-profile-width, 292px) !important;
+  height: var(--doctor-top-profile-height, 66px) !important;
+  min-height: var(--doctor-top-profile-height, 66px) !important;
+  max-height: var(--doctor-top-profile-height, 66px) !important;
+  transform: none !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell
+    .staff-profile-page
+    > .doctor-profile-page-header.staff-section-header
+    > .staff-profile-wrapper,
+  .staff-dashboard-shell
+    .staff-profile-page
+    > .doctor-profile-page-header.staff-section-header
+    > .doctor-profile-wrapper,
+  .staff-dashboard-shell
+    .staff-profile-page
+    > .doctor-profile-page-header.staff-section-header
+    .staff-profile-card,
+  .staff-dashboard-shell
+    .staff-profile-page
+    > .doctor-profile-page-header.staff-section-header
+    .doctor-profile-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex-basis: auto !important;
+    max-height: none !important;
+  }
+}
+

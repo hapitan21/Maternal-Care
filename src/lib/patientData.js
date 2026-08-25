@@ -1,3 +1,11 @@
+import {
+  classifyAppointment,
+  formatAppointmentDate,
+  formatAppointmentTime,
+  getManilaDateKey,
+  getManilaTimeKey,
+} from "./appointmentDate";
+
 export const appointmentReminderStorageKey = "patient_schedule_reminder_notifications";
 export const medicationReminderStorageKey = "patient_medication_reminder_notifications";
 export const healthTipsStorageKey = "doctor_health_tips";
@@ -72,34 +80,15 @@ export function writeStoredList(storageKey, items) {
 }
 
 export function getLocalDateKey(offset = 0) {
-  const date = new Date();
-  date.setDate(date.getDate() + offset);
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getManilaDateKey(new Date(Date.now() + offset * 24 * 60 * 60 * 1000));
 }
 
 export function toDateKey(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getManilaDateKey(value);
 }
 
 export function toTimeKey(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  return `${hour}:${minute}`;
+  return getManilaTimeKey(value);
 }
 
 export function reminderMatchesTab(reminder, activeTab) {
@@ -132,12 +121,17 @@ export function normalizeHealthTip(tip) {
   };
 }
 
-export function getStoredHealthTips() {
+export function getStoredHealthTips(options = {}) {
+  const { includeDefaults = true } = options;
   const storedTips = readStoredList(healthTipsStorageKey)
     .map(normalizeHealthTip)
     .filter(Boolean);
 
-  const mergedTips = [...storedTips, ...defaultHealthTips.map(normalizeHealthTip)].filter(Boolean);
+  const defaultTips = includeDefaults
+    ? defaultHealthTips.map(normalizeHealthTip)
+    : [];
+
+  const mergedTips = [...storedTips, ...defaultTips].filter(Boolean);
 
   return mergedTips.filter(
     (tip, index, source) => source.findIndex((item) => item.id === tip.id) === index
@@ -145,6 +139,7 @@ export function getStoredHealthTips() {
 }
 
 export function mapScheduleRowToReminder(row) {
+  const classification = classifyAppointment(row);
   return {
     id: `appointment-${row.id}`,
     type: "scheduleReminder",
@@ -152,19 +147,14 @@ export function mapScheduleRowToReminder(row) {
     patientId: row.patient_id || row.patient_name || "",
     patientName: row.patient_name || "Patient",
     appointmentType: row.title || "Appointment",
-    doctorName: row.doctor_name || "Healthcare provider",
+    doctorName: row.doctor_name || "Doctor not recorded",
     scheduleDate: toDateKey(row.start_time),
     scheduleTime: toTimeKey(row.start_time),
     scheduleAt: row.start_time,
+    scheduleEndAt: row.end_time,
+    scheduleStatus: row.status,
     notifyAt: row.start_time,
-    status: "Upcoming",
-    message: `Upcoming appointment: ${row.title || "Appointment"} on ${new Date(row.start_time).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    })} at ${new Date(row.start_time).toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    })}.`,
+    status: classification.displayStatus,
+    message: `Upcoming appointment: ${row.title || "Appointment"} on ${formatAppointmentDate(row.start_time)} at ${formatAppointmentTime(row.start_time)}.`,
   };
 }

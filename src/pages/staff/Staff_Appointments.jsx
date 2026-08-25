@@ -1,22 +1,52 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
+import StaffPreConsultationForm from "../appointments/StaffPreConsultationForm";
+import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
+import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
 import { getStaffSettings, staffSettingsUpdatedEvent } from "../../lib/staffProfile";
+import {
+  AppointmentControlGroup,
+  AppointmentPageHeader,
+  AppointmentPagination,
+  AppointmentToolbar,
+  AppointmentViewSwitch,
+} from "../../components/appointments/AppointmentUi";
+import {
+  APPOINTMENT_CATEGORIES,
+  APPOINTMENT_TYPES,
+  buildThirtyMinuteAppointmentRange,
+  getAppointmentTypeCategory,
+  getAppointmentTypeForCategory,
+  isKnownAppointmentType,
+} from "../../lib/appointmentTypes";
+import {
+  classifyAppointment,
+  compareHistoryAppointments,
+  compareUpcomingAppointments,
+  formatAppointmentDate,
+  formatAppointmentTime,
+  getManilaDateKey,
+  getManilaTimeKey,
+} from "../../lib/appointmentDate";
 import "../../styles/staff-appointments.css";
 
 const scheduleTableName = "schedule";
 const scheduleColumns =
-  "id, maternal_appointment_id, patient_id, patient_name, doctor_name, title, description, start_time, end_time, status";
+  "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, description, start_time, end_time, status";
 const patientLookupColumns =
-  "id, full_name, patient_id, age, contact_number, address, expected_delivery_date, gestational_age, risk_level, status";
+  "id, full_name, patient_id, age, contact_number, address, status";
 
-const filters = ["All", "Pending", "Completed", "Cancelled"];
+const filters = ["All", "Pending", "Checked in", "Completed", "Cancelled"];
+const appointmentViews = ["Main", "History"];
+const appointmentPageSizes = [10, 15];
 
 const statusOptions = [
   { value: "Pending", label: "Pending", className: "is-pending" },
-  { value: "Checked in", label: "Checked in", className: "is-checked" },
-  { value: "Completed", label: "Completed", className: "is-completed" },
+  { value: "Checked in", label: "Check in / Open Form", className: "is-checked" },
   { value: "Cancelled", label: "Cancelled", className: "is-cancel" },
   { value: "No show", label: "No show", className: "is-no-show" },
 ];
@@ -31,49 +61,11 @@ function getStatusClass(status) {
 }
 
 
-const categoryList = [
-  {
-    id: "checkup",
-    label: "Check-up",
-    icon: "solar:heart-bold",
-    colorClass: "is-checkup",
-  },
-  {
-    id: "consultation",
-    label: "Consultation",
-    icon: "solar:chat-round-dots-bold",
-    colorClass: "is-consultation",
-  },
-  {
-    id: "education",
-    label: "Education",
-    icon: "solar:map-arrow-right-bold",
-    colorClass: "is-education",
-  },
-  {
-    id: "reminder",
-    label: "Reminder",
-    icon: "solar:bell-bing-bold",
-    colorClass: "is-reminder",
-  },
-];
-
-const appointmentTypeOptions = [
-  "Prenatal Check-up",
-  "Ultrasound Appointment",
-  "Laboratory Test",
-  "High-Risk Pregnancy Consultation",
-  "Follow-up Consultation",
-  "Health Education",
-  "Appointment Reminder",
-];
+const categoryList = APPOINTMENT_CATEGORIES;
+const appointmentTypeOptions = APPOINTMENT_TYPES;
 
 function getCategoryFromAppointmentType(appointmentType) {
-  const normalized = appointmentType.toLowerCase();
-  if (normalized.includes("consultation")) return "consultation";
-  if (normalized.includes("education")) return "education";
-  if (normalized.includes("reminder")) return "reminder";
-  return "checkup";
+  return getAppointmentTypeCategory(appointmentType);
 }
 
 function getLocalDateKey(date = new Date()) {
@@ -148,36 +140,41 @@ function buildMiniMonthDays(monthDate, activeDate) {
   });
 }
 
-function addOneHour(timeValue) {
-  const [hour, minute] = timeValue.split(":").map(Number);
-  const date = new Date();
-  date.setHours(Number.isFinite(hour) ? hour : 8, Number.isFinite(minute) ? minute : 0, 0, 0);
-  date.setHours(date.getHours() + 1);
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+const inactiveDoctorAccountStatuses = new Set([
+  "inactive",
+  "deactivated",
+  "disabled",
+  "suspended",
+  "archived",
+]);
+
+function getDoctorDisplayName(profile, personalInformation) {
+  return (
+    String(personalInformation?.full_name || "").trim() ||
+    String(profile?.full_name || "").trim() ||
+    "Doctor"
+  );
 }
 
-function toLocalDateTimeIso(dateValue, timeValue) {
-  return new Date(`${dateValue}T${timeValue || "08:00"}:00`).toISOString();
-}
-
-function createBlankAppointmentForm(settings = getStaffSettings()) {
+function createBlankAppointmentForm(doctor = null) {
   const today = getLocalDateKey();
 
   return {
     patientRecordId: "",
     patientName: "",
-    doctorName: settings.displayName || "Staff",
-    appointmentType: "Prenatal Check-up",
+    doctorId: doctor?.id || "",
+    doctorName: doctor?.name || "",
+    appointmentType: "",
     date: today,
     startTime: "08:00",
-    endTime: "09:00",
-    category: "checkup",
+    category: "prenatal",
     notes: "",
   };
 }
 
 function formatStatusValue(value) {
   if (value === "Completed") return "Completed";
+  if (value === "Checked in") return "Checked in";
   if (value === "Cancel" || value === "Cancelled" || value === "No show") return "Cancelled";
   return "Pending";
 }
@@ -200,11 +197,7 @@ function getDatabaseStatus(status) {
 }
 
 function formatTableDate(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString("en-US", {
+  return formatAppointmentDate(value, {
     month: "2-digit",
     day: "2-digit",
     year: "2-digit",
@@ -212,14 +205,7 @@ function formatTableDate(value) {
 }
 
 function formatTableTime(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatAppointmentTime(value);
 }
 
 function formatHourLabel(hour) {
@@ -229,34 +215,15 @@ function formatHourLabel(hour) {
 }
 
 function formatLongDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "2-digit",
-    year: "numeric",
-  });
+  return value ? formatAppointmentDate(value, { day: "2-digit" }) : "";
 }
 
 function formatInputDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getManilaDateKey(value);
 }
 
 function formatInputTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return getManilaTimeKey(value);
 }
 
 function formatDisplayTime(value) {
@@ -274,24 +241,35 @@ function isCheckedInStatus(status) {
   return status === "Checked in";
 }
 
-function isCompletedStatus(status) {
-  return status === "Completed";
-}
-
-function isCancelStatus(status) {
-  return ["Cancel", "Cancelled"].includes(status);
-}
-
 function isClosedStatus(status) {
   return ["Cancel", "Cancelled", "No show", "Completed"].includes(status);
 }
 
-function isAppointmentToday(value) {
-  if (!value) return false;
-  const appointmentDate = new Date(value);
-  if (Number.isNaN(appointmentDate.getTime())) return false;
+function isCancelledOrNoShowStatus(status) {
+  return ["Cancel", "Cancelled", "No show"].includes(status);
+}
 
-  return isSameDay(appointmentDate, new Date());
+function appointmentViewMatches(appointment, appointmentView) {
+  const classification = classifyAppointment(appointment);
+
+  if (appointmentView === "History") {
+    return classification.isHistory;
+  }
+
+  return classification.isUpcoming;
+}
+
+function monthFilterMatches(appointment, selectedMonth) {
+  if (!selectedMonth) return true;
+
+  const scheduleDate = formatInputDate(appointment.startTime);
+  if (!scheduleDate) return false;
+
+  return scheduleDate.slice(0, 7) === selectedMonth;
+}
+
+function isAppointmentToday(value) {
+  return Boolean(value && getManilaDateKey(value) === getManilaDateKey());
 }
 
 function isActivePatientForAppointment(patient) {
@@ -300,15 +278,22 @@ function isActivePatientForAppointment(patient) {
 
 function getScheduleCategory(schedule) {
   const parsed = parseScheduleDescription(schedule.description);
+  const title = String(schedule.title || "").trim();
+  const titleCategory = getCategoryFromAppointmentType(title);
+
+  if (titleCategory !== "fallback") {
+    return titleCategory;
+  }
+
+  if (title) {
+    return "fallback";
+  }
+
   if (categoryList.some((category) => category.id === parsed.category)) {
     return parsed.category;
   }
 
-  const keyword = `${schedule.title || ""} ${schedule.description || ""}`.toLowerCase();
-  if (keyword.includes("consult")) return "consultation";
-  if (keyword.includes("educ") || keyword.includes("class") || keyword.includes("talk")) return "education";
-  if (keyword.includes("remind")) return "reminder";
-  return "checkup";
+  return "fallback";
 }
 
 function parseScheduleDescription(description) {
@@ -343,6 +328,7 @@ function mapScheduleToAppointment(schedule) {
 
     name: schedule.patient_name || "Patient",
     patientId: schedule.patient_id || "",
+    doctorId: schedule.doctor_id || "",
     doctorName: schedule.doctor_name || "",
     title: schedule.title || "Follow-up Visit",
     description: schedule.description || "",
@@ -403,31 +389,27 @@ function hasAppointmentConflict(appointments, candidate) {
   });
 }
 
-function buildAppointmentReminderPayload(schedule, patientRecordId) {
-  const scheduleStart = new Date(schedule.start_time);
-  const remindAt = new Date(scheduleStart);
-  remindAt.setHours(remindAt.getHours() - 24);
+function logAppointmentReminderError(context, error) {
+  if (!import.meta.env.DEV || !error) return;
 
-  if (Number.isNaN(remindAt.getTime()) || remindAt < new Date()) {
-    remindAt.setTime(scheduleStart.getTime());
-    remindAt.setHours(remindAt.getHours() - 1);
-  }
+  console.error(`[Staff Appointment Reminder] ${context}:`, {
+    code: error.code || null,
+    message: error.message || "Unknown Supabase error",
+    details: error.details || null,
+    hint: error.hint || null,
+  });
+}
 
-  return {
-    patient_id: patientRecordId,
-    schedule_id: schedule.id,
-    reminder_type: "appointment",
-    title: `${schedule.title || "Appointment"} Reminder`,
-    message: `Reminder: ${schedule.patient_name || "Patient"} has ${schedule.title || "an appointment"} scheduled on ${formatLongDate(schedule.start_time)} at ${formatTableTime(schedule.start_time)}.`,
-    remind_at: remindAt.toISOString(),
-    status: "pending",
-    sent_at: null,
-  };
+function getAppointmentReminderErrorMessage(error) {
+  return [
+    error?.message || "Unknown reminder error.",
+    error?.code ? `Code: ${error.code}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function CustomCalendarHeader({
-  selectedCategory,
-  setSelectedCategory,
   selectedDate,
   onPreviousWeek,
   onNextWeek,
@@ -447,16 +429,6 @@ function CustomCalendarHeader({
       </div>
 
       <strong>{formatCalendarRange(selectedDate)}</strong>
-
-      {selectedCategory !== "all" ? (
-        <button
-          type="button"
-          className="staff-calendar-clear"
-          onClick={() => setSelectedCategory("all")}
-        >
-          Show all
-        </button>
-      ) : null}
     </header>
   );
 }
@@ -464,7 +436,6 @@ function CustomCalendarHeader({
 function StaffWeekCalendar({
   events,
   selectedDate,
-  selectedCategory,
   onSelectDate,
   onSelectSlot,
   onSelectEvent,
@@ -487,10 +458,7 @@ function StaffWeekCalendar({
   const timeSlots = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
   const startHour = timeSlots[0];
   const hourHeight = 70;
-  const visibleEvents =
-    selectedCategory === "all"
-      ? events
-      : events.filter((event) => event.category === selectedCategory);
+  const visibleEvents = events;
 
   return (
     <div
@@ -532,7 +500,7 @@ function StaffWeekCalendar({
                     const start = new Date(day.date);
                     start.setHours(hour, 0, 0, 0);
                     const end = new Date(start);
-                    end.setHours(end.getHours() + 1);
+                    end.setTime(start.getTime() + 30 * 60 * 1000);
                     onSelectSlot(start, end);
                   }}
                 />
@@ -599,7 +567,7 @@ function createFollowUpForm(appointment, patient) {
     visitDate: formatInputDate(appointment?.startTime) || formatInputDate(new Date()),
     visitTime: formatInputTime(appointment?.startTime) || "09:00",
     visitType: appointment?.title || "Follow-up Visit",
-    attendingPhysician: appointment?.doctorName || settings.displayName || "Staff",
+    attendingPhysician: appointment?.doctorName || "Not assigned",
     gestationalAge: patient?.gestational_age || "",
     expectedDeliveryDate: formatInputDate(patient?.expected_delivery_date),
     pregnancyStatus: patient?.risk_level || "Low Risk",
@@ -729,7 +697,7 @@ function FollowUpVisitForm({
             label="Attending Physician"
             value={form.attendingPhysician}
             onChange={(value) => onChange("attendingPhysician", value)}
-            placeholder="Dr. Kempee Vergara"
+            placeholder="Attending physician"
           />
         </section>
 
@@ -863,6 +831,8 @@ function AddAppointmentModal({
   patientSuggestions,
   onSelectPatient,
   isLoadingPatients,
+  doctors,
+  isLoadingDoctors,
 }) {
   const [isPatientResultsOpen, setIsPatientResultsOpen] = useState(false);
 
@@ -968,6 +938,27 @@ function AddAppointmentModal({
           </label>
 
           <AppointmentFormField
+            label="Doctor:"
+            value={form.doctorId}
+            onChange={(value) => onChange("doctorId", value)}
+            required
+          >
+            <option value="" disabled>
+              {isLoadingDoctors
+                ? "Loading Doctors..."
+                : doctors.length
+                  ? "Select Doctor"
+                  : "No active Doctor available"}
+            </option>
+
+            {doctors.map((doctor) => (
+              <option key={doctor.id} value={doctor.id}>
+                {doctor.name}
+              </option>
+            ))}
+          </AppointmentFormField>
+
+          <AppointmentFormField
             label="Select Date:"
             type="date"
             value={form.date}
@@ -989,6 +980,9 @@ function AddAppointmentModal({
             onChange={(value) => onChange("appointmentType", value)}
             required
           >
+            <option value="" disabled>
+              Select appointment type
+            </option>
             {appointmentTypeOptions.map((appointmentType) => (
               <option key={appointmentType} value={appointmentType}>
                 {appointmentType}
@@ -1025,12 +1019,14 @@ function AddAppointmentModal({
 function AppointmentDetailsModal({
   appointment,
   onClose,
-  onEdit,
   onCancel,
   onCheckIn,
   onComplete,
 }) {
   if (!appointment) return null;
+
+  const isCheckedIn = isCheckedInStatus(appointment.status);
+  const isClosed = isClosedStatus(appointment.status);
 
   const details = [
     ["Patient name", appointment.name],
@@ -1038,7 +1034,7 @@ function AppointmentDetailsModal({
     ["Appointment type", appointment.title],
     ["Doctor", appointment.doctorName || "Not assigned"],
     ["Date and time", `${formatLongDate(appointment.startTime)} at ${appointment.time}`],
-    ["Status", appointment.status],
+    ["Status", classifyAppointment(appointment).displayStatus],
     ["Description", appointment.notes || "No description provided."],
     ["Location", appointment.location || "Maternal Care Clinic"],
   ];
@@ -1087,36 +1083,41 @@ function AppointmentDetailsModal({
         ) : null}
 
         <footer>
-          <button type="button" className="is-outline" onClick={() => onEdit(appointment)}>
-            <Icon icon="solar:pen-bold" aria-hidden="true" />
-            Edit
-          </button>
+          <SendPatientNotificationAction
+            patientId={appointment.patientId}
+            patientName={appointment.name}
+            appointmentId={appointment.id}
+            defaultType="appointment_reminder"
+            outline
+          />
 
-          <button
-            type="button"
-            className="is-outline"
-            onClick={() => onCheckIn(appointment)}
-            disabled={isClosedStatus(appointment.status)}
-          >
-            <Icon icon="solar:login-3-bold" aria-hidden="true" />
-            Check in
-          </button>
-
-          <button
-            type="button"
-            className="is-primary"
-            onClick={() => onComplete(appointment)}
-            disabled={isClosedStatus(appointment.status) && !isCheckedInStatus(appointment.status)}
-          >
-            <Icon icon="solar:check-circle-bold" aria-hidden="true" />
-            Complete
-          </button>
+          {isCheckedIn ? (
+            <button
+              type="button"
+              className="is-outline staff-appointment-open-visit-btn"
+              onClick={() => onComplete(appointment)}
+              aria-label={`Open visit for ${appointment.name}`}
+            >
+              <Icon icon="solar:clipboard-list-bold" aria-hidden="true" />
+              Open Visit
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="is-outline"
+              onClick={() => onCheckIn(appointment)}
+              disabled={isClosed}
+            >
+              <Icon icon="solar:login-3-bold" aria-hidden="true" />
+              Check in
+            </button>
+          )}
 
           <button
             type="button"
             className="is-danger"
             onClick={() => onCancel(appointment)}
-            disabled={isClosedStatus(appointment.status)}
+            disabled={isClosed}
           >
             <Icon icon="solar:close-circle-bold" aria-hidden="true" />
             Cancel
@@ -1174,14 +1175,27 @@ function AppointmentSummary({ summary }) {
 }
 
 function StaffAppointmentsContent({ headerAction }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const visitRoute = parseAppointmentVisitRoute(location.pathname, "staff");
+  const dashboardAppointmentTarget = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return String(params.get("appointmentId") || "").trim();
+  }, [location.search]);
   const [staffSettings, setStaffSettings] = useState(getStaffSettings);
   const [activeFilter, setActiveFilter] = useState("All");
+  const [appointmentView, setAppointmentView] = useState("Main");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [scheduleEvents, setScheduleEvents] = useState([]);
   const [patients, setPatients] = useState([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
+  const [doctors, setDoctors] = useState([]);
+  const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [detailAppointment, setDetailAppointment] = useState(null);
   const [followUpForm, setFollowUpForm] = useState(() => createFollowUpForm(null, null));
@@ -1192,13 +1206,18 @@ function StaffAppointmentsContent({ headerAction }) {
   const [addAppointmentForm, setAddAppointmentForm] = useState(() =>
     createBlankAppointmentForm()
   );
-  const [selectedCategory, setSelectedCategory] = useState("all");
   const [calendarDate, setCalendarDate] = useState(() => new Date());
   const [miniMonthDate, setMiniMonthDate] = useState(() => new Date());
   const [openStatusMenu, setOpenStatusMenu] = useState(null);
   const [statusMenuPosition, setStatusMenuPosition] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [failedReminderAppointmentId, setFailedReminderAppointmentId] = useState("");
+  const [isRetryingReminder, setIsRetryingReminder] = useState(false);
+  const [visitRoutingAppointmentId, setVisitRoutingAppointmentId] = useState("");
   const statusButtonRefs = useRef({});
+  const appointmentSaveLockRef = useRef(false);
+  const appointmentStatusLockRef = useRef(new Set());
+  const visitRoutingLockRef = useRef("");
 
   const loadAppointments = useCallback(async () => {
     const { data, error } = await supabase
@@ -1244,17 +1263,17 @@ function StaffAppointmentsContent({ headerAction }) {
       return current;
     });
 
-    if (schedules[0]?.start_time) {
-      const firstScheduleDate = new Date(schedules[0].start_time);
-
-      if (!Number.isNaN(firstScheduleDate.getTime())) {
-        setCalendarDate(firstScheduleDate);
-        setMiniMonthDate(
-          new Date(firstScheduleDate.getFullYear(), firstScheduleDate.getMonth(), 1)
-        );
-      }
-    }
-
+    /*
+     * Do not force the calendar to the first appointment returned by Supabase.
+     *
+     * The calendar state already initializes to the current date. Keeping that
+     * state means a normal Staff Appointments load, refresh, or new login opens
+     * on the current week/month instead of jumping back to the oldest schedule
+     * row (which previously kept the UI on July 2026).
+     *
+     * Dashboard deep links still intentionally move the calendar to the exact
+     * appointment date in the separate dashboardAppointmentTarget effect.
+     */
     setStatusMessage("");
 
     if (import.meta.env.DEV) {
@@ -1269,6 +1288,48 @@ function StaffAppointmentsContent({ headerAction }) {
       );
     }
   }, []);
+
+  /*
+   * Dashboard "View Appointment" deep link.
+   *
+   * The dashboard passes either the public MA number or the schedule UUID.
+   * Once appointments are loaded, locate that exact row, align the Main /
+   * History view, filter the table to it, and open the existing details modal.
+   */
+  useEffect(() => {
+    if (!dashboardAppointmentTarget || appointments.length === 0) {
+      return;
+    }
+
+    const target = appointments.find(
+      (appointment) =>
+        appointment.id === dashboardAppointmentTarget ||
+        appointment.appointmentId === dashboardAppointmentTarget
+    );
+
+    if (!target) {
+      setStatusMessage(
+        `Appointment ${dashboardAppointmentTarget} could not be found.`
+      );
+      return;
+    }
+
+    const classification = classifyAppointment(target);
+
+    setActiveFilter("All");
+    setAppointmentView(classification.isHistory ? "History" : "Main");
+    setSearchQuery(target.appointmentId || dashboardAppointmentTarget);
+    setCurrentPage(1);
+    setDetailAppointment(target);
+
+    const targetDate = new Date(target.startTime);
+    if (!Number.isNaN(targetDate.getTime())) {
+      setCalendarDate(targetDate);
+      setMiniMonthDate(
+        new Date(targetDate.getFullYear(), targetDate.getMonth(), 1)
+      );
+    }
+  }, [appointments, dashboardAppointmentTarget]);
 
   const updateStatusMenuPosition = useCallback((appointmentId) => {
     const trigger = statusButtonRefs.current[appointmentId];
@@ -1299,7 +1360,7 @@ function StaffAppointmentsContent({ headerAction }) {
   }, []);
 
   useEffect(() => {
-    loadAppointments();
+    const initialLoadTimer = window.setTimeout(loadAppointments, 0);
 
     const handleWindowFocus = () => {
       loadAppointments();
@@ -1328,6 +1389,7 @@ function StaffAppointmentsContent({ headerAction }) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      window.clearTimeout(initialLoadTimer);
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
@@ -1341,7 +1403,7 @@ function StaffAppointmentsContent({ headerAction }) {
       setIsLoadingPatients(true);
 
       const { data, error } = await supabase
-        .from("patients")
+        .rpc("get_staff_patient_directory")
         .select(patientLookupColumns)
         .order("full_name", { ascending: true });
 
@@ -1379,13 +1441,160 @@ function StaffAppointmentsContent({ headerAction }) {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    const applyDoctors = (nextDoctors) => {
+      if (!active) return;
+
+      const uniqueDoctors = Array.from(
+        new Map(
+          (nextDoctors || [])
+            .filter((doctor) => doctor?.id)
+            .map((doctor) => [
+              doctor.id,
+              {
+                id: doctor.id,
+                name: String(doctor.name || "Doctor").trim() || "Doctor",
+              },
+            ])
+        ).values()
+      ).sort((first, second) =>
+        first.name.localeCompare(second.name, undefined, {
+          sensitivity: "base",
+        })
+      );
+
+      setDoctors(uniqueDoctors);
+
+      setAddAppointmentForm((current) => {
+        if (!uniqueDoctors.length) {
+          return {
+            ...current,
+            doctorId: "",
+            doctorName: "",
+          };
+        }
+
+        const currentDoctor =
+          uniqueDoctors.find((doctor) => doctor.id === current.doctorId) ||
+          uniqueDoctors.find(
+            (doctor) =>
+              doctor.name.toLowerCase() ===
+              String(current.doctorName || "").trim().toLowerCase()
+          );
+
+        const defaultDoctor = currentDoctor || uniqueDoctors[0];
+
+        return {
+          ...current,
+          doctorId: defaultDoctor.id,
+          doctorName: defaultDoctor.name,
+        };
+      });
+    };
+
+    const loadDoctors = async () => {
+      setIsLoadingDoctors(true);
+
+      /*
+       * IMPORTANT:
+       * Staff Patient registration already uses this secure RPC to obtain
+       * the active Doctor directory. Reuse it here instead of depending
+       * on Staff being able to SELECT every Doctor row from public.profiles.
+       */
+      const slotDate = addAppointmentForm.date || getLocalDateKey();
+      const rpcResult = await supabase.rpc(
+        "get_walkin_registration_availability",
+        {
+          p_slot_date: slotDate,
+        }
+      );
+
+      if (!active) return;
+
+      if (!rpcResult.error && Array.isArray(rpcResult.data)) {
+        applyDoctors(
+          rpcResult.data.map((row) => ({
+            id: row.doctor_id,
+            name: row.doctor_name || "Doctor",
+          }))
+        );
+        setIsLoadingDoctors(false);
+        return;
+      }
+
+      /*
+       * Compatibility fallback for environments where the walk-in RPC
+       * has not yet been installed. Existing RLS still decides visibility.
+       */
+      const [profilesResult, personalResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, role, account_status")
+          .ilike("role", "doctor")
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("doctor_personal_information")
+          .select("auth_user_id, full_name"),
+      ]);
+
+      if (!active) return;
+
+      setIsLoadingDoctors(false);
+
+      if (profilesResult.error) {
+        console.warn(
+          "Staff appointment Doctor directory failed:",
+          rpcResult.error || profilesResult.error
+        );
+        applyDoctors([]);
+        setStatusMessage(
+          "Unable to load active Doctors. Please refresh and try again."
+        );
+        return;
+      }
+
+      const personalByDoctor = new Map(
+        (personalResult.error ? [] : personalResult.data || []).map((row) => [
+          row.auth_user_id,
+          row,
+        ])
+      );
+
+      const activeDoctors = (profilesResult.data || [])
+        .filter((profile) => {
+          const status = String(profile.account_status || "active")
+            .trim()
+            .toLowerCase();
+
+          return (
+            profile.id &&
+            String(profile.role || "").trim().toLowerCase() === "doctor" &&
+            !inactiveDoctorAccountStatuses.has(status)
+          );
+        })
+        .map((profile) => ({
+          id: profile.id,
+          name: getDoctorDisplayName(
+            profile,
+            personalByDoctor.get(profile.id)
+          ),
+        }));
+
+      applyDoctors(activeDoctors);
+    };
+
+    loadDoctors();
+
+    return () => {
+      active = false;
+    };
+  }, [addAppointmentForm.date]);
+
+  useEffect(() => {
     const syncStaffSettings = () => {
       const nextSettings = getStaffSettings();
       setStaffSettings(nextSettings);
-      setAddAppointmentForm((current) => ({
-        ...current,
-        doctorName: nextSettings.displayName || current.doctorName,
-      }));
     };
 
     window.addEventListener(staffSettingsUpdatedEvent, syncStaffSettings);
@@ -1423,10 +1632,13 @@ function StaffAppointmentsContent({ headerAction }) {
         appointment.status === activeFilter;
 
       if (!matchesFilter) return false;
+      if (!appointmentViewMatches(appointment, appointmentView)) return false;
+      if (!monthFilterMatches(appointment, selectedMonth)) return false;
       if (!keyword) return true;
 
       return [
         appointment.appointmentId,
+        appointment.patientId,
         appointment.name,
         appointment.date,
         appointment.time,
@@ -1435,8 +1647,29 @@ function StaffAppointmentsContent({ headerAction }) {
       ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(keyword));
-    });
-  }, [activeFilter, appointments, searchQuery]);
+    }).sort(
+      appointmentView === "History"
+        ? compareHistoryAppointments
+        : compareUpcomingAppointments
+    );
+  }, [
+    activeFilter,
+    appointmentView,
+    appointments,
+    searchQuery,
+    selectedMonth,
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAppointments.length / pageSize));
+  const paginatedAppointments = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredAppointments.slice(startIndex, startIndex + pageSize);
+  }, [currentPage, filteredAppointments, pageSize]);
+
+  useEffect(() => {
+    const pageResetTimer = window.setTimeout(() => setCurrentPage(1), 0);
+    return () => window.clearTimeout(pageResetTimer);
+  }, [activeFilter, appointmentView, pageSize, searchQuery, selectedMonth]);
 
   const searchSuggestions = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
@@ -1453,8 +1686,15 @@ function StaffAppointmentsContent({ headerAction }) {
           appointment.status === activeFilter;
 
         if (!matchesFilter) return false;
+        if (!appointmentViewMatches(appointment, appointmentView)) return false;
+        if (!monthFilterMatches(appointment, selectedMonth)) return false;
 
-        return [appointment.name, appointment.appointmentId, appointment.title]
+        return [
+          appointment.name,
+          appointment.patientId,
+          appointment.appointmentId,
+          appointment.title,
+        ]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(keyword));
       })
@@ -1465,7 +1705,13 @@ function StaffAppointmentsContent({ headerAction }) {
         return true;
       })
       .slice(0, 6);
-  }, [activeFilter, appointments, searchQuery]);
+  }, [
+    activeFilter,
+    appointmentView,
+    appointments,
+    searchQuery,
+    selectedMonth,
+  ]);
 
   const addAppointmentPatientSuggestions = useMemo(() => {
     const keyword = addAppointmentForm.patientName.trim().toLowerCase();
@@ -1498,7 +1744,7 @@ function StaffAppointmentsContent({ headerAction }) {
           summary.checkedIn += 1;
         }
 
-        if (isClosedStatus(appointment.status)) {
+        if (isCancelledOrNoShowStatus(appointment.status)) {
           summary.cancelled += 1;
         }
 
@@ -1525,12 +1771,7 @@ function StaffAppointmentsContent({ headerAction }) {
   }, [appointments, openStatusMenu]);
 
   const fullCalendarEvents = useMemo(() => {
-    const visibleEvents =
-      selectedCategory === "all"
-        ? scheduleEvents
-        : scheduleEvents.filter((event) => event.category === selectedCategory);
-
-    return visibleEvents.map((event) => ({
+    return scheduleEvents.map((event) => ({
       id: event.id,
       title: event.patient,
       start: event.start,
@@ -1543,7 +1784,7 @@ function StaffAppointmentsContent({ headerAction }) {
       ],
       extendedProps: event,
     }));
-  }, [scheduleEvents, selectedCategory]);
+  }, [scheduleEvents]);
 
   const mobileCalendarEvents = useMemo(() => {
     const weekStart = getStartOfWeek(calendarDate);
@@ -1556,10 +1797,7 @@ function StaffAppointmentsContent({ headerAction }) {
   }, [calendarDate, fullCalendarEvents]);
 
   useLayoutEffect(() => {
-    if (!openStatusMenu) {
-      setStatusMenuPosition(null);
-      return;
-    }
+    if (!openStatusMenu) return;
 
     updateStatusMenuPosition(openStatusMenu);
   }, [filteredAppointments.length, openStatusMenu, updateStatusMenuPosition]);
@@ -1580,65 +1818,65 @@ function StaffAppointmentsContent({ headerAction }) {
 
   const saveAppointmentReminder = useCallback(
     async (schedule) => {
-      if (!schedule?.id || !schedule.patient_name) return false;
+      if (!schedule?.id) {
+        return {
+          ok: false,
+          error: { message: "The saved appointment ID was not returned." },
+        };
+      }
 
-      const localPatient = schedule.patient_id
-        ? patients.find((patient) => patient.id === schedule.patient_id)
-        : patients.find(
-            (patient) =>
-              String(patient.full_name || "").toLowerCase() ===
-              String(schedule.patient_name || "").toLowerCase()
-          );
-
-      let patientRecordId = schedule.patient_id || localPatient?.id || "";
-
-      if (!patientRecordId) {
-        const { data, error } = await supabase
-          .from("patients")
-          .select("id")
-          .ilike("full_name", schedule.patient_name)
-          .limit(1)
-          .maybeSingle();
+      try {
+        const { data, error } = await supabase.rpc(
+          "create_appointment_patient_reminder",
+          { p_appointment_id: schedule.id }
+        );
 
         if (error) {
-          console.warn("Appointment reminder patient lookup failed:", error);
-          return false;
+          logAppointmentReminderError("RPC failed", error);
+          return { ok: false, error };
         }
 
-        patientRecordId = data?.id || "";
+        if (!data) {
+          const responseError = {
+            message: "The appointment reminder record was not returned.",
+          };
+          logAppointmentReminderError("RPC returned no reminder", responseError);
+          return { ok: false, error: responseError };
+        }
+
+        return { ok: true, reminder: data };
+      } catch (error) {
+        logAppointmentReminderError("Unexpected RPC failure", error);
+        return { ok: false, error };
       }
-
-      if (!patientRecordId) return false;
-
-      const payload = buildAppointmentReminderPayload(schedule, patientRecordId);
-
-      const { data: existingReminder, error: lookupError } = await supabase
-        .from("reminders")
-        .select("id")
-        .eq("schedule_id", schedule.id)
-        .eq("reminder_type", "appointment")
-        .maybeSingle();
-
-      if (lookupError) {
-        console.warn("Appointment reminder lookup failed:", lookupError);
-        return false;
-      }
-
-      const reminderQuery = existingReminder?.id
-        ? supabase.from("reminders").update(payload).eq("id", existingReminder.id)
-        : supabase.from("reminders").insert([payload]);
-
-      const { error } = await reminderQuery;
-
-      if (error) {
-        console.warn("Appointment reminder save failed:", error);
-        return false;
-      }
-
-      return true;
     },
-    [patients]
+    []
   );
+
+  const retryAppointmentReminder = useCallback(async () => {
+    if (!failedReminderAppointmentId || isRetryingReminder) return;
+
+    setIsRetryingReminder(true);
+    let result;
+
+    try {
+      result = await saveAppointmentReminder({
+        id: failedReminderAppointmentId,
+      });
+    } finally {
+      setIsRetryingReminder(false);
+    }
+
+    if (!result?.ok) {
+      setStatusMessage(
+        `Appointment saved, but the Patient reminder could not be created. ${getAppointmentReminderErrorMessage(result?.error)}`
+      );
+      return;
+    }
+
+    setFailedReminderAppointmentId("");
+    setStatusMessage("Patient reminder created successfully.");
+  }, [failedReminderAppointmentId, isRetryingReminder, saveAppointmentReminder]);
 
   const disableAppointmentReminders = useCallback(async (appointmentId) => {
     const { error } = await supabase
@@ -1653,37 +1891,59 @@ function StaffAppointmentsContent({ headerAction }) {
   }, []);
 
   const updateAppointmentStatus = useCallback(
-    async (appointment, nextStatus, extraPayload = {}) => {
-      const { error } = await supabase
-        .from(scheduleTableName)
-        .update({
-          ...extraPayload,
-          status: getDatabaseStatus(nextStatus),
-        })
-        .eq("id", appointment.id);
+    async (appointment, nextStatus, extraPayload = {}, options = {}) => {
+      const mutationKey = `${appointment.id}:${getDatabaseStatus(nextStatus)}`;
+      if (appointmentStatusLockRef.current.has(mutationKey)) return false;
 
-      if (error) {
-        console.error("Staff appointment status update failed:", error);
-        setStatusMessage(`Unable to update status: ${error.message}`);
-        return false;
+      appointmentStatusLockRef.current.add(mutationKey);
+
+      try {
+        const { data, error } = await supabase
+          .from(scheduleTableName)
+          .update({
+            ...extraPayload,
+            status: getDatabaseStatus(nextStatus),
+          })
+          .eq("id", appointment.id)
+          .select(scheduleColumns)
+          .single();
+
+        if (error) {
+          console.error("Staff appointment status update failed:", {
+            code: error.code || null,
+            message: error.message || "Unknown schedule update error",
+          });
+          setStatusMessage(`Unable to update status: ${error.message}`);
+          return false;
+        }
+
+        const notificationResult = options.notificationType
+          ? await sendAutomaticAppointmentNotification({
+              patientId: data.patient_id,
+              scheduleId: data.id,
+              notificationType: options.notificationType,
+            })
+          : null;
+
+        setAppointments((currentAppointments) =>
+          currentAppointments.map((item) =>
+            item.id === appointment.id
+              ? {
+                  ...item,
+                  ...extraPayload,
+                  description: extraPayload.description || item.description,
+                  status: nextStatus,
+                  filterStatus: formatStatusValue(nextStatus),
+                }
+              : item
+          )
+        );
+
+        await loadAppointments();
+        return { savedSchedule: data, notificationResult };
+      } finally {
+        appointmentStatusLockRef.current.delete(mutationKey);
       }
-
-      setAppointments((currentAppointments) =>
-        currentAppointments.map((item) =>
-          item.id === appointment.id
-            ? {
-                ...item,
-                ...extraPayload,
-                description: extraPayload.description || item.description,
-                status: nextStatus,
-                filterStatus: formatStatusValue(nextStatus),
-              }
-            : item
-        )
-      );
-
-      await loadAppointments();
-      return true;
     },
     [loadAppointments]
   );
@@ -1703,14 +1963,21 @@ function StaffAppointmentsContent({ headerAction }) {
         remindersDisabled: true,
       });
 
-      const saved = await updateAppointmentStatus(appointment, "Cancelled", {
-        description,
-      });
+      const saved = await updateAppointmentStatus(
+        appointment,
+        "Cancelled",
+        { description },
+        { notificationType: "appointment_cancelled" }
+      );
 
       if (saved) {
         await disableAppointmentReminders(appointment.id);
         setDetailAppointment(null);
-        setStatusMessage("Appointment cancelled and future reminders disabled.");
+        setStatusMessage(
+          saved.notificationResult?.ok
+            ? "Appointment cancelled and Patient notified."
+            : "Appointment was saved, but the Patient notification could not be sent."
+        );
       }
 
       setOpenStatusMenu(null);
@@ -1718,16 +1985,55 @@ function StaffAppointmentsContent({ headerAction }) {
     [disableAppointmentReminders, updateAppointmentStatus]
   );
 
-  const completeAppointment = useCallback(
+  const checkInAndOpenVisitForm = useCallback(
     async (appointment) => {
-      const saved = await updateAppointmentStatus(appointment, "Completed");
-      if (saved) {
-        setDetailAppointment(null);
-        setOpenStatusMenu(null);
-        setStatusMessage("Appointment marked as completed.");
+      if (!appointment?.id || visitRoutingLockRef.current) return;
+
+      visitRoutingLockRef.current = appointment.id;
+      setVisitRoutingAppointmentId(appointment.id);
+      setOpenStatusMenu(null);
+      setDetailAppointment(null);
+      setStatusMessage("");
+
+      try {
+        const isAlreadyCheckedIn = isCheckedInStatus(appointment.status);
+        const saved = isAlreadyCheckedIn
+          ? true
+          : await updateAppointmentStatus(appointment, "Checked in");
+
+        if (!saved) return;
+
+        const { data, error } = await supabase.rpc(
+          "get_appointment_visit_form_type",
+          { p_appointment_id: appointment.id }
+        );
+
+        if (error) {
+          logAppointmentReminderError("visit-routing RPC failed", error);
+          setStatusMessage(
+            `Appointment checked in, but the visit form could not be opened. ${getAppointmentReminderErrorMessage(error)}`
+          );
+          return;
+        }
+
+        const routeResult = Array.isArray(data) ? data[0] : data;
+        if (!routeResult?.visit_form_type) {
+          setStatusMessage(
+            "Appointment checked in, but the visit-routing RPC returned no form type. Retry Check in."
+          );
+          return;
+        }
+
+        const routeSegment = routeResult.visit_form_type === "initial"
+          ? "initial-visit"
+          : "follow-up";
+        navigate(`/staff/appointments/${appointment.id}/${routeSegment}`);
+      } finally {
+        visitRoutingLockRef.current = "";
+        setVisitRoutingAppointmentId("");
       }
     },
-    [updateAppointmentStatus]
+    [navigate, updateAppointmentStatus]
   );
 
   const handleStatusChange = async (appointmentId, newStatus) => {
@@ -1747,7 +2053,7 @@ function StaffAppointmentsContent({ headerAction }) {
     }
 
     if (newStatus === "Checked in") {
-      openFollowUpForm(currentAppointment);
+      await checkInAndOpenVisitForm(currentAppointment);
       return;
     }
 
@@ -1757,36 +2063,11 @@ function StaffAppointmentsContent({ headerAction }) {
     }
 
     if (newStatus === "Completed") {
-      await completeAppointment(currentAppointment);
+      await checkInAndOpenVisitForm(currentAppointment);
       return;
     }
 
     setOpenStatusMenu(null);
-  };
-
-  const openFollowUpForm = async (appointment) => {
-    setOpenStatusMenu(null);
-    setStatusMessage("");
-    setSelectedAppointment(appointment);
-    setFollowUpForm(createFollowUpForm(appointment, null));
-
-    if (!appointment.name || appointment.name === "Patient") return;
-
-    const { data, error } = await supabase
-      .from("patients")
-      .select(patientLookupColumns)
-      .ilike("full_name", appointment.name)
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.warn("Patient lookup for follow-up form failed:", error);
-      return;
-    }
-
-    if (data) {
-      setFollowUpForm(createFollowUpForm(appointment, data));
-    }
   };
 
   const updateFollowUpForm = (field, value) => {
@@ -1796,7 +2077,7 @@ function StaffAppointmentsContent({ headerAction }) {
   const openAddAppointment = () => {
     setStatusMessage("");
     setEditingAppointmentId("");
-    setAddAppointmentForm(createBlankAppointmentForm(staffSettings));
+    setAddAppointmentForm(createBlankAppointmentForm(doctors[0] || null));
     setIsAddAppointmentOpen(true);
   };
 
@@ -1809,50 +2090,24 @@ function StaffAppointmentsContent({ headerAction }) {
 
       if (Number.isNaN(end.getTime()) || end <= start) {
         end.setTime(start.getTime());
-        end.setHours(end.getHours() + 1);
+        end.setTime(start.getTime() + 30 * 60 * 1000);
       }
+
+      const category = "prenatal";
 
       setStatusMessage("");
       setEditingAppointmentId("");
       setAddAppointmentForm({
-        ...createBlankAppointmentForm(staffSettings),
+        ...createBlankAppointmentForm(doctors[0] || null),
         date: getLocalDateKey(start),
         startTime: formatInputTime(start),
         endTime: formatInputTime(end),
-        category: selectedCategory === "all" ? "checkup" : selectedCategory,
-        appointmentType:
-          selectedCategory === "education"
-            ? "Health Education"
-            : selectedCategory === "reminder"
-              ? "Appointment Reminder"
-              : selectedCategory === "consultation"
-                ? "Follow-up Consultation"
-                : "Prenatal Check-up",
+        category,
+        appointmentType: getAppointmentTypeForCategory(category),
       });
       setIsAddAppointmentOpen(true);
     },
-    [selectedCategory, staffSettings]
-  );
-
-  const openEditAppointment = useCallback(
-    (appointment) => {
-      setDetailAppointment(null);
-      setStatusMessage("");
-      setEditingAppointmentId(appointment.id);
-      setAddAppointmentForm({
-        patientRecordId: appointment.patientId || "",
-        patientName: appointment.name || "",
-        doctorName: appointment.doctorName || staffSettings.displayName || "Staff",
-        appointmentType: appointment.title || "Prenatal Check-up",
-        date: formatInputDate(appointment.startTime) || getLocalDateKey(),
-        startTime: formatInputTime(appointment.startTime) || "08:00",
-        endTime: formatInputTime(appointment.endTime) || "09:00",
-        category: appointment.category || getCategoryFromAppointmentType(appointment.title || ""),
-        notes: appointment.notes || "",
-      });
-      setIsAddAppointmentOpen(true);
-    },
-    [staffSettings.displayName]
+    [doctors]
   );
 
   const updateAddAppointmentForm = (field, value) => {
@@ -1863,12 +2118,17 @@ function StaffAppointmentsContent({ headerAction }) {
         next.patientRecordId = "";
       }
 
-      if (field === "startTime") {
-        next.endTime = addOneHour(value);
-      }
-
       if (field === "appointmentType") {
         next.category = getCategoryFromAppointmentType(value);
+      }
+
+      if (field === "doctorId") {
+        const selectedDoctor = doctors.find(
+          (doctor) => doctor.id === value
+        );
+
+        next.doctorId = selectedDoctor?.id || "";
+        next.doctorName = selectedDoctor?.name || "";
       }
 
       return next;
@@ -1900,7 +2160,7 @@ function StaffAppointmentsContent({ headerAction }) {
     }
 
     const { data, error } = await supabase
-      .from("patients")
+      .rpc("get_staff_patient_directory")
       .select("id, full_name")
       .ilike("full_name", addAppointmentForm.patientName.trim())
       .limit(1)
@@ -1916,10 +2176,36 @@ function StaffAppointmentsContent({ headerAction }) {
 
   const saveAppointment = async (event) => {
     event.preventDefault();
+    if (appointmentSaveLockRef.current) return;
+
+    appointmentSaveLockRef.current = true;
+
+    try {
     setStatusMessage("");
 
     if (!addAppointmentForm.patientName.trim()) {
       setStatusMessage("Patient name is required.");
+      return;
+    }
+
+    if (!addAppointmentForm.date || !addAppointmentForm.startTime) {
+      setStatusMessage("Choose a valid appointment date and time.");
+      return;
+    }
+
+    if (!addAppointmentForm.appointmentType.trim()) {
+      setStatusMessage("Select an appointment type.");
+      return;
+    }
+
+    const selectedDoctor = doctors.find(
+      (doctor) => doctor.id === addAppointmentForm.doctorId
+    );
+
+    if (!selectedDoctor) {
+      setStatusMessage(
+        "Select an active Doctor before saving the appointment."
+      );
       return;
     }
 
@@ -1933,21 +2219,27 @@ function StaffAppointmentsContent({ headerAction }) {
       return;
     }
 
-    let startTime = toLocalDateTimeIso(
+    const appointmentRange = buildThirtyMinuteAppointmentRange(
       addAppointmentForm.date,
       addAppointmentForm.startTime
     );
-    let endTime = toLocalDateTimeIso(
-      addAppointmentForm.date,
-      addAppointmentForm.endTime
-    );
 
-    if (new Date(endTime) <= new Date(startTime)) {
-      endTime = toLocalDateTimeIso(
-        addAppointmentForm.date,
-        addOneHour(addAppointmentForm.startTime)
-      );
+    if (!appointmentRange) {
+      setStatusMessage("Choose a valid appointment date and time.");
+      setIsSavingAppointment(false);
+      return;
     }
+
+    const { startDate, endDate } = appointmentRange;
+
+    if (startDate < new Date()) {
+      setStatusMessage("Appointments cannot start in the past.");
+      setIsSavingAppointment(false);
+      return;
+    }
+
+    const startTime = startDate.toISOString();
+    const endTime = endDate.toISOString();
 
     if (
       hasAppointmentConflict(appointments, {
@@ -1965,7 +2257,8 @@ function StaffAppointmentsContent({ headerAction }) {
     const payload = {
       patient_id: patientRecordId,
       patient_name: addAppointmentForm.patientName.trim(),
-      doctor_name: addAppointmentForm.doctorName.trim() || staffSettings.displayName,
+      doctor_id: selectedDoctor.id,
+      doctor_name: selectedDoctor.name,
       title: addAppointmentForm.appointmentType.trim() || category?.label || "Appointment",
       description: JSON.stringify({
         category: addAppointmentForm.category,
@@ -1975,8 +2268,9 @@ function StaffAppointmentsContent({ headerAction }) {
       end_time: endTime,
       status: "scheduled",
     };
+    const wasEditing = Boolean(editingAppointmentId);
 
-    const saveQuery = editingAppointmentId
+    const saveQuery = wasEditing
       ? supabase
           .from(scheduleTableName)
           .update(payload)
@@ -1991,9 +2285,8 @@ function StaffAppointmentsContent({ headerAction }) {
 
     const { data: savedSchedule, error } = await saveQuery;
 
-    setIsSavingAppointment(false);
-
     if (error) {
+      setIsSavingAppointment(false);
       console.error("Staff appointment insert failed:", error);
       setStatusMessage(`Unable to save appointment: ${error.message}`);
       return;
@@ -2002,18 +2295,51 @@ function StaffAppointmentsContent({ headerAction }) {
     const nextDate = new Date(startTime);
     setCalendarDate(nextDate);
     setMiniMonthDate(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
-    const reminderSaved = savedSchedule
+    const notificationResult = savedSchedule
+      ? await sendAutomaticAppointmentNotification({
+          patientId: savedSchedule.patient_id,
+          scheduleId: savedSchedule.id,
+          notificationType: wasEditing
+            ? "appointment_rescheduled"
+            : "appointment_created",
+        })
+      : {
+          ok: false,
+          error: { message: "The saved appointment was not returned." },
+        };
+    const reminderResult = savedSchedule
       ? await saveAppointmentReminder(savedSchedule)
-      : false;
+      : { ok: false, error: { message: "The saved appointment was not returned." } };
     setIsAddAppointmentOpen(false);
     setEditingAppointmentId("");
-    setAddAppointmentForm(createBlankAppointmentForm(staffSettings));
+    setAddAppointmentForm(createBlankAppointmentForm(doctors[0] || null));
     await loadAppointments();
-    setStatusMessage(
-      reminderSaved
-        ? "Appointment saved and sent to the patient account."
-        : "Appointment saved, but the patient reminder could not be created. Check the reminders table permissions."
-    );
+    if (!notificationResult.ok) {
+      setFailedReminderAppointmentId(reminderResult.ok ? "" : savedSchedule?.id || "");
+      setStatusMessage(
+        "Appointment was saved, but the Patient notification could not be sent."
+      );
+    } else if (reminderResult.ok) {
+      setFailedReminderAppointmentId("");
+      setStatusMessage(
+        wasEditing
+          ? "Appointment rescheduled and Patient notified."
+          : "Appointment created and Patient notified."
+      );
+    } else {
+      setFailedReminderAppointmentId(savedSchedule?.id || "");
+      setStatusMessage(
+        `${
+          wasEditing
+            ? "Appointment rescheduled and Patient notified"
+            : "Appointment created and Patient notified"
+        }, but the Patient reminder could not be created. ${getAppointmentReminderErrorMessage(reminderResult.error)}`
+      );
+    }
+    } finally {
+      appointmentSaveLockRef.current = false;
+      setIsSavingAppointment(false);
+    }
   };
 
   const openAppointmentDetails = useCallback(
@@ -2025,6 +2351,31 @@ function StaffAppointmentsContent({ headerAction }) {
     },
     [appointments]
   );
+
+  const closeAppointmentDetails = useCallback(() => {
+    setDetailAppointment(null);
+
+    if (!dashboardAppointmentTarget) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    params.delete("appointmentId");
+    const nextSearch = params.toString();
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true }
+    );
+  }, [
+    dashboardAppointmentTarget,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
 
   const saveFollowUpRecord = async () => {
     if (!selectedAppointment?.id) return;
@@ -2083,7 +2434,7 @@ function StaffAppointmentsContent({ headerAction }) {
         expectedDeliveryDate: followUpForm.expectedDeliveryDate
           ? formatLongDate(`${followUpForm.expectedDeliveryDate}T00:00:00`)
           : "-",
-        doctor: followUpForm.attendingPhysician || "Staff",
+        doctor: followUpForm.attendingPhysician || "Not assigned",
         visitDate: followUpForm.visitDate
           ? formatLongDate(`${followUpForm.visitDate}T00:00:00`)
           : "-",
@@ -2110,18 +2461,19 @@ function StaffAppointmentsContent({ headerAction }) {
       },
     };
 
-    // Save the follow-up record first. The appointment remains Pending
-    // when this insert fails.
-    const { data: savedRecord, error: recordError } = await supabase
-      .from("medical_records")
-      .insert([recordPayload])
-      .select("id")
-      .single();
+    const { error: recordError } = await supabase.rpc(
+      "save_staff_visit_intake",
+      {
+        p_appointment_id: selectedAppointment.id,
+        p_visit_form_type: "follow_up",
+        p_intake_data: recordPayload.form_data,
+      }
+    );
 
     if (recordError) {
       console.error("Follow-up medical record insert failed:", recordError);
       setStatusMessage(
-        `Unable to check in: the follow-up record was not saved. ${recordError.message}`
+        `Unable to check in: the Staff intake was not saved. ${recordError.message}`
       );
       setIsSavingFollowUp(false);
       return;
@@ -2136,23 +2488,8 @@ function StaffAppointmentsContent({ headerAction }) {
     if (statusError) {
       console.error("Follow-up check-in update failed:", statusError);
 
-      // Remove the medical record so the two database tables stay consistent.
-      if (savedRecord?.id) {
-        const { error: rollbackError } = await supabase
-          .from("medical_records")
-          .delete()
-          .eq("id", savedRecord.id);
-
-        if (rollbackError) {
-          console.warn(
-            "Unable to roll back the follow-up medical record:",
-            rollbackError
-          );
-        }
-      }
-
       setStatusMessage(
-        `The follow-up form was not completed because the appointment could not be checked in. ${statusError.message}`
+        `The Staff intake was saved, but the appointment could not be checked in. ${statusError.message}`
       );
       setIsSavingFollowUp(false);
       return;
@@ -2164,7 +2501,7 @@ function StaffAppointmentsContent({ headerAction }) {
           ? {
               ...appointment,
               status: "Checked in",
-              filterStatus: "Pending",
+              filterStatus: "Checked in",
             }
           : appointment
       )
@@ -2203,6 +2540,15 @@ function StaffAppointmentsContent({ headerAction }) {
     });
   };
 
+  if (visitRoute) {
+    return (
+      <StaffPreConsultationForm
+        appointmentId={visitRoute.appointmentId}
+        requestedType={visitRoute.requestedType}
+      />
+    );
+  }
+
   if (selectedAppointment) {
     return (
       <FollowUpVisitForm
@@ -2220,88 +2566,154 @@ function StaffAppointmentsContent({ headerAction }) {
   }
 
   return (
-    <section className="staff-appointments-page">
-      <header className="staff-appointments-header staff-section-header">
-        <div>
-          <h1>Appointments</h1>
-
-          <nav className="staff-appointments-tabs" aria-label="Appointment filters">
-            {filters.map((filter) => (
-              <button
-                type="button"
-                key={filter}
-                className={activeFilter === filter ? "is-active" : ""}
-                onClick={() => setActiveFilter(filter)}
-              >
-                {filter}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {headerAction}
-      </header>
+    <section className="staff-appointments-page appointment-workspace appointment-workspace--staff">
+      <AppointmentPageHeader
+        title="Appointments"
+        subtitle="Manage scheduling, arrivals, and appointment status."
+        tabs={filters}
+        activeTab={activeFilter}
+        onTabChange={setActiveFilter}
+        action={headerAction}
+        className="staff-appointments-header staff-section-header"
+        tabsClassName="staff-appointments-tabs"
+        tabsLabel="Appointment filters"
+      />
 
       {statusMessage ? (
-        <p className="staff-appointments-status-message">{statusMessage}</p>
-      ) : null}
-
-      <div className="staff-appointments-toolbar">
-        <div className="staff-appointments-search-wrap">
-          <label className="staff-appointments-search">
-            <Icon icon="solar:magnifer-linear" aria-hidden="true" />
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 120)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setIsSearchFocused(false);
-                }
-              }}
-              placeholder="Search Appointment or ID"
-              aria-label="Search appointment or ID"
-              aria-autocomplete="list"
-              aria-expanded={isSearchFocused && searchSuggestions.length > 0}
-            />
-          </label>
-
-          {isSearchFocused && searchSuggestions.length ? (
-            <div className="staff-appointments-suggestions" role="listbox">
-              {searchSuggestions.map((suggestion) => (
-                <button
-                  key={`${suggestion.id}-${suggestion.name}`}
-                  type="button"
-                  role="option"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    setSearchQuery(suggestion.name);
-                    setIsSearchFocused(false);
-                  }}
-                >
-                  <strong>{suggestion.name}</strong>
-                  <span>{suggestion.appointmentId} - {suggestion.time}</span>
-                </button>
-              ))}
-            </div>
+        <div className="staff-appointments-status-message" role="status">
+          <span>{statusMessage}</span>
+          {failedReminderAppointmentId ? (
+            <button
+              type="button"
+              onClick={retryAppointmentReminder}
+              disabled={isRetryingReminder}
+            >
+              {isRetryingReminder ? "Retrying..." : "Retry Reminder"}
+            </button>
           ) : null}
         </div>
+      ) : null}
 
-        <button
-          type="button"
-          className="staff-add-appointment-btn"
-          onClick={openAddAppointment}
+      <AppointmentToolbar
+        as="div"
+        className="staff-appointments-toolbar staff-appointments-toolbar-labeled"
+      >
+        <AppointmentControlGroup
+          label="View"
+          area="view"
+          className="staff-appointments-control-group staff-appointments-view-group"
         >
-          <Icon icon="solar:add-circle-bold" aria-hidden="true" />
-          Add Appointment
-        </button>
-      </div>
+          <AppointmentViewSwitch
+            options={appointmentViews}
+            value={appointmentView}
+            onChange={setAppointmentView}
+            className="staff-appointments-view-switch"
+          />
+        </AppointmentControlGroup>
+
+        <AppointmentControlGroup
+          label="Search Appointments"
+          area="search"
+          className="staff-appointments-control-group staff-appointments-search-group"
+        >
+          <div className="staff-appointments-search-wrap">
+            <label className="staff-appointments-search appointment-ui-search">
+              <Icon icon="solar:magnifer-linear" aria-hidden="true" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() =>
+                  window.setTimeout(() => setIsSearchFocused(false), 120)
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setIsSearchFocused(false);
+                  }
+                }}
+                placeholder="Search Appointment, Patient, or ID"
+                aria-label="Search appointment, patient, or ID"
+                aria-autocomplete="list"
+                aria-expanded={
+                  isSearchFocused && searchSuggestions.length > 0
+                }
+              />
+            </label>
+
+            {isSearchFocused && searchSuggestions.length ? (
+              <div className="staff-appointments-suggestions" role="listbox">
+                {searchSuggestions.map((suggestion) => (
+                  <button
+                    key={`${suggestion.id}-${suggestion.name}`}
+                    type="button"
+                    role="option"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setSearchQuery(suggestion.name);
+                      setIsSearchFocused(false);
+                    }}
+                  >
+                    <strong>{suggestion.name}</strong>
+                    <span>
+                      {suggestion.appointmentId} - {suggestion.time}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </AppointmentControlGroup>
+
+        <AppointmentControlGroup
+          as="label"
+          label="Filter by Month"
+          area="month"
+          className="staff-appointments-month-filter staff-appointments-control-group"
+        >
+          <div className="staff-appointments-month-control appointment-ui-month">
+            <Icon icon="solar:calendar-linear" aria-hidden="true" />
+
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              aria-label="Filter appointments by month"
+            />
+
+            {selectedMonth ? (
+              <button
+                type="button"
+                className="staff-appointments-month-clear"
+                onClick={() => setSelectedMonth("")}
+                aria-label="Clear month filter"
+                title="Clear month filter"
+              >
+                <Icon icon="solar:close-circle-bold" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        </AppointmentControlGroup>
+
+        <AppointmentControlGroup
+          label="Quick Action"
+          area="action"
+          className="staff-appointments-control-group staff-appointments-action-group"
+        >
+          <button
+            type="button"
+            className="staff-add-appointment-btn appointment-ui-primary"
+            onClick={openAddAppointment}
+          >
+            <Icon icon="solar:add-circle-bold" aria-hidden="true" />
+            Add Appointment
+          </button>
+        </AppointmentControlGroup>
+      </AppointmentToolbar>
 
       <AppointmentSummary summary={appointmentSummary} />
 
-      <section className="staff-appointments-table-card">
-        <div className="staff-appointments-table-scroll">
+      <section className="staff-appointments-table-card appointment-ui-table-card">
+        <div className="staff-appointments-table-scroll appointment-ui-table-scroll">
           <table className="staff-appointments-table">
             <thead>
               <tr>
@@ -2314,7 +2726,7 @@ function StaffAppointmentsContent({ headerAction }) {
             </thead>
 
             <tbody>
-              {filteredAppointments.map((appointment) => (
+              {paginatedAppointments.map((appointment) => (
                 <tr key={appointment.id} onClick={() => openAppointmentDetails(appointment.id)}>
                   <td>{appointment.appointmentId}</td>
                   <td>{appointment.name}</td>
@@ -2336,6 +2748,7 @@ function StaffAppointmentsContent({ headerAction }) {
                         }}
                         className={[
                           "staff-status-trigger",
+                          "appointment-ui-status",
                           getStatusClass(appointment.status),
                         ].join(" ")}
                         onClick={(event) => {
@@ -2364,7 +2777,7 @@ function StaffAppointmentsContent({ headerAction }) {
                         aria-haspopup="listbox"
                         aria-expanded={openStatusMenu === appointment.id}
                       >
-                        <span>{appointment.status}</span>
+                        <span>{classifyAppointment(appointment).displayStatus}</span>
                         <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
                       </button>
                     </div>
@@ -2372,7 +2785,7 @@ function StaffAppointmentsContent({ headerAction }) {
                 </tr>
               ))}
 
-              {!filteredAppointments.length ? (
+              {!paginatedAppointments.length ? (
                 <tr>
                   <td colSpan="5" className="staff-appointments-empty-cell">
                     No appointments found.
@@ -2382,13 +2795,22 @@ function StaffAppointmentsContent({ headerAction }) {
             </tbody>
           </table>
         </div>
+
+        <AppointmentPagination
+          className="staff-appointments-pagination"
+          currentPage={currentPage}
+          pageSize={pageSize}
+          pageSizes={appointmentPageSizes}
+          totalItems={filteredAppointments.length}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </section>
 
       <div className="staff-appointments-calendar-layout">
         <section className="staff-calendar-panel">
           <CustomCalendarHeader
-            selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
             selectedDate={calendarDate}
             onPreviousWeek={() => moveCalendarWeek(-7)}
             onNextWeek={() => moveCalendarWeek(7)}
@@ -2397,7 +2819,6 @@ function StaffAppointmentsContent({ headerAction }) {
           <StaffWeekCalendar
             events={scheduleEvents}
             selectedDate={calendarDate}
-            selectedCategory={selectedCategory}
             onSelectDate={selectCalendarDate}
             onSelectSlot={openAddAppointmentAt}
             onSelectEvent={openAppointmentDetails}
@@ -2470,34 +2891,6 @@ function StaffAppointmentsContent({ headerAction }) {
               ))}
             </div>
           </section>
-
-          <section className="staff-categories-card">
-            <h3>Categories</h3>
-
-            <div className="staff-category-grid">
-              {categoryList.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  className={[
-                    "staff-category-item",
-                    category.colorClass,
-                    selectedCategory === category.id ? "is-active" : "",
-                  ].join(" ")}
-                  onClick={() =>
-                    setSelectedCategory((current) =>
-                      current === category.id ? "all" : category.id
-                    )
-                  }
-                >
-                  <span>
-                    <Icon icon={category.icon} />
-                  </span>
-                  <strong>{category.label}</strong>
-                </button>
-              ))}
-            </div>
-          </section>
         </aside>
       </div>
 
@@ -2527,6 +2920,7 @@ function StaffAppointmentsContent({ headerAction }) {
                   onClick={() =>
                     handleStatusChange(activeStatusAppointment.id, option.value)
                   }
+                  disabled={visitRoutingAppointmentId === activeStatusAppointment.id}
                 >
                   {option.label}
                 </button>
@@ -2550,20 +2944,20 @@ function StaffAppointmentsContent({ headerAction }) {
           patientSuggestions={addAppointmentPatientSuggestions}
           onSelectPatient={selectAddAppointmentPatient}
           isLoadingPatients={isLoadingPatients}
+          doctors={doctors}
+          isLoadingDoctors={isLoadingDoctors}
         />
       ) : null}
 
       {detailAppointment ? (
         <AppointmentDetailsModal
           appointment={detailAppointment}
-          onClose={() => setDetailAppointment(null)}
-          onEdit={openEditAppointment}
+          onClose={closeAppointmentDetails}
           onCancel={cancelAppointment}
           onCheckIn={(appointment) => {
-            setDetailAppointment(null);
-            openFollowUpForm(appointment);
+            checkInAndOpenVisitForm(appointment);
           }}
-          onComplete={completeAppointment}
+          onComplete={checkInAndOpenVisitForm}
         />
       ) : null}
     </section>

@@ -1,33 +1,41 @@
 import { useState } from "react";
 import { Icon } from "@iconify/react";
+import { useNavigate } from "react-router-dom";
+import PatientPushNotificationSettings from "../../components/patient/PatientPushNotificationSettings";
+import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import { supabase } from "../../lib/supabaseClient";
 
 const settingsTabs = [
   { key: "profile", label: "Profile", icon: "solar:user-rounded-linear" },
   { key: "account", label: "Account", icon: "solar:user-id-linear" },
   { key: "password", label: "Password & Security", icon: "solar:lock-password-linear" },
-  { key: "notifications", label: "Notifications & Reminders", icon: "solar:bell-linear" },
+  { key: "notifications", label: "Notifications", icon: "solar:bell-linear" },
 ];
 
 export default function PatientPWASettings({ profile }) {
   const [activeTab, setActiveTab] = useState("profile");
+  const navigate = useNavigate();
 
   const current = settingsTabs.find((item) => item.key === activeTab) || settingsTabs[0];
 
   return (
     <main className="pwa-page pwa-settings-page">
-      <section className="pwa-page-title pwa-settings-title">
-        <h1>Settings</h1>
-        <p>
-          Settings <Icon icon="solar:alt-arrow-right-linear" /> <span>{current.label}</span>
-        </p>
-      </section>
+      <PatientPageHeader
+        title="Settings"
+        subtitle="Manage your patient account, security, and notification preferences."
+        className="pwa-settings-title"
+      />
 
       <div className="pwa-settings-layout">
-        <aside className="pwa-settings-tabs" aria-label="Settings tabs">
+        <aside className="pwa-settings-tabs" aria-label="Settings sections" role="tablist">
           {settingsTabs.map((item) => (
             <button
               key={item.key}
               type="button"
+              id={`settings-tab-${item.key}`}
+              role="tab"
+              aria-selected={activeTab === item.key}
+              aria-controls={`settings-panel-${item.key}`}
               className={activeTab === item.key ? "is-active" : ""}
               onClick={() => setActiveTab(item.key)}
             >
@@ -37,7 +45,13 @@ export default function PatientPWASettings({ profile }) {
           ))}
         </aside>
 
-        <section className="pwa-settings-content">
+        <section
+          className="pwa-settings-content"
+          id={`settings-panel-${activeTab}`}
+          role="tabpanel"
+          aria-labelledby={`settings-tab-${activeTab}`}
+          tabIndex={0}
+        >
           <header className="pwa-settings-section-header">
             <span><Icon icon={current.icon} /></span>
             <div>
@@ -46,10 +60,14 @@ export default function PatientPWASettings({ profile }) {
             </div>
           </header>
 
-          {activeTab === "profile" ? <ProfileSettings profile={profile} /> : null}
-          {activeTab === "account" ? <AccountSettings profile={profile} /> : null}
-          {activeTab === "password" ? <PasswordSettings /> : null}
-          {activeTab === "notifications" ? <NotificationSettings /> : null}
+          {activeTab === "profile" ? (
+            <ProfileSettings profile={profile} onManageProfile={() => navigate("/patient/profile")} />
+          ) : null}
+          {activeTab === "account" ? (
+            <AccountSettings profile={profile} onManageProfile={() => navigate("/patient/profile")} />
+          ) : null}
+          {activeTab === "password" ? <PasswordSettings profile={profile} /> : null}
+          {activeTab === "notifications" ? <PatientPushNotificationSettings /> : null}
         </section>
       </div>
     </main>
@@ -63,17 +81,22 @@ function getSubtitle(tab) {
     case "password":
       return "Update your password and manage your account securely.";
     case "notifications":
-      return "Control reminders, health tips, and appointment notifications.";
+      return "Manage push notifications for this device.";
     case "profile":
     default:
       return "Manage your personal and pregnancy information.";
   }
 }
 
-function ProfileSettings({ profile }) {
+function ProfileSettings({ profile, onManageProfile }) {
   return (
     <>
-      <SettingsCard title="Personal Information" tone="pink" action="Edit">
+      <SettingsCard
+        title="Personal Information"
+        tone="pink"
+        action="Manage in Profile"
+        onAction={onManageProfile}
+      >
         <SettingsInfo label="Full Name" value={profile.displayName} icon="solar:user-linear" />
         <SettingsInfo label="Gender" value={profile.gender} icon="solar:users-group-rounded-linear" />
         <SettingsInfo label="Date of Birth" value={profile.birthdate} icon="solar:calendar-linear" />
@@ -82,7 +105,7 @@ function ProfileSettings({ profile }) {
         <SettingsInfo label="Blood Type" value={profile.bloodType} icon="solar:test-tube-linear" />
       </SettingsCard>
 
-      <SettingsCard title="Pregnancy Information" tone="violet" action="View Only">
+      <SettingsCard title="Pregnancy Information" tone="violet" badge="Provider managed">
         <SettingsInfo label="Pregnancy Status" value={profile.pregnancyStatus} icon="solar:user-linear" />
         <SettingsInfo label="Gravida (G)" value={profile.gravida} icon="solar:users-group-rounded-linear" />
         <SettingsInfo label="Current Pregnancy Week" value={`${profile.pregnancyWeek} Weeks`} icon="solar:clock-circle-linear" />
@@ -96,12 +119,15 @@ function ProfileSettings({ profile }) {
         </p>
       </SettingsCard>
 
-      <button className="pwa-save-fixed" type="button">Save Changes</button>
     </>
   );
 }
 
-function AccountSettings({ profile }) {
+function AccountSettings({ profile, onManageProfile }) {
+  const emailStatus = profile.emailVerified === true ? "Verified" : "Unavailable";
+  const accountStatus = profile.accountStatus || "Not provided";
+  const lastLogin = formatLastLogin(profile.lastLoginAt);
+
   return (
     <>
       <section className="pwa-settings-card pwa-account-card">
@@ -112,17 +138,22 @@ function AccountSettings({ profile }) {
         <div className="pwa-account-form">
           <label>
             <span>Email Address</span>
-            <input type="email" defaultValue={profile.email} />
+            <input type="email" value={profile.email || ""} readOnly />
           </label>
           <label>
             <span>Contact Number</span>
-            <input type="text" defaultValue={profile.phone} />
+            <input type="text" value={profile.phone || ""} readOnly />
           </label>
         </div>
 
-        <div className="pwa-account-actions">
-          <button type="button" className="is-solid">Save Changes</button>
-          <button type="button" className="is-outline">Change Email</button>
+        <div className="pwa-account-guidance">
+          <Icon icon="solar:info-circle-bold-duotone" aria-hidden="true" />
+          <p>
+            Contact details are managed from your Profile. Email changes may require clinic verification.
+          </p>
+          <button type="button" className="is-outline" onClick={onManageProfile}>
+            Open Profile
+          </button>
         </div>
       </section>
 
@@ -132,38 +163,127 @@ function AccountSettings({ profile }) {
           <h3>Account Status</h3>
         </header>
 
-        <StatusRow icon="solar:letter-bold" title="Email Verification" description="Your email address is verified." badge="Verified" />
-        <StatusRow icon="solar:user-id-bold" title="Account Status" description="Your account is active and in good standing." badge="Active" />
-        <StatusRow icon="solar:clock-circle-bold" title="Last Login" description="May 19, 2026 - 8:00 AM" badge="Today" purple />
+        <StatusRow
+          icon="solar:letter-bold"
+          title="Email Verification"
+          description={profile.emailVerified === true ? "Your email address is verified." : "Verification status is not available."}
+          badge={emailStatus}
+        />
+        <StatusRow
+          icon="solar:user-id-bold"
+          title="Account Status"
+          description={`Your patient account status is ${accountStatus}.`}
+          badge={accountStatus}
+        />
+        <StatusRow
+          icon="solar:clock-circle-bold"
+          title="Last Login"
+          description={lastLogin}
+          badge={profile.lastLoginAt ? "Recorded" : "Unavailable"}
+          purple
+        />
       </section>
     </>
   );
 }
 
-function PasswordSettings() {
+function PasswordSettings({ profile }) {
   const [show, setShow] = useState({ current: false, next: false, confirm: false });
-  const [twoFactor, setTwoFactor] = useState(true);
-  const [loginNotice, setLoginNotice] = useState(true);
+  const [form, setForm] = useState({ current: "", next: "", confirm: "" });
+  const [message, setMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const toggleField = (field) => setShow((prev) => ({ ...prev, [field]: !prev[field] }));
+  const updateField = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const savePassword = async (event) => {
+    event.preventDefault();
+    setMessage("");
+
+    if (form.next !== form.confirm) {
+      setMessage("Confirm New Password must match New Password.");
+      return;
+    }
+
+    if (form.next.length < 8) {
+      setMessage("New Password must be at least 8 characters.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const email = profile.email && profile.email !== "Not provided" ? profile.email : "";
+      if (!email) {
+        throw new Error("Your account email could not be resolved.");
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: form.current,
+      });
+
+      if (signInError) throw signInError;
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: form.next,
+      });
+
+      if (updateError) throw updateError;
+
+      setForm({ current: "", next: "", confirm: "" });
+      setMessage("Password updated successfully.");
+    } catch (error) {
+      setMessage(error?.message || "Unable to update password.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <div className="pwa-security-grid">
+    <form className="pwa-security-grid" onSubmit={savePassword}>
       <section className="pwa-settings-card pwa-password-card">
         <header>
           <Icon icon="solar:key-bold-duotone" />
           <h3>Change Password</h3>
         </header>
 
-        <PasswordInput label="Current Password" placeholder="Enter your current password" visible={show.current} onToggle={() => toggleField("current")} />
-        <PasswordInput label="New Password" placeholder="Enter new password" visible={show.next} onToggle={() => toggleField("next")} />
-        <PasswordInput label="Confirm New Password" placeholder="Confirm new password" visible={show.confirm} onToggle={() => toggleField("confirm")} />
+        <PasswordInput
+          label="Current Password"
+          placeholder="Enter your current password"
+          visible={show.current}
+          value={form.current}
+          onChange={(value) => updateField("current", value)}
+          onToggle={() => toggleField("current")}
+          autoComplete="current-password"
+        />
+        <PasswordInput
+          label="New Password"
+          placeholder="Enter new password"
+          visible={show.next}
+          value={form.next}
+          onChange={(value) => updateField("next", value)}
+          onToggle={() => toggleField("next")}
+          autoComplete="new-password"
+        />
+        <PasswordInput
+          label="Confirm New Password"
+          placeholder="Confirm new password"
+          visible={show.confirm}
+          value={form.confirm}
+          onChange={(value) => updateField("confirm", value)}
+          onToggle={() => toggleField("confirm")}
+          autoComplete="new-password"
+        />
 
         <p className="pwa-password-help">
-          <Icon icon="solar:info-circle-bold" /> Password must be at least 8 characters with a combination of letters, numbers and symbols.
+          <Icon icon="solar:info-circle-bold" /> Use at least 8 characters. A mix of letters, numbers, and symbols creates a stronger password.
         </p>
 
-        <button type="button" className="pwa-full-save">Save Changes</button>
+        {message ? <p className="pwa-settings-form-message" role="status">{message}</p> : null}
+        <button type="submit" className="pwa-full-save" disabled={isSaving}>
+          {isSaving ? "Saving..." : "Save Changes"}
+        </button>
       </section>
 
       <section className="pwa-settings-card pwa-security-card">
@@ -172,51 +292,30 @@ function PasswordSettings() {
           <h3>Security Options</h3>
         </header>
 
-        <SecurityToggle
+        <SecurityOption
           title="Two-Factor Authentication (2FA)"
-          description="Add an extra layer of security to your account by enabling two-factor authentication."
-          checked={twoFactor}
-          onChange={setTwoFactor}
+          description="Two-factor authentication is not enabled in this Patient PWA yet."
         />
-        <SecurityToggle
+        <SecurityOption
           title="Login Notifications"
-          description="Get an email whenever a new device logs in to your account."
-          checked={loginNotice}
-          onChange={setLoginNotice}
+          description="Login notification controls are not enabled in this Patient PWA yet."
         />
       </section>
-    </div>
+    </form>
   );
 }
 
-function NotificationSettings() {
-  const [settings, setSettings] = useState({ appointments: true, medications: true, healthTips: true });
-
-  const update = (key) => setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
-
-  return (
-    <section className="pwa-settings-card pwa-notification-card">
-      <header>
-        <h3>Notification Preferences</h3>
-      </header>
-
-      <SecurityToggle title="Appointment Reminders" description="Receive reminders before each appointment." checked={settings.appointments} onChange={() => update("appointments")} />
-      <SecurityToggle title="Medication Reminders" description="Notify me when it is time to take medicine or vitamins." checked={settings.medications} onChange={() => update("medications")} />
-      <SecurityToggle title="Daily Health Tips" description="Receive pregnancy health tips and wellness messages." checked={settings.healthTips} onChange={() => update("healthTips")} />
-
-      <button className="pwa-full-save" type="button">Save Changes</button>
-    </section>
-  );
-}
-
-function SettingsCard({ title, tone, action, children }) {
+function SettingsCard({ title, tone, action, onAction, badge, children }) {
   return (
     <section className={`pwa-settings-card pwa-settings-card-${tone}`}>
       <header>
         <h3>{title}</h3>
         {action ? (
-          <button type="button"><Icon icon={action === "Edit" ? "solar:pen-new-square-linear" : "solar:lock-keyhole-linear"} /> {action}</button>
+          <button type="button" onClick={onAction}>
+            <Icon icon="solar:arrow-right-up-linear" /> {action}
+          </button>
         ) : null}
+        {badge ? <span className="pwa-settings-card-badge">{badge}</span> : null}
       </header>
       <div className="pwa-settings-info-grid">{children}</div>
     </section>
@@ -248,12 +347,19 @@ function StatusRow({ icon, title, description, badge, purple }) {
   );
 }
 
-function PasswordInput({ label, placeholder, visible, onToggle }) {
+function PasswordInput({ label, placeholder, visible, value, onChange, onToggle, autoComplete }) {
   return (
     <label className="pwa-password-field">
       <span>{label}</span>
       <div>
-        <input type={visible ? "text" : "password"} placeholder={placeholder} />
+        <input
+          type={visible ? "text" : "password"}
+          placeholder={placeholder}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete={autoComplete}
+          required
+        />
         <button type="button" onClick={onToggle} aria-label={`Toggle ${label}`}>
           <Icon icon={visible ? "solar:eye-linear" : "solar:eye-closed-linear"} />
         </button>
@@ -262,21 +368,29 @@ function PasswordInput({ label, placeholder, visible, onToggle }) {
   );
 }
 
-function SecurityToggle({ title, description, checked, onChange }) {
+function SecurityOption({ title, description }) {
   return (
     <article className="pwa-security-toggle">
       <div>
         <h4>{title}</h4>
         <p>{description}</p>
       </div>
-      <button
-        type="button"
-        className={checked ? "is-on" : ""}
-        onClick={() => onChange(!checked)}
-        aria-pressed={checked}
-      >
-        <span />
-      </button>
+      <span className="pwa-security-unavailable">Unavailable</span>
     </article>
   );
+}
+
+function formatLastLogin(value) {
+  if (!value) return "Last login data is not available.";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Last login data is not available.";
+
+  return date.toLocaleString("en-US", {
+    timeZone: "Asia/Manila",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }

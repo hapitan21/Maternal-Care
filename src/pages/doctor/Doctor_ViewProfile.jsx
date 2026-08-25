@@ -1,128 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Icon } from "@iconify/react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../../lib/supabaseClient";
+import {
+  clinicAccountStatuses,
+  normalizeClinicAccountStatus,
+} from "../../lib/clinicAccountStatus";
 import "../../styles/doctor-viewprofile.css";
-
-const doctorProfilePhotoKey = "doctor_profile_photo";
-const doctorSettingsKey = "doctor_dashboard_settings";
-const defaultDoctorProfile = {
-  displayName: "Doctor",
-  roleLabel: "Doctor",
-};
-
-const contactDetails = [
-  {
-    icon: "solar:letter-linear",
-    label: "Email Address",
-    value: "kempee.vergara@gmail.com",
-  },
-  {
-    icon: "solar:phone-linear",
-    label: "Phone Number",
-    value: "0912 345 6789",
-  },
-  {
-    icon: "solar:map-point-linear",
-    label: "Practice Location",
-    value: "La Paz Maternity and Reproductive Health Center, La Paz, Iloilo City, Philippines",
-  },
-];
-
-const personalInfo = [
-  {
-    icon: "solar:user-rounded-linear",
-    label: "Full Name",
-    value: "Kempee Vergara",
-  },
-  {
-    icon: "solar:woman-linear",
-    label: "Gender",
-    value: "Female",
-  },
-  {
-    icon: "solar:calendar-linear",
-    label: "Birthdate",
-    value: "January 10, 1990",
-  },
-  {
-    icon: "solar:flag-linear",
-    label: "Nationality",
-    value: "Filipino",
-  },
-];
-
-const personalProfessionalInfo = [
-  {
-    icon: "solar:case-round-linear",
-    label: "Years of Experience",
-    value: "8 Years",
-  },
-  {
-    icon: "solar:medical-kit-linear",
-    label: "Specialization",
-    value: "Obstetrics & Gynecology",
-  },
-  {
-    icon: "solar:heart-linear",
-    label: "Civil Status",
-    value: "Married",
-  },
-];
-
-const professionalInfo = [
-  {
-    label: "Doctor ID",
-    value: "DOC-2023-001",
-  },
-  {
-    label: "License Number",
-    value: "1234567",
-  },
-  {
-    label: "Board Certification",
-    value: "Obstetrics and Gynecology",
-  },
-  {
-    label: "Hospital/Clinic",
-    value: "La Paz Health Center",
-  },
-  {
-    label: "Clinic Address",
-    value: "La Paz, Iloilo City, Philippines",
-  },
-  {
-    label: "Email",
-    value: "kempee.vergara@gmail.com",
-  },
-  {
-    label: "Contact Number",
-    value: "0912 345 6789",
-  },
-];
-
-const appointmentStats = [
-  {
-    icon: "solar:calendar-remove-linear",
-    label: "Canceled",
-    value: "0",
-  },
-  {
-    icon: "solar:calendar-mark-linear",
-    label: "Today's",
-    value: "5",
-  },
-  {
-    icon: "solar:clock-circle-linear",
-    label: "Pending",
-    value: "1",
-  },
-  {
-    icon: "solar:check-circle-linear",
-    label: "Completed",
-    value: "12",
-  },
-];
 
 function getDoctorInitials(name) {
   const initials = String(name || "Doctor")
@@ -136,196 +18,48 @@ function getDoctorInitials(name) {
   return initials || "DR";
 }
 
-function getStoredDoctorProfile() {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(doctorSettingsKey));
+function formatProfileDate(value) {
+  if (!value) return "Not provided";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return String(value);
 
-    return {
-      ...defaultDoctorProfile,
-      displayName:
-        String(saved?.displayName || "").trim() ||
-        defaultDoctorProfile.displayName,
-    };
-  } catch {
-    return { ...defaultDoctorProfile };
-  }
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
-function getDoctorDisplayName(user, profile, fallbackName) {
-  const metadataName =
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    "";
-  const emailName = user?.email ? user.email.split("@")[0] : "";
-
-  return (
-    String(profile?.full_name || "").trim() ||
-    String(metadataName || "").trim() ||
-    String(fallbackName || "").trim() ||
-    String(emailName || "").trim() ||
-    defaultDoctorProfile.displayName
-  );
+function recordedValue(value, fallback = "Not provided") {
+  if (value === null || value === undefined) return fallback;
+  return String(value).trim() || fallback;
 }
 
-async function loadDoctorProfile() {
-  const fallbackProfile = getStoredDoctorProfile();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+function formatProfileLabel(value, fallback = "Not provided") {
+  const normalized = recordedValue(value, "");
+  if (!normalized) return fallback;
 
-  if (userError || !user) {
-    return fallbackProfile;
+  return normalized
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function getAccountStatusPresentation(value) {
+  const recordedStatus = recordedValue(value, "");
+
+  if (!recordedStatus) {
+    return { label: "Not provided", tone: "unknown" };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", user.id)
-    .maybeSingle();
+  const normalizedStatus = normalizeClinicAccountStatus(recordedStatus);
 
   return {
-    ...fallbackProfile,
-    displayName: getDoctorDisplayName(
-      user,
-      profile,
-      fallbackProfile.displayName
-    ),
-    roleLabel: "Doctor",
+    label:
+      normalizedStatus === clinicAccountStatuses.inactive
+        ? "Inactive"
+        : "Active",
+    tone: normalizedStatus,
   };
-}
-
-function ProfileDropdown({ setActivePage, profile }) {
-  const [open, setOpen] = useState(false);
-  const dropdownRef = useRef(null);
-  const navigate = useNavigate();
-  const [profilePhoto, setProfilePhoto] = useState(() => {
-    try {
-      return window.localStorage.getItem(doctorProfilePhotoKey) || "";
-    } catch {
-      return "";
-    }
-  });
-  const initials = getDoctorInitials(profile.displayName);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-    window.addEventListener("doctor-settings-updated", syncProfilePhoto);
-    window.addEventListener("storage", syncProfilePhoto);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-      window.removeEventListener("doctor-settings-updated", syncProfilePhoto);
-      window.removeEventListener("storage", syncProfilePhoto);
-    };
-  }, []);
-
-  const syncProfilePhoto = () => {
-    try {
-      setProfilePhoto(window.localStorage.getItem(doctorProfilePhotoKey) || "");
-    } catch {
-      setProfilePhoto("");
-    }
-  };
-
-  const handleViewProfile = () => {
-    setOpen(false);
-    setActivePage?.("profile");
-  };
-
-  const handleSettings = () => {
-    setOpen(false);
-    setActivePage?.("settings");
-  };
-
-  const handleLogout = async () => {
-    try {
-      setOpen(false);
-
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        console.error("Logout error:", error.message);
-        return;
-      }
-
-      navigate("/");
-    } catch (error) {
-      console.error("Unexpected logout error:", error);
-    }
-  };
-
-  return (
-    <div className="doctor-profile-menu-wrap" ref={dropdownRef}>
-      <button
-        className={`doctor-profile-top-card ${open ? "is-open" : ""}`}
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
-        aria-haspopup="menu"
-      >
-        <div className="doctor-profile-top-avatar">
-          {profilePhoto ? <img src={profilePhoto} alt="" /> : initials}
-        </div>
-
-        <div className="doctor-profile-top-info">
-          <strong>{profile.displayName}</strong>
-          <span>{profile.roleLabel}</span>
-        </div>
-
-        <Icon
-          className="doctor-profile-top-arrow"
-          icon="ri:arrow-drop-down-line"
-        />
-      </button>
-
-      {open && (
-        <div className="doctor-profile-dropdown-card" role="menu">
-          <div className="doctor-profile-dropdown-head">
-            <div className="doctor-profile-dropdown-avatar">
-              {profilePhoto ? <img src={profilePhoto} alt="" /> : initials}
-            </div>
-
-            <div>
-              <strong>{profile.displayName}</strong>
-              <span>{profile.roleLabel} Account</span>
-            </div>
-          </div>
-
-          <div className="doctor-profile-dropdown-nav">
-            <button type="button" onClick={handleViewProfile}>
-              <Icon icon="solar:user-rounded-linear" />
-              <span>View Profile</span>
-            </button>
-
-            <button type="button" onClick={handleSettings}>
-              <Icon icon="solar:settings-linear" />
-              <span>Settings</span>
-            </button>
-
-            <button type="button" className="logout" onClick={handleLogout}>
-              <Icon icon="solar:logout-2-linear" />
-              <span>Logout</span>
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function ProfileInfoRow({ item }) {
@@ -352,50 +86,108 @@ function ProfileDetailRow({ item }) {
   );
 }
 
-function DoctorViewProfileContent({ setActivePage }) {
+function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }) {
   const [activeTab, setActiveTab] = useState("personal");
-  const [profile, setProfile] = useState(getStoredDoctorProfile);
-  const [profilePhoto, setProfilePhoto] = useState(() => {
-    try {
-      return window.localStorage.getItem(doctorProfilePhotoKey) || "";
-    } catch {
-      return "";
-    }
-  });
+  const personal = doctorIdentity?.personalInformation;
+  const professional = doctorIdentity?.professionalInformation;
+  const identityProfile = doctorIdentity?.profile;
+  const accountStatus = getAccountStatusPresentation(
+    identityProfile?.account_status
+  );
+  const profile = {
+    id: identityProfile?.id || "",
+    displayName: recordedValue(doctorIdentity?.doctorDisplayName),
+    roleLabel: formatProfileLabel(identityProfile?.role || doctorIdentity?.role),
+  };
+  const contactDetails = [
+    {
+      icon: "solar:letter-linear",
+      label: "Email Address",
+      value: recordedValue(doctorIdentity?.doctorEmail),
+    },
+    {
+      icon: "solar:phone-linear",
+      label: "Phone Number",
+      value: recordedValue(doctorIdentity?.doctorContactNumber),
+    },
+    {
+      icon: "solar:map-point-linear",
+      label: "Practice Location",
+      value: recordedValue(
+        [professional?.clinic_hospital_name, professional?.clinic_address]
+          .filter(Boolean)
+          .join(", "),
+        "Not provided"
+      ),
+    },
+  ];
+  const personalInfo = [
+    {
+      icon: "solar:user-rounded-linear",
+      label: "Full Name",
+      value: recordedValue(doctorIdentity?.doctorDisplayName),
+    },
+    {
+      icon: "solar:woman-linear",
+      label: "Gender",
+      value: recordedValue(personal?.gender),
+    },
+    {
+      icon: "solar:calendar-linear",
+      label: "Birthdate",
+      value: formatProfileDate(personal?.birthdate),
+    },
+    {
+      icon: "solar:flag-linear",
+      label: "Nationality",
+      value: recordedValue(personal?.nationality),
+    },
+  ];
+  const personalContactInfo = [
+    {
+      icon: "solar:heart-linear",
+      label: "Civil Status",
+      value: recordedValue(personal?.civil_status),
+    },
+    {
+      icon: "solar:letter-linear",
+      label: "Email Address",
+      value: recordedValue(doctorIdentity?.doctorEmail),
+    },
+    {
+      icon: "solar:phone-linear",
+      label: "Contact Number",
+      value: recordedValue(doctorIdentity?.doctorContactNumber),
+    },
+  ];
+  const professionalInfo = [
+    { label: "Doctor ID", value: recordedValue(professional?.doctor_code) },
+    { label: "License Number", value: recordedValue(professional?.license_number) },
+    {
+      label: "Board Certification",
+      value: recordedValue(professional?.board_certification),
+    },
+    {
+      label: "Years of Experience",
+      value:
+        personal?.years_of_experience === null ||
+        personal?.years_of_experience === undefined
+          ? "Not provided"
+          : `${personal.years_of_experience} ${
+              Number(personal.years_of_experience) === 1 ? "Year" : "Years"
+            }`,
+    },
+    {
+      label: "Hospital/Clinic",
+      value: recordedValue(professional?.clinic_hospital_name),
+    },
+    { label: "Clinic Address", value: recordedValue(professional?.clinic_address) },
+  ];
   const professionalColumns = [
-    professionalInfo.slice(0, 4),
-    professionalInfo.slice(4),
+    professionalInfo.slice(0, 3),
+    professionalInfo.slice(3),
   ];
 
-  useEffect(() => {
-    let active = true;
-
-    const syncProfile = async () => {
-      try {
-        const [nextProfile] = await Promise.all([loadDoctorProfile()]);
-
-        if (active) {
-          setProfile(nextProfile);
-          setProfilePhoto(window.localStorage.getItem(doctorProfilePhotoKey) || "");
-        }
-      } catch {
-        if (active) {
-          setProfilePhoto("");
-        }
-      }
-    };
-
-    syncProfile();
-
-    window.addEventListener("doctor-settings-updated", syncProfile);
-    window.addEventListener("storage", syncProfile);
-
-    return () => {
-      active = false;
-      window.removeEventListener("doctor-settings-updated", syncProfile);
-      window.removeEventListener("storage", syncProfile);
-    };
-  }, []);
   const initials = getDoctorInitials(profile.displayName);
 
   return (
@@ -406,17 +198,33 @@ function DoctorViewProfileContent({ setActivePage }) {
           <p>View doctor account information and professional details.</p>
         </div>
 
-        <ProfileDropdown setActivePage={setActivePage} profile={profile} />
+        {headerAction ?? null}
       </header>
 
+      {doctorIdentity?.loading ? (
+        <p className="doctor-profile-load-state" role="status">
+          Loading Doctor profile...
+        </p>
+      ) : null}
+
+      {doctorIdentity?.error ? (
+        <p className="doctor-profile-load-state is-error" role="alert">
+          {doctorIdentity.error.message}
+        </p>
+      ) : null}
+
+      {!doctorIdentity?.loading && !doctorIdentity?.error && !profile.id ? (
+        <p className="doctor-profile-load-state" role="status">
+          Doctor profile information is unavailable.
+        </p>
+      ) : null}
+
+      {!doctorIdentity?.loading && !doctorIdentity?.error && profile.id ? (
+        <>
       <section className="doctor-profile-hero-card">
         <div className="doctor-profile-main-photo-wrap">
           <div className="doctor-profile-main-photo">
-            {profilePhoto ? (
-              <img src={profilePhoto} alt={profile.displayName} />
-            ) : (
-              initials
-            )}
+            {initials}
           </div>
         </div>
 
@@ -424,14 +232,16 @@ function DoctorViewProfileContent({ setActivePage }) {
           <div className="doctor-profile-name-line">
             <h3>{profile.displayName}</h3>
 
-            <span className="doctor-profile-status">
+            <span className={`doctor-profile-status is-${accountStatus.tone}`}>
               <span />
-              Active
+              {accountStatus.label}
             </span>
           </div>
 
-          <p>OB-GYN Specialist</p>
-          <span>License No.: 1234567</span>
+          <p>{profile.roleLabel}</p>
+          <span>
+            License No.: {recordedValue(professional?.license_number)}
+          </span>
         </div>
 
         <div className="doctor-profile-contact-list">
@@ -483,7 +293,7 @@ function DoctorViewProfileContent({ setActivePage }) {
               </div>
 
               <div className="doctor-profile-info-column">
-                {personalProfessionalInfo.map((item) => (
+                {personalContactInfo.map((item) => (
                   <ProfileInfoRow item={item} key={item.label} />
                 ))}
               </div>
@@ -499,35 +309,8 @@ function DoctorViewProfileContent({ setActivePage }) {
           )}
         </div>
       </section>
-
-      <section className="doctor-profile-summary">
-        <div className="doctor-profile-summary-header">
-          <div>
-            <Icon icon="solar:calendar-date-linear" />
-            <h3>Appointment Summary</h3>
-          </div>
-
-          <button type="button">
-            This Month
-            <Icon icon="ri:arrow-drop-down-line" />
-          </button>
-        </div>
-
-        <div className="doctor-profile-summary-grid">
-          {appointmentStats.map((stat) => (
-            <article className="doctor-profile-summary-card" key={stat.label}>
-              <div className="doctor-profile-summary-icon">
-                <Icon icon={stat.icon} />
-              </div>
-
-              <div>
-                <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+        </>
+      ) : null}
     </section>
   );
 }

@@ -2,84 +2,44 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "../../lib/supabaseClient";
+import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
+import {
+  availabilityDayNames,
+  getAvailabilityDayIndex,
+} from "../../lib/availabilitySchedule";
 import "../../styles/doctor-settings.css";
-
-const doctorSettingsKey = "doctor_dashboard_settings";
 
 const DOCTOR_PERSONAL_INFORMATION_TABLE =
   "doctor_personal_information";
 const DOCTOR_PROFESSIONAL_INFORMATION_TABLE =
   "doctor_professional_information";
 
-const dayNames = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
 const defaultDoctorSettings = {
-  displayName: "Kempee Vergara",
-  email: "kempoyvergara@gmail.com",
+  displayName: "",
+  email: "",
   role: "doctor",
-  gender: "Female",
-  birthdate: "January 10, 1990",
-  nationality: "Filipino",
-  civilStatus: "Married",
-  yearsExperience: "8 Years",
-  specialization: "OB-GYN Specialist",
-  doctorId: "DOC-2023-001",
-  licenseNumber: "1234567",
-  boardCertification: "Obstetrics and Gynecology",
-  clinicName: "La Paz Health Center",
-  clinicAddress: "La Paz, Iloilo City, Philippines 5000",
-  contactNumber: "0912 345 6789",
+  gender: "",
+  birthdate: "",
+  nationality: "",
+  civilStatus: "",
+  yearsExperience: "",
+  doctorId: "",
+  licenseNumber: "",
+  boardCertification: "",
+  clinicName: "",
+  clinicAddress: "",
+  contactNumber: "",
   accountStatus: "Active",
   emailVerification: "Verified",
   lastLogin: "Not available",
   avatarUrl: "",
-  twoFactorAuth: false,
-  loginNotifications: true,
-  availability: [
-    { day: "Monday", time: "8:00 AM - 12:00 PM", status: "Available" },
-    { day: "Tuesday", time: "8:00 AM - 12:00 PM", status: "Available" },
-    { day: "Wednesday", time: "8:00 AM - 12:00 PM", status: "Available" },
-    { day: "Thursday", time: "8:00 AM - 12:00 PM", status: "Available" },
-    { day: "Friday", time: "8:00 AM - 12:00 PM", status: "Available" },
-    { day: "Saturday", time: "No appointments scheduled", status: "Closed" },
-    { day: "Sunday", time: "No appointments scheduled", status: "Closed" },
-  ],
-  defaultDuration: "60",
-  appointmentNotifications: true,
-  reminderNotifications: true,
-  googleCalendar: false,
-  compactDashboard: true,
+  availability: [],
 };
 
-function getStoredDoctorSettings() {
-  if (typeof window === "undefined") {
-    return { ...defaultDoctorSettings };
-  }
-
-  try {
-    const storedSettings = JSON.parse(
-      window.localStorage.getItem(doctorSettingsKey)
-    );
-
-    return {
-      ...defaultDoctorSettings,
-      ...(storedSettings ?? {}),
-      availability: Array.isArray(storedSettings?.availability)
-        ? storedSettings.availability
-        : defaultDoctorSettings.availability,
-    };
-  } catch {
-    return { ...defaultDoctorSettings };
-  }
-}
+const availabilityDayOptions = [
+  ...availabilityDayNames.slice(1),
+  availabilityDayNames[0],
+];
 
 function formatRoleLabel(role) {
   const normalizedRole = String(role || "doctor").trim().toLowerCase();
@@ -248,37 +208,40 @@ function parseScheduleTimeRange(value) {
 }
 
 function mapAvailabilityRows(rows) {
-  const rowsByDay = new Map(
-    (Array.isArray(rows) ? rows : []).map((row) => [
-      Number(row.day_of_week),
-      row,
-    ])
-  );
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      const day = availabilityDayNames[Number(row.day_of_week)];
 
-  return defaultDoctorSettings.availability.map((defaultItem) => {
-    const dayOfWeek = dayNames.indexOf(defaultItem.day);
-    const row = rowsByDay.get(dayOfWeek);
+      if (!day) {
+        return null;
+      }
 
-    if (!row) {
-      return { ...defaultItem };
-    }
+      if (!row.is_available) {
+        return {
+          day,
+          time: "No appointments scheduled",
+          status: "Closed",
+        };
+      }
 
-    if (!row.is_available) {
+      const startTime = formatDatabaseTime(row.start_time);
+      const endTime = formatDatabaseTime(row.end_time);
+
       return {
-        day: defaultItem.day,
-        time: "No appointments scheduled",
-        status: "Closed",
+        day,
+        time:
+          startTime && endTime
+            ? `${startTime} - ${endTime}`
+            : "Time not configured",
+        status: "Available",
       };
-    }
-
-    return {
-      day: defaultItem.day,
-      time: `${formatDatabaseTime(row.start_time)} - ${formatDatabaseTime(
-        row.end_time
-      )}`,
-      status: "Available",
-    };
-  });
+    })
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        availabilityDayOptions.indexOf(left.day) -
+        availabilityDayOptions.indexOf(right.day)
+    );
 }
 
 function formatLastLogin(value) {
@@ -299,6 +262,87 @@ function formatLastLogin(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+
+function createDoctorSettingsSnapshot(
+  doctorIdentity,
+  availability = []
+) {
+  const authUser = doctorIdentity?.authUser || {};
+  const profile = doctorIdentity?.profile || {};
+  const personal = doctorIdentity?.personalInformation || {};
+  const professional = doctorIdentity?.professionalInformation || {};
+
+  return {
+    ...defaultDoctorSettings,
+
+    displayName:
+      personal.full_name ||
+      profile.full_name ||
+      doctorIdentity?.doctorDisplayName ||
+      "",
+
+    email:
+      authUser.email ||
+      professional.email_address ||
+      profile.email ||
+      "",
+
+    role: profile.role || doctorIdentity?.role || "doctor",
+
+    gender: personal.gender || "",
+
+    birthdate:
+      formatDateForDisplay(personal.birthdate) || "",
+
+    nationality: personal.nationality || "",
+
+    civilStatus: personal.civil_status || "",
+
+    yearsExperience:
+      formatYearsExperience(personal.years_of_experience) || "",
+
+    doctorId: professional.doctor_code || "",
+
+    licenseNumber: professional.license_number || "",
+
+    boardCertification: professional.board_certification || "",
+
+    clinicName: professional.clinic_hospital_name || "",
+
+    clinicAddress: professional.clinic_address || "",
+
+    contactNumber:
+      professional.contact_number ||
+      profile.contact_number ||
+      doctorIdentity?.doctorContactNumber ||
+      "",
+
+    accountStatus:
+      profile.account_status ||
+      defaultDoctorSettings.accountStatus,
+
+    avatarUrl:
+      profile.avatar_url ||
+      "",
+
+    emailVerification:
+      authUser.email_confirmed_at
+        ? "Verified"
+        : authUser.id
+          ? "Pending"
+          : defaultDoctorSettings.emailVerification,
+
+    lastLogin:
+      authUser.id
+        ? formatLastLogin(authUser.last_sign_in_at)
+        : defaultDoctorSettings.lastLogin,
+
+    availability: Array.isArray(availability)
+      ? availability
+      : [],
+  };
 }
 
 function DoctorIcon({ name }) {
@@ -750,29 +794,20 @@ function nullableText(value) {
 }
 
 async function getAuthenticatedDoctorUser() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error) {
-    throw error;
-  }
-
-  if (!user) {
-    throw new Error(
-      "No authenticated doctor account was found. Please log in again."
-    );
-  }
-
-  return user;
+  const authenticatedDoctor = await loadAuthenticatedDoctor();
+  return authenticatedDoctor.authUser;
 }
 
 async function saveDoctorInformationRecords(
   nextSettings,
   suppliedUser = null
 ) {
-  const user = suppliedUser || (await getAuthenticatedDoctorUser());
+  const authenticatedDoctor = await loadAuthenticatedDoctor();
+  const user = suppliedUser || authenticatedDoctor.authUser;
+
+  if (user.id !== authenticatedDoctor.authUser.id) {
+    throw new Error("The supplied account does not match the authenticated Doctor.");
+  }
 
   const birthdateText = String(
     nextSettings.birthdate ?? ""
@@ -803,7 +838,7 @@ async function saveDoctorInformationRecords(
     auth_user_id: user.id,
     full_name:
       nullableText(nextSettings.displayName) ||
-      defaultDoctorSettings.displayName,
+      authenticatedDoctor.doctorDisplayName,
     birthdate: parsedBirthdate,
     civil_status: nullableText(nextSettings.civilStatus),
     gender: nullableText(nextSettings.gender),
@@ -876,14 +911,16 @@ async function saveDoctorInformationRecords(
   return user;
 }
 
-function DoctorSettingsContent({ headerAction = null }) {
+function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const navigate = useNavigate();
   const [activePanel, setActivePanel] = React.useState("profile");
   const [editingProfileCards, setEditingProfileCards] = React.useState({
     personal: false,
     professional: false,
   });
-  const [settings, setSettings] = React.useState(getStoredDoctorSettings);
+  const [settings, setSettings] = React.useState(() =>
+    createDoctorSettingsSnapshot(doctorIdentity, [])
+  );
   const [message, setMessage] = React.useState("");
   const [passwordForm, setPasswordForm] = React.useState({
     currentPassword: "",
@@ -898,24 +935,61 @@ function DoctorSettingsContent({ headerAction = null }) {
   const [scheduleDraft, setScheduleDraft] = React.useState(null);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [availabilityError, setAvailabilityError] = React.useState("");
   const [changeEmailState, setChangeEmailState] = React.useState(
     CHANGE_EMAIL_INITIAL_STATE
   );
   const [changePasswordOtp, setChangePasswordOtp] = React.useState(
     CHANGE_PASSWORD_INITIAL_STATE
   );
+  const identityUnavailable = Boolean(
+    doctorIdentity?.loading || doctorIdentity?.error
+  );
 
-  const saveSettingsRecord = React.useCallback((nextSettings) => {
-    if (typeof window === "undefined") {
+  const notifyDoctorProfileUpdated = React.useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("doctor-settings-updated"));
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (
+      doctorIdentity?.loading ||
+      doctorIdentity?.error ||
+      !doctorIdentity?.authUser?.id
+    ) {
       return;
     }
 
-    window.localStorage.setItem(
-      doctorSettingsKey,
-      JSON.stringify(nextSettings)
-    );
-    window.dispatchEvent(new Event("doctor-settings-updated"));
-  }, []);
+    setSettings((current) => {
+      const alreadyHasResolvedProfileData = Boolean(
+        current.displayName ||
+        current.email ||
+        current.doctorId ||
+        current.licenseNumber ||
+        current.boardCertification ||
+        current.clinicName ||
+        current.contactNumber
+      );
+
+      if (alreadyHasResolvedProfileData) {
+        return current;
+      }
+
+      return createDoctorSettingsSnapshot(
+        doctorIdentity,
+        current.availability
+      );
+    });
+  }, [
+    doctorIdentity?.loading,
+    doctorIdentity?.error,
+    doctorIdentity?.authUser?.id,
+    doctorIdentity?.doctorDisplayName,
+    doctorIdentity?.profile,
+    doctorIdentity?.personalInformation,
+    doctorIdentity?.professionalInformation,
+  ]);
 
   React.useEffect(() => {
     let isCancelled = false;
@@ -923,246 +997,68 @@ function DoctorSettingsContent({ headerAction = null }) {
     const loadSettings = async () => {
       setIsLoading(true);
       setMessage("");
+      setAvailabilityError("");
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      let authenticatedDoctor;
+
+      try {
+        authenticatedDoctor = await loadAuthenticatedDoctor();
+      } catch (identityError) {
+        if (!isCancelled) {
+          setIsLoading(false);
+          setMessage(identityError.message);
+        }
+        return;
+      }
 
       if (isCancelled) {
         return;
       }
 
-      if (userError || !user) {
-        setIsLoading(false);
-        setMessage(
-          userError?.message ||
-            "No authenticated account was found. Please log in again."
-        );
-        return;
-      }
+      /*
+       * Show the already-resolved Doctor profile immediately.
+       *
+       * Previously the page waited for the availability query before
+       * populating Settings, so every empty field rendered as "Not set"
+       * for a moment. Applying the identity first keeps Profile and
+       * Account information stable while availability loads.
+       */
+      setSettings((current) =>
+        createDoctorSettingsSnapshot(
+          authenticatedDoctor,
+          current.availability
+        )
+      );
 
-      const [
-        profileResult,
-        personalResult,
-        professionalResult,
-        settingsResult,
-        availabilityResult,
-      ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, full_name, email, role")
-          .eq("id", user.id)
-          .maybeSingle(),
+      const user = authenticatedDoctor.authUser;
 
-        supabase
-          .from(DOCTOR_PERSONAL_INFORMATION_TABLE)
-          .select(
-            `
-            full_name,
-            birthdate,
-            civil_status,
-            gender,
-            nationality,
-            years_of_experience
-            `
-          )
-          .eq("auth_user_id", user.id)
-          .maybeSingle(),
-
-        supabase
-          .from(DOCTOR_PROFESSIONAL_INFORMATION_TABLE)
-          .select(
-            `
-            doctor_code,
-            board_certification,
-            license_number,
-            email_address,
-            clinic_hospital_name,
-            contact_number,
-            clinic_address
-            `
-          )
-          .eq("auth_user_id", user.id)
-          .maybeSingle(),
-
-        supabase
-          .from("user_settings")
-          .select("*")
-          .eq("profile_id", user.id)
-          .maybeSingle(),
-
-        supabase
-          .from("user_availability")
-          .select(
-            "day_of_week, start_time, end_time, is_available"
-          )
-          .eq("profile_id", user.id)
-          .order("day_of_week", { ascending: true }),
-      ]);
+      const availabilityResult = await supabase
+        .from("user_availability")
+        .select(
+          "day_of_week, start_time, end_time, is_available"
+        )
+        .eq("profile_id", user.id)
+        .order("day_of_week", { ascending: true });
 
       if (isCancelled) {
         return;
       }
 
-      const cachedSettings = getStoredDoctorSettings();
-      const profile = profileResult.data || {};
-      const personal = personalResult.data || {};
-      const professional = professionalResult.data || {};
-      const preferences = settingsResult.data || {};
+      const loadedAvailability = mapAvailabilityRows(
+        availabilityResult.data
+      );
 
-      const loadedAvailability =
-        Array.isArray(availabilityResult.data) &&
-        availabilityResult.data.length > 0
-          ? mapAvailabilityRows(availabilityResult.data)
-          : cachedSettings.availability;
+      setSettings(
+        createDoctorSettingsSnapshot(
+          authenticatedDoctor,
+          loadedAvailability
+        )
+      );
 
-      const nextSettings = {
-        ...cachedSettings,
-
-        displayName:
-          personal.full_name ||
-          profile.full_name ||
-          cachedSettings.displayName ||
-          defaultDoctorSettings.displayName,
-
-        email:
-          user.email ||
-          professional.email_address ||
-          profile.email ||
-          cachedSettings.email ||
-          defaultDoctorSettings.email,
-
-        role:
-          profile.role ||
-          cachedSettings.role ||
-          defaultDoctorSettings.role,
-
-        gender:
-          personal.gender ||
-          cachedSettings.gender ||
-          defaultDoctorSettings.gender,
-
-        birthdate:
-          formatDateForDisplay(personal.birthdate) ||
-          cachedSettings.birthdate ||
-          defaultDoctorSettings.birthdate,
-
-        nationality:
-          personal.nationality ||
-          cachedSettings.nationality ||
-          defaultDoctorSettings.nationality,
-
-        civilStatus:
-          personal.civil_status ||
-          cachedSettings.civilStatus ||
-          defaultDoctorSettings.civilStatus,
-
-        yearsExperience:
-          formatYearsExperience(personal.years_of_experience) ||
-          cachedSettings.yearsExperience ||
-          defaultDoctorSettings.yearsExperience,
-
-        specialization:
-          cachedSettings.specialization ||
-          defaultDoctorSettings.specialization,
-
-        doctorId:
-          professional.doctor_code ||
-          cachedSettings.doctorId ||
-          defaultDoctorSettings.doctorId,
-
-        licenseNumber:
-          professional.license_number ||
-          cachedSettings.licenseNumber ||
-          defaultDoctorSettings.licenseNumber,
-
-        boardCertification:
-          professional.board_certification ||
-          cachedSettings.boardCertification ||
-          defaultDoctorSettings.boardCertification,
-
-        clinicName:
-          professional.clinic_hospital_name ||
-          cachedSettings.clinicName ||
-          defaultDoctorSettings.clinicName,
-
-        clinicAddress:
-          professional.clinic_address ||
-          cachedSettings.clinicAddress ||
-          defaultDoctorSettings.clinicAddress,
-
-        contactNumber:
-          professional.contact_number ||
-          cachedSettings.contactNumber ||
-          defaultDoctorSettings.contactNumber,
-
-        accountStatus:
-          profile.account_status ||
-          cachedSettings.accountStatus ||
-          defaultDoctorSettings.accountStatus,
-
-        avatarUrl:
-          profile.avatar_url ||
-          cachedSettings.avatarUrl ||
-          "",
-
-        emailVerification: user.email_confirmed_at
-          ? "Verified"
-          : "Pending",
-
-        lastLogin: formatLastLogin(user.last_sign_in_at),
-
-        twoFactorAuth:
-          preferences.two_factor_auth ??
-          cachedSettings.twoFactorAuth ??
-          defaultDoctorSettings.twoFactorAuth,
-
-        loginNotifications:
-          preferences.login_notifications ??
-          cachedSettings.loginNotifications ??
-          defaultDoctorSettings.loginNotifications,
-
-        appointmentNotifications:
-          preferences.appointment_notifications ??
-          cachedSettings.appointmentNotifications ??
-          defaultDoctorSettings.appointmentNotifications,
-
-        reminderNotifications:
-          preferences.reminder_notifications ??
-          cachedSettings.reminderNotifications ??
-          defaultDoctorSettings.reminderNotifications,
-
-        googleCalendar:
-          preferences.google_calendar ??
-          cachedSettings.googleCalendar ??
-          defaultDoctorSettings.googleCalendar,
-
-        compactDashboard:
-          preferences.compact_dashboard ??
-          cachedSettings.compactDashboard ??
-          defaultDoctorSettings.compactDashboard,
-
-        defaultDuration: String(
-          preferences.default_appointment_duration ??
-            cachedSettings.defaultDuration ??
-            defaultDoctorSettings.defaultDuration
-        ),
-
-        availability: loadedAvailability,
-      };
-
-      setSettings(nextSettings);
-      saveSettingsRecord(nextSettings);
       setIsLoading(false);
+      setAvailabilityError(availabilityResult.error?.message || "");
 
-      const secondaryErrors = [
-        profileResult.error,
-        personalResult.error,
-        professionalResult.error,
-        settingsResult.error,
-        availabilityResult.error,
-      ].filter(Boolean);
+      const secondaryErrors = [availabilityResult.error].filter(Boolean);
 
       if (secondaryErrors.length > 0) {
         setMessage(
@@ -1178,7 +1074,7 @@ function DoctorSettingsContent({ headerAction = null }) {
     return () => {
       isCancelled = true;
     };
-  }, [saveSettingsRecord]);
+  }, []);
 
   React.useEffect(() => {
     if (!changeEmailState.isOpen) {
@@ -1283,7 +1179,7 @@ function DoctorSettingsContent({ headerAction = null }) {
         }
 
         setSettings(nextSettings);
-        saveSettingsRecord(nextSettings);
+        notifyDoctorProfileUpdated();
         setMessage("Email changed successfully. Please log in again.");
         redirectToLoginAfterEmailChange();
       }, 0);
@@ -1294,7 +1190,7 @@ function DoctorSettingsContent({ headerAction = null }) {
     changeEmailState.isOpen,
     changeEmailState.pendingEmail,
     redirectToLoginAfterEmailChange,
-    saveSettingsRecord,
+    notifyDoctorProfileUpdated,
     settings,
   ]);
 
@@ -1319,47 +1215,6 @@ function DoctorSettingsContent({ headerAction = null }) {
     } catch (error) {
       return error;
     }
-  };
-
-  const syncUserSettingsRecord = async (nextSettings) => {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError) {
-      return userError;
-    }
-
-    if (!user) {
-      return new Error("No authenticated account was found.");
-    }
-
-    const userSettingsPayload = {
-      profile_id: user.id,
-      two_factor_auth: Boolean(nextSettings.twoFactorAuth),
-      login_notifications: Boolean(
-        nextSettings.loginNotifications
-      ),
-      appointment_notifications: Boolean(
-        nextSettings.appointmentNotifications
-      ),
-      reminder_notifications: Boolean(
-        nextSettings.reminderNotifications
-      ),
-      google_calendar: Boolean(nextSettings.googleCalendar),
-      compact_dashboard: Boolean(nextSettings.compactDashboard),
-      default_appointment_duration:
-        Number(nextSettings.defaultDuration) || 60,
-    };
-
-    const { error } = await supabase
-      .from("user_settings")
-      .upsert(userSettingsPayload, {
-        onConflict: "profile_id",
-      });
-
-    return error || null;
   };
 
   const saveProfileSettings = async (event) => {
@@ -1391,7 +1246,8 @@ function DoctorSettingsContent({ headerAction = null }) {
       ...settings,
       displayName:
         settings.displayName.trim() ||
-        defaultDoctorSettings.displayName,
+        doctorIdentity?.doctorDisplayName ||
+        "Doctor",
       email:
         normalizeEmail(user.email) ||
         defaultDoctorSettings.email,
@@ -1411,7 +1267,7 @@ function DoctorSettingsContent({ headerAction = null }) {
     }
 
     setSettings(nextSettings);
-    saveSettingsRecord(nextSettings);
+    notifyDoctorProfileUpdated();
     setEditingProfileCards({
       personal: false,
       professional: false,
@@ -1466,7 +1322,7 @@ function DoctorSettingsContent({ headerAction = null }) {
     }
 
     setSettings(nextSettings);
-    saveSettingsRecord(nextSettings);
+    notifyDoctorProfileUpdated();
     setMessage(
       "Account information and Doctor contact details saved to Supabase."
     );
@@ -1685,7 +1541,7 @@ function DoctorSettingsContent({ headerAction = null }) {
       }
 
       setSettings(nextSettings);
-      saveSettingsRecord(nextSettings);
+      notifyDoctorProfileUpdated();
       setMessage("Email changed successfully. Please log in again.");
       setChangeEmailState((current) => ({
         ...current,
@@ -2005,30 +1861,18 @@ function DoctorSettingsContent({ headerAction = null }) {
     }
   };
 
-  const updateSecurityOption = async (field, value) => {
-    const nextSettings = {
-      ...settings,
-      [field]: value,
-    };
+  const createScheduleDraft = (day = "Monday") => ({
+    day,
+    time: "",
+    status: "Available",
+  });
 
-    setSettings(nextSettings);
-    saveSettingsRecord(nextSettings);
-    setIsSaving(true);
-    setMessage("");
-
-    const settingsError =
-      await syncUserSettingsRecord(nextSettings);
-
-    setIsSaving(false);
-    setMessage(
-      settingsError
-        ? `Unable to save security option: ${settingsError.message}`
-        : "Security option saved to Supabase."
+  const openScheduleEditor = (availabilityItem = null) => {
+    setScheduleDraft(
+      availabilityItem
+        ? { ...availabilityItem }
+        : createScheduleDraft()
     );
-  };
-
-  const openScheduleEditor = (availabilityItem) => {
-    setScheduleDraft({ ...availabilityItem });
     setMessage("");
   };
 
@@ -2053,7 +1897,7 @@ function DoctorSettingsContent({ headerAction = null }) {
       return;
     }
 
-    const dayOfWeek = dayNames.indexOf(scheduleDraft.day);
+    const dayOfWeek = getAvailabilityDayIndex(scheduleDraft.day);
 
     if (dayOfWeek < 0) {
       setMessage("Select a valid day.");
@@ -2120,11 +1964,22 @@ function DoctorSettingsContent({ headerAction = null }) {
           status: "Closed",
         };
 
-    const nextAvailability = availability.map(
+    const existingSchedule = availability.some(
       (availabilityItem) =>
         availabilityItem.day === savedScheduleItem.day
-          ? savedScheduleItem
-          : availabilityItem
+    );
+    const nextAvailability = (
+      existingSchedule
+        ? availability.map((availabilityItem) =>
+            availabilityItem.day === savedScheduleItem.day
+              ? savedScheduleItem
+              : availabilityItem
+          )
+        : [...availability, savedScheduleItem]
+    ).sort(
+      (left, right) =>
+        availabilityDayOptions.indexOf(left.day) -
+        availabilityDayOptions.indexOf(right.day)
     );
 
     const nextSettings = {
@@ -2133,20 +1988,15 @@ function DoctorSettingsContent({ headerAction = null }) {
     };
 
     setSettings(nextSettings);
-    saveSettingsRecord(nextSettings);
     setScheduleDraft(null);
     setMessage("Schedule availability saved to Supabase.");
   };
 
   const activeSectionLabel = settingsSections.find((section) => section.id === activePanel)?.label || "Profile";
   const breadcrumbLabel = activePanel === "profile" ? activeSectionLabel : "Account";
-  const storedAvailability = Array.isArray(settings.availability)
+  const availability = Array.isArray(settings.availability)
     ? settings.availability
-    : defaultDoctorSettings.availability;
-  const availability = defaultDoctorSettings.availability.map((defaultAvailability) => {
-    const savedAvailability = storedAvailability.find((item) => item.day === defaultAvailability.day);
-    return savedAvailability ? { ...defaultAvailability, ...savedAvailability } : defaultAvailability;
-  });
+    : [];
   const personalProfileFields = [
     { label: "Full Name", field: "displayName", value: settings.displayName },
     { label: "Birthdate", field: "birthdate", value: settings.birthdate },
@@ -2212,7 +2062,8 @@ function DoctorSettingsContent({ headerAction = null }) {
       ...settings,
       displayName:
         settings.displayName.trim() ||
-        defaultDoctorSettings.displayName,
+        doctorIdentity?.doctorDisplayName ||
+        "Doctor",
       email:
         normalizeEmail(user.email) ||
         defaultDoctorSettings.email,
@@ -2232,7 +2083,7 @@ function DoctorSettingsContent({ headerAction = null }) {
     }
 
     setSettings(nextSettings);
-    saveSettingsRecord(nextSettings);
+    notifyDoctorProfileUpdated();
     setEditingProfileCards((current) => ({
       ...current,
       [card]: false,
@@ -2260,7 +2111,7 @@ function DoctorSettingsContent({ headerAction = null }) {
           />
         )
       ) : (
-        <span>{field.value || "Not set"}</span>
+        <span>{field.value || (isLoading ? "Loading..." : "Not set")}</span>
       )}
     </label>
   );
@@ -2311,7 +2162,7 @@ function DoctorSettingsContent({ headerAction = null }) {
                     <button
                       type="button"
                       onClick={() => toggleProfileCardEdit("personal")}
-                      disabled={isSaving || isLoading}
+                      disabled={isSaving || isLoading || identityUnavailable}
                     >
                       <DoctorIcon name="pencil" />
                       <span>
@@ -2334,7 +2185,7 @@ function DoctorSettingsContent({ headerAction = null }) {
                     <button
                       type="button"
                       onClick={() => toggleProfileCardEdit("professional")}
-                      disabled={isSaving || isLoading}
+                      disabled={isSaving || isLoading || identityUnavailable}
                     >
                       <DoctorIcon name="pencil" />
                       <span>
@@ -2354,7 +2205,7 @@ function DoctorSettingsContent({ headerAction = null }) {
 
               <div className="doctor-settings-footer">
                 {message ? <p>{message}</p> : <span />}
-                <button type="submit" disabled={isSaving || isLoading}>{isSaving ? "Saving..." : "Save Changes"}</button>
+                <button type="submit" disabled={isSaving || isLoading || identityUnavailable}>{isSaving ? "Saving..." : "Save Changes"}</button>
               </div>
             </form>
           ) : null}
@@ -2382,8 +2233,8 @@ function DoctorSettingsContent({ headerAction = null }) {
                   </label>
                 </div>
                 <div className="doctor-settings-inline-actions">
-                  <button type="submit" disabled={isSaving || isLoading}>{isSaving ? "Saving..." : "Save Changes"}</button>
-                  <button type="button" onClick={changeEmail} disabled={isSaving || isLoading}>Change Email</button>
+                  <button type="submit" disabled={isSaving || isLoading || identityUnavailable}>{isSaving ? "Saving..." : "Save Changes"}</button>
+                  <button type="button" onClick={changeEmail} disabled={isSaving || isLoading || identityUnavailable}>Change Email</button>
                 </div>
               </section>
 
@@ -2435,7 +2286,7 @@ function DoctorSettingsContent({ headerAction = null }) {
                 </div>
               </header>
 
-              <div className="doctor-settings-security-grid">
+              <div className="doctor-settings-security-grid doctor-settings-security-grid--password-only">
                 <section className="doctor-settings-security-card doctor-settings-password-card">
                   <h3><DoctorIcon name="key" /> <span>Change Password</span></h3>
                   {["currentPassword", "newPassword", "confirmPassword"].map((field) => (
@@ -2471,35 +2322,9 @@ function DoctorSettingsContent({ headerAction = null }) {
                     <DoctorIcon name="info" />
                     <span>Password must be at least 8 characters with a combination of letters, numbers and symbols.</span>
                   </p>
-                  <button className="doctor-settings-save-password" type="submit" disabled={isSaving || isLoading || changePasswordOtp.isOpen}>
+                  <button className="doctor-settings-save-password" type="submit" disabled={isSaving || isLoading || identityUnavailable || changePasswordOtp.isOpen}>
                     {isSaving ? "Verifying..." : "Save Changes"}
                   </button>
-                </section>
-
-                <section className="doctor-settings-security-card doctor-settings-options-card">
-                  <h3><DoctorIcon name="shield" /> <span>Security Options</span></h3>
-                  <label className="doctor-settings-security-option">
-                    <span>
-                      <strong>Two-Factor Authentication (2FA)</strong>
-                      <small>Add an extra layer of security to your account by enabling two-factor authentication.</small>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(settings.twoFactorAuth)}
-                      onChange={(event) => updateSecurityOption("twoFactorAuth", event.target.checked)}
-                    />
-                  </label>
-                  <label className="doctor-settings-security-option">
-                    <span>
-                      <strong>Login Notifications</strong>
-                      <small>Get an email whenever a new device logs in to your account.</small>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(settings.loginNotifications)}
-                      onChange={(event) => updateSecurityOption("loginNotifications", event.target.checked)}
-                    />
-                  </label>
                 </section>
               </div>
 
@@ -2515,9 +2340,13 @@ function DoctorSettingsContent({ headerAction = null }) {
                   <h2>Schedule Availability</h2>
                   <p>Update your schedule availability</p>
                 </div>
-                <button type="button" onClick={() => openScheduleEditor(availability[0])}>
+                <button
+                  type="button"
+                  onClick={() => openScheduleEditor(availability[0] || null)}
+                  disabled={isLoading || Boolean(availabilityError) || isSaving}
+                >
                   <DoctorIcon name="calendarEdit" />
-                  <span>Edit Schedule</span>
+                  <span>{availability.length > 0 ? "Edit Schedule" : "Configure Schedule"}</span>
                 </button>
               </header>
 
@@ -2528,27 +2357,53 @@ function DoctorSettingsContent({ headerAction = null }) {
                   <span>Time</span>
                   <span>Status</span>
                 </div>
-                {availability.map((item) => (
-                  <button
-                    type="button"
-                    className={item.status === "Closed" ? "is-closed" : ""}
-                    key={item.day}
-                    onClick={() => openScheduleEditor(item)}
-                  >
-                    <span className="doctor-settings-schedule-day">
-                      <i />
-                      {item.day}
-                    </span>
-                    <span className="doctor-settings-schedule-time">
-                      <DoctorIcon name={item.status === "Closed" ? "noEntry" : "clock"} />
-                      {item.status === "Closed" ? "No appointments scheduled" : item.time}
-                    </span>
-                    <mark className={item.status === "Closed" ? "is-closed" : ""}>
-                      {item.status === "Closed" ? null : <DoctorIcon name="checkCircle" />}
-                      <span>{item.status.toUpperCase()}</span>
-                    </mark>
-                  </button>
-                ))}
+                {isLoading ? (
+                  <div className="doctor-settings-schedule-empty">
+                    <DoctorIcon name="clock" />
+                    <div>
+                      <strong>Loading availability...</strong>
+                      <p>Retrieving the saved schedule from Supabase.</p>
+                    </div>
+                  </div>
+                ) : availabilityError ? (
+                  <div className="doctor-settings-schedule-empty">
+                    <DoctorIcon name="info" />
+                    <div>
+                      <strong>Availability could not be loaded</strong>
+                      <p>Refresh the page to try loading the saved schedule again.</p>
+                    </div>
+                  </div>
+                ) : availability.length > 0 ? (
+                  availability.map((item) => (
+                    <button
+                      type="button"
+                      className={item.status === "Closed" ? "is-closed" : ""}
+                      key={item.day}
+                      onClick={() => openScheduleEditor(item)}
+                    >
+                      <span className="doctor-settings-schedule-day">
+                        <i />
+                        {item.day}
+                      </span>
+                      <span className="doctor-settings-schedule-time">
+                        <DoctorIcon name={item.status === "Closed" ? "noEntry" : "clock"} />
+                        {item.status === "Closed" ? "No appointments scheduled" : item.time}
+                      </span>
+                      <mark className={item.status === "Closed" ? "is-closed" : ""}>
+                        {item.status === "Closed" ? null : <DoctorIcon name="checkCircle" />}
+                        <span>{item.status.toUpperCase()}</span>
+                      </mark>
+                    </button>
+                  ))
+                ) : (
+                  <div className="doctor-settings-schedule-empty">
+                    <DoctorIcon name="calendar" />
+                    <div>
+                      <strong>No availability configured</strong>
+                      <p>Configure a day and time to make your database-backed schedule available.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {message ? <p className="doctor-settings-page-message">{message}</p> : null}
@@ -2880,11 +2735,15 @@ function DoctorSettingsContent({ headerAction = null }) {
                 value={scheduleDraft.day}
                 onChange={(event) => {
                   const selected = availability.find((item) => item.day === event.target.value);
-                  setScheduleDraft(selected ? { ...selected } : { ...scheduleDraft, day: event.target.value });
+                  setScheduleDraft(
+                    selected
+                      ? { ...selected }
+                      : createScheduleDraft(event.target.value)
+                  );
                 }}
               >
-                {availability.map((item) => (
-                  <option key={item.day}>{item.day}</option>
+                {availabilityDayOptions.map((day) => (
+                  <option key={day}>{day}</option>
                 ))}
               </select>
             </label>

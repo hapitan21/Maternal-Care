@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { isClinicAccountInactive } from "../../lib/clinicAccountStatus";
+import {
+  normalizePatientAccountStatus,
+  patientAccountStatuses,
+} from "../../lib/patientAccountStatus";
 import { supabase } from "../../lib/supabaseClient";
+import { recordAuditEvent } from "../../lib/auditLog";
 import "../../styles/login.css";
 
 const roleRoutes = {
@@ -11,6 +17,10 @@ const roleRoutes = {
 };
 
 const SESSION_CLEAR_TIMEOUT_MS = 8000;
+const inactiveDoctorMessage =
+  "Your Doctor account has been deactivated. Please contact the administrator.";
+const inactiveStaffMessage =
+  "Your Staff account has been deactivated. Please contact the system administrator.";
 
 async function signOutWithTimeout() {
   return Promise.race([
@@ -44,16 +54,94 @@ function getRoleRoute(role, nextPath = "") {
   return defaultRoute;
 }
 
+async function getAuthenticatedRoleRoute(role, user, nextPath = "") {
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  if (normalizedRole !== "patient") return getRoleRoute(role, nextPath);
+
+  const { data, error } = await supabase.rpc(
+    "get_current_patient_account_status"
+  );
+
+  if (error) {
+    if (import.meta.env.DEV) {
+      console.info("[Patient Login] Link status RPC unavailable or failed:", {
+        authenticatedUserId: user?.id || null,
+        errorCode: error.code || null,
+      });
+    }
+    return "/patient/access";
+  }
+
+  const patient = Array.isArray(data) ? data[0] || null : data || null;
+  const normalizedStatus = patient
+    ? normalizePatientAccountStatus(patient.account_status)
+    : "unlinked";
+
+  if (import.meta.env.DEV) {
+    console.info("[Patient Login] Account route resolved:", {
+      authenticatedUserId: user?.id || null,
+      matchingPatientsUserIdRowFound: Boolean(patient),
+      selectedPatientInternalId: patient?.id || null,
+      normalizedAccountStatus: normalizedStatus,
+      redirectDestination:
+        normalizedStatus === patientAccountStatuses.active
+          ? "/patient/dashboard"
+          : "/patient/access",
+    });
+  }
+
+  if (normalizedStatus !== patientAccountStatuses.active) {
+    const blockedError = new Error(
+      normalizedStatus === patientAccountStatuses.inactive
+        ? "Your Patient account is inactive. Please contact the clinic."
+        : "Your Patient account is pending Admin activation."
+    );
+    blockedError.code = "patient_account_blocked";
+    throw blockedError;
+  }
+
+  if (nextPath.startsWith("/patient") && nextPath !== "/patient/access") {
+    return nextPath;
+  }
+
+  return "/patient/dashboard";
+}
+
+function isSchemaColumnError(error) {
+  if (!error) return false;
+
+  const message = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("could not find") ||
+    message.includes("column")
+  );
+}
+
 async function getUserRole(user) {
   if (!user?.id) {
     throw new Error("Authenticated user was not found.");
   }
 
-  const { data: profile, error } = await supabase
+  let { data: profile, error } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, account_status")
     .eq("id", user.id)
     .maybeSingle();
+
+  if (error && isSchemaColumnError(error)) {
+    const legacyResult = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    profile = legacyResult.data;
+    error = legacyResult.error;
+  }
 
   if (error) {
     throw error;
@@ -63,6 +151,24 @@ async function getUserRole(user) {
     throw new Error(
       "No account role is connected to this user. Please contact the administrator."
     );
+  }
+
+  if (
+    String(profile.role || "").trim().toLowerCase() === "doctor" &&
+    isClinicAccountInactive(profile.account_status)
+  ) {
+    const inactiveError = new Error(inactiveDoctorMessage);
+    inactiveError.code = "doctor_account_inactive";
+    throw inactiveError;
+  }
+
+  if (
+    String(profile.role || "").trim().toLowerCase() === "staff" &&
+    isClinicAccountInactive(profile.account_status)
+  ) {
+    const inactiveError = new Error(inactiveStaffMessage);
+    inactiveError.code = "staff_account_inactive";
+    throw inactiveError;
   }
 
   return profile.role;
@@ -93,6 +199,10 @@ function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const nextPath = searchParams.get("next") || "";
+  const initialReason =
+    searchParams.get("reason") === "staff_inactive"
+      ? inactiveStaffMessage
+      : searchParams.get("reason") || "";
   const shouldSkipSessionCheck =
     searchParams.get("logout") === "1" ||
     searchParams.get("emailChanged") === "1";
@@ -100,7 +210,7 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
-  const [loginError, setLoginError] = useState("");
+  const [loginError, setLoginError] = useState(initialReason);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [canResendVerification, setCanResendVerification] =
     useState(false);
@@ -143,7 +253,11 @@ function Login() {
         }
 
         const role = await getUserRole(user);
-        const redirectPath = getRoleRoute(role, nextPath);
+        const redirectPath = await getAuthenticatedRoleRoute(
+          role,
+          user,
+          nextPath
+        );
 
         if (!redirectPath) {
           await supabase.auth.signOut();
@@ -159,6 +273,14 @@ function Login() {
         navigate(redirectPath, { replace: true });
       } catch (error) {
         console.error("Session profile lookup failed:", error);
+
+        if (
+          error?.code === "staff_account_inactive" ||
+          error?.code === "doctor_account_inactive" ||
+          error?.code === "patient_account_blocked"
+        ) {
+          await signOutWithTimeout().catch(() => null);
+        }
 
         if (active) {
           setLoginError(
@@ -234,7 +356,11 @@ function Login() {
         return;
       }
 
-      const redirectPath = getRoleRoute(role, nextPath);
+      const redirectPath = await getAuthenticatedRoleRoute(
+        role,
+        data.user,
+        nextPath
+      );
 
       if (!redirectPath) {
         await supabase.auth.signOut();
@@ -242,10 +368,22 @@ function Login() {
         return;
       }
 
+      await recordAuditEvent({
+        module: "authentication",
+        action: "login",
+        entityType: "auth_user",
+        entityId: data.user.id,
+        description: "User logged in.",
+      });
       navigate(redirectPath, { replace: true });
     } catch (error) {
       console.error("Login failed:", error);
-      setLoginError("Unable to log in. Please try again.");
+      if (error?.code === "patient_account_blocked") {
+        await signOutWithTimeout().catch(() => null);
+        setLoginError(error.message);
+      } else {
+        setLoginError("Unable to log in. Please try again.");
+      }
     } finally {
       setIsLoggingIn(false);
     }

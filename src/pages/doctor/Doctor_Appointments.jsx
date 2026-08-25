@@ -1,26 +1,66 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
+import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
+import AppointmentVisitForm from "../appointments/AppointmentVisitForm";
+import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
+import {
+  appointmentStatuses,
+  classifyAppointment,
+  compareHistoryAppointments,
+  compareUpcomingAppointments,
+  formatAppointmentDate,
+  formatAppointmentTime,
+  getAppointmentStatusClass,
+  getAppointmentStatusLabel,
+  getManilaDateKey,
+  getManilaTimeKey,
+  isCheckedInAppointmentStatus,
+  isClosedAppointmentStatus,
+  isPendingAppointmentStatus,
+  normalizeAppointmentStatus,
+} from "../../lib/appointmentDate";
+import {
+  APPOINTMENT_TYPES,
+  buildThirtyMinuteAppointmentRange,
+  getAppointmentTypeCategory,
+} from "../../lib/appointmentTypes";
+import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
+import {
+  AppointmentControlGroup,
+  AppointmentPageHeader,
+  AppointmentPagination,
+  AppointmentToolbar,
+  AppointmentViewSwitch,
+} from "../../components/appointments/AppointmentUi";
 import "../../styles/doctor-appointments.css";
-import "../../styles/staff-appointments.css";
 
 const scheduleTableName = "schedule";
 const patientColumns =
   "id, full_name, patient_id, user_id, age, contact_number, address, expected_delivery_date, gestational_age, risk_level";
 const scheduleColumns =
   "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, description, start_time, end_time, status";
-
-const appointmentTabs = ["All", "Pending", "Completed", "Cancelled"];
+const appointmentTabs = [
+  "All",
+  "Pending",
+  "Checked-in",
+  "Completed",
+  "Cancelled",
+  "Missed",
+];
+const appointmentViews = ["Main", "History"];
+const appointmentPageSizes = [10, 15];
 
 const statusOptions = [
   { label: "Pending", value: "scheduled" },
-  { label: "Completed", value: "completed" },
+  { label: "Check in", value: "checked_in" },
   { label: "Cancel", value: "cancelled" },
 ];
 
 const initialAppointmentForm = {
   patient_name: "",
-  doctor_name: "Dr. Kempee Vergara",
   title: "",
   description: "",
   appointment_date: "",
@@ -32,6 +72,21 @@ const initialRescheduleForm = {
   time: "",
   message: "",
 };
+
+
+function getAppointmentDoctorFromIdentity(doctorIdentity) {
+  const doctorId = doctorIdentity?.authUser?.id || doctorIdentity?.profile?.id || "";
+  const doctorName = String(doctorIdentity?.doctorDisplayName || "").trim();
+
+  if (!doctorId || !doctorName) return null;
+
+  return {
+    id: doctorId,
+    profileId: doctorIdentity?.profile?.id || "",
+    name: doctorName,
+    role: doctorIdentity?.profile?.role || doctorIdentity?.role || "doctor",
+  };
+}
 
 function InlineIcon({ name }) {
   const paths = {
@@ -130,64 +185,27 @@ function toDate(value) {
 }
 
 function toDateInputValue(value) {
-  const date = value instanceof Date ? value : toDate(value);
-  if (!date) return "";
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getManilaDateKey(value);
 }
 
 function toTimeInputValue(value) {
-  const date = toDate(value);
-  if (!date) return "";
-
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+  return getManilaTimeKey(value);
 }
 
 function formatTableDate(value) {
-  const date = toDate(value);
-  if (!date) return "-";
-
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const year = String(date.getFullYear()).slice(-2);
-  return `${month}-${day}-${year}`;
+  return formatAppointmentDate(value, {
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit",
+  });
 }
 
 function formatTime(value) {
-  const date = toDate(value);
-  if (!date) return "-";
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatAppointmentTime(value);
 }
 
 function formatLongDate(value) {
-  const date = toDate(value);
-  if (!date) return "";
-
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatDisplayTime(value) {
-  if (!value) return "";
-  const [hourValue, minuteValue] = value.split(":");
-  const date = new Date();
-  date.setHours(Number(hourValue || 0), Number(minuteValue || 0), 0, 0);
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return value ? formatAppointmentDate(value, { day: "2-digit" }) : "";
 }
 
 function formatMonthYear(dateValue) {
@@ -199,31 +217,61 @@ function formatMonthYear(dateValue) {
   });
 }
 
-function getStatusLabel(status) {
-  const normalized = String(status || "scheduled").toLowerCase();
-
-  if (["completed", "checked_in", "checked in"].includes(normalized)) return "Checked in";
-  if (normalized === "cancelled" || normalized === "canceled") return "Cancel";
-  return "Pending";
-}
-
-function getStatusClass(status) {
-  const normalized = String(status || "scheduled").toLowerCase();
-
-  if (["completed", "checked_in", "checked in"].includes(normalized)) return "completed";
-  if (normalized === "cancelled" || normalized === "canceled") return "cancelled";
-  return "pending";
+function getVisibleAppointmentId(schedule) {
+  return schedule?.maternal_appointment_id || "NA";
 }
 
 function statusMatches(schedule, activeTab) {
-  const normalized = String(schedule.status || "scheduled").toLowerCase();
+  const normalized = normalizeAppointmentStatus(schedule.status);
 
   if (activeTab === "All") return true;
-  if (activeTab === "Pending") return ["scheduled", "pending", "accepted"].includes(normalized);
-  if (activeTab === "Completed") return ["completed", "checked_in", "checked in"].includes(normalized);
-  if (activeTab === "Cancelled") return normalized === "cancelled" || normalized === "canceled";
+  if (activeTab === "Pending") return normalized === appointmentStatuses.scheduled;
+  if (activeTab === "Checked-in") return normalized === appointmentStatuses.checkedIn;
+  if (activeTab === "Completed") return normalized === appointmentStatuses.completed;
+  if (activeTab === "Cancelled") return normalized === appointmentStatuses.cancelled;
+  if (activeTab === "Missed") return normalized === appointmentStatuses.missed;
 
   return true;
+}
+
+function appointmentViewMatches(schedule, appointmentView) {
+  const classification = classifyAppointment(schedule);
+
+  if (appointmentView === "History") {
+    return classification.isHistory;
+  }
+
+  return classification.isUpcoming;
+}
+
+function monthFilterMatches(schedule, monthFilter) {
+  if (!monthFilter) return true;
+
+  const scheduleDate = toDateInputValue(schedule.start_time);
+  if (!scheduleDate) return false;
+
+  return scheduleDate.slice(0, 7) === monthFilter;
+}
+
+
+function hasDuplicateAppointment(schedules, candidate) {
+  const candidateStart = toDate(candidate.start_time);
+  const candidateEnd = toDate(candidate.end_time);
+
+  if (!candidate.patient_id || !candidateStart || !candidateEnd || candidateEnd <= candidateStart) return false;
+
+  return schedules.some((schedule) => {
+    if (candidate.id && String(schedule.id || "") === String(candidate.id)) return false;
+    if (isClosedAppointmentStatus(schedule.status)) return false;
+    if (String(schedule.patient_id || "") !== String(candidate.patient_id)) return false;
+
+    const existingStart = toDate(schedule.start_time);
+    const existingEnd = toDate(schedule.end_time);
+
+    if (!existingStart || !existingEnd || existingEnd <= existingStart) return false;
+
+    return candidateStart < existingEnd && candidateEnd > existingStart;
+  });
 }
 
 function searchMatches(schedule, searchTerm) {
@@ -233,11 +281,42 @@ function searchMatches(schedule, searchTerm) {
 
   return [
     schedule.id,
+    schedule.maternal_appointment_id,
+    schedule.patient_id,
     schedule.patient_name,
     schedule.title,
     schedule.doctor_name,
     schedule.status,
   ].some((value) => String(value || "").toLowerCase().includes(keyword));
+}
+
+function parseScheduleDetails(description) {
+  if (!description) return {};
+
+  try {
+    const parsed = JSON.parse(description);
+    return parsed && typeof parsed === "object"
+      ? parsed
+      : { notes: String(description) };
+  } catch {
+    return { notes: String(description) };
+  }
+}
+
+function getScheduleDescriptionText(schedule) {
+  const details = parseScheduleDetails(schedule?.description);
+  return details.notes || schedule?.description || "NA";
+}
+
+function getScheduleLocation(schedule) {
+  const details = parseScheduleDetails(schedule?.description);
+  return details.location || "Maternal Care Clinic";
+}
+
+function logDoctorAppointmentDetailDebug(label, details = {}) {
+  if (import.meta.env.DEV) {
+    console.info(`[Doctor Calendar Appointment Details] ${label}:`, details);
+  }
 }
 
 function getWeekStart(dateValue) {
@@ -280,12 +359,7 @@ function getWeekRangeLabel(dateValue) {
 }
 
 function getScheduleCategory(schedule) {
-  const keyword = `${schedule.category || ""} ${schedule.title || ""} ${schedule.description || ""}`.toLowerCase();
-
-  if (/education|class|baby talk|session/.test(keyword)) return "education";
-  if (/consultation|consult/.test(keyword)) return "consultation";
-  if (/reminder|alert/.test(keyword)) return "reminder";
-  return "checkup";
+  return getAppointmentTypeCategory(schedule.title || "");
 }
 
 function getReadableScheduleError(error) {
@@ -299,73 +373,27 @@ function getReadableScheduleError(error) {
     return "Supabase cannot find the schedule table.";
   }
 
-  return error.message || error.details || "Failed to save schedule.";
+  return [
+    error.message,
+    error.details,
+    error.hint,
+    error.code ? `Code: ${error.code}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ") || "Failed to save schedule.";
 }
 
-function buildAppointmentReminderPayload(schedule, patientRecordId) {
-  const scheduleStart = new Date(schedule.start_time);
-  const remindAt = new Date(scheduleStart);
-  remindAt.setHours(remindAt.getHours() - 24);
-
-  if (Number.isNaN(remindAt.getTime()) || remindAt < new Date()) {
-    remindAt.setTime(scheduleStart.getTime());
-    remindAt.setHours(remindAt.getHours() - 1);
-  }
-
-  return {
-    patient_id: patientRecordId,
-    schedule_id: schedule.id,
-    reminder_type: "appointment",
-    title: `${schedule.title || "Appointment"} Reminder`,
-    message: `Reminder: ${schedule.patient_name || "Patient"} has ${schedule.title || "an appointment"} scheduled on ${formatLongDate(schedule.start_time)} at ${formatTime(schedule.start_time)}.`,
-    remind_at: remindAt.toISOString(),
-    status: "pending",
-    sent_at: null,
-  };
+function getReadableSupabaseError(error) {
+  return [
+    error?.message,
+    error?.details,
+    error?.hint,
+    error?.code ? `Code: ${error.code}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
-function createDoctorFollowUpForm(schedule, patient) {
-  return {
-    appointmentId: schedule?.id || "",
-    patientId: patient?.patient_id || (patient?.id ? String(patient.id).slice(0, 8) : ""),
-    patientRecordId: patient?.id || "",
-    patientName: patient?.full_name || schedule?.patient_name || "",
-    age: patient?.age ? `${patient.age} years` : "",
-    contactNumber: patient?.contact_number || "",
-    address: patient?.address || "",
-    visitDate: toDateInputValue(schedule?.start_time) || toDateInputValue(new Date()),
-    visitTime: toTimeInputValue(schedule?.start_time) || "09:00",
-    visitType: schedule?.title || "Follow-up Visit",
-    attendingPhysician: schedule?.doctor_name || "Dr. Kempee Vergara",
-    gestationalAge: patient?.gestational_age || "",
-    expectedDeliveryDate: toDateInputValue(patient?.expected_delivery_date),
-    pregnancyStatus: patient?.risk_level || "Low Risk",
-    bloodPressure: "",
-    temperature: "",
-    weight: "",
-    heartRate: "",
-    chiefComplaint: "",
-    currentMedications: "",
-    allergies: "",
-    symptoms: "",
-    fundalHeight: "",
-    fetalHeartRate: "",
-    presentation: "",
-    urineProtein: "",
-    urineGlucose: "",
-    assessment: "",
-    treatmentPlan: "",
-    followUpDate: "",
-    followUpTime: "",
-    followUpInstructions: "",
-    dangerSigns: "",
-    nutritionCounseling: false,
-    laboratoryRequest: false,
-    ultrasoundRequest: false,
-    highRiskReferral: false,
-    additionalNotes: "",
-  };
-}
 
 function ProfileDropdownIcon({ name }) {
   const paths = {
@@ -397,9 +425,28 @@ function ProfileDropdownIcon({ name }) {
   );
 }
 
-function DefaultProfileCard() {
+function getDoctorInitials(name) {
+  const initials = String(name || "Doctor")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+
+  return initials || "DR";
+}
+
+function DefaultProfileCard({ doctorIdentity }) {
   const [isOpen, setIsOpen] = useState(false);
   const profileRef = useRef(null);
+  const displayName = doctorIdentity?.doctorDisplayName ||
+    (doctorIdentity?.loading
+      ? "Loading Doctor profile..."
+      : doctorIdentity?.error
+        ? "Unable to load Doctor profile"
+        : "Doctor");
+  const initials = getDoctorInitials(displayName);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -426,7 +473,6 @@ function DefaultProfileCard() {
   const goToDoctorSection = (section) => {
     setIsOpen(false);
     window.dispatchEvent(new CustomEvent("doctor:navigate", { detail: { section } }));
-    window.localStorage.setItem("doctor_active_section", section);
   };
 
   return (
@@ -438,11 +484,11 @@ function DefaultProfileCard() {
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
-        <span className="doctor-appointments-profile-avatar">KV</span>
+        <span className="doctor-appointments-profile-avatar">{initials}</span>
 
         <span className="doctor-appointments-profile-copy">
-          <strong>Kempee Vergara</strong>
-          <small>Staff</small>
+          <strong>{displayName}</strong>
+          <small>Doctor</small>
         </span>
 
         <span className="doctor-appointments-profile-arrow" aria-hidden="true">
@@ -453,10 +499,10 @@ function DefaultProfileCard() {
       {isOpen ? (
         <div className="doctor-top-profile-dropdown" role="menu">
           <div className="doctor-top-profile-dropdown__header">
-            <span className="doctor-top-profile-dropdown__avatar">KV</span>
+            <span className="doctor-top-profile-dropdown__avatar">{initials}</span>
             <span>
-              <strong>Kempee Vergara</strong>
-              <small>Staff Account</small>
+              <strong>{displayName}</strong>
+              <small>Doctor Account</small>
             </span>
           </div>
 
@@ -480,468 +526,170 @@ function DefaultProfileCard() {
   );
 }
 
-function DoctorFollowUpField({
-  label,
-  value,
-  onChange,
-  placeholder = "",
-  type = "text",
-}) {
-  return (
-    <label className="staff-followup-field">
-      <span>{label}</span>
-      <div className="staff-followup-input-wrap">
-        <input
-          type={type}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-        />
-      </div>
-    </label>
-  );
-}
-
-function DoctorFollowUpTextarea({
-  label,
-  value,
-  onChange,
-  placeholder = "",
-}) {
-  return (
-    <label className="staff-followup-field doctor-followup-field-wide">
-      <span>{label}</span>
-      <div className="staff-followup-input-wrap doctor-followup-textarea-wrap">
-        <textarea
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-        />
-      </div>
-    </label>
-  );
-}
-
-function DoctorFollowUpSelect({
-  label,
-  value,
-  onChange,
-  options,
-}) {
-  return (
-    <label className="staff-followup-field">
-      <span>{label}</span>
-      <div className="staff-followup-input-wrap doctor-followup-select-wrap">
-        <select value={value} onChange={(event) => onChange(event.target.value)}>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
-    </label>
-  );
-}
-
-function DoctorFollowUpChecklist({ form, onChange }) {
-  const items = [
-    ["nutritionCounseling", "Nutrition counseling"],
-    ["laboratoryRequest", "Laboratory request"],
-    ["ultrasoundRequest", "Ultrasound request"],
-    ["highRiskReferral", "High-risk referral"],
-  ];
-
-  return (
-    <section className="staff-followup-card doctor-followup-card-wide">
-      <h2>Care Actions</h2>
-      <div className="doctor-followup-checklist">
-        {items.map(([key, label]) => (
-          <label key={key}>
-            <input
-              type="checkbox"
-              checked={Boolean(form[key])}
-              onChange={(event) => onChange(key, event.target.checked)}
-            />
-            <span>{label}</span>
-          </label>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function DoctorFollowUpVisitForm({
-  form,
-  onBack,
-  onChange,
-  onSave,
-  saving,
-  statusMessage,
-}) {
-  const riskOptions = ["Low Risk", "Moderate Risk", "High Risk"];
-  const presentationOptions = ["", "Cephalic", "Breech", "Transverse", "Not assessed"];
-  const currentVisitDate = form.visitDate
-    ? formatLongDate(`${form.visitDate}T00:00:00`)
-    : "-";
-
-  return (
-    <section className="staff-followup-page doctor-followup-page">
-      <header className="staff-followup-header">
-        <button type="button" className="staff-followup-back" onClick={onBack}>
-          <InlineIcon name="chevronLeft" />
-          Back to Appointments
-        </button>
-
-        <div className="staff-followup-title">
-          <h1>Follow-up Visit Form</h1>
-          <p>Please provide complete information for accurate follow-up care</p>
-        </div>
-
-        <aside className="staff-followup-appointment-id">
-          <span>Appointment ID</span>
-          <strong>{form.appointmentId || "-"}</strong>
-        </aside>
-      </header>
-
-      {statusMessage ? (
-        <p className="doctor-appointments-status-message staff-followup-message">
-          {statusMessage}
-        </p>
-      ) : null}
-
-      <div className="staff-followup-grid">
-        <section className="staff-followup-card">
-          <h2>Patient Information</h2>
-          <DoctorFollowUpField
-            label="Patient ID"
-            value={form.patientId}
-            onChange={(value) => onChange("patientId", value)}
-            placeholder="00-00-01"
-          />
-          <DoctorFollowUpField
-            label="Patient Name"
-            value={form.patientName}
-            onChange={(value) => onChange("patientName", value)}
-            placeholder="Patient name"
-          />
-          <DoctorFollowUpField
-            label="Age"
-            value={form.age}
-            onChange={(value) => onChange("age", value)}
-            placeholder="28 years"
-          />
-          <DoctorFollowUpField
-            label="Contact Number"
-            value={form.contactNumber}
-            onChange={(value) => onChange("contactNumber", value)}
-            placeholder="09XXXXXXXXX"
-          />
-          <DoctorFollowUpField
-            label="Address"
-            value={form.address}
-            onChange={(value) => onChange("address", value)}
-            placeholder="Home address"
-          />
-        </section>
-
-        <section className="staff-followup-card">
-          <h2>Visit Information</h2>
-          <DoctorFollowUpField
-            label="Date of Visit"
-            type="date"
-            value={form.visitDate}
-            onChange={(value) => onChange("visitDate", value)}
-          />
-          <DoctorFollowUpField
-            label="Time of Visit"
-            type="time"
-            value={form.visitTime}
-            onChange={(value) => onChange("visitTime", value)}
-          />
-          <DoctorFollowUpField
-            label="Visit Type"
-            value={form.visitType}
-            onChange={(value) => onChange("visitType", value)}
-            placeholder="Follow-up Visit"
-          />
-          <DoctorFollowUpField
-            label="Attending Physician"
-            value={form.attendingPhysician}
-            onChange={(value) => onChange("attendingPhysician", value)}
-            placeholder="Dr. Kempee Vergara"
-          />
-        </section>
-
-        <section className="staff-followup-card">
-          <h2>Pregnancy Status</h2>
-          <DoctorFollowUpField
-            label="Gestational Age"
-            value={form.gestationalAge}
-            onChange={(value) => onChange("gestationalAge", value)}
-            placeholder="28 Weeks 2 Days"
-          />
-          <DoctorFollowUpField
-            label="Expected Delivery Date"
-            type="date"
-            value={form.expectedDeliveryDate}
-            onChange={(value) => onChange("expectedDeliveryDate", value)}
-          />
-
-          <div className="staff-followup-risk-group">
-            <span>Pregnancy Status</span>
-            <div>
-              {riskOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={form.pregnancyStatus === option ? "is-active" : ""}
-                  onClick={() => onChange("pregnancyStatus", option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <section className="staff-followup-card staff-followup-clinical-card">
-        <h2>Subjective Information</h2>
-        <div className="staff-followup-clinical-grid">
-          <DoctorFollowUpTextarea
-            label="Chief Complaint"
-            value={form.chiefComplaint}
-            onChange={(value) => onChange("chiefComplaint", value)}
-            placeholder="Reason for follow-up visit"
-          />
-          <DoctorFollowUpTextarea
-            label="Symptoms / Patient Concerns"
-            value={form.symptoms}
-            onChange={(value) => onChange("symptoms", value)}
-            placeholder="Symptoms, concerns, or changes since last visit"
-          />
-          <DoctorFollowUpField
-            label="Current Medications"
-            value={form.currentMedications}
-            onChange={(value) => onChange("currentMedications", value)}
-            placeholder="Prenatal vitamins, supplements, medicines"
-          />
-          <DoctorFollowUpField
-            label="Allergies"
-            value={form.allergies}
-            onChange={(value) => onChange("allergies", value)}
-            placeholder="Known allergies"
-          />
-        </div>
-      </section>
-
-      <section className="staff-followup-card staff-followup-clinical-card">
-        <h2>Vital Signs</h2>
-        <div className="staff-followup-clinical-grid">
-          <DoctorFollowUpField
-            label="Blood Pressure"
-            value={form.bloodPressure}
-            onChange={(value) => onChange("bloodPressure", value)}
-            placeholder="e.g. 120/80 mmHg"
-          />
-          <DoctorFollowUpField
-            label="Temperature"
-            value={form.temperature}
-            onChange={(value) => onChange("temperature", value)}
-            placeholder="e.g. 36.7 C"
-          />
-          <DoctorFollowUpField
-            label="Weight"
-            value={form.weight}
-            onChange={(value) => onChange("weight", value)}
-            placeholder="e.g. 65 kg"
-          />
-          <DoctorFollowUpField
-            label="Heart Rate"
-            value={form.heartRate}
-            onChange={(value) => onChange("heartRate", value)}
-            placeholder="e.g. 140 bpm"
-          />
-        </div>
-      </section>
-
-      <section className="staff-followup-card staff-followup-clinical-card">
-        <h2>Obstetric Examination</h2>
-        <div className="staff-followup-clinical-grid">
-          <DoctorFollowUpField
-            label="Fundal Height"
-            value={form.fundalHeight}
-            onChange={(value) => onChange("fundalHeight", value)}
-            placeholder="e.g. 28 cm"
-          />
-          <DoctorFollowUpField
-            label="Fetal Heart Rate"
-            value={form.fetalHeartRate}
-            onChange={(value) => onChange("fetalHeartRate", value)}
-            placeholder="e.g. 145 bpm"
-          />
-          <DoctorFollowUpSelect
-            label="Presentation"
-            value={form.presentation}
-            onChange={(value) => onChange("presentation", value)}
-            options={presentationOptions}
-          />
-          <DoctorFollowUpField
-            label="Urine Protein"
-            value={form.urineProtein}
-            onChange={(value) => onChange("urineProtein", value)}
-            placeholder="Negative / Trace / Positive"
-          />
-          <DoctorFollowUpField
-            label="Urine Glucose"
-            value={form.urineGlucose}
-            onChange={(value) => onChange("urineGlucose", value)}
-            placeholder="Negative / Trace / Positive"
-          />
-        </div>
-      </section>
-
-      <section className="staff-followup-card staff-followup-clinical-card">
-        <h2>Assessment and Plan</h2>
-        <div className="staff-followup-clinical-grid">
-          <DoctorFollowUpTextarea
-            label="Assessment"
-            value={form.assessment}
-            onChange={(value) => onChange("assessment", value)}
-            placeholder="Clinical assessment and diagnosis"
-          />
-          <DoctorFollowUpTextarea
-            label="Treatment Plan"
-            value={form.treatmentPlan}
-            onChange={(value) => onChange("treatmentPlan", value)}
-            placeholder="Treatment, counseling, medications, and next steps"
-          />
-        </div>
-      </section>
-
-      <div className="staff-followup-grid">
-        <section className="staff-followup-card">
-          <h2>Follow-up Schedule</h2>
-          <DoctorFollowUpField
-            label="Next Follow-up Date"
-            type="date"
-            value={form.followUpDate}
-            onChange={(value) => onChange("followUpDate", value)}
-          />
-          <DoctorFollowUpField
-            label="Next Follow-up Time"
-            type="time"
-            value={form.followUpTime}
-            onChange={(value) => onChange("followUpTime", value)}
-          />
-          <DoctorFollowUpTextarea
-            label="Instructions"
-            value={form.followUpInstructions}
-            onChange={(value) => onChange("followUpInstructions", value)}
-            placeholder="Instructions before the next visit"
-          />
-        </section>
-
-        <section className="staff-followup-card">
-          <h2>Risk and Warning Signs</h2>
-          <DoctorFollowUpTextarea
-            label="Danger Signs Discussed"
-            value={form.dangerSigns}
-            onChange={(value) => onChange("dangerSigns", value)}
-            placeholder="Bleeding, severe headache, fever, reduced fetal movement"
-          />
-        </section>
-
-        <DoctorFollowUpChecklist form={form} onChange={onChange} />
-      </div>
-
-      <section className="staff-followup-card staff-followup-clinical-card">
-        <h2>Appointment Summary</h2>
-        <div className="doctor-followup-history">
-          <div className="doctor-followup-history-row doctor-followup-history-head">
-            <span>Date</span>
-            <span>Time</span>
-            <span>Visit</span>
-            <span>Status</span>
-          </div>
-          <div className="doctor-followup-history-row">
-            <span>{currentVisitDate}</span>
-            <span>{formatDisplayTime(form.visitTime) || "-"}</span>
-            <span>{form.visitType || "Follow-up Visit"}</span>
-            <span>Checked in</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="staff-followup-card staff-followup-clinical-card">
-        <h2>Additional Notes</h2>
-        <DoctorFollowUpTextarea
-          label="Doctor Notes"
-          value={form.additionalNotes}
-          onChange={(value) => onChange("additionalNotes", value)}
-          placeholder="Additional observations or reminders"
-        />
-      </section>
-
-      <footer className="staff-followup-actions">
-        <button
-          type="button"
-          className="staff-followup-save"
-          onClick={onSave}
-          disabled={saving}
-        >
-          {saving ? "Saving..." : "Save Record"}
-        </button>
-        <button type="button" className="staff-followup-cancel" onClick={onBack}>
-          Cancel
-        </button>
-      </footer>
-    </section>
-  );
-}
 
 function StatusDropdown({
   schedule,
   openStatusMenuId,
-  setOpenStatusMenuId,
   updatingStatusId,
-  onSelectStatus,
-  onOpenFollowUp,
+  buttonRef,
+  onToggleStatusMenu,
 }) {
   const isOpen = openStatusMenuId === schedule.id;
-  const statusLabel = getStatusLabel(schedule.status);
+  const statusLabel = getAppointmentStatusLabel(schedule.status);
 
   return (
     <span className="doctor-appointment-status-cell">
       <button
-        className={`doctor-appointment-status doctor-appointment-status--${getStatusClass(schedule.status)}`}
+        ref={buttonRef}
+        className={`doctor-appointment-status appointment-ui-status doctor-appointment-status--${getAppointmentStatusClass(schedule.status)}`}
         type="button"
-        disabled={updatingStatusId === schedule.id}
+        disabled={
+          updatingStatusId === schedule.id ||
+          isClosedAppointmentStatus(schedule.status)
+        }
+        aria-haspopup="listbox"
         aria-expanded={isOpen}
-        onClick={() => {
-          setOpenStatusMenuId(isOpen ? "" : schedule.id);
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleStatusMenu(schedule.id, isOpen);
         }}
       >
         <span>{updatingStatusId === schedule.id ? "Updating..." : statusLabel}</span>
         <InlineIcon name="chevronDown" />
       </button>
-
-      {isOpen ? (
-        <div className="doctor-appointment-status-menu">
-          {statusOptions.map((option) => (
-            <button
-              className={`doctor-appointment-status-option doctor-appointment-status-option--${option.value}`}
-              type="button"
-              key={option.value}
-              onClick={() => onSelectStatus(schedule, option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
     </span>
+  );
+}
+
+function DoctorAppointmentDetailsModal({
+  schedule,
+  actionError,
+  isUpdating,
+  onClose,
+  onEdit,
+  onCheckIn,
+  onComplete,
+  onCancel,
+}) {
+  if (!schedule) return null;
+
+  const statusLabel = getAppointmentStatusLabel(schedule.status);
+  const canEdit = isPendingAppointmentStatus(schedule.status);
+  const canCheckIn = isPendingAppointmentStatus(schedule.status);
+  const canComplete = isCheckedInAppointmentStatus(schedule.status);
+  const canCancel =
+    !isClosedAppointmentStatus(schedule.status) &&
+    !isCheckedInAppointmentStatus(schedule.status);
+  const detailDate = formatLongDate(schedule.start_time);
+  const detailTime = formatTime(schedule.start_time);
+  const details = [
+    ["Patient Name", schedule.patient_name || "NA"],
+    ["Appointment ID", getVisibleAppointmentId(schedule)],
+    ["Appointment Type", schedule.title || "NA"],
+    ["Doctor", schedule.doctor_name || "NA"],
+    ["Date and Time", detailDate && detailTime !== "-" ? `${detailDate} at ${detailTime}` : "NA"],
+    ["Status", statusLabel],
+    ["Description", getScheduleDescriptionText(schedule)],
+    ["Location", getScheduleLocation(schedule)],
+  ];
+
+  return createPortal(
+    <div
+      className="doctor-appointment-detail-backdrop"
+      role="presentation"
+      onClick={onClose}
+    >
+      <section
+        className="doctor-appointment-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="doctor-appointment-detail-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="doctor-appointment-detail-close"
+          aria-label="Close appointment details"
+          onClick={onClose}
+        >
+          <InlineIcon name="close" />
+        </button>
+
+        <header>
+          <span className={`doctor-appointment-detail-icon is-${getAppointmentStatusClass(schedule.status)}`}>
+            <InlineIcon name="calendar" />
+          </span>
+          <div>
+            <h2 id="doctor-appointment-detail-title">
+              {schedule.patient_name || "NA"}
+            </h2>
+            <p>{schedule.title || "NA"}</p>
+          </div>
+        </header>
+
+        {actionError ? (
+          <p className="doctor-appointment-detail-error">{actionError}</p>
+        ) : null}
+
+        <dl className="doctor-appointment-detail-list">
+          {details.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value || "NA"}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {(canEdit || canCheckIn || canComplete || canCancel) ? (
+          <footer>
+            {canEdit ? (
+              <button
+                type="button"
+                className="is-outline"
+                onClick={() => onEdit(schedule)}
+                disabled={isUpdating}
+              >
+                Edit
+              </button>
+            ) : null}
+
+            {canCheckIn ? (
+              <button
+                type="button"
+                className="is-outline"
+                onClick={() => onCheckIn(schedule)}
+                disabled={isUpdating}
+              >
+                {isUpdating ? "Checking in..." : "Check in"}
+              </button>
+            ) : null}
+
+            {canComplete ? (
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => onComplete(schedule)}
+                disabled={isUpdating}
+              >
+                Complete
+              </button>
+            ) : null}
+
+            {canCancel ? (
+              <button
+                type="button"
+                className="is-danger"
+                onClick={() => onCancel(schedule)}
+                disabled={isUpdating}
+              >
+                {isUpdating ? "Cancelling..." : "Cancel"}
+              </button>
+            ) : null}
+          </footer>
+        ) : null}
+      </section>
+    </div>,
+    document.body
   );
 }
 
@@ -1000,38 +748,13 @@ function MiniMonthCalendar({ selectedDate, onSelectDate, onMoveMonth }) {
   );
 }
 
-function AppointmentCategories() {
-  const categories = [
-    { label: "Check-up", icon: "heart", className: "is-checkup" },
-    { label: "Consultation", icon: "consultation", className: "is-consultation" },
-    { label: "Education", icon: "education", className: "is-education" },
-    { label: "Reminder", icon: "reminder", className: "is-reminder" },
-  ];
-
-  return (
-    <section className="doctor-appointment-categories-card">
-      <h3>Categories</h3>
-
-      <div>
-        {categories.map((category) => (
-          <article className={category.className} key={category.label}>
-            <span>
-              <InlineIcon name={category.icon} />
-            </span>
-            <strong>{category.label}</strong>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function FigmaWeekCalendar({
   schedules,
   selectedDate,
   onSelectDate,
   onPreviousWeek,
   onNextWeek,
+  onSelectSchedule,
 }) {
   const weekDays = getWeekDays(selectedDate);
   const timeSlots = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -1105,18 +828,23 @@ function FigmaWeekCalendar({
                   const category = getScheduleCategory(schedule);
 
                   return (
-                    <article
+                    <button
+                      type="button"
                       className={`doctor-week-event is-${category}`}
                       key={schedule.id}
                       style={{
                         top: `${top}px`,
                         height: `${height}px`,
                       }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectSchedule(schedule);
+                      }}
                     >
                       <strong>{schedule.patient_name}</strong>
                       <span>{formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}</span>
                       <small>{schedule.title}</small>
-                    </article>
+                    </button>
                   );
                 })}
               </div>
@@ -1128,14 +856,26 @@ function FigmaWeekCalendar({
   );
 }
 
-export function DoctorAppointmentsContent({ embedded = false, headerAction = null }) {
+export function DoctorAppointmentsContent({
+  embedded = false,
+  headerAction = null,
+  doctorIdentity = null,
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const visitRoute = parseAppointmentVisitRoute(location.pathname, "doctor");
+  const isVisitFormRoute = Boolean(visitRoute);
+  const authenticatedDoctorId = doctorIdentity?.authUser?.id || "";
   const [form, setForm] = useState(initialAppointmentForm);
   const [patients, setPatients] = useState([]);
   const [schedules, setSchedules] = useState([]);
-  const [localDemoSchedules, setLocalDemoSchedules] = useState([]);
   const [activeTab, setActiveTab] = useState("All");
+  const [appointmentView, setAppointmentView] = useState("Main");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDate, setSelectedDate] = useState("2026-05-19");
+  const [monthFilter, setMonthFilter] = useState("");
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedDate, setSelectedDate] = useState(() => getManilaDateKey());
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -1145,11 +885,31 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
   const [cancelConfirmationSchedule, setCancelConfirmationSchedule] = useState(null);
   const [rescheduleSchedule, setRescheduleSchedule] = useState(null);
   const [rescheduleForm, setRescheduleForm] = useState(initialRescheduleForm);
-  const [followUpSchedule, setFollowUpSchedule] = useState(null);
-  const [followUpForm, setFollowUpForm] = useState(() => createDoctorFollowUpForm(null, null));
-  const [isSavingFollowUp, setIsSavingFollowUp] = useState(false);
+  const [refreshedAppointmentDoctor, setRefreshedAppointmentDoctor] = useState(null);
+  const [isResolvingAppointmentDoctor, setIsResolvingAppointmentDoctor] = useState(false);
+  const [appointmentDoctorError, setAppointmentDoctorError] = useState(null);
+  const [selectedCalendarSchedule, setSelectedCalendarSchedule] = useState(null);
+  const [detailActionError, setDetailActionError] = useState("");
+  const [statusMenuPosition, setStatusMenuPosition] = useState(null);
+  const tableScrollRef = useRef(null);
+  const statusButtonRefs = useRef({});
+  const appointmentSaveLockRef = useRef(false);
+  const appointmentStatusLockRef = useRef(new Set());
+  const rescheduleSaveLockRef = useRef(false);
+  const visitRoutingLockRef = useRef("");
+  const appointmentsRequestRef = useRef(null);
+  const appointmentsMountedRef = useRef(true);
+  const patientsRequestRef = useRef(null);
 
-  const displaySchedules = schedules.length > 0 ? schedules : localDemoSchedules;
+  const hookAppointmentDoctor = useMemo(
+    () => getAppointmentDoctorFromIdentity(doctorIdentity),
+    [doctorIdentity]
+  );
+  const appointmentDoctor = hookAppointmentDoctor || refreshedAppointmentDoctor;
+  const isAppointmentDoctorLoading =
+    Boolean(doctorIdentity?.loading) || isResolvingAppointmentDoctor;
+  const visibleAppointmentDoctorError =
+    appointmentDoctor ? null : appointmentDoctorError || doctorIdentity?.error || null;
 
   const matchingPatients = form.patient_name.trim()
     ? patients
@@ -1168,40 +928,151 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
     patients.some(
       (patient) => patient.full_name?.toLowerCase() === form.patient_name.trim().toLowerCase()
     );
+  const isAddAppointmentReady =
+    Boolean(form.patient_name.trim()) &&
+    Boolean(form.appointment_date) &&
+    Boolean(form.appointment_time) &&
+    Boolean(form.title.trim()) &&
+    hasExactPatientMatch &&
+    Boolean(appointmentDoctor?.id) &&
+    !isAppointmentDoctorLoading &&
+    !visibleAppointmentDoctorError;
 
   const visibleSchedules = useMemo(
     () =>
-      displaySchedules
+      schedules
+        .filter((schedule) =>
+          appointmentViewMatches(schedule, appointmentView)
+        )
         .filter((schedule) => statusMatches(schedule, activeTab))
-        .filter((schedule) => searchMatches(schedule, searchTerm)),
-    [activeTab, displaySchedules, searchTerm]
+        .filter((schedule) => searchMatches(schedule, searchTerm))
+        .filter((schedule) => monthFilterMatches(schedule, monthFilter))
+        .sort(
+          appointmentView === "History"
+            ? compareHistoryAppointments
+            : compareUpcomingAppointments
+        ),
+    [
+      activeTab,
+      appointmentView,
+      monthFilter,
+      schedules,
+      searchTerm,
+    ]
   );
 
-  const loadAppointments = useCallback(async () => {
-    const { data, error } = await supabase
-      .from(scheduleTableName)
-      .select(scheduleColumns)
-      .order("start_time", { ascending: true });
+  const totalPages = Math.max(1, Math.ceil(visibleSchedules.length / pageSize));
+  const displayedPage = Math.min(currentPage, totalPages);
+  const paginatedSchedules = useMemo(() => {
+    const startIndex = (displayedPage - 1) * pageSize;
+    return visibleSchedules.slice(startIndex, startIndex + pageSize);
+  }, [displayedPage, pageSize, visibleSchedules]);
 
-    if (error) {
-      console.error("[Doctor Appointment Flow] appointment fetch error:", error);
-      setSchedules([]);
-      setStatusMessage(
-        `Unable to load appointments from Supabase: ${getReadableScheduleError(error)}`
-      );
+  const activeStatusSchedule = useMemo(
+    () =>
+      openStatusMenuId
+        ? paginatedSchedules.find((schedule) => schedule.id === openStatusMenuId) || null
+        : null,
+    [openStatusMenuId, paginatedSchedules]
+  );
+
+  const updateStatusMenuPosition = useCallback((scheduleId) => {
+    const trigger = statusButtonRefs.current[scheduleId];
+
+    if (!trigger || typeof window === "undefined") {
+      setStatusMenuPosition(null);
       return;
     }
 
-    const nextSchedules = data ?? [];
-    console.info("[Doctor Appointment Flow] returned appointment count:", nextSchedules.length);
-    setSchedules(nextSchedules);
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = 132;
+    const estimatedMenuHeight = 128;
+    const viewportGap = 10;
+    const left = Math.min(
+      Math.max(viewportGap, rect.right - menuWidth),
+      window.innerWidth - menuWidth - viewportGap
+    );
+    let top = rect.bottom + 8;
 
-    if (nextSchedules.length > 0) {
-      setSelectedDate(toDateInputValue(nextSchedules[0].start_time));
+    if (top + estimatedMenuHeight > window.innerHeight - viewportGap) {
+      top = rect.top - estimatedMenuHeight - 8;
     }
+
+    setStatusMenuPosition({
+      top: Math.max(viewportGap, top),
+      left,
+    });
+  }, []);
+
+  const toggleStatusMenu = useCallback(
+    (scheduleId, isOpen) => {
+      if (isOpen) {
+        setOpenStatusMenuId("");
+        setStatusMenuPosition(null);
+        return;
+      }
+
+      setOpenStatusMenuId(scheduleId);
+      window.requestAnimationFrame(() => updateStatusMenuPosition(scheduleId));
+    },
+    [updateStatusMenuPosition]
+  );
+
+  const loadAppointments = useCallback((options = {}) => {
+    if (appointmentsRequestRef.current) {
+      return appointmentsRequestRef.current;
+    }
+
+    const preserveSelectedDate = options?.preserveSelectedDate === true;
+    const request = (async () => {
+      const { data, error } = await supabase
+        .from(scheduleTableName)
+        .select(scheduleColumns)
+        .order("start_time", { ascending: true });
+
+      if (error) {
+        console.error("[Doctor Appointment Flow] appointment fetch error:", error);
+        if (appointmentsMountedRef.current) {
+          setSchedules([]);
+          setStatusMessage(
+            `Unable to load appointments from Supabase: ${getReadableScheduleError(error)}`
+          );
+        }
+        return { ok: false, count: 0, error };
+      }
+
+      const nextSchedules = data ?? [];
+      if (appointmentsMountedRef.current) {
+        setSchedules(nextSchedules);
+        setSelectedCalendarSchedule((current) =>
+          current?.id
+            ? nextSchedules.find((schedule) => schedule.id === current.id) || current
+            : current
+        );
+
+        if (nextSchedules.length > 0 && !preserveSelectedDate) {
+          setSelectedDate(toDateInputValue(nextSchedules[0].start_time));
+        }
+      }
+      return { ok: true, count: nextSchedules.length };
+    })();
+
+    appointmentsRequestRef.current = request;
+    const clearPendingAppointmentRequest = () => {
+      if (appointmentsRequestRef.current === request) {
+        appointmentsRequestRef.current = null;
+      }
+    };
+    request.then(clearPendingAppointmentRequest, clearPendingAppointmentRequest);
+    return request;
   }, []);
 
   useEffect(() => {
+    if (isVisitFormRoute || doctorIdentity?.loading || !authenticatedDoctorId) {
+      return undefined;
+    }
+
+    appointmentsMountedRef.current = true;
     const loadTimer = window.setTimeout(() => {
       loadAppointments();
     }, 0);
@@ -1220,20 +1091,40 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
       .subscribe();
 
     return () => {
+      appointmentsMountedRef.current = false;
       window.clearTimeout(loadTimer);
       supabase.removeChannel(channel);
     };
-  }, [loadAppointments]);
+  }, [authenticatedDoctorId, doctorIdentity?.loading, isVisitFormRoute, loadAppointments]);
 
   useEffect(() => {
+    if (isVisitFormRoute || doctorIdentity?.loading || !authenticatedDoctorId) {
+      return undefined;
+    }
+
+    let active = true;
     const loadPatients = async () => {
       setIsLoadingPatients(true);
 
-      const { data, error } = await supabase
-        .from("patients")
-        .select(patientColumns)
-        .order("full_name", { ascending: true });
+      if (!patientsRequestRef.current) {
+        const request = Promise.resolve(
+          supabase
+            .rpc("get_doctor_patient_directory")
+            .select(patientColumns)
+            .order("full_name", { ascending: true })
+        );
+        patientsRequestRef.current = request;
+        const clearPendingPatientRequest = () => {
+          if (patientsRequestRef.current === request) {
+            patientsRequestRef.current = null;
+          }
+        };
+        request.then(clearPendingPatientRequest, clearPendingPatientRequest);
+      }
 
+      const { data, error } = await patientsRequestRef.current;
+
+      if (!active) return;
       setIsLoadingPatients(false);
 
       if (error) {
@@ -1245,7 +1136,92 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
     };
 
     loadPatients();
+    return () => {
+      active = false;
+    };
+  }, [authenticatedDoctorId, doctorIdentity?.loading, isVisitFormRoute]);
+
+  useEffect(() => {
+    if (tableScrollRef.current) {
+      tableScrollRef.current.scrollTop = 0;
+    }
+  }, [
+    activeTab,
+    appointmentView,
+    monthFilter,
+    displayedPage,
+    pageSize,
+    searchTerm,
+  ]);
+
+  useEffect(() => {
+    const closeStatusMenu = (event) => {
+      if (
+        event.target.closest?.(".doctor-appointment-status-cell") ||
+        event.target.closest?.(".doctor-appointment-status-portal-menu")
+      ) {
+        return;
+      }
+
+      setOpenStatusMenuId("");
+      setStatusMenuPosition(null);
+    };
+
+    window.addEventListener("click", closeStatusMenu);
+    return () => window.removeEventListener("click", closeStatusMenu);
   }, []);
+
+  useEffect(() => {
+    if (!openStatusMenuId) return undefined;
+
+    const keepStatusMenuAligned = () => updateStatusMenuPosition(openStatusMenuId);
+    const frameId = window.requestAnimationFrame(keepStatusMenuAligned);
+
+    window.addEventListener("resize", keepStatusMenuAligned);
+    window.addEventListener("scroll", keepStatusMenuAligned, true);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", keepStatusMenuAligned);
+      window.removeEventListener("scroll", keepStatusMenuAligned, true);
+    };
+  }, [openStatusMenuId, paginatedSchedules, updateStatusMenuPosition]);
+
+  useEffect(() => {
+    if (!selectedCalendarSchedule) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setSelectedCalendarSchedule(null);
+        setDetailActionError("");
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [selectedCalendarSchedule]);
+
+  const openCalendarAppointmentDetails = useCallback((schedule) => {
+    setSelectedCalendarSchedule(schedule);
+    setDetailActionError("");
+    logDoctorAppointmentDetailDebug("opened", {
+      scheduleId: schedule?.id || null,
+      displayedAppointmentId: getVisibleAppointmentId(schedule),
+      status: schedule?.status || null,
+    });
+  }, []);
+
+  const closeCalendarAppointmentDetails = () => {
+    setSelectedCalendarSchedule(null);
+    setDetailActionError("");
+  };
 
   const updateFormValue = (field, value) => {
     setForm((current) => ({
@@ -1254,45 +1230,69 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
     }));
   };
 
+  const resolveAppointmentDoctor = useCallback(async () => {
+    if (hookAppointmentDoctor) {
+      setAppointmentDoctorError(null);
+      return hookAppointmentDoctor;
+    }
+
+    if (doctorIdentity?.loading) return null;
+
+    setIsResolvingAppointmentDoctor(true);
+    setAppointmentDoctorError(null);
+
+    try {
+      const refreshedIdentity =
+        typeof doctorIdentity?.refresh === "function"
+          ? await doctorIdentity.refresh()
+          : await loadAuthenticatedDoctor();
+      const resolvedDoctor = getAppointmentDoctorFromIdentity(refreshedIdentity);
+
+      if (!resolvedDoctor) {
+        throw new Error("Unable to load Doctor profile");
+      }
+
+      setRefreshedAppointmentDoctor(resolvedDoctor);
+
+      return resolvedDoctor;
+    } catch (error) {
+      setRefreshedAppointmentDoctor(null);
+      setAppointmentDoctorError(error);
+
+      if (import.meta.env.DEV) {
+        console.warn("[Doctor Appointment Flow] appointment Doctor identity error", {
+          loading: false,
+          error,
+        });
+      }
+
+      return null;
+    } finally {
+      setIsResolvingAppointmentDoctor(false);
+    }
+  }, [doctorIdentity, hookAppointmentDoctor]);
+
+  const openAddAppointment = useCallback(() => {
+    if (isAdding) return;
+
+    window.dispatchEvent(new CustomEvent("doctor:close-profile-menu"));
+    setIsAdding(true);
+    setStatusMessage("");
+    setAppointmentDoctorError(null);
+
+    if (hookAppointmentDoctor) {
+      return;
+    }
+
+    resolveAppointmentDoctor();
+  }, [hookAppointmentDoctor, isAdding, resolveAppointmentDoctor]);
+
+
   const selectPatient = (patient) => {
     updateFormValue("patient_name", patient.full_name || "");
     setStatusMessage("");
   };
 
-  const updateFollowUpForm = (field, value) => {
-    setFollowUpForm((current) => ({ ...current, [field]: value }));
-  };
-
-  const openFollowUpForm = async (schedule) => {
-    setOpenStatusMenuId("");
-    setStatusMessage("");
-    setFollowUpSchedule(schedule);
-
-    const localPatient = patients.find(
-      (patient) =>
-        patient.full_name?.toLowerCase() === String(schedule.patient_name || "").toLowerCase()
-    );
-
-    setFollowUpForm(createDoctorFollowUpForm(schedule, localPatient || null));
-
-    if (localPatient || !schedule.patient_name) return;
-
-    const { data, error } = await supabase
-      .from("patients")
-      .select(patientColumns)
-      .ilike("full_name", schedule.patient_name)
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.warn("Doctor follow-up patient lookup failed:", error);
-      return;
-    }
-
-    if (data) {
-      setFollowUpForm(createDoctorFollowUpForm(schedule, data));
-    }
-  };
 
   const moveWeek = (direction) => {
     const date = toDate(`${selectedDate}T00:00:00`) || new Date();
@@ -1308,12 +1308,27 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
 
   const createAppointment = async (event) => {
     event.preventDefault();
+    if (appointmentSaveLockRef.current) return;
+
+    appointmentSaveLockRef.current = true;
+
+    try {
     setStatusMessage("");
 
-    const startDate = new Date(`${form.appointment_date}T${form.appointment_time}`);
+    const appointmentRange = buildThirtyMinuteAppointmentRange(
+      form.appointment_date,
+      form.appointment_time
+    );
 
-    if (Number.isNaN(startDate.getTime())) {
+    if (!appointmentRange) {
       setStatusMessage("Choose a valid appointment date and time.");
+      return;
+    }
+
+    const { startDate, endDate } = appointmentRange;
+
+    if (startDate < new Date()) {
+      setStatusMessage("New appointments cannot start in the past.");
       return;
     }
 
@@ -1340,58 +1355,31 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
       return;
     }
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const selectedDoctor = appointmentDoctor || (await resolveAppointmentDoctor());
 
-    if (userError || !user?.id) {
-      console.error("[Doctor Appointment Flow] authenticated user lookup failed:", userError);
-      setStatusMessage(
-        "Unable to identify the logged-in account. Please sign in again."
-      );
+    if (!selectedDoctor?.id || !selectedDoctor?.name) {
+      setStatusMessage("Unable to load Doctor profile. Please try again.");
       return;
     }
-
-    console.info("[Doctor Appointment Flow] authenticated user ID:", user.id);
-
-    const { data: currentProfile, error: currentProfileError } = await supabase
-      .from("profiles")
-      .select("id, full_name, role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (currentProfileError) {
-      console.error("Unable to read the current profile:", currentProfileError);
-    }
-
-    const selectedDoctor = {
-      id: user.id,
-      full_name:
-        form.doctor_name.trim() ||
-        currentProfile?.full_name ||
-        user.user_metadata?.full_name ||
-        user.email ||
-        "Doctor",
-      role: currentProfile?.role || "doctor",
-    };
-
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-
-    console.info("[Doctor Appointment Flow] resolved patient database ID:", selectedPatient.id);
-    console.info("[Doctor Appointment Flow] resolved patient auth user ID:", selectedPatient.user_id || null);
 
     const payload = {
       patient_id: selectedPatient.id,
       doctor_id: selectedDoctor.id,
       patient_name: form.patient_name.trim(),
-      doctor_name: form.doctor_name.trim(),
+      doctor_name: selectedDoctor.name,
       title: form.title.trim(),
       description: form.description.trim() || null,
       start_time: startDate.toISOString(),
       end_time: endDate.toISOString(),
       status: "scheduled",
     };
+
+    if (hasDuplicateAppointment(schedules, payload)) {
+      setStatusMessage(
+        "This patient already has an active appointment at the selected date and time."
+      );
+      return;
+    }
 
     setIsSaving(true);
 
@@ -1401,12 +1389,13 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
       .select(scheduleColumns)
       .maybeSingle();
 
-    setIsSaving(false);
-
     if (error) {
       console.error("[Doctor Appointment Flow] appointment insert error:", {
         error,
-        payload,
+        patientDatabaseId: selectedPatient.id,
+        authenticatedDoctorId: selectedDoctor.id,
+        profileId: selectedDoctor.profileId || null,
+        startTime: payload.start_time,
       });
       setStatusMessage(
         `Appointment was not saved: ${getReadableScheduleError(error)}`
@@ -1414,74 +1403,139 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
       return;
     }
 
-    console.info("[Doctor Appointment Flow] inserted appointment:", {
-      id: data?.id,
-      patient_id: data?.patient_id,
-      status: data?.status,
-      start_time: data?.start_time,
+    const notificationResult = await sendAutomaticAppointmentNotification({
+      patientId: data?.patient_id,
+      scheduleId: data?.id,
+      notificationType: "appointment_created",
     });
 
     if (data?.id) {
-      const reminderPayload = buildAppointmentReminderPayload(
-        data,
-        selectedPatient.id
-      );
-
       const { error: reminderError } = await supabase
-        .from("reminders")
-        .insert([reminderPayload]);
+        .rpc("create_appointment_patient_reminder", {
+          p_appointment_id: data.id,
+        });
 
       if (reminderError) {
-        console.warn("Doctor appointment reminder save failed:", reminderError);
+        console.warn("Doctor appointment reminder RPC failed:", {
+          code: reminderError.code || null,
+          message: reminderError.message || "Unknown Supabase error",
+          details: reminderError.details || null,
+          hint: reminderError.hint || null,
+        });
       }
     }
 
-    setSchedules((current) => [data, ...current]);
+    setSchedules((current) => (data ? [data, ...current] : current));
     setForm(initialAppointmentForm);
     setIsAdding(false);
     setActiveTab("All");
     setSelectedDate(toDateInputValue(payload.start_time));
+    setStatusMessage(
+      notificationResult.ok
+        ? "Appointment created and Patient notified."
+        : "Appointment was saved, but the Patient notification could not be sent."
+    );
+    } finally {
+      appointmentSaveLockRef.current = false;
+      setIsSaving(false);
+    }
   };
 
-  const updateScheduleStatus = async (schedule, nextStatus) => {
+  const updateScheduleStatus = async (schedule, nextStatus, options = {}) => {
     setOpenStatusMenuId("");
+    setDetailActionError("");
+    logDoctorAppointmentDetailDebug("status action requested", {
+      scheduleId: schedule?.id || null,
+      displayedAppointmentId: getVisibleAppointmentId(schedule),
+      currentStatus: schedule?.status || null,
+      selectedAction: options.actionLabel || nextStatus,
+    });
 
-    if (schedule.isDemo || String(schedule.id).startsWith("local-")) {
-      setLocalDemoSchedules((current) =>
-        current.map((item) => (item.id === schedule.id ? { ...item, status: nextStatus } : item))
-      );
-      return;
-    }
+    const mutationKey = `${schedule.id}:${nextStatus}`;
+    if (appointmentStatusLockRef.current.has(mutationKey)) return false;
 
+    appointmentStatusLockRef.current.add(mutationKey);
     setUpdatingStatusId(schedule.id);
 
-    const { error } = await supabase
-      .from(scheduleTableName)
-      .update({ status: nextStatus })
-      .eq("id", schedule.id);
+    try {
+      const { data, error } = await supabase
+        .from(scheduleTableName)
+        .update({ status: nextStatus })
+        .eq("id", schedule.id)
+        .select(scheduleColumns)
+        .maybeSingle();
 
-    setUpdatingStatusId("");
+      if (error) {
+        const message = getReadableScheduleError(error);
+        logDoctorAppointmentDetailDebug("status update failed", {
+          scheduleId: schedule.id,
+          displayedAppointmentId: getVisibleAppointmentId(schedule),
+          currentStatus: schedule.status,
+          selectedAction: options.actionLabel || nextStatus,
+          error,
+        });
+        setStatusMessage(message);
+        setDetailActionError(message);
+        if (!options.silentAlert) {
+          alert(`Failed to update appointment status: ${message}`);
+        }
+        return false;
+      }
 
-    if (error) {
-      const message = getReadableScheduleError(error);
-      setStatusMessage(message);
-      alert(`Failed to update appointment status: ${message}`);
-      return;
+      const updatedSchedule = data || { ...schedule, status: nextStatus };
+      const notificationResult = options.notificationType
+        ? await sendAutomaticAppointmentNotification({
+            patientId: updatedSchedule.patient_id,
+            scheduleId: updatedSchedule.id,
+            notificationType: options.notificationType,
+          })
+        : null;
+
+      setSchedules((current) =>
+        current.map((item) => (item.id === schedule.id ? updatedSchedule : item))
+      );
+      setSelectedCalendarSchedule((current) =>
+        current?.id === schedule.id ? updatedSchedule : current
+      );
+
+      const refreshResult = await loadAppointments({ preserveSelectedDate: true });
+      logDoctorAppointmentDetailDebug("status update succeeded", {
+        scheduleId: schedule.id,
+        displayedAppointmentId: getVisibleAppointmentId(updatedSchedule),
+        currentStatus: updatedSchedule.status,
+        selectedAction: options.actionLabel || nextStatus,
+        refreshResult,
+      });
+      return { updatedSchedule, notificationResult };
+    } finally {
+      appointmentStatusLockRef.current.delete(mutationKey);
+      setUpdatingStatusId("");
     }
-
-    setSchedules((current) =>
-      current.map((item) => (item.id === schedule.id ? { ...item, status: nextStatus } : item))
-    );
   };
 
   const handleStatusSelect = (schedule, nextStatus) => {
+    if (isClosedAppointmentStatus(schedule.status)) {
+      setOpenStatusMenuId("");
+      setStatusMessage("Completed, cancelled, or missed appointments cannot be changed.");
+      return;
+    }
+
+    if (
+      isCheckedInAppointmentStatus(schedule.status) &&
+      nextStatus !== appointmentStatuses.checkedIn
+    ) {
+      setOpenStatusMenuId("");
+      setStatusMessage("Open the checked-in appointment to complete its clinical visit.");
+      return;
+    }
+
     if (nextStatus === "scheduled") {
       setOpenStatusMenuId("");
       return;
     }
 
-    if (nextStatus === "completed") {
-      openFollowUpForm(schedule);
+    if (nextStatus === "checked_in") {
+      checkInAppointment(schedule);
       return;
     }
 
@@ -1494,121 +1548,131 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
     updateScheduleStatus(schedule, nextStatus);
   };
 
-  const saveFollowUpRecord = async () => {
-    if (!followUpSchedule?.id) return;
 
-    setIsSavingFollowUp(true);
-    setStatusMessage("");
+  const startEditAppointment = (schedule) => {
+    if (!schedule?.id || isClosedAppointmentStatus(schedule.status)) return;
 
-    if (followUpSchedule.isDemo || String(followUpSchedule.id).startsWith("local-")) {
-      setLocalDemoSchedules((current) =>
-        current.map((item) =>
-          item.id === followUpSchedule.id ? { ...item, status: "completed" } : item
-        )
-      );
-      setFollowUpSchedule(null);
-      setFollowUpForm(createDoctorFollowUpForm(null, null));
-      setIsSavingFollowUp(false);
-      return;
-    }
-
-    const { error: statusError } = await supabase
-      .from(scheduleTableName)
-      .update({ status: "completed" })
-      .eq("id", followUpSchedule.id);
-
-    if (statusError) {
-      const message = getReadableScheduleError(statusError);
-      setStatusMessage(`Unable to complete appointment: ${message}`);
-      setIsSavingFollowUp(false);
-      return;
-    }
-
-    if (followUpForm.patientRecordId) {
-      const recordPayload = {
-        patient_id: followUpForm.patientRecordId,
-        patient_name: followUpForm.patientName || followUpSchedule.patient_name,
-        type: followUpForm.visitType || "Follow-up Visit",
-        title: "Follow-up Visit",
-        notes: "Follow-up visit completed by doctor.",
-        uploaded_by: followUpForm.attendingPhysician || "Dr. Kempee Vergara",
-        form_data: {
-          visitType: followUpForm.visitType || "Follow-up Visit",
-          gestationalAge: followUpForm.gestationalAge || "-",
-          expectedDeliveryDate: followUpForm.expectedDeliveryDate
-            ? formatLongDate(`${followUpForm.expectedDeliveryDate}T00:00:00`)
-            : "-",
-          doctor: followUpForm.attendingPhysician || "Dr. Kempee Vergara",
-          visitDate: followUpForm.visitDate
-            ? formatLongDate(`${followUpForm.visitDate}T00:00:00`)
-            : "-",
-          visitTime: formatDisplayTime(followUpForm.visitTime) || "-",
-          pregnancyStatus: followUpForm.pregnancyStatus,
-          chiefComplaint: followUpForm.chiefComplaint || "",
-          symptoms: followUpForm.symptoms || "",
-          currentMedications: followUpForm.currentMedications || "",
-          allergies: followUpForm.allergies || "",
-          findings: [
-            { label: "Blood Pressure", value: followUpForm.bloodPressure || "-" },
-            { label: "Temperature", value: followUpForm.temperature || "-" },
-            { label: "Weight", value: followUpForm.weight || "-" },
-            { label: "Heart Rate", value: followUpForm.heartRate || "-" },
-            { label: "Fundal Height", value: followUpForm.fundalHeight || "-" },
-            { label: "Fetal Heart Rate", value: followUpForm.fetalHeartRate || "-" },
-            { label: "Presentation", value: followUpForm.presentation || "-" },
-            { label: "Urine Protein", value: followUpForm.urineProtein || "-" },
-            { label: "Urine Glucose", value: followUpForm.urineGlucose || "-" },
-          ],
-          assessment: followUpForm.assessment || "",
-          treatmentPlan: followUpForm.treatmentPlan || "",
-          followUpDate: followUpForm.followUpDate
-            ? formatLongDate(`${followUpForm.followUpDate}T00:00:00`)
-            : "-",
-          followUpTime: formatDisplayTime(followUpForm.followUpTime) || "-",
-          followUpInstructions: followUpForm.followUpInstructions || "",
-          dangerSigns: followUpForm.dangerSigns || "",
-          careActions: {
-            nutritionCounseling: Boolean(followUpForm.nutritionCounseling),
-            laboratoryRequest: Boolean(followUpForm.laboratoryRequest),
-            ultrasoundRequest: Boolean(followUpForm.ultrasoundRequest),
-            highRiskReferral: Boolean(followUpForm.highRiskReferral),
-          },
-          additionalNotes: followUpForm.additionalNotes || "",
-        },
-      };
-
-      const { error: recordError } = await supabase
-        .from("medical_records")
-        .insert(recordPayload);
-
-      if (recordError) {
-        console.warn("Doctor follow-up medical record insert failed:", recordError);
-        setStatusMessage(
-          `Appointment completed, but the medical record was not saved: ${recordError.message}`
-        );
-      }
-    } else {
-      setStatusMessage(
-        "Appointment completed, but no matching patient record was found for the follow-up record."
-      );
-    }
-
-    setSchedules((current) =>
-      current.map((item) =>
-        item.id === followUpSchedule.id ? { ...item, status: "completed" } : item
-      )
-    );
-    setFollowUpSchedule(null);
-    setFollowUpForm(createDoctorFollowUpForm(null, null));
-    setIsSavingFollowUp(false);
-    await loadAppointments();
+    logDoctorAppointmentDetailDebug("edit requested", {
+      scheduleId: schedule.id,
+      displayedAppointmentId: getVisibleAppointmentId(schedule),
+      currentStatus: schedule.status,
+      selectedAction: "edit",
+    });
+    setSelectedCalendarSchedule(null);
+    setDetailActionError("");
+    setRescheduleSchedule(schedule);
+    setRescheduleForm({
+      date: toDateInputValue(schedule.start_time),
+      time: toTimeInputValue(schedule.start_time),
+      message: schedule.description || "",
+    });
   };
 
-  const confirmCancelAppointment = () => {
+  const checkInAppointment = async (schedule) => {
+    if (!schedule?.id || updatingStatusId === schedule.id || visitRoutingLockRef.current) return;
+
+    if (!isPendingAppointmentStatus(schedule.status)) {
+      if (!isCheckedInAppointmentStatus(schedule.status)) {
+        setDetailActionError("Only pending, scheduled, or checked-in appointments can open a visit form.");
+        return;
+      }
+    }
+
+    visitRoutingLockRef.current = schedule.id;
+
+    try {
+      const saved = isCheckedInAppointmentStatus(schedule.status)
+        ? true
+        : await updateScheduleStatus(schedule, "checked_in", {
+            actionLabel: "check in",
+            silentAlert: true,
+          });
+
+      if (!saved) return;
+
+      const { data, error } = await supabase.rpc(
+        "get_appointment_visit_form_type",
+        { p_appointment_id: schedule.id }
+      );
+
+      if (error) {
+        console.error("Doctor appointment visit-routing RPC failed:", {
+          code: error.code || null,
+          message: error.message || "Unknown Supabase error",
+          details: error.details || null,
+          hint: error.hint || null,
+        });
+        setStatusMessage(
+          `Appointment checked in, but the visit form could not be opened. ${getReadableSupabaseError(error)}`
+        );
+        return;
+      }
+
+      const routeResult = Array.isArray(data) ? data[0] : data;
+      if (!routeResult?.visit_form_type) {
+        setStatusMessage(
+          "Appointment checked in, but the visit-routing RPC returned no form type. Retry Check in."
+        );
+        return;
+      }
+
+      const routeSegment = routeResult.visit_form_type === "initial"
+        ? "initial-visit"
+        : "follow-up";
+      setSelectedCalendarSchedule(null);
+      navigate(`/doctor/appointments/${schedule.id}/${routeSegment}`);
+    } finally {
+      visitRoutingLockRef.current = "";
+    }
+  };
+
+  const cancelDetailAppointment = async (schedule) => {
+    if (!schedule?.id || updatingStatusId === schedule.id) return;
+
+    if (isClosedAppointmentStatus(schedule.status)) {
+      setDetailActionError("Completed or cancelled appointments cannot be cancelled.");
+      return;
+    }
+
+    const confirmed = window.confirm("Are you sure you want to cancel this appointment?");
+    if (!confirmed) return;
+
+    const saved = await updateScheduleStatus(schedule, "cancelled", {
+      actionLabel: "cancel",
+      silentAlert: true,
+      notificationType: "appointment_cancelled",
+    });
+
+    if (saved) {
+      setSelectedCalendarSchedule(null);
+      setStatusMessage(
+        saved === true
+          ? "Appointment cancelled."
+          : saved.notificationResult?.ok
+          ? "Appointment cancelled and Patient notified."
+          : "Appointment was saved, but the Patient notification could not be sent."
+      );
+    }
+  };
+
+  const confirmCancelAppointment = async () => {
     if (!cancelConfirmationSchedule) return;
 
-    updateScheduleStatus(cancelConfirmationSchedule, "cancelled");
-    setCancelConfirmationSchedule(null);
+    const saved = await updateScheduleStatus(cancelConfirmationSchedule, "cancelled", {
+      actionLabel: "cancel",
+      notificationType: "appointment_cancelled",
+    });
+
+    if (saved) {
+      setCancelConfirmationSchedule(null);
+      setStatusMessage(
+        saved === true
+          ? "Appointment cancelled."
+          : saved.notificationResult?.ok
+          ? "Appointment cancelled and Patient notified."
+          : "Appointment was saved, but the Patient notification could not be sent."
+      );
+    }
   };
 
   const startRescheduleAppointment = () => {
@@ -1631,23 +1695,29 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
   const saveRescheduleAppointment = async (event) => {
     event.preventDefault();
 
-    if (!rescheduleSchedule) return;
+    if (!rescheduleSchedule || rescheduleSaveLockRef.current) return;
 
-    const startDate = new Date(`${rescheduleForm.date}T${rescheduleForm.time}`);
+    rescheduleSaveLockRef.current = true;
 
-    if (Number.isNaN(startDate.getTime())) {
+    try {
+
+    const appointmentRange = buildThirtyMinuteAppointmentRange(
+      rescheduleForm.date,
+      rescheduleForm.time
+    );
+
+    if (!appointmentRange) {
       setStatusMessage("Choose a valid reschedule date and time.");
       return;
     }
 
-    const previousStart = toDate(rescheduleSchedule.start_time);
-    const previousEnd = toDate(rescheduleSchedule.end_time);
-    const duration =
-      previousStart && previousEnd && previousEnd > previousStart
-        ? previousEnd.getTime() - previousStart.getTime()
-        : 60 * 60 * 1000;
+    const { startDate, endDate } = appointmentRange;
 
-    const endDate = new Date(startDate.getTime() + duration);
+    if (startDate < new Date()) {
+      setStatusMessage("Rescheduled appointments cannot start in the past.");
+      return;
+    }
+
     const payload = {
       start_time: startDate.toISOString(),
       end_time: endDate.toISOString(),
@@ -1655,25 +1725,25 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
       status: "scheduled",
     };
 
-    if (rescheduleSchedule.isDemo || String(rescheduleSchedule.id).startsWith("local-")) {
-      setLocalDemoSchedules((current) =>
-        current.map((item) =>
-          item.id === rescheduleSchedule.id ? { ...item, ...payload } : item
-        )
-      );
-      setSelectedDate(toDateInputValue(startDate));
-      closeRescheduleModal();
+    if (
+      hasDuplicateAppointment(schedules, {
+        ...payload,
+        id: rescheduleSchedule.id,
+        patient_id: rescheduleSchedule.patient_id,
+      })
+    ) {
+      setStatusMessage("This appointment conflicts with another active appointment.");
       return;
     }
 
     setUpdatingStatusId(rescheduleSchedule.id);
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from(scheduleTableName)
       .update(payload)
-      .eq("id", rescheduleSchedule.id);
-
-    setUpdatingStatusId("");
+      .eq("id", rescheduleSchedule.id)
+      .select(scheduleColumns)
+      .maybeSingle();
 
     if (error) {
       const message = getReadableScheduleError(error);
@@ -1682,81 +1752,156 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
       return;
     }
 
+    const updatedSchedule = data || { ...rescheduleSchedule, ...payload };
+    const notificationResult = await sendAutomaticAppointmentNotification({
+      patientId: updatedSchedule.patient_id,
+      scheduleId: updatedSchedule.id,
+      notificationType: "appointment_rescheduled",
+    });
     setSchedules((current) =>
-      current.map((item) => (item.id === rescheduleSchedule.id ? { ...item, ...payload } : item))
+      current.map((item) => (item.id === rescheduleSchedule.id ? updatedSchedule : item))
+    );
+    setSelectedCalendarSchedule((current) =>
+      current?.id === rescheduleSchedule.id ? updatedSchedule : current
     );
     setSelectedDate(toDateInputValue(startDate));
+    const refreshResult = await loadAppointments({ preserveSelectedDate: true });
+    logDoctorAppointmentDetailDebug("edit saved", {
+      scheduleId: rescheduleSchedule.id,
+      displayedAppointmentId: getVisibleAppointmentId(updatedSchedule),
+      currentStatus: updatedSchedule.status,
+      selectedAction: "edit",
+      refreshResult,
+    });
     closeRescheduleModal();
+    setStatusMessage(
+      notificationResult.ok
+        ? "Appointment rescheduled and Patient notified."
+        : "Appointment was saved, but the Patient notification could not be sent."
+    );
+    } finally {
+      rescheduleSaveLockRef.current = false;
+      setUpdatingStatusId("");
+    }
   };
 
-  if (followUpSchedule) {
+  if (visitRoute) {
     return (
-      <DoctorFollowUpVisitForm
-        form={followUpForm}
-        onBack={() => {
-          setFollowUpSchedule(null);
-          setStatusMessage("");
-        }}
-        onChange={updateFollowUpForm}
-        onSave={saveFollowUpRecord}
-        saving={isSavingFollowUp}
-        statusMessage={statusMessage}
+      <AppointmentVisitForm
+        appointmentId={visitRoute.appointmentId}
+        requestedType={visitRoute.requestedType}
+        workspace="doctor"
       />
     );
   }
 
   return (
-    <main className={`doctor-appointments-page${embedded ? " doctor-appointments-page--embedded" : ""}`}>
-      <header className="doctor-appointments-header">
-        <div className="doctor-appointments-title-block">
-          <h1>Appointments</h1>
-          <p>Schedule, monitor, and update patient appointments.</p>
+    <main
+      className={`doctor-appointments-page appointment-workspace appointment-workspace--doctor${embedded ? " doctor-appointments-page--embedded" : ""}`}
+    >
+      <AppointmentPageHeader
+        title="Appointments"
+        subtitle="Schedule, monitor, and update patient appointments."
+        tabs={appointmentTabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        action={headerAction || <DefaultProfileCard doctorIdentity={doctorIdentity} />}
+        className="doctor-appointments-header"
+        titleBlockClassName="doctor-appointments-title-block"
+        tabsClassName="doctor-appointments-tabs"
+      />
 
-          <nav className="doctor-appointments-tabs" aria-label="Appointment status">
-            {appointmentTabs.map((tab) => (
-              <button
-                className={activeTab === tab ? "is-active" : ""}
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {headerAction || <DefaultProfileCard />}
-      </header>
-
-      <section className="doctor-appointments-action-row">
-        <form
-          className="doctor-appointments-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-          }}
+      <AppointmentToolbar className="doctor-appointments-action-row doctor-appointments-toolbar doctor-appointments-toolbar-labeled">
+        <AppointmentControlGroup
+          label="View"
+          area="view"
+          className="doctor-appointments-control-group doctor-appointments-view-group"
         >
-          <label>
-            <InlineIcon name="search" />
-            <input
-              type="search"
-              placeholder="Search Appointment or ID"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-          </label>
-        </form>
+          <AppointmentViewSwitch
+            options={appointmentViews}
+            value={appointmentView}
+            onChange={setAppointmentView}
+            className="doctor-appointments-view-switch"
+          />
+        </AppointmentControlGroup>
 
-        <button className="doctor-appointments-add" type="button" onClick={() => setIsAdding(true)}>
-          <InlineIcon name="plus" />
-          <span>Add Appointment</span>
-        </button>
-      </section>
+        <AppointmentControlGroup
+          label="Search Appointments"
+          area="search"
+          className="doctor-appointments-control-group doctor-appointments-search-group"
+        >
+          <form
+            className="doctor-appointments-search"
+            onSubmit={(event) => {
+              event.preventDefault();
+            }}
+          >
+            <label className="appointment-ui-search">
+              <InlineIcon name="search" />
+              <input
+                type="search"
+                placeholder="Search Appointment, Patient, or ID"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </label>
+          </form>
+        </AppointmentControlGroup>
+
+        <AppointmentControlGroup
+          as="label"
+          label="Filter by Month"
+          area="month"
+          className="doctor-appointments-month-filter doctor-appointments-control-group"
+        >
+          <div className="doctor-appointments-month-input appointment-ui-month">
+            <Icon icon="solar:calendar-linear" />
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={(event) => setMonthFilter(event.target.value)}
+              aria-label="Filter appointments by month"
+            />
+            {monthFilter ? (
+              <button
+                type="button"
+                className="doctor-appointments-month-clear"
+                aria-label="Clear month filter"
+                title="Clear month filter"
+                onClick={() => setMonthFilter("")}
+              >
+                <Icon icon="material-symbols:close-rounded" />
+              </button>
+            ) : null}
+          </div>
+        </AppointmentControlGroup>
+
+        <AppointmentControlGroup
+          label="Quick Action"
+          area="action"
+          className="doctor-appointments-control-group doctor-appointments-action-group"
+        >
+          <button
+            className="doctor-appointments-add appointment-ui-primary"
+            type="button"
+            onClick={openAddAppointment}
+          >
+            <InlineIcon name="plus" />
+            <span>Add Appointment</span>
+          </button>
+        </AppointmentControlGroup>
+      </AppointmentToolbar>
 
       {statusMessage ? <p className="doctor-appointments-status-message">{statusMessage}</p> : null}
 
-      <section className="doctor-appointments-table-card" aria-label="Appointments">
-        <div className="doctor-appointments-table-scroll">
+      <section
+        className="doctor-appointments-table-card appointment-ui-table-card"
+        aria-label="Appointments"
+      >
+        <div
+          className="doctor-appointments-table-scroll appointment-ui-table-scroll"
+          ref={tableScrollRef}
+        >
           <div className="doctor-appointments-table__head">
             <span>Appointment ID</span>
             <span>Name</span>
@@ -1765,12 +1910,11 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
             <span>Status</span>
           </div>
 
-          {visibleSchedules.length > 0 ? (
-            visibleSchedules.map((schedule) => (
+          {paginatedSchedules.length > 0 ? (
+            paginatedSchedules.map((schedule) => (
               <div className="doctor-appointments-row" key={schedule.id}>
                 <span>
-                  {schedule.maternal_appointment_id ||
-                    String(schedule.id).slice(0, 9)}
+                  {schedule.maternal_appointment_id || "MA ID not assigned"}
                 </span>
                 <span>{schedule.patient_name || "-"}</span>
                 <span>{formatTableDate(schedule.start_time)}</span>
@@ -1778,10 +1922,15 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
                 <StatusDropdown
                   schedule={schedule}
                   openStatusMenuId={openStatusMenuId}
-                  setOpenStatusMenuId={setOpenStatusMenuId}
                   updatingStatusId={updatingStatusId}
-                  onSelectStatus={handleStatusSelect}
-                  onOpenFollowUp={openFollowUpForm}
+                  buttonRef={(node) => {
+                    if (node) {
+                      statusButtonRefs.current[schedule.id] = node;
+                    } else {
+                      delete statusButtonRefs.current[schedule.id];
+                    }
+                  }}
+                  onToggleStatusMenu={toggleStatusMenu}
                 />
               </div>
             ))
@@ -1789,15 +1938,64 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
             <div className="doctor-appointments-empty">No appointments found.</div>
           )}
         </div>
+
+        <AppointmentPagination
+          className="doctor-appointments-pagination"
+          currentPage={displayedPage}
+          pageSize={pageSize}
+          pageSizes={appointmentPageSizes}
+          totalItems={visibleSchedules.length}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </section>
+
+      {openStatusMenuId && activeStatusSchedule && statusMenuPosition &&
+      typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="doctor-appointment-status-portal-menu"
+              role="listbox"
+              style={{
+                top: `${statusMenuPosition.top}px`,
+                left: `${statusMenuPosition.left}px`,
+              }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {statusOptions
+                .filter(
+                  (option) =>
+                    !isCheckedInAppointmentStatus(activeStatusSchedule.status) ||
+                    option.value === appointmentStatuses.checkedIn
+                )
+                .map((option) => (
+                <button
+                  className={`doctor-appointment-status-option doctor-appointment-status-option--${option.value}`}
+                  type="button"
+                  role="option"
+                  aria-selected={
+                    normalizeAppointmentStatus(activeStatusSchedule.status) === option.value
+                  }
+                  key={option.value}
+                  onClick={() => handleStatusSelect(activeStatusSchedule, option.value)}
+                >
+                  {option.label}
+                </button>
+                ))}
+            </div>,
+            document.body
+          )
+        : null}
 
       <section className="doctor-calendar-layout">
         <FigmaWeekCalendar
-          schedules={displaySchedules}
+          schedules={schedules}
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           onPreviousWeek={() => moveWeek(-1)}
           onNextWeek={() => moveWeek(1)}
+          onSelectSchedule={openCalendarAppointmentDetails}
         />
 
         <aside className="doctor-calendar-sidebar">
@@ -1806,8 +2004,6 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
             onSelectDate={setSelectedDate}
             onMoveMonth={moveMonth}
           />
-
-          <AppointmentCategories />
         </aside>
       </section>
 
@@ -1859,6 +2055,21 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
                     </div>
                   </label>
 
+                  <label className="appointment-form-field appointment-form-field--wide">
+                    <span>Doctor:</span>
+                    <input
+                      type="text"
+                      value={
+                        isAppointmentDoctorLoading
+                          ? "Loading Doctor profile..."
+                          : visibleAppointmentDoctorError
+                            ? "Unable to load Doctor profile"
+                            : appointmentDoctor?.name || "Loading Doctor profile..."
+                      }
+                      readOnly
+                    />
+                  </label>
+
                   <label className="appointment-form-field">
                     <span>
                       Select Date:
@@ -1895,11 +2106,11 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
                       <option value="" disabled>
                         Select appointment type
                       </option>
-                      <option value="Prenatal Checkup">Prenatal Checkup</option>
-                      <option value="Consultation">Consultation</option>
-                      <option value="Education">Education</option>
-                      <option value="Reminder">Reminder</option>
-                      <option value="Follow-up">Follow-up</option>
+                      {APPOINTMENT_TYPES.map((appointmentType) => (
+                        <option key={appointmentType} value={appointmentType}>
+                          {appointmentType}
+                        </option>
+                      ))}
                     </select>
                   </label>
 
@@ -1915,13 +2126,23 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
                     />
                   </label>
 
+                  {visibleAppointmentDoctorError ? (
+                    <p className="appointment-form-message">
+                      {visibleAppointmentDoctorError.message ||
+                        "Unable to load Doctor profile. Please try again."}
+                    </p>
+                  ) : null}
+
                   {statusMessage ? <p className="appointment-form-message">{statusMessage}</p> : null}
 
                   <div className="appointment-form-actions">
                     <button
                       className="appointment-add-save"
                       type="submit"
-                      disabled={isSaving}
+                      disabled={
+                        isSaving ||
+                        !isAddAppointmentReady
+                      }
                     >
                       {isSaving ? "Saving..." : "Save"}
                     </button>
@@ -1942,6 +2163,19 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
             document.body
           )
         : null}
+
+      {selectedCalendarSchedule ? (
+        <DoctorAppointmentDetailsModal
+          schedule={selectedCalendarSchedule}
+          actionError={detailActionError}
+          isUpdating={updatingStatusId === selectedCalendarSchedule.id}
+          onClose={closeCalendarAppointmentDetails}
+          onEdit={startEditAppointment}
+          onCheckIn={checkInAppointment}
+          onComplete={checkInAppointment}
+          onCancel={cancelDetailAppointment}
+        />
+      ) : null}
 
       
       {cancelConfirmationSchedule
@@ -2031,9 +2265,3 @@ export function DoctorAppointmentsContent({ embedded = false, headerAction = nul
     </main>
   );
 }
-
-function DoctorAppointments() {
-  return <DoctorAppointmentsContent />;
-}
-
-export default DoctorAppointments;

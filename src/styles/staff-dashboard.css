@@ -145,7 +145,8 @@ body {
 }
 
 .staff-dashboard-shell .staff-dashboard-home .doctor-topbar {
-  margin-bottom: 44px !important;
+  /* Match the Figma/reference spacing: keep the profile/header close to the hero. */
+  margin-bottom: 18px !important;
 }
 
 .staff-dashboard-shell .doctor-topbar h2,
@@ -503,6 +504,75 @@ body {
   height: 20px !important;
 }
 
+/* Staff Dashboard: functional 3-dot actions for Upcoming Sessions. */
+.staff-dashboard-shell .staff-session-actions {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.staff-dashboard-shell .staff-session-actions.is-open {
+  z-index: 80 !important;
+}
+
+.staff-dashboard-shell .staff-session-action-menu {
+  position: absolute !important;
+  z-index: 120 !important;
+  top: calc(100% + 7px) !important;
+  right: 0 !important;
+  width: 176px !important;
+  display: grid !important;
+  gap: 3px !important;
+  padding: 7px !important;
+  border: 1px solid #e7e9ef !important;
+  border-radius: 11px !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 34px rgba(17, 24, 39, 0.14) !important;
+}
+
+.staff-dashboard-shell
+  .doctor-sessions-table
+  tbody
+  tr:nth-last-child(-n + 2)
+  .staff-session-action-menu {
+  top: auto !important;
+  bottom: calc(100% + 7px) !important;
+}
+
+.staff-dashboard-shell .staff-session-action-menu button {
+  width: 100% !important;
+  min-height: 38px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 9px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #4b5160 !important;
+  padding: 0 10px !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+}
+
+.staff-dashboard-shell .staff-session-action-menu button:hover,
+.staff-dashboard-shell .staff-session-action-menu button:focus-visible {
+  background: #fff0f5 !important;
+  color: #c52361 !important;
+  outline: none !important;
+}
+
+.staff-dashboard-shell .staff-session-action-menu button svg {
+  width: 17px !important;
+  height: 17px !important;
+  flex: 0 0 17px !important;
+}
+
+
 /* Keep Patients/Appointments width aligned with Dashboard. */
 .staff-dashboard-shell .staff-patients-actions,
 .staff-dashboard-shell .staff-patients-card,
@@ -662,6 +732,25 @@ body {
   box-sizing: border-box !important;
 }
 
+/*
+ * The Doctor shell hides inline profile wrappers because it renders its own
+ * global profile slot. Staff reuses these shell classes but keeps the shared
+ * StaffProfileCard inside each page header.
+ */
+.staff-dashboard-shell .doctor-content .staff-dashboard-home > .doctor-topbar {
+  padding-right: 0 !important;
+}
+
+.staff-dashboard-shell
+  .doctor-content
+  .staff-dashboard-home
+  > .doctor-topbar
+  .staff-profile-wrapper {
+  position: relative !important;
+  z-index: 40 !important;
+  display: block !important;
+}
+
 .staff-dashboard-shell .staff-section-header > :first-child,
 .staff-dashboard-shell .doctor-topbar > :first-child,
 .staff-dashboard-shell .staff-patients-header > :first-child,
@@ -718,5 +807,190 @@ body {
     width: 100% !important;
     max-width: none !important;
     flex-basis: auto !important;
+  }
+}
+
+
+/* =========================================================
+   STAFF DASHBOARD — HEADER TO HERO SPACING
+   Reference/Figma alignment only; other Staff pages untouched.
+   ========================================================= */
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header {
+  margin-bottom: 18px !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell
+    .staff-dashboard-home
+    > .doctor-topbar.staff-section-header {
+    margin-bottom: 22px !important;
+  }
+}
+
+/* =========================================================
+   FINAL STAFF PAGE HEADER CONTRACT
+   Dashboard / Patients / Appointments
+   ---------------------------------------------------------
+   Purpose:
+   - one exact desktop title size
+   - one exact font weight / line height / letter spacing
+   - identical top alignment with the Staff profile card
+   - responsive title sizing stays consistent across all 3 pages
+
+   This is intentionally placed at the END of staff-dashboard.css
+   with higher-specificity selectors so older page-level rules
+   (including the older 38px Patients title rule) cannot override it.
+   ========================================================= */
+
+.staff-dashboard-shell {
+  --staff-unified-title-size: 42px;
+  --staff-unified-title-weight: 900;
+  --staff-unified-title-line-height: 1.03;
+  --staff-unified-title-letter-spacing: -0.06em;
+}
+
+/* Exact same title typography on the 3 main Staff pages. */
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  > h2,
+.staff-dashboard-shell
+  .staff-patients-page
+  > .staff-patients-header.staff-section-header
+  h2,
+.staff-dashboard-shell
+  .staff-appointments-page
+  > .staff-appointments-header.staff-section-header
+  h1 {
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #202432 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: var(--staff-unified-title-size) !important;
+  font-weight: var(--staff-unified-title-weight) !important;
+  line-height: var(--staff-unified-title-line-height) !important;
+  letter-spacing: var(--staff-unified-title-letter-spacing) !important;
+}
+
+/* All three header rows begin at the same x/y position. */
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header,
+.staff-dashboard-shell
+  .staff-patients-page
+  > .staff-patients-header.staff-section-header,
+.staff-dashboard-shell
+  .staff-appointments-page
+  > .staff-appointments-header.staff-section-header {
+  width: 100% !important;
+  padding-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  align-items: flex-start !important;
+  box-sizing: border-box !important;
+}
+
+/* Keep the title/description column anchored to the same left edge. */
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  > :first-child,
+.staff-dashboard-shell
+  .staff-patients-page
+  > .staff-patients-header.staff-section-header
+  > :first-child,
+.staff-dashboard-shell
+  .staff-appointments-page
+  > .staff-appointments-header.staff-section-header
+  > :first-child {
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+/* Keep the Staff profile card aligned to the same top-right anchor. */
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  .staff-profile-wrapper,
+.staff-dashboard-shell
+  .staff-patients-page
+  > .staff-patients-header.staff-section-header
+  .staff-profile-wrapper,
+.staff-dashboard-shell
+  .staff-appointments-page
+  > .staff-appointments-header.staff-section-header
+  .staff-profile-wrapper {
+  margin-top: 0 !important;
+  margin-left: auto !important;
+  align-self: flex-start !important;
+  transform: none !important;
+}
+
+/*
+ * Page-specific content below the heading intentionally keeps its own spacing:
+ * - Dashboard -> hero
+ * - Patients -> search/status/register toolbar
+ * - Appointments -> status tabs / view switch
+ * Only the shared HEADER geometry is normalized.
+ */
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell {
+    --staff-unified-title-size: 34px;
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-dashboard-shell {
+    --staff-unified-title-size: 31px;
+  }
+}
+
+/* =========================================================
+   STAFF DASHBOARD — REFERENCE CONTENT POSITIONING
+   Keeps every Dashboard section on one centered vertical axis.
+   ========================================================= */
+.staff-dashboard-shell .doctor-content .staff-dashboard-home {
+  width: 100% !important;
+  max-width: 1330px !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+.staff-dashboard-shell
+  .doctor-content
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header {
+  min-height: var(--doctor-top-profile-height) !important;
+  margin-bottom: 18px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .staff-hero-card {
+  margin-bottom: 24px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-hero-text h1 span,
+.staff-dashboard-shell .staff-dashboard-home .doctor-hero-text p span {
+  display: block;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .staff-status-row {
+  gap: 26px !important;
+  margin-bottom: 28px !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell .doctor-content .staff-dashboard-home {
+    max-width: none !important;
+  }
+
+  .staff-dashboard-shell
+    .doctor-content
+    .staff-dashboard-home
+    > .doctor-topbar.staff-section-header {
+    margin-bottom: 22px !important;
   }
 }

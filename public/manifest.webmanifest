@@ -1,9 +1,9 @@
 {
-  "id": "/patient",
+  "id": "/patient/",
   "name": "Maternal Care Patient",
   "short_name": "Maternal Care",
   "description": "Patient pregnancy dashboard, appointments, medical records, and reminder notifications.",
-  "start_url": "/patient/access",
+  "start_url": "/patient/",
   "scope": "/patient/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],

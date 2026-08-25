@@ -1,0 +1,425 @@
+/* Shared Appointments design system pilot (Doctor + Staff). */
+
+.appointment-workspace {
+  --appointment-ui-primary: #ff2f7d;
+  --appointment-ui-primary-dark: #c91668;
+  --appointment-ui-primary-soft: #fff0f6;
+  --appointment-ui-ink: #20232b;
+  --appointment-ui-muted: #687082;
+  --appointment-ui-line: #d4d7e3;
+  --appointment-ui-line-soft: #eceef4;
+  --appointment-ui-surface: #ffffff;
+  --appointment-ui-radius-sm: 9px;
+  --appointment-ui-radius-md: 14px;
+  --appointment-ui-radius-lg: 18px;
+  --appointment-ui-control-height: 52px;
+  --appointment-ui-shadow: 0 14px 34px rgba(24, 29, 43, 0.055);
+  --appointment-ui-focus: 0 0 0 4px rgba(255, 47, 125, 0.1);
+  width: 100%;
+  min-width: 0;
+  color: var(--appointment-ui-ink);
+  font-family: "Poppins", sans-serif;
+}
+
+.appointment-workspace *,
+.appointment-workspace *::before,
+.appointment-workspace *::after {
+  box-sizing: border-box;
+}
+
+.appointment-ui-header {
+  width: 100% !important;
+  min-height: var(--doctor-page-header-min-height, 88px) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 28px !important;
+  margin: 0 0 22px !important;
+  padding: 0 !important;
+}
+
+.appointment-ui-title-block {
+  min-width: 0;
+  max-width: min(720px, 100%);
+}
+
+.appointment-ui-title-block > h1 {
+  margin: 0 !important;
+  color: var(--appointment-ui-ink) !important;
+  font-size: var(--doctor-page-title-size, 32px) !important;
+  font-weight: 800 !important;
+  line-height: var(--doctor-page-title-line, 1.12) !important;
+  letter-spacing: -0.055em !important;
+}
+
+.appointment-ui-title-block > p {
+  max-width: 620px;
+  margin: 7px 0 0 !important;
+  color: #5f6676 !important;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: var(--doctor-page-subtitle-size, 14px) !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.appointment-ui-tabs {
+  display: flex;
+  align-items: center;
+  gap: 30px !important;
+  min-width: 0;
+  margin-top: 18px !important;
+  border-bottom: 1px solid var(--appointment-ui-line) !important;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.appointment-ui-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.appointment-ui-tabs button {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 34px;
+  border: 0;
+  padding: 2px 0 14px !important;
+  background: transparent;
+  color: #4b5060;
+  font-family: "Poppins", sans-serif;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 19px !important;
+  cursor: pointer;
+}
+
+.appointment-ui-tabs button::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--appointment-ui-primary);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 160ms ease;
+}
+
+.appointment-ui-tabs button:hover,
+.appointment-ui-tabs button.is-active {
+  color: var(--appointment-ui-primary-dark) !important;
+}
+
+.appointment-ui-tabs button.is-active::after {
+  width: auto !important;
+  transform: scaleX(1);
+}
+
+.appointment-ui-toolbar {
+  width: 100% !important;
+  max-width: none !important;
+  display: grid !important;
+  grid-template-columns: max-content minmax(280px, 1fr) 210px 210px !important;
+  grid-template-areas: "view search month action" !important;
+  align-items: start !important;
+  column-gap: 14px !important;
+  row-gap: 0 !important;
+  margin: 0 0 20px !important;
+}
+
+.appointment-ui-control {
+  min-width: 0;
+  display: grid !important;
+  gap: 7px !important;
+  align-content: start;
+  margin: 0 !important;
+}
+
+.appointment-ui-control--view {
+  grid-area: view;
+}
+
+.appointment-ui-control--search {
+  grid-area: search;
+}
+
+.appointment-ui-control--month {
+  grid-area: month;
+}
+
+.appointment-ui-control--action {
+  grid-area: action;
+}
+
+.appointment-ui-control-label {
+  display: block;
+  margin: 0;
+  color: var(--appointment-ui-muted);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.appointment-ui-segmented {
+  width: max-content !important;
+  min-height: var(--appointment-ui-control-height) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px !important;
+  margin: 0 !important;
+  padding: 4px !important;
+  border: 1px solid var(--appointment-ui-line) !important;
+  border-radius: 12px !important;
+  background: var(--appointment-ui-surface);
+}
+
+.appointment-ui-segmented button {
+  min-width: 76px;
+  min-height: 42px !important;
+  border: 0;
+  border-radius: 9px !important;
+  padding: 0 14px !important;
+  background: transparent;
+  color: #555d6e;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.appointment-ui-segmented button:hover,
+.appointment-ui-segmented button.is-active {
+  color: var(--appointment-ui-primary) !important;
+  background: var(--appointment-ui-primary-soft) !important;
+}
+
+.appointment-ui-search,
+.appointment-ui-month,
+.appointment-ui-primary {
+  height: var(--appointment-ui-control-height) !important;
+  min-height: var(--appointment-ui-control-height) !important;
+  border-radius: 12px !important;
+}
+
+.appointment-ui-search,
+.appointment-ui-month {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  border: 1px solid var(--appointment-ui-line) !important;
+  padding: 0 16px !important;
+  background: var(--appointment-ui-surface) !important;
+  color: #414755;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.appointment-ui-search:focus-within,
+.appointment-ui-month:focus-within {
+  border-color: var(--appointment-ui-primary) !important;
+  box-shadow: var(--appointment-ui-focus) !important;
+}
+
+.appointment-ui-search input,
+.appointment-ui-month input {
+  width: 100%;
+  min-width: 0;
+  border: 0 !important;
+  outline: 0;
+  background: transparent !important;
+  color: #2d3340;
+  font: inherit;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+
+.appointment-ui-search input::placeholder {
+  color: #979dac;
+}
+
+.appointment-ui-search svg,
+.appointment-ui-month > svg {
+  width: 19px !important;
+  height: 19px !important;
+  flex: 0 0 19px;
+}
+
+.appointment-ui-primary {
+  width: 210px !important;
+  min-width: 210px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  border: 0 !important;
+  padding: 0 18px !important;
+  background: var(--appointment-ui-primary) !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.18) !important;
+  white-space: nowrap;
+}
+
+.appointment-ui-primary:hover {
+  background: #ee1768 !important;
+  transform: translateY(-1px);
+}
+
+.appointment-ui-table-card {
+  width: 100% !important;
+  margin: 0 0 36px !important;
+  border: 1px solid var(--appointment-ui-line) !important;
+  border-radius: var(--appointment-ui-radius-lg) !important;
+  background: var(--appointment-ui-surface) !important;
+  box-shadow: var(--appointment-ui-shadow) !important;
+  overflow: hidden !important;
+}
+
+.appointment-ui-table-scroll {
+  width: 100%;
+  max-height: 542px;
+  overflow: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 47, 125, 0.5) transparent;
+}
+
+.appointment-workspace .doctor-appointments-table__head,
+.appointment-workspace .staff-appointments-table th {
+  min-height: 58px !important;
+  height: 58px !important;
+  background: var(--appointment-ui-primary) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 16px !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase;
+}
+
+.appointment-workspace .doctor-appointments-row,
+.appointment-workspace .staff-appointments-table td {
+  min-height: 72px !important;
+  height: 72px !important;
+  color: #343945 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+}
+
+.appointment-workspace .doctor-appointments-row:hover,
+.appointment-workspace .staff-appointments-table tbody tr:hover {
+  background: #fff8fb !important;
+}
+
+.appointment-ui-status {
+  min-width: 104px !important;
+  min-height: 30px !important;
+  border-radius: 999px !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+}
+
+.appointment-ui-pagination {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 22px;
+  border-top: 1px solid var(--appointment-ui-line-soft);
+  color: #596174;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.appointment-ui-pagination label,
+.appointment-ui-pagination > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.appointment-ui-pagination select,
+.appointment-ui-pagination button {
+  min-height: 34px;
+  border: 1px solid var(--appointment-ui-line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #414755;
+  font: inherit;
+}
+
+.appointment-ui-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.appointment-ui-pagination button:not(:disabled):hover {
+  border-color: var(--appointment-ui-primary);
+  color: var(--appointment-ui-primary-dark);
+  background: var(--appointment-ui-primary-soft);
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  .appointment-ui-toolbar {
+    grid-template-columns: minmax(0, 1fr) 210px !important;
+    grid-template-areas:
+      "view action"
+      "search month" !important;
+    row-gap: 16px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .appointment-ui-header {
+    min-height: auto !important;
+    flex-direction: column;
+    margin-bottom: 24px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .appointment-ui-toolbar {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "view"
+      "search"
+      "month"
+      "action" !important;
+    gap: 14px !important;
+  }
+
+  .appointment-ui-segmented,
+  .appointment-ui-primary {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .appointment-ui-segmented button {
+    flex: 1;
+  }
+
+  .appointment-ui-table-scroll {
+    max-height: 500px;
+  }
+}
+
+@media (max-width: 640px) {
+  .appointment-ui-tabs {
+    gap: 22px !important;
+  }
+
+  .appointment-ui-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .appointment-ui-pagination > div {
+    justify-content: space-between;
+  }
+}

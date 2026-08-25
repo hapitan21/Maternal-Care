@@ -1,0 +1,179 @@
+.admin-account-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgba(24, 29, 44, 0.5);
+  padding: 20px;
+}
+
+.admin-account-dialog-backdrop.is-profile-action {
+  background: rgba(24, 29, 44, 0.56);
+  backdrop-filter: blur(3px);
+}
+
+.admin-account-dialog {
+  width: min(560px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow-y: auto;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.24);
+  padding: 26px;
+}
+
+.admin-account-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.admin-account-dialog h2 {
+  margin: 0;
+  color: var(--admin-text, #1d2440);
+  font-size: 21px;
+}
+
+.admin-account-dialog-header > button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: #98a2b3;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.admin-account-dialog-header > button svg { width: 25px; height: 25px; }
+
+.admin-account-dialog p {
+  color: #5f6d81;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.admin-account-dialog-person {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.admin-account-dialog-person > div {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.admin-account-dialog-person strong {
+  color: var(--admin-text, #1d2440);
+  font-size: 17px;
+}
+
+.admin-account-dialog-person small {
+  color: #768399;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-account-dialog-avatar {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #da376f;
+  font-size: 17px;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.admin-account-dialog-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.admin-account-dialog-status {
+  min-height: 25px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.admin-account-dialog-status.is-temporary { border-color: #f6cf76; color: #aa6100; background: #fff4d8; }
+.admin-account-dialog-status.is-active { border-color: #9ce7c4; color: #07875a; background: #e9fbf3; }
+.admin-account-dialog-status.is-inactive { border-color: #dfe4eb; color: #727e92; background: #f0f2f5; }
+
+.admin-account-dialog.is-profile-action { width: min(600px, 100%); padding: 32px; }
+.admin-account-dialog.is-profile-action .admin-account-dialog-person > div { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.admin-account-dialog.is-profile-action .admin-account-dialog-person strong { font-size: 20px; }
+.admin-account-dialog-description { white-space: pre-line; }
+
+.admin-account-dialog-question {
+  color: var(--admin-text, #1d2440) !important;
+  font-weight: 800;
+}
+
+.admin-account-dialog-error {
+  border-radius: 7px;
+  color: #a91c43;
+  background: #fff0f5;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 11px 12px;
+}
+
+.admin-account-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.admin-account-dialog-actions button {
+  min-width: 116px;
+  height: 42px;
+  border: 1px solid #dce2eb;
+  border-radius: 7px;
+  color: #4f5d70;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 16px;
+}
+
+.admin-account-dialog-actions button.is-danger {
+  border-color: #d92f62;
+  color: #fff;
+  background: #d92f62;
+}
+
+.admin-account-dialog-actions button.is-success {
+  border-color: #16864c;
+  color: #fff;
+  background: #16864c;
+}
+
+.admin-account-dialog-actions button:disabled { cursor: wait; opacity: 0.68; }
+.admin-account-dialog button:focus-visible { outline: 3px solid rgba(251, 56, 126, 0.28); outline-offset: 2px; }
+
+@media (max-width: 430px) {
+  .admin-account-dialog-backdrop { padding: 12px; }
+  .admin-account-dialog { max-height: calc(100vh - 24px); padding: 20px; }
+  .admin-account-dialog-actions { flex-direction: column-reverse; }
+  .admin-account-dialog-actions button { width: 100%; }
+}

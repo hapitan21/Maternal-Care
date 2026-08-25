@@ -76,42 +76,26 @@
 
 .pwa-hero-illustration {
   position: absolute;
-  right: 42px;
-  bottom: 26px;
+  right: 32px;
+  bottom: 8px;
   z-index: 2;
-  width: 390px;
-  height: 230px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
-  gap: 8px;
+  width: min(44%, 430px);
+  height: 240px;
+  display: block;
+  pointer-events: none;
+}
+
+.pwa-hero-illustration img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: right bottom;
+  filter: drop-shadow(0 18px 24px rgba(76, 18, 48, 0.14));
 }
 
 .pwa-hero-person {
-  width: 120px;
-  height: 170px;
-  border-radius: 60px 60px 24px 24px;
-  background: rgba(255, 255, 255, 0.28);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 84px;
-  filter: drop-shadow(0 18px 18px rgba(76, 18, 48, 0.16));
-}
-
-.pwa-hero-mom {
-  height: 178px;
-  background: #bd9af4;
-}
-
-.pwa-hero-doctor {
-  height: 198px;
-  background: #fff;
-}
-
-.pwa-hero-nurse {
-  height: 185px;
-  background: #79d7b0;
+  display: none;
 }
 
 .pwa-journey-section {
@@ -329,8 +313,16 @@
   font-weight: 600;
 }
 
+.pwa-tip-actions {
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .pwa-health-tip-card button {
   min-width: 210px;
+  max-width: 100%;
   height: 64px;
   border: 0;
   border-radius: 16px;
@@ -348,6 +340,63 @@
 .pwa-health-tip-card button svg {
   width: 24px;
   height: 24px;
+}
+
+.pwa-hero-week-missing {
+  max-width: 460px;
+  font-size: clamp(30px, 3vw, 42px) !important;
+  letter-spacing: -0.035em !important;
+}
+
+.pwa-hero-helper {
+  display: block;
+  max-width: 390px;
+  margin-top: 14px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.pwa-journey-empty {
+  min-height: 126px !important;
+  border-radius: 22px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  justify-items: start;
+  align-content: center;
+  column-gap: 16px;
+  padding: 22px 26px;
+  text-align: left;
+}
+
+.pwa-journey-empty > span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--pwa-pink-soft);
+  color: var(--pwa-pink);
+}
+
+.pwa-journey-empty > span svg {
+  width: 25px;
+  height: 25px;
+}
+
+.pwa-journey-empty > div {
+  min-width: 0;
+}
+
+.pwa-journey-empty h2 {
+  margin-bottom: 4px;
+  font-size: 17px;
+  line-height: 24px;
+}
+
+.pwa-journey-empty p {
+  font-size: 13px;
+  line-height: 20px;
 }
 
 @media (max-width: 1100px) {
@@ -372,7 +421,7 @@
     grid-template-columns: 100px minmax(0, 1fr);
   }
 
-  .pwa-health-tip-card button {
+  .pwa-tip-actions {
     grid-column: 2;
     justify-self: start;
   }
@@ -413,9 +462,15 @@
     gap: 18px;
   }
 
-  .pwa-health-tip-card button {
+  .pwa-tip-actions {
     grid-column: auto;
     width: 100%;
+    justify-self: stretch;
+  }
+
+  .pwa-health-tip-card button {
+    width: 100%;
+    min-width: 0;
   }
 
   .pwa-tip-copy h2 {
@@ -474,30 +529,10 @@
 }
 
 .pwa-hero-illustration {
-  right: 44px !important;
-  bottom: 24px !important;
-  width: 345px !important;
-  height: 200px !important;
-  gap: 8px !important;
-}
-
-.pwa-hero-person {
-  width: 104px !important;
-  height: 150px !important;
-  border-radius: 52px 52px 22px 22px !important;
-  font-size: 68px !important;
-}
-
-.pwa-hero-mom {
-  height: 156px !important;
-}
-
-.pwa-hero-doctor {
-  height: 174px !important;
-}
-
-.pwa-hero-nurse {
-  height: 162px !important;
+  right: 30px !important;
+  bottom: 10px !important;
+  width: min(42%, 390px) !important;
+  height: 210px !important;
 }
 
 .pwa-journey-section {
@@ -612,6 +647,7 @@
 
 .pwa-health-tip-card button {
   min-width: 170px !important;
+  max-width: 100% !important;
   height: 54px !important;
   border-radius: 14px !important;
   font-size: 15px !important;
@@ -655,7 +691,7 @@
     grid-template-columns: 96px minmax(0, 1fr) !important;
   }
 
-  .pwa-health-tip-card button {
+  .pwa-tip-actions {
     grid-column: 2 !important;
     justify-self: start !important;
   }
@@ -701,8 +737,38 @@
     gap: 18px !important;
   }
 
-  .pwa-health-tip-card button {
+  .pwa-tip-actions {
     grid-column: auto !important;
     width: 100% !important;
+    max-width: 100% !important;
+    justify-self: stretch !important;
+    box-sizing: border-box !important;
+  }
+
+  .pwa-health-tip-card button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    height: 52px !important;
+  }
+
+  .pwa-journey-empty {
+    grid-template-columns: 1fr;
+    row-gap: 12px;
+    padding: 20px !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .pwa-health-tip-card {
+    overflow: hidden !important;
+    padding: 24px 18px !important;
+  }
+
+  .pwa-tip-actions {
+    width: 100% !important;
+    padding-inline: 0 !important;
   }
 }

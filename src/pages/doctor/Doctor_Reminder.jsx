@@ -2,40 +2,27 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
 
+import { ClinicalWorkflowHeader } from "../../components/clinical/ClinicalWorkflowUi";
 import { supabase } from "../../lib/supabaseClient";
+import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
+import {
+  classifyAppointment,
+  formatAppointmentDate,
+  formatAppointmentTime,
+  getManilaDateKey,
+  getManilaDayRange,
+  getManilaTimeKey,
+  toManilaISOString,
+} from "../../lib/appointmentDate";
 import "../../styles/doctor-reminder.css";
 
 const scheduleTableName = "schedule";
 const remindersTableName = "reminders";
 const medicationRemindersTableName = "medication_reminders";
+const medicationReminderOccurrencesTableName = "medication_reminder_occurrences";
 const healthTipsTableName = "health_tips";
 const healthTipCategories = ["All", "Nutrition", "Exercise"];
-const defaultHealthTips = [
-  {
-    id: "hydration",
-    category: "Nutrition",
-    icon: "hydration",
-    image: "",
-    title: "Hydration",
-    text: "Drink atleast 8 glasses of water daily.",
-  },
-  {
-    id: "vitamins",
-    category: "Nutrition",
-    icon: "vitamins",
-    image: "",
-    title: "Vitamins",
-    text: "Never skip prenatal vitamins.",
-  },
-  {
-    id: "rest",
-    category: "Exercise",
-    icon: "rest",
-    image: "/images/sleep.png",
-    title: "Rest",
-    text: "Get enough sleep during pregnancy.",
-  },
-];
+const healthTipManagementFilters = ["Active", "Archived", "All"];
 
 const healthTipImages = {
   hydration: "",
@@ -60,13 +47,14 @@ function getHealthTipImage(tip) {
 }
 
 function getLocalDateKey(offset = 0) {
-  const date = new Date();
-  date.setDate(date.getDate() + offset);
+  return getManilaDateKey(new Date(Date.now() + offset * 24 * 60 * 60 * 1000));
+}
 
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function addDays(dateValue, amount) {
+  const date = new Date(`${dateValue}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setTime(date.getTime() + amount * 24 * 60 * 60 * 1000);
+  return getManilaDateKey(date);
 }
 
 function isUuid(value) {
@@ -115,20 +103,33 @@ function logMedicationReminderDebug(label, details = {}) {
   }
 }
 
-function getReminderDisplayStatus(status, remindAt) {
+function getReminderDisplayStatus(
+  status,
+  remindAt,
+  sentAt,
+  nowValue = Date.now(),
+  repeatMode = "none",
+  nextTriggerAt = ""
+) {
   const normalizedStatus = String(status || "pending").toLowerCase();
+  const normalizedRepeatMode = String(repeatMode || "none").toLowerCase();
 
-  if (normalizedStatus === "sent") return "Sent";
-  if (normalizedStatus === "completed") return "Completed";
   if (normalizedStatus === "cancelled") return "Cancelled";
+  if (normalizedStatus === "completed") return "Completed";
+  if (normalizedStatus === "sent") return "Sent";
 
-  const remindTime = remindAt ? new Date(remindAt).getTime() : Number.NaN;
+  const triggerAt = nextTriggerAt || remindAt;
+  const triggerTime = triggerAt ? new Date(triggerAt).getTime() : Number.NaN;
 
-  if (Number.isFinite(remindTime) && remindTime <= Date.now()) {
-    return "Sent";
+  if (Number.isFinite(triggerTime) && triggerTime <= nowValue) {
+    return "Due";
   }
 
-  return "Pending";
+  if (normalizedRepeatMode !== "none" && sentAt) {
+    return "Repeating";
+  }
+
+  return "Scheduled";
 }
 
 function getMedicationDisplayStatus(status) {
@@ -145,6 +146,230 @@ function getMedicationDatabaseStatus(status) {
   if (status === "Cancelled" || status === "Missed") return "cancelled";
   if (status === "Paused") return "paused";
   return "active";
+}
+
+function getStatusClass(status) {
+  return String(status || "Pending")
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+}
+
+function isDateInsideMedicationRange(dateValue, reminder) {
+  if (!dateValue || !reminder.startDate) {
+    return false;
+  }
+
+  if (dateValue < reminder.startDate) {
+    return false;
+  }
+
+  if (reminder.endDate && dateValue > reminder.endDate) {
+    return false;
+  }
+
+  return true;
+}
+
+function getMedicationOccurrenceDate(reminder, filter) {
+  const today = getLocalDateKey();
+  const tomorrow = addDays(today, 1);
+
+  if (filter === "Today") {
+    return isDateInsideMedicationRange(today, reminder) ? today : "";
+  }
+
+  if (filter === "Tomorrow") {
+    return isDateInsideMedicationRange(tomorrow, reminder) ? tomorrow : "";
+  }
+
+  const firstPossibleDate =
+    reminder.startDate > today ? reminder.startDate : today;
+
+  if (filter === "Upcoming") {
+    return isDateInsideMedicationRange(firstPossibleDate, reminder)
+      ? firstPossibleDate
+      : "";
+  }
+
+  if (isDateInsideMedicationRange(firstPossibleDate, reminder)) {
+    return firstPossibleDate;
+  }
+
+  return reminder.startDate || "";
+}
+
+function getMedicationOccurrenceKey(
+  medicationReminderId,
+  scheduleDate,
+  scheduleTime
+) {
+  return [
+    String(medicationReminderId || ""),
+    String(scheduleDate || ""),
+    normalizeDatabaseTime(scheduleTime),
+  ].join("|");
+}
+
+function getMedicationOccurrenceQueryRange() {
+  const todayRange = getManilaDayRange();
+
+  if (!todayRange) {
+    return null;
+  }
+
+  return {
+    start: todayRange.start.toISOString(),
+    end: new Date(
+      todayRange.start.getTime() + 8 * 24 * 60 * 60 * 1000
+    ).toISOString(),
+  };
+}
+
+function isMissingMedicationOccurrenceError(error) {
+  const message = `${error?.message || ""} ${error?.details || ""}`.toLowerCase();
+
+  return (
+    error?.code === "42P01" ||
+    error?.code === "42703" ||
+    error?.code === "PGRST200" ||
+    error?.code === "PGRST204" ||
+    error?.code === "PGRST205" ||
+    message.includes("schema cache") ||
+    message.includes("could not find") ||
+    message.includes("does not exist")
+  );
+}
+
+function mapMedicationOccurrenceDatabaseRow(row) {
+  const scheduleDate = getManilaDateKey(row.scheduled_for);
+  const scheduleTime = getManilaTimeKey(row.scheduled_for);
+
+  return {
+    id: row.id,
+    medicationReminderId: row.medication_reminder_id,
+    patientId: row.patient_id,
+    scheduledFor: row.scheduled_for,
+    scheduleDate,
+    scheduleTime,
+    status: String(row.status || "").trim().toLowerCase(),
+    notificationId: row.notification_id || "",
+    notifiedAt: row.notified_at || "",
+    actionAt: row.action_at || "",
+    missedAt: row.missed_at || "",
+    errorCode: row.error_code || "",
+    matchKey: getMedicationOccurrenceKey(
+      row.medication_reminder_id,
+      scheduleDate,
+      scheduleTime
+    ),
+  };
+}
+
+function getDoctorMedicationOccurrenceStatus(reminder, occurrence, nowValue) {
+  if (occurrence?.status === "processing") {
+    return { label: "PROCESSING", className: "processing" };
+  }
+
+  if (occurrence?.status === "notified") {
+    return { label: "DUE", className: "due" };
+  }
+
+  if (occurrence?.status === "taken") {
+    return { label: "TAKEN", className: "taken" };
+  }
+
+  if (occurrence?.status === "skipped") {
+    return { label: "SKIPPED", className: "skipped" };
+  }
+
+  if (occurrence?.status === "missed") {
+    return { label: "MISSED", className: "missed" };
+  }
+
+  if (occurrence?.status === "failed") {
+    return { label: "UNAVAILABLE", className: "unavailable" };
+  }
+
+  if (!reminder.isActive) {
+    const status = reminder.courseStatus || reminder.status || "Inactive";
+    return { label: status, className: getStatusClass(status) };
+  }
+
+  const scheduleAt = toManilaISOString(
+    reminder.scheduleDate,
+    reminder.scheduleTime || "08:00"
+  );
+  const scheduleTime = scheduleAt ? new Date(scheduleAt).getTime() : Number.NaN;
+
+  if (Number.isFinite(scheduleTime) && scheduleTime <= nowValue) {
+    return { label: "PENDING", className: "pending" };
+  }
+
+  return { label: "UPCOMING", className: "upcoming" };
+}
+
+function buildDoctorMedicationScheduleRows(
+  medicationReminders,
+  medicationOccurrenceMap,
+  filter,
+  nowValue,
+  occurrenceDataStatus = "ready"
+) {
+  return medicationReminders
+    .flatMap((reminder) => {
+      const occurrenceDate = getMedicationOccurrenceDate(reminder, filter);
+
+      if (!occurrenceDate) {
+        return [];
+      }
+
+      const reminderTimes = reminder.scheduleTimes?.length
+        ? reminder.scheduleTimes
+        : [reminder.scheduleTime || "08:00"];
+
+      return reminderTimes.map((timeValue, index) => {
+        const scheduleTime = normalizeDatabaseTime(timeValue) || "08:00";
+        const matchKey = getMedicationOccurrenceKey(
+          reminder.sourceReminderId || reminder.id,
+          occurrenceDate,
+          scheduleTime
+        );
+        const occurrence = medicationOccurrenceMap.get(matchKey) || null;
+        const status =
+          !occurrence && reminder.isActive && occurrenceDataStatus !== "ready"
+            ? occurrenceDataStatus === "loading"
+              ? { label: "CHECKING", className: "processing" }
+              : { label: "UNAVAILABLE", className: "unavailable" }
+            : getDoctorMedicationOccurrenceStatus(
+                {
+                  ...reminder,
+                  scheduleDate: occurrenceDate,
+                  scheduleTime,
+                },
+                occurrence,
+                nowValue
+              );
+
+        return {
+          ...reminder,
+          id: `${reminder.sourceReminderId || reminder.id}-${occurrenceDate}-${scheduleTime}-${index}`,
+          sourceReminderId: reminder.sourceReminderId || reminder.id,
+          scheduleDate: occurrenceDate,
+          scheduleTime,
+          scheduleAt: toManilaISOString(occurrenceDate, scheduleTime),
+          notifyAt: toManilaISOString(occurrenceDate, scheduleTime),
+          schedule: `${formatReminderDisplayDate(occurrenceDate)} ${formatMedicationReminderTime(scheduleTime)} - ${reminder.frequency || "As prescribed"}`,
+          occurrence,
+          matchKey,
+          status: status.label,
+          statusClassName: status.className,
+        };
+      });
+    })
+    .sort(
+      (first, second) =>
+        new Date(first.scheduleAt || 0) - new Date(second.scheduleAt || 0)
+    );
 }
 
 function getMedicationEndDate(startDate, duration) {
@@ -194,6 +419,42 @@ function getMedicationDuration(startDate, endDate) {
   return `${dayCount} day${dayCount === 1 ? "" : "s"}`;
 }
 
+function getReminderLeadTimeFromStoredReminder(appointment, reminder) {
+  if (!appointment?.scheduleAt || !reminder?.notifyAt) {
+    return "1day";
+  }
+
+  const appointmentTime = new Date(appointment.scheduleAt).getTime();
+  const reminderTime = new Date(reminder.notifyAt).getTime();
+
+  if (!Number.isFinite(appointmentTime) || !Number.isFinite(reminderTime)) {
+    return "1day";
+  }
+
+  const differenceHours = (appointmentTime - reminderTime) / 3600000;
+  const presets = [
+    ["1hour", 1],
+    ["1day", 24],
+    ["3days", 72],
+    ["3weeks", 504],
+  ];
+
+  const matchedPreset = presets.find(
+    ([, hours]) => Math.abs(differenceHours - hours) < 0.05
+  );
+
+  return matchedPreset?.[0] || "custom";
+}
+
+function toReminderDateTimeLocalValue(value) {
+  if (!value) return "";
+
+  const dateKey = getManilaDateKey(value);
+  const timeKey = getManilaTimeKey(value);
+
+  return dateKey && timeKey ? `${dateKey}T${timeKey}` : "";
+}
+
 function mapReminderDatabaseRow(row) {
   const patient = getRelatedRecord(row.patients);
   const appointment = getRelatedRecord(row.schedule);
@@ -214,8 +475,18 @@ function mapReminderDatabaseRow(row) {
     scheduleAt,
     message: row.message || "",
     notifyAt: row.remind_at,
-    status: getReminderDisplayStatus(row.status, row.remind_at),
+    status: getReminderDisplayStatus(
+      row.status,
+      row.remind_at,
+      row.sent_at,
+      Date.now(),
+      row.repeat_mode,
+      row.next_trigger_at
+    ),
     databaseStatus: row.status,
+    repeatMode: row.repeat_mode || "none",
+    nextTriggerAt: row.next_trigger_at || "",
+    repeatUntil: row.repeat_until || "",
     createdAt: row.created_at,
     sentAt: row.sent_at,
   };
@@ -231,6 +502,7 @@ function mapMedicationReminderDatabaseRow(row) {
 
   return {
     id: row.id,
+    sourceReminderId: row.id,
     type: "medicationReminder",
     patientId: row.patient_id || patient?.id || "",
     patientName: patient?.full_name || "Patient",
@@ -240,8 +512,9 @@ function mapMedicationReminderDatabaseRow(row) {
     scheduleDate: row.start_date || "",
     scheduleTime: primaryTime,
     scheduleTimes: reminderTimes,
+    startDate: row.start_date || "",
+    endDate: row.end_date || "",
     duration: row.duration || getMedicationDuration(row.start_date, row.end_date),
-    reminderTiming: "medication",
     schedule: `${formatReminderDisplayDate(row.start_date)} ${reminderTimes
       .map(formatMedicationReminderTime)
       .join(", ")} - ${row.frequency || "As prescribed"}`,
@@ -254,6 +527,10 @@ function mapMedicationReminderDatabaseRow(row) {
       ? getScheduleDateTime(row.start_date, primaryTime)
       : "",
     createdAt: row.created_at,
+    databaseStatus: row.status,
+    courseStatus: getMedicationDisplayStatus(row.status),
+    isActive:
+      String(row.status || "active").trim().toLowerCase() === "active",
   };
 }
 
@@ -267,7 +544,7 @@ async function resolvePatientRecordId(candidateId, patientName) {
 
   if (normalizedCandidateId) {
     const { data, error } = await supabase
-      .from("patients")
+      .rpc("get_doctor_patient_directory")
       .select("id")
       .eq("patient_id", normalizedCandidateId)
       .order("created_at", { ascending: false })
@@ -288,7 +565,7 @@ async function resolvePatientRecordId(candidateId, patientName) {
   }
 
   const { data, error } = await supabase
-    .from("patients")
+    .rpc("get_doctor_patient_directory")
     .select("id")
     .ilike("full_name", normalizedName)
     .order("created_at", { ascending: false })
@@ -380,32 +657,15 @@ function normalizeHealthTip(tip) {
     patientId: tip.patient_id || "",
     createdBy: tip.created_by || "",
     isActive: tip.is_active !== false,
+    status: tip.status || (tip.is_active === false ? "archived" : "active"),
     publishedAt: tip.published_at || tip.created_at || "",
+    updatedAt: tip.updated_at || "",
+    databaseBacked: tip.databaseBacked === true,
   };
 }
 
 function mapHealthTipDatabaseRow(row) {
-  return normalizeHealthTip(row);
-}
-
-function mergeHealthTipsWithDefaults(databaseTips) {
-  return [...databaseTips, ...defaultHealthTips].filter(
-    (tip, index, source) =>
-      source.findIndex(
-        (item) =>
-          String(item.id || "") === String(tip.id || "") ||
-          (String(item.title || "").trim().toLowerCase() ===
-            String(tip.title || "").trim().toLowerCase() &&
-            String(item.text || "").trim().toLowerCase() ===
-              String(tip.text || "").trim().toLowerCase())
-      ) === index
-  );
-}
-
-function getReminderDateTime(scheduleDate) {
-  const reminderDate = new Date(`${scheduleDate}T08:00:00`);
-  reminderDate.setDate(reminderDate.getDate() - 1);
-  return reminderDate.toISOString();
+  return normalizeHealthTip({ ...row, databaseBacked: true });
 }
 
 function getScheduleDateTime(scheduleDate, scheduleTime) {
@@ -434,51 +694,27 @@ function getReminderNotifyAtForAppointment(appointment, reminderLeadTime, custom
 }
 
 function buildAppointmentReminderMessage(appointment) {
-  const scheduleDateValue = appointment?.scheduleDate || getLocalDateKey(1);
-  const scheduleTimeValue = appointment?.scheduleTime || "08:00";
-  const appointmentDate = new Date(`${scheduleDateValue}T${scheduleTimeValue}`);
+  const scheduleAt = appointment?.scheduleAt || toManilaISOString(
+    appointment?.scheduleDate,
+    appointment?.scheduleTime
+  );
 
-  if (Number.isNaN(appointmentDate.getTime())) {
-    return `Reminder: ${appointment?.patientName || "Patient"} has ${appointment?.appointmentType || "an appointment"} scheduled on ${scheduleDateValue} at ${scheduleTimeValue}.`;
+  if (!scheduleAt) {
+    return `Reminder: ${appointment?.patientName || "Patient"} has ${appointment?.appointmentType || "an appointment"} scheduled.`;
   }
 
-  const appointmentDateLabel = appointmentDate.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  const appointmentTimeLabel = appointmentDate.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const appointmentDateLabel = formatAppointmentDate(scheduleAt);
+  const appointmentTimeLabel = formatAppointmentTime(scheduleAt);
 
   return `Reminder: ${appointment?.patientName || "Patient"} has ${appointment?.appointmentType || "an appointment"} scheduled on ${appointmentDateLabel} at ${appointmentTimeLabel}.`;
 }
 
-function getScheduleEndDateTime(scheduleDate, scheduleTime) {
-  const endDate = new Date(`${scheduleDate}T${scheduleTime || "08:00"}`);
-  endDate.setHours(endDate.getHours() + 1);
-  return endDate.toISOString();
-}
-
 function toDateKey(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getManilaDateKey(value);
 }
 
 function toTimeKey(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return getManilaTimeKey(value);
 }
 
 function mapScheduleAppointment(row) {
@@ -487,10 +723,12 @@ function mapScheduleAppointment(row) {
     patientId: row.patientRecordId || row.patient_id || "",
     patientName: row.patient_name || "Patient",
     appointmentType: row.title || "Appointment",
-    doctorName: row.doctor_name || "Healthcare provider",
+    doctorName: row.doctor_name || "Doctor not recorded",
     scheduleDate: toDateKey(row.start_time),
     scheduleTime: toTimeKey(row.start_time),
     scheduleAt: row.start_time,
+    scheduleEndAt: row.end_time,
+    scheduleStatus: row.status,
   };
 }
 
@@ -543,231 +781,27 @@ function formatReminderDisplayTime(timeValue) {
 }
 
 
-function DoctorIcon({ name }) {
-  const icons = {
-    logo: (
-      <>
-        <path d="M12 3.5c-4.1 0-7.4 3.3-7.4 7.4 0 5.5 5.7 9.5 6.5 10 .5.4 1.3.4 1.8 0 .8-.5 6.5-4.5 6.5-10 0-4.1-3.3-7.4-7.4-7.4Z" />
-        <path d="M9.7 11.5h4.6M12 9.2v4.6" />
-      </>
-    ),
-    home: <path d="M4 10.5 12 4l8 6.5V20h-5v-5.5h-6V20H4v-9.5Z" />,
-    calendar: (
-      <>
-        <rect x="4.5" y="6.5" width="15" height="13.5" rx="2" />
-        <path d="M8 4v4M16 4v4M4.5 10.5h15" />
-      </>
-    ),
-    calendarCheck: (
-      <>
-        <rect x="4.5" y="6.5" width="15" height="13.5" rx="2" />
-        <path d="M8 4v4M16 4v4M4.5 10.5h15" />
-        <path d="m9 15 2 2 4-4" />
-      </>
-    ),
-    records: (
-      <>
-        <path d="M7 3.5h7l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V5A1.5 1.5 0 0 1 7.5 3.5Z" />
-        <path d="M14 3.5v5h5M9 13h6M9 17h4" />
-      </>
-    ),
-    profile: (
-      <>
-        <circle cx="12" cy="8" r="3.5" />
-        <path d="M5 20a7 7 0 0 1 14 0" />
-      </>
-    ),
-    mail: (
-      <>
-        <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
-        <path d="m4.5 7 7.5 6 7.5-6" />
-      </>
-    ),
-    phone: (
-      <>
-        <path d="M7.5 4.5 10 7l-1.6 2.2a12 12 0 0 0 6.4 6.4L17 14l2.5 2.5v3A2.5 2.5 0 0 1 17 22 15 15 0 0 1 2 7a2.5 2.5 0 0 1 2.5-2.5h3Z" />
-      </>
-    ),
-    location: (
-      <>
-        <path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" />
-        <circle cx="12" cy="10" r="2.4" />
-      </>
-    ),
-    building: (
-      <>
-        <path d="M4 21V6.5A1.5 1.5 0 0 1 5.5 5h8A1.5 1.5 0 0 1 15 6.5V21" />
-        <path d="M15 10h3.5A1.5 1.5 0 0 1 20 11.5V21M3 21h18M8 9h3M8 13h3M8 17h3" />
-      </>
-    ),
-    chart: (
-      <>
-        <path d="M4 19.5h16" />
-        <path d="M6.5 16.5v-5" />
-        <path d="M11.5 16.5v-9" />
-        <path d="M16.5 16.5v-12" />
-      </>
-    ),
-    graphStacked: (
-      <>
-        <path d="M4 19.5h16" />
-        <path d="M6.5 16.5v-5" />
-        <path d="M11.5 16.5v-9" />
-        <path d="M16.5 16.5v-12" />
-        <path d="M8.7 17V9.5H6.2V17" fill="currentColor" stroke="none" />
-        <path d="M13.7 17V5.8h-2.5V17" fill="currentColor" stroke="none" />
-        <path d="M18.7 17V8.2h-2.5V17" fill="currentColor" stroke="none" />
-      </>
-    ),
-    appointmentSolid: (
-      <>
-        <path d="M7 3.5h10A2.5 2.5 0 0 1 19.5 6v12A2.5 2.5 0 0 1 17 20.5H7A2.5 2.5 0 0 1 4.5 18V6A2.5 2.5 0 0 1 7 3.5Z" fill="currentColor" stroke="none" />
-        <path d="M8 2.5v4M16 2.5v4M7.5 9h9" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" />
-        <path d="M8.2 13.5h3M8.2 16.2h5.5" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" opacity="0.95" />
-        <circle cx="15.7" cy="14.9" r="2.2" fill="#ffffff" stroke="none" opacity="0.95" />
-      </>
-    ),
-    pendingAppointment: (
-      <>
-        <path d="M7 3.5h10A2.5 2.5 0 0 1 19.5 6v12A2.5 2.5 0 0 1 17 20.5H7A2.5 2.5 0 0 1 4.5 18V6A2.5 2.5 0 0 1 7 3.5Z" fill="currentColor" stroke="none" />
-        <path d="M8 2.5v4M16 2.5v4M7.5 9h9" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" />
-        <path d="M8.2 13h4.2M8.2 16h3" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" opacity="0.95" />
-        <circle cx="16.2" cy="15.5" r="3.6" fill="#fff2dc" stroke="none" />
-        <path d="M16.2 13.2v2.6l1.8 1.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-    completedAppointment: (
-      <>
-        <path d="M7 3.5h10A2.5 2.5 0 0 1 19.5 6v12A2.5 2.5 0 0 1 17 20.5H7A2.5 2.5 0 0 1 4.5 18V6A2.5 2.5 0 0 1 7 3.5Z" fill="currentColor" stroke="none" />
-        <path d="M8 2.5v4M16 2.5v4M7.5 9h9" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" />
-        <path d="M8.2 13.2h3.2M8.2 16h2.4" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" opacity="0.95" />
-        <circle cx="16" cy="15.6" r="3.8" fill="#ddfff4" stroke="none" />
-        <path d="m14.2 15.7 1.2 1.3 2.7-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-    clock: (
-      <>
-        <circle cx="12" cy="12" r="8" />
-        <path d="M12 8v4l3 2" />
-      </>
-    ),
-    cancelCircle: (
-      <>
-        <circle cx="12" cy="12" r="8" />
-        <path d="m9 9 6 6M15 9l-6 6" />
-      </>
-    ),
-    bell: (
-      <>
-        <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" />
-        <path d="M10 21h4" />
-      </>
-    ),
-    logout: (
-      <>
-        <path d="M14 4H7a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h7" />
-        <path d="M10 12h10M17 8l4 4-4 4" />
-      </>
-    ),
-    settings: (
-      <>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 0 1-4 0V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 0 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8a2 2 0 0 1 0-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 0 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 .9-1.6v-.2a2 2 0 0 1 4 0V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 0 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.6.9h.2a2 2 0 0 1 0 4H21a1.7 1.7 0 0 0-1.6 1Z" />
-      </>
-    ),
-    lock: (
-      <>
-        <rect x="5" y="10" width="14" height="10" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </>
-    ),
-    shield: (
-      <>
-        <path d="M12 3.5 19 6v5.2c0 4.4-2.8 8.2-7 9.3-4.2-1.1-7-4.9-7-9.3V6l7-2.5Z" />
-        <path d="m9 12 2 2 4-4" />
-      </>
-    ),
-    eye: (
-      <>
-        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-        <circle cx="12" cy="12" r="2.5" />
-      </>
-    ),
-    eyeOff: (
-      <>
-        <path d="M3 3 21 21" />
-        <path d="M10.7 5.2A10.8 10.8 0 0 1 12 5c6 0 9.5 7 9.5 7a15 15 0 0 1-3 3.8" />
-        <path d="M6.6 6.9A15 15 0 0 0 2.5 12s3.5 7 9.5 7a10 10 0 0 0 4.2-.9" />
-      </>
-    ),
-    camera: (
-      <>
-        <path d="M8 7 9.5 5h5L16 7h2.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-7A2.5 2.5 0 0 1 5.5 7H8Z" />
-        <circle cx="12" cy="13" r="3" />
-      </>
-    ),
-    patients: (
-      <>
-        <circle cx="9" cy="8" r="3" />
-        <path d="M3.8 19a5.2 5.2 0 0 1 10.4 0" />
-        <circle cx="17" cy="10" r="2.5" />
-        <path d="M15 19a4.4 4.4 0 0 1 5.2-4.3" />
-      </>
-    ),
-    documentCheck: (
-      <>
-        <path d="M7 3.5h7l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V5A1.5 1.5 0 0 1 7.5 3.5Z" />
-        <path d="M14 3.5v5h5M9 13h4" />
-        <path d="m13.5 17 1.5 1.5 3.3-3.5" />
-      </>
-    ),
-    motherCare: (
-      <>
-        <circle cx="12" cy="5.5" r="2" />
-        <path d="M8.5 12.5a3.5 3.5 0 0 1 7 0c0 2.4-1.3 4.6-3.5 6.6-2.2-2-3.5-4.2-3.5-6.6Z" />
-        <path d="M7.5 9.5 12 3l4.5 6.5M9 21h6" />
-      </>
-    ),
-    pill: (
-      <>
-        <path d="M10.4 19.1 4.9 13.6a4 4 0 0 1 5.7-5.7l5.5 5.5a4 4 0 0 1-5.7 5.7Z" />
-        <path d="m8 10.9 5.1 5.1" />
-      </>
-    ),
-    bulb: (
-      <>
-        <path d="M9 18h6" />
-        <path d="M10 22h4" />
-        <path d="M8.5 14.5a6 6 0 1 1 7 0c-.8.7-1.2 1.6-1.2 2.5H9.7c0-.9-.4-1.8-1.2-2.5Z" />
-      </>
-    ),
-    moreVertical: (
-      <>
-        <circle cx="12" cy="5" r="1" />
-        <circle cx="12" cy="12" r="1" />
-        <circle cx="12" cy="19" r="1" />
-      </>
-    ),
-    plus: <path d="M12 5v14M5 12h14" />,
-    chevronDown: <path d="m7 10 5 5 5-5" />,
-    search: (
-      <>
-        <circle cx="11" cy="11" r="6" />
-        <path d="m16 16 4 4" />
-      </>
-    ),
-  };
+function getDoctorInitials(name) {
+  const initials = String(name || "Doctor")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
 
-  return (
-    <svg className="doctor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      {icons[name]}
-    </svg>
-  );
+  return initials || "DR";
 }
 
-function ReminderProfileMenu() {
+function ReminderProfileMenu({ doctorIdentity }) {
   const [isOpen, setIsOpen] = React.useState(false);
   const profileRef = React.useRef(null);
+  const displayName = doctorIdentity?.loading
+    ? "Loading Doctor profile..."
+    : doctorIdentity?.error
+      ? "Doctor profile not found"
+      : doctorIdentity?.doctorDisplayName || "Doctor";
+  const initials = getDoctorInitials(displayName);
 
   React.useEffect(() => {
     if (!isOpen) return undefined;
@@ -794,7 +828,6 @@ function ReminderProfileMenu() {
   const goToDoctorSection = (section) => {
     setIsOpen(false);
     window.dispatchEvent(new CustomEvent("doctor:navigate", { detail: { section } }));
-    window.localStorage.setItem("doctor_active_section", section);
   };
 
   return (
@@ -806,9 +839,9 @@ function ReminderProfileMenu() {
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
-        <span className="doctor-reminder-profile-avatar">KV</span>
+        <span className="doctor-reminder-profile-avatar">{initials}</span>
         <span className="doctor-reminder-profile-copy">
-          <strong>Kempee Vergara</strong>
+          <strong>{displayName}</strong>
           <small>Doctor</small>
         </span>
         <Icon icon="ri:arrow-down-s-line" />
@@ -817,9 +850,9 @@ function ReminderProfileMenu() {
       {isOpen ? (
         <div className="doctor-reminder-profile-dropdown" role="menu">
           <div className="doctor-reminder-profile-dropdown__header">
-            <span className="doctor-reminder-profile-dropdown__avatar">KV</span>
+            <span className="doctor-reminder-profile-dropdown__avatar">{initials}</span>
             <span>
-              <strong>Kempee Vergara</strong>
+              <strong>{displayName}</strong>
               <small>Doctor Account</small>
             </span>
           </div>
@@ -844,7 +877,7 @@ function ReminderProfileMenu() {
   );
 }
 
-function DoctorReminderContent({ headerAction = null }) {
+function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [form, setForm] = React.useState({
     appointmentId: "",
     patientId: "",
@@ -856,25 +889,41 @@ function DoctorReminderContent({ headerAction = null }) {
     message: "",
     reminderLeadTime: "1day",
     customNotifyAt: "",
-    repeatReminder: "hourly",
+    repeatReminder: "none",
   });
-  const [patientSearch, setPatientSearch] = React.useState("");
-  const [patientResults, setPatientResults] = React.useState([]);
-  const [isSearchingPatients, setIsSearchingPatients] = React.useState(false);
-  const [patientSearchMessage, setPatientSearchMessage] = React.useState("");
   const [availableAppointments, setAvailableAppointments] = React.useState([]);
   const [isLoadingAppointments, setIsLoadingAppointments] = React.useState(true);
   const [appointmentsMessage, setAppointmentsMessage] = React.useState("");
   const [reminders, setReminders] = React.useState([]);
+  const [isLoadingAppointmentReminders, setIsLoadingAppointmentReminders] =
+    React.useState(true);
+  const [appointmentRemindersMessage, setAppointmentRemindersMessage] =
+    React.useState("");
   const [medicationReminders, setMedicationReminders] = React.useState([]);
+  const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] =
+    React.useState(true);
+  const [medicationRemindersMessage, setMedicationRemindersMessage] =
+    React.useState("");
+  const [medicationOccurrences, setMedicationOccurrences] = React.useState([]);
+  const [medicationOccurrenceStatus, setMedicationOccurrenceStatus] =
+    React.useState("loading");
+  const [medicationOccurrencesMessage, setMedicationOccurrencesMessage] =
+    React.useState("");
   const [isReminderFormOpen, setIsReminderFormOpen] = React.useState(false);
   const [isMedicationFormOpen, setIsMedicationFormOpen] = React.useState(false);
   const [appointmentReminderFilter, setAppointmentReminderFilter] = React.useState("Today");
   const [medicationReminderFilter, setMedicationReminderFilter] = React.useState("Today");
-  const [healthTips, setHealthTips] = React.useState(defaultHealthTips);
+  const [healthTips, setHealthTips] = React.useState([]);
   const [healthTipFilter, setHealthTipFilter] = React.useState("All");
   const [viewAllSection, setViewAllSection] = React.useState(null);
   const [isHealthTipFormOpen, setIsHealthTipFormOpen] = React.useState(false);
+  const [healthTipFormMode, setHealthTipFormMode] = React.useState("add");
+  const [editingHealthTipId, setEditingHealthTipId] = React.useState("");
+  const [healthTipFormErrors, setHealthTipFormErrors] = React.useState({});
+  const [healthTipManagementFilter, setHealthTipManagementFilter] = React.useState("Active");
+  const [healthTipActionMenu, setHealthTipActionMenu] = React.useState(null);
+  const [deleteHealthTipTarget, setDeleteHealthTipTarget] = React.useState(null);
+  const [isDeletingHealthTip, setIsDeletingHealthTip] = React.useState(false);
   const [healthTipForm, setHealthTipForm] = React.useState({
     category: "Nutrition",
     icon: "bulb",
@@ -900,7 +949,6 @@ function DoctorReminderContent({ headerAction = null }) {
     frequency: "",
     duration: "",
     message: "",
-    reminderTiming: "medication",
   });
   const [medicationPatientSearch, setMedicationPatientSearch] = React.useState("");
   const [medicationPatientResults, setMedicationPatientResults] = React.useState([]);
@@ -913,78 +961,67 @@ function DoctorReminderContent({ headerAction = null }) {
   React.useEffect(() => {
     const reminderStatusTimer = window.setInterval(() => {
       setCurrentTime(Date.now());
-    }, 15000);
+    }, 60000);
 
     return () => window.clearInterval(reminderStatusTimer);
   }, []);
 
-  React.useEffect(() => {
-    let active = true;
+  const loadAppointments = React.useCallback(async () => {
+    setIsLoadingAppointments(true);
 
-    const loadAppointments = async () => {
-      setIsLoadingAppointments(true);
-
-      const [scheduleResult, patientsResult] = await Promise.all([
-        supabase
-          .from(scheduleTableName)
-          .select("id, patient_id, patient_name, doctor_name, title, start_time, status")
-          .order("start_time", { ascending: true }),
-        supabase
-          .from("patients")
-          .select("id, full_name, patient_id, status")
-          .order("full_name", { ascending: true }),
-      ]);
-
-      if (!active) return;
-
-      setIsLoadingAppointments(false);
-
-      if (scheduleResult.error) {
-        setAvailableAppointments([]);
-        setAppointmentsMessage(`Unable to load appointments: ${scheduleResult.error.message}`);
-        return;
-      }
-
-      if (patientsResult.error) {
-        console.warn("Unable to verify appointment patients:", patientsResult.error);
-        setAvailableAppointments((scheduleResult.data || []).map(mapScheduleAppointment));
-        setAppointmentsMessage("");
-        return;
-      }
-
-      const registeredAppointments = (scheduleResult.data || [])
-        .map((appointment) =>
-          attachRegisteredPatientToAppointment(appointment, patientsResult.data || [])
+    const [scheduleResult, patientsResult] = await Promise.all([
+      supabase
+        .from(scheduleTableName)
+        .select(
+          "id, patient_id, patient_name, doctor_name, title, start_time, end_time, status"
         )
-        .filter(Boolean)
-        .map(mapScheduleAppointment);
+        .order("start_time", { ascending: true }),
+      supabase
+        .rpc("get_doctor_patient_directory")
+        .select("id, full_name, patient_id, status")
+        .order("full_name", { ascending: true }),
+    ]);
 
-      setAvailableAppointments(registeredAppointments);
+    setIsLoadingAppointments(false);
+
+    if (scheduleResult.error) {
+      setAvailableAppointments([]);
       setAppointmentsMessage(
-        registeredAppointments.length
-          ? ""
-          : "No appointments linked to registered patients are available for reminders."
+        `Unable to load appointments: ${scheduleResult.error.message}`
       );
-    };
+      return;
+    }
 
-    loadAppointments();
+    if (patientsResult.error) {
+      console.warn("Unable to verify appointment patients:", patientsResult.error);
+      setAvailableAppointments(
+        (scheduleResult.data || []).map(mapScheduleAppointment)
+      );
+      setAppointmentsMessage("");
+      return;
+    }
 
-    const scheduleChannel = supabase
-      .channel("reminder-schedule-appointments")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: scheduleTableName },
-        loadAppointments
+    const registeredAppointments = (scheduleResult.data || [])
+      .map((appointment) =>
+        attachRegisteredPatientToAppointment(
+          appointment,
+          patientsResult.data || []
+        )
       )
-      .subscribe();
+      .filter(Boolean)
+      .map(mapScheduleAppointment);
 
-    return () => {
-      active = false;
-      supabase.removeChannel(scheduleChannel);
-    };
+    setAvailableAppointments(registeredAppointments);
+    setAppointmentsMessage(
+      registeredAppointments.length
+        ? ""
+        : "No appointments linked to registered patients are available for reminders."
+    );
   }, []);
 
   const loadAppointmentReminders = React.useCallback(async () => {
+    setIsLoadingAppointmentReminders(true);
+    setAppointmentRemindersMessage("");
     const { data, error } = await supabase
       .from(remindersTableName)
       .select(`
@@ -997,12 +1034,10 @@ function DoctorReminderContent({ headerAction = null }) {
         remind_at,
         status,
         sent_at,
+        repeat_mode,
+        next_trigger_at,
+        repeat_until,
         created_at,
-        patients (
-          id,
-          full_name,
-          patient_id
-        ),
         schedule (
           id,
           patient_id,
@@ -1018,14 +1053,21 @@ function DoctorReminderContent({ headerAction = null }) {
 
     if (error) {
       console.error("Unable to load appointment reminders:", error);
-      setStatusMessage(`Unable to load reminders: ${error.message}`);
+      setReminders([]);
+      setAppointmentRemindersMessage(
+        `Unable to load appointment reminders: ${error.message}`
+      );
+      setIsLoadingAppointmentReminders(false);
       return;
     }
 
     setReminders((data || []).map(mapReminderDatabaseRow));
+    setIsLoadingAppointmentReminders(false);
   }, []);
 
   const loadMedicationReminderRows = React.useCallback(async () => {
+    setIsLoadingMedicationReminders(true);
+    setMedicationRemindersMessage("");
     const { data, error } = await supabase
       .from(medicationRemindersTableName)
       .select(`
@@ -1041,27 +1083,113 @@ function DoctorReminderContent({ headerAction = null }) {
         start_date,
         end_date,
         status,
-        created_at,
-        patients (
-          id,
-          full_name,
-          patient_id
-        )
+        created_at
       `)
       .order("start_date", { ascending: true });
 
     if (error) {
       console.error("Unable to load medication reminders:", error);
-      setMedicationStatusMessage(
+      setMedicationReminders([]);
+      setMedicationRemindersMessage(
         `Unable to load medication reminders: ${error.message}`
+      );
+      setIsLoadingMedicationReminders(false);
+      return;
+    }
+
+    const patientIds = Array.from(
+      new Set((data || []).map((row) => row.patient_id).filter(Boolean))
+    );
+    const patientResult = patientIds.length
+      ? await supabase
+          .rpc("get_doctor_patient_directory")
+          .select("id, full_name, patient_id")
+          .in("id", patientIds)
+      : { data: [], error: null };
+
+    if (patientResult.error) {
+      console.error("Unable to resolve medication reminder Patients:", patientResult.error);
+      setMedicationReminders([]);
+      setMedicationRemindersMessage(
+        `Unable to load medication reminders: ${patientResult.error.message}`
+      );
+      setIsLoadingMedicationReminders(false);
+      return;
+    }
+
+    const patientsById = new Map(
+      (patientResult.data || []).map((patient) => [patient.id, patient])
+    );
+    setMedicationReminders(
+      (data || []).map((row) => ({
+        ...row,
+        patients: patientsById.get(row.patient_id) || null,
+      })).map(mapMedicationReminderDatabaseRow)
+    );
+    setIsLoadingMedicationReminders(false);
+  }, []);
+
+  const loadMedicationOccurrenceRows = React.useCallback(async () => {
+    setMedicationOccurrenceStatus("loading");
+    setMedicationOccurrencesMessage("");
+    const queryRange = getMedicationOccurrenceQueryRange();
+
+    if (!queryRange) {
+      setMedicationOccurrences([]);
+      setMedicationOccurrenceStatus("error");
+      setMedicationOccurrencesMessage(
+        "Medication dose status is unavailable because the date range could not be determined."
       );
       return;
     }
 
-    setMedicationReminders(
-      (data || []).map(mapMedicationReminderDatabaseRow)
+    const { data, error } = await supabase
+      .from(medicationReminderOccurrencesTableName)
+      .select(
+        `
+          id,
+          medication_reminder_id,
+          patient_id,
+          scheduled_for,
+          status,
+          notification_id,
+          notified_at,
+          action_at,
+          missed_at,
+          error_code,
+          updated_at
+        `
+      )
+      .gte("scheduled_for", queryRange.start)
+      .lt("scheduled_for", queryRange.end)
+      .order("scheduled_for", { ascending: true });
+
+    if (error) {
+      if (!isMissingMedicationOccurrenceError(error)) {
+        console.error("Unable to load medication occurrences:", error);
+      }
+      setMedicationOccurrences([]);
+      setMedicationOccurrenceStatus("error");
+      setMedicationOccurrencesMessage(
+        isMissingMedicationOccurrenceError(error)
+          ? "Medication dose status is not available yet."
+          : `Unable to load medication dose status: ${error.message}`
+      );
+      return;
+    }
+
+    setMedicationOccurrences(
+      (data || []).map(mapMedicationOccurrenceDatabaseRow)
     );
+    setMedicationOccurrenceStatus("ready");
   }, []);
+
+  const loadMedicationReminderData = React.useCallback(async () => {
+    await Promise.all([
+      loadMedicationReminderRows(),
+      loadMedicationOccurrenceRows(),
+    ]);
+  }, [loadMedicationOccurrenceRows, loadMedicationReminderRows]);
 
   const loadHealthTipRows = React.useCallback(async () => {
     setIsLoadingHealthTips(true);
@@ -1069,7 +1197,6 @@ function DoctorReminderContent({ headerAction = null }) {
     const { data, error } = await supabase
       .from(healthTipsTableName)
       .select("*")
-      .eq("is_active", true)
       .order("published_at", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -1077,7 +1204,7 @@ function DoctorReminderContent({ headerAction = null }) {
 
     if (error) {
       console.error("Unable to load health tips:", error);
-      setHealthTips(defaultHealthTips);
+      setHealthTips([]);
       setHealthTipsMessage(`Unable to load health tips: ${error.message}`);
       return;
     }
@@ -1086,17 +1213,25 @@ function DoctorReminderContent({ headerAction = null }) {
       .map(mapHealthTipDatabaseRow)
       .filter(Boolean);
 
-    setHealthTips(mergeHealthTipsWithDefaults(databaseTips));
+    setHealthTips(databaseTips);
     setHealthTipsMessage("");
   }, []);
 
   React.useEffect(() => {
-    loadAppointmentReminders();
-    loadMedicationReminderRows();
-    loadHealthTipRows();
+    const initialLoadTimer = window.setTimeout(() => {
+      loadAppointments();
+      loadAppointmentReminders();
+      loadMedicationReminderData();
+      loadHealthTipRows();
+    }, 0);
 
-    const appointmentReminderChannel = supabase
-      .channel("doctor-appointment-reminders")
+    const appointmentDataChannel = supabase
+      .channel("doctor-reminder-appointment-data")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: scheduleTableName },
+        loadAppointments
+      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: remindersTableName },
@@ -1104,8 +1239,8 @@ function DoctorReminderContent({ headerAction = null }) {
       )
       .subscribe();
 
-    const medicationReminderChannel = supabase
-      .channel("doctor-medication-reminders")
+    const medicationDataChannel = supabase
+      .channel("doctor-reminder-medication-data")
       .on(
         "postgres_changes",
         {
@@ -1114,6 +1249,15 @@ function DoctorReminderContent({ headerAction = null }) {
           table: medicationRemindersTableName,
         },
         loadMedicationReminderRows
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: medicationReminderOccurrencesTableName,
+        },
+        loadMedicationOccurrenceRows
       )
       .subscribe();
 
@@ -1127,90 +1271,20 @@ function DoctorReminderContent({ headerAction = null }) {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(appointmentReminderChannel);
-      supabase.removeChannel(medicationReminderChannel);
+      window.clearTimeout(initialLoadTimer);
+      supabase.removeChannel(appointmentDataChannel);
+      supabase.removeChannel(medicationDataChannel);
       supabase.removeChannel(healthTipsChannel);
     };
   }, [
+    loadAppointments,
     loadAppointmentReminders,
+    loadMedicationOccurrenceRows,
+    loadMedicationReminderData,
     loadMedicationReminderRows,
     loadHealthTipRows,
   ]);
 
-  React.useEffect(() => {
-    const dueReminderIds = reminders
-      .filter((reminder) => {
-        const notifyTime = reminder.notifyAt
-          ? new Date(reminder.notifyAt).getTime()
-          : Number.NaN;
-
-        return (
-          String(reminder.databaseStatus || "").toLowerCase() === "pending" &&
-          Number.isFinite(notifyTime) &&
-          notifyTime <= currentTime
-        );
-      })
-      .map((reminder) => reminder.id);
-
-    if (!dueReminderIds.length) {
-      return;
-    }
-
-    const markDueRemindersAsSent = async () => {
-      const { error } = await supabase
-        .from(remindersTableName)
-        .update({
-          status: "sent",
-          sent_at: new Date(currentTime).toISOString(),
-        })
-        .in("id", dueReminderIds);
-
-      if (error) {
-        console.error("Unable to mark reminders as sent:", error);
-        return;
-      }
-
-      await loadAppointmentReminders();
-    };
-
-    markDueRemindersAsSent();
-  }, [currentTime, loadAppointmentReminders, reminders]);
-
-  React.useEffect(() => {
-    const searchPatients = async () => {
-      const query = patientSearch.trim();
-
-      if (query.length < 1) {
-        setPatientResults([]);
-        setPatientSearchMessage("");
-        return;
-      }
-
-      setIsSearchingPatients(true);
-      setPatientSearchMessage("");
-
-      const { data, error } = await supabase
-        .from("patients")
-        .select("id, full_name, contact_number")
-        .ilike("full_name", `%${query}%`)
-        .order("full_name", { ascending: true })
-        .limit(8);
-
-      setIsSearchingPatients(false);
-
-      if (error) {
-        setPatientResults([]);
-        setPatientSearchMessage(error.message);
-        return;
-      }
-
-      setPatientResults(data ?? []);
-      setPatientSearchMessage(data?.length ? "" : "No patients found.");
-    };
-
-    const searchTimer = window.setTimeout(searchPatients, 300);
-    return () => window.clearTimeout(searchTimer);
-  }, [patientSearch]);
 
   React.useEffect(() => {
     const searchMedicationPatients = async () => {
@@ -1226,7 +1300,7 @@ function DoctorReminderContent({ headerAction = null }) {
       setMedicationPatientSearchMessage("");
 
       const { data, error } = await supabase
-        .from("patients")
+        .rpc("get_doctor_patient_directory")
         .select("id, full_name, contact_number")
         .ilike("full_name", `%${query}%`)
         .order("full_name", { ascending: true })
@@ -1256,19 +1330,14 @@ function DoctorReminderContent({ headerAction = null }) {
     }));
   };
 
-  const handleSelectPatient = (patient) => {
-    setForm((current) => ({
-      ...current,
-      patientId: patient.id,
-      patientName: patient.full_name,
-    }));
-    setPatientSearch(patient.full_name);
-    setPatientResults([]);
-    setPatientSearchMessage("");
-  };
-
   const handleSelectAppointmentForReminder = React.useCallback((appointment) => {
     if (!appointment) return;
+
+    const existingReminder =
+      reminders.find((reminder) => reminder.appointmentId === appointment.id) || null;
+    const reminderLeadTime = existingReminder
+      ? getReminderLeadTimeFromStoredReminder(appointment, existingReminder)
+      : "1day";
 
     setStatusMessage("");
     setForm((current) => ({
@@ -1280,45 +1349,33 @@ function DoctorReminderContent({ headerAction = null }) {
       doctorName: appointment.doctorName,
       scheduleDate: appointment.scheduleDate,
       scheduleTime: appointment.scheduleTime,
+      message: existingReminder?.message || "",
+      reminderLeadTime,
+      customNotifyAt:
+        reminderLeadTime === "custom"
+          ? toReminderDateTimeLocalValue(existingReminder?.notifyAt)
+          : "",
+      repeatReminder: existingReminder?.repeatMode || "none",
     }));
-    setPatientSearch(appointment.patientName);
-    setPatientResults([]);
-    setPatientSearchMessage("");
     setIsReminderFormOpen(true);
-  }, []);
+  }, [reminders]);
 
   const reminderPreviewDetails = React.useMemo(() => {
-    const scheduleDateValue = form.scheduleDate || "2025-05-19";
-    const scheduleTimeValue = form.scheduleTime || "08:00";
-    const appointmentDate = new Date(`${scheduleDateValue}T${scheduleTimeValue}`);
-
-    if (Number.isNaN(appointmentDate.getTime())) {
-      return {
-        date: "May 19, 2025",
-        time: "8:00 AM",
-        patient: form.patientName || "Patient",
-        type: form.appointmentType || "appointment",
-        message: `Reminder: ${form.patientName || "Patient"} has ${form.appointmentType || "an appointment"} scheduled on May 19, 2025 at 8:00 AM.`,
-      };
+    if (!form.patientName || !form.scheduleDate || !form.scheduleTime) {
+      return null;
     }
 
-    const appointmentDateLabel = appointmentDate.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-
-    const appointmentTimeLabel = appointmentDate.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    const scheduleAt = toManilaISOString(
+      form.scheduleDate,
+      form.scheduleTime
+    );
+    if (!scheduleAt) return null;
 
     return {
-      date: appointmentDateLabel,
-      time: appointmentTimeLabel,
-      patient: form.patientName || "Patient",
+      date: formatAppointmentDate(scheduleAt),
+      time: formatAppointmentTime(scheduleAt),
+      patient: form.patientName,
       type: form.appointmentType || "appointment",
-      message: `Reminder: ${form.patientName || "Patient"} has ${form.appointmentType || "an appointment"} scheduled on ${appointmentDateLabel} at ${appointmentTimeLabel}.`,
     };
   }, [form.appointmentType, form.patientName, form.scheduleDate, form.scheduleTime]);
 
@@ -1357,7 +1414,6 @@ function DoctorReminderContent({ headerAction = null }) {
       frequency: "",
       duration: "",
       message: "",
-      reminderTiming: "medication",
     });
     setMedicationPatientSearch("");
     setMedicationPatientResults([]);
@@ -1480,14 +1536,15 @@ function DoctorReminderContent({ headerAction = null }) {
       return;
     }
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    let authenticatedDoctor;
 
-    if (userError || !user?.id) {
-      console.error("Medication reminder authenticated user lookup failed:", userError);
-      setMedicationStatusMessage("Unable to identify the logged-in account. Please sign in again.");
+    try {
+      authenticatedDoctor = await loadAuthenticatedDoctor();
+    } catch (identityError) {
+      console.error("Medication reminder Doctor identity lookup failed:", identityError);
+      setMedicationStatusMessage(
+        identityError?.message || "Unable to identify the logged-in Doctor."
+      );
       return;
     }
 
@@ -1511,15 +1568,14 @@ function DoctorReminderContent({ headerAction = null }) {
         medicationForm.duration
       ),
       status: "active",
-      created_by: user.id,
+      created_by: authenticatedDoctor.authUser.id,
       updated_at: new Date().toISOString(),
     };
 
     logMedicationReminderDebug("insert payload", {
-      authenticatedUserId: user.id,
+      authenticatedUserId: authenticatedDoctor.authUser.id,
       patientDatabaseId: medicationForm.patientId,
       medicationTimes: postgresReminderTimes,
-      payload,
     });
 
     const { error } = await supabase
@@ -1537,7 +1593,7 @@ function DoctorReminderContent({ headerAction = null }) {
       return;
     }
 
-    await loadMedicationReminderRows();
+    await loadMedicationReminderData();
     resetMedicationForm();
     setMedicationStatusMessage("Medication reminder saved successfully.");
     setIsMedicationFormOpen(false);
@@ -1557,7 +1613,7 @@ function DoctorReminderContent({ headerAction = null }) {
       return;
     }
 
-    await loadMedicationReminderRows();
+    await loadMedicationReminderData();
   };
 
   const deleteMedicationReminder = async (reminderId) => {
@@ -1582,29 +1638,21 @@ function DoctorReminderContent({ headerAction = null }) {
       return;
     }
 
-    await loadMedicationReminderRows();
+    await loadMedicationReminderData();
   };
 
   const getAppointmentReminderStatus = (reminder) => {
-    if (!reminder) return "Upcoming";
-
-    const normalizedStatus = String(
-      reminder.databaseStatus || reminder.status || "pending"
-    ).toLowerCase();
-
-    if (normalizedStatus === "sent") return "Sent";
-    if (normalizedStatus === "completed") return "Completed";
-    if (normalizedStatus === "cancelled") return "Cancelled";
-
-    const notifyTime = reminder.notifyAt
-      ? new Date(reminder.notifyAt).getTime()
-      : Number.NaN;
-
-    if (Number.isFinite(notifyTime) && notifyTime <= currentTime) {
-      return "Sent";
-    }
-
-    return "Pending";
+    if (isLoadingAppointmentReminders) return "Checking";
+    if (appointmentRemindersMessage) return "Unavailable";
+    if (!reminder) return "Not Set";
+    return getReminderDisplayStatus(
+      reminder.databaseStatus,
+      reminder.notifyAt,
+      reminder.sentAt,
+      currentTime,
+      reminder.repeatMode,
+      reminder.nextTriggerAt
+    );
   };
 
   const handleSubmit = async (event) => {
@@ -1639,10 +1687,26 @@ function DoctorReminderContent({ headerAction = null }) {
     if (
       !Number.isFinite(notifyTime) ||
       !Number.isFinite(scheduleTime) ||
-      notifyTime > scheduleTime
+      notifyTime >= scheduleTime
     ) {
       setStatusMessage(
-        "Choose a valid reminder time before the appointment schedule."
+        "Choose a valid reminder time strictly before the appointment schedule."
+      );
+      return;
+    }
+
+    const repeatStepMs =
+      form.repeatReminder === "hourly"
+        ? 60 * 60 * 1000
+        : form.repeatReminder === "daily"
+          ? 24 * 60 * 60 * 1000
+          : 0;
+
+    if (repeatStepMs && notifyTime + repeatStepMs >= scheduleTime) {
+      setStatusMessage(
+        form.repeatReminder === "hourly"
+          ? "Choose an earlier reminder time so at least one hourly repeat can occur before the appointment."
+          : "Choose an earlier reminder time so at least one daily repeat can occur before the appointment."
       );
       return;
     }
@@ -1678,6 +1742,16 @@ function DoctorReminderContent({ headerAction = null }) {
           form.message.trim() ||
           buildAppointmentReminderMessage(selectedAppointment),
         remind_at: notifyAt,
+        repeat_mode: form.repeatReminder,
+        next_trigger_at: notifyAt,
+        repeat_until:
+          form.repeatReminder === "none"
+            ? null
+            : selectedAppointment.scheduleAt ||
+              toManilaISOString(
+                selectedAppointment.scheduleDate,
+                selectedAppointment.scheduleTime
+              ),
         status: "pending",
         sent_at: null,
       };
@@ -1708,16 +1782,19 @@ function DoctorReminderContent({ headerAction = null }) {
         message: "",
         reminderLeadTime: "1day",
         customNotifyAt: "",
-        repeatReminder: "hourly",
+        repeatReminder: "none",
       });
-      setPatientSearch("");
-      setPatientResults([]);
-      setPatientSearchMessage("");
       setIsReminderFormOpen(false);
+      const repeatLabel = {
+        none: "No repeat",
+        daily: "Daily",
+        hourly: "Every Hour",
+      }[form.repeatReminder] || "No repeat";
+
       setStatusMessage(
         existingReminder
-          ? "Appointment reminder updated successfully."
-          : "Appointment reminder saved successfully."
+          ? `Appointment reminder updated successfully. Repeat: ${repeatLabel}.`
+          : `Appointment reminder saved successfully. Repeat: ${repeatLabel}.`
       );
     } catch (error) {
       console.error("Appointment reminder save failed:", error);
@@ -1737,16 +1814,53 @@ function DoctorReminderContent({ headerAction = null }) {
       ...current,
       [name]: value,
     }));
+    setHealthTipFormErrors((current) => ({
+      ...current,
+      [name === "text" ? "text" : name]: "",
+    }));
   };
 
-  const addHealthTip = async (event) => {
+  const resetHealthTipForm = () => {
+    setHealthTipForm({
+      category: "Nutrition",
+      icon: "bulb",
+      title: "",
+      text: "",
+      displaySchedule: "Daily",
+    });
+    setEditingHealthTipId("");
+    setHealthTipFormMode("add");
+    setHealthTipFormErrors({});
+  };
+
+  const validateHealthTipForm = () => {
+    const errors = {};
+
+    if (!healthTipForm.title.trim()) {
+      errors.title = "Title is required.";
+    }
+
+    if (!healthTipForm.category.trim()) {
+      errors.category = "Category is required.";
+    }
+
+    if (!healthTipForm.text.trim()) {
+      errors.text = "Message is required.";
+    }
+
+    setHealthTipFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const saveHealthTip = async (event) => {
     event.preventDefault();
 
     const title = healthTipForm.title.trim();
+    const category = healthTipForm.category.trim();
     const content = healthTipForm.text.trim();
 
-    if (!title || !content) {
-      setHealthTipsMessage("Enter both a title and a description.");
+    if (!validateHealthTipForm()) {
+      setHealthTipsMessage("Complete the required health tip fields.");
       return;
     }
 
@@ -1754,36 +1868,45 @@ function DoctorReminderContent({ headerAction = null }) {
     setHealthTipsMessage("");
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user?.id) {
-        throw userError || new Error("No authenticated Doctor account found.");
-      }
+      const authenticatedDoctor = await loadAuthenticatedDoctor();
 
       const basePayload = {
-        created_by: user.id,
         patient_id: null,
-        category: healthTipForm.category,
+        category,
         title,
         content,
         image_url: null,
         is_active: true,
-        published_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
 
-      let saveResult = await supabase
-        .from(healthTipsTableName)
-        .insert([
-          {
-            ...basePayload,
-            display_schedule: healthTipForm.displaySchedule,
-          },
-        ])
-        .select("*")
-        .single();
+      const payloadWithSchedule = {
+        ...basePayload,
+        display_schedule: healthTipForm.displaySchedule,
+      };
+
+      let saveResult;
+
+      if (healthTipFormMode === "edit") {
+        saveResult = await supabase
+          .from(healthTipsTableName)
+          .update(payloadWithSchedule)
+          .eq("id", editingHealthTipId)
+          .select("*")
+          .single();
+      } else {
+        saveResult = await supabase
+          .from(healthTipsTableName)
+          .insert([
+            {
+              ...payloadWithSchedule,
+              created_by: authenticatedDoctor.authUser.id,
+              published_at: new Date().toISOString(),
+            },
+          ])
+          .select("*")
+          .single();
+      }
 
       /*
        * The original health_tips table may not have display_schedule yet.
@@ -1793,11 +1916,26 @@ function DoctorReminderContent({ headerAction = null }) {
         saveResult.error &&
         /display_schedule/i.test(saveResult.error.message || "")
       ) {
-        saveResult = await supabase
-          .from(healthTipsTableName)
-          .insert([basePayload])
-          .select("*")
-          .single();
+        if (healthTipFormMode === "edit") {
+          saveResult = await supabase
+            .from(healthTipsTableName)
+            .update(basePayload)
+            .eq("id", editingHealthTipId)
+            .select("*")
+            .single();
+        } else {
+          saveResult = await supabase
+            .from(healthTipsTableName)
+            .insert([
+              {
+                ...basePayload,
+                created_by: authenticatedDoctor.authUser.id,
+                published_at: new Date().toISOString(),
+              },
+            ])
+            .select("*")
+            .single();
+        }
       }
 
       if (saveResult.error) {
@@ -1806,55 +1944,166 @@ function DoctorReminderContent({ headerAction = null }) {
 
       await loadHealthTipRows();
 
-      setHealthTipForm({
-        category: "Nutrition",
-        icon: "bulb",
-        title: "",
-        text: "",
-        displaySchedule: "Daily",
-      });
+      resetHealthTipForm();
       setHealthTipFilter("All");
       setIsHealthTipFormOpen(false);
-      setHealthTipsMessage("Health tip saved successfully.");
+      setHealthTipManagementFilter("Active");
+      setHealthTipsMessage(
+        healthTipFormMode === "edit"
+          ? "Health tip updated successfully."
+          : "Health tip added successfully."
+      );
     } catch (error) {
       console.error("Health tip save failed:", error);
       setHealthTipsMessage(
-        `Unable to save health tip: ${error?.message || "Unknown error"}`
+        "Unable to save health tip. Please check your permissions and try again."
       );
     } finally {
       setIsSavingHealthTip(false);
     }
   };
 
+  const updateHealthTipActiveState = async (tip, isActive) => {
+    if (!tip?.databaseBacked) {
+      setHealthTipsMessage("Only saved health tips can be managed.");
+      return;
+    }
+
+    setHealthTipsMessage("");
+
+    const { error } = await supabase
+      .from(healthTipsTableName)
+      .update({
+        is_active: isActive,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", tip.id);
+
+    if (error) {
+      console.error("Health tip archive/restore failed:", error);
+      setHealthTipsMessage(
+        /is_active/i.test(error.message || "")
+          ? "Health tip archiving requires an is_active column on the health_tips table."
+          : "Unable to update health tip status. Please check your permissions and try again."
+      );
+      return;
+    }
+
+    await loadHealthTipRows();
+    setHealthTipManagementFilter(isActive ? "Active" : "Archived");
+    setHealthTipsMessage(
+      isActive
+        ? "Health tip restored successfully."
+        : "Health tip archived successfully."
+    );
+  };
+
+  const deleteHealthTip = async () => {
+    if (!deleteHealthTipTarget?.id || isDeletingHealthTip) return;
+
+    setIsDeletingHealthTip(true);
+    setHealthTipsMessage("");
+
+    const { error } = await supabase
+      .from(healthTipsTableName)
+      .delete()
+      .eq("id", deleteHealthTipTarget.id);
+
+    setIsDeletingHealthTip(false);
+
+    if (error) {
+      console.error("Health tip delete failed:", error);
+      setHealthTipsMessage(
+        "Unable to delete health tip. Please check your permissions and try again."
+      );
+      return;
+    }
+
+    setDeleteHealthTipTarget(null);
+    await loadHealthTipRows();
+    setHealthTipsMessage("Health tip deleted permanently.");
+  };
+
   const todayDateKey = getLocalDateKey();
   const tomorrowDateKey = getLocalDateKey(1);
-  const remindersByAppointmentId = React.useMemo(() => {
-    return reminders.reduce((acc, reminder) => {
-      if (reminder.appointmentId) {
-        acc[reminder.appointmentId] = reminder;
-      }
-      return acc;
-    }, {});
-  }, [reminders]);
+  const remindersByAppointmentId = Object.fromEntries(
+    reminders
+      .filter((reminder) => reminder.appointmentId)
+      .map((reminder) => [reminder.appointmentId, reminder])
+  );
   const appointmentRows = availableAppointments.filter((appointment) => {
-    if (appointmentReminderFilter === "Today") return appointment.scheduleDate === todayDateKey;
+    const isUpcoming = classifyAppointment({
+      start: appointment.scheduleAt,
+      end: appointment.scheduleEndAt,
+      status: appointment.scheduleStatus,
+    }).isUpcoming;
+    if (appointmentReminderFilter === "Today") return appointment.scheduleDate === todayDateKey && isUpcoming;
     if (appointmentReminderFilter === "Tomorrow") return appointment.scheduleDate === tomorrowDateKey;
-    if (appointmentReminderFilter === "Upcoming") return appointment.scheduleDate >= todayDateKey;
+    if (appointmentReminderFilter === "Upcoming") return isUpcoming;
     return true;
   });
   const visibleAppointmentRows = appointmentRows.slice(0, appointmentReminderFilter === "All" ? 8 : 3);
-  const medicationRows = medicationReminders.filter((reminder) => {
-    if (medicationReminderFilter === "Today") return reminder.scheduleDate === todayDateKey;
-    if (medicationReminderFilter === "Tomorrow") return reminder.scheduleDate === tomorrowDateKey;
-    if (medicationReminderFilter === "Upcoming") return reminder.scheduleDate >= todayDateKey;
+  const medicationOccurrenceMap = React.useMemo(() => {
+    return new Map(
+      medicationOccurrences.map((occurrence) => [
+        occurrence.matchKey,
+        occurrence,
+      ])
+    );
+  }, [medicationOccurrences]);
+  const medicationRows = React.useMemo(
+    () =>
+      buildDoctorMedicationScheduleRows(
+        medicationReminders,
+        medicationOccurrenceMap,
+        medicationReminderFilter,
+        currentTime,
+        medicationOccurrenceStatus
+      ),
+    [
+      currentTime,
+      medicationOccurrenceMap,
+      medicationOccurrenceStatus,
+      medicationReminderFilter,
+      medicationReminders,
+    ]
+  );
+  const allMedicationRows = React.useMemo(
+    () =>
+      buildDoctorMedicationScheduleRows(
+        medicationReminders,
+        medicationOccurrenceMap,
+        "All",
+        currentTime,
+        medicationOccurrenceStatus
+      ),
+    [
+      currentTime,
+      medicationOccurrenceMap,
+      medicationOccurrenceStatus,
+      medicationReminders,
+    ]
+  );
+  const visibleMedicationRows = medicationRows.slice(0, 3);
+  const activeHealthTips = healthTips.filter((tip) => tip.isActive !== false);
+  const filteredHealthTips =
+    healthTipFilter === "All" ? activeHealthTips : activeHealthTips.filter((tip) => tip.category === healthTipFilter);
+  const visibleHealthTips = filteredHealthTips.slice(0, 3);
+  const databaseHealthTips = healthTips.filter((tip) => tip.databaseBacked);
+  const managedHealthTips = databaseHealthTips.filter((tip) => {
+    if (healthTipManagementFilter === "Active") return tip.isActive !== false;
+    if (healthTipManagementFilter === "Archived") return tip.isActive === false;
     return true;
   });
-  const visibleMedicationRows = medicationRows.slice(0, 3);
-  const filteredHealthTips =
-    healthTipFilter === "All" ? healthTips : healthTips.filter((tip) => tip.category === healthTipFilter);
-  const visibleHealthTips = filteredHealthTips.slice(0, 3);
+  const activeHealthTipMenuTip = healthTipActionMenu
+    ? databaseHealthTips.find((tip) => tip.id === healthTipActionMenu.tipId) || null
+    : null;
   const isAnyModalOpen =
-    isReminderFormOpen || isMedicationFormOpen || isHealthTipFormOpen || Boolean(viewAllSection);
+    isReminderFormOpen ||
+    isMedicationFormOpen ||
+    isHealthTipFormOpen ||
+    Boolean(viewAllSection) ||
+    Boolean(deleteHealthTipTarget);
 
   const openReminderForm = () => {
     const nextAppointment =
@@ -1874,8 +2123,6 @@ function DoctorReminderContent({ headerAction = null }) {
   const closeReminderForm = () => {
     setIsReminderFormOpen(false);
     setStatusMessage("");
-    setPatientResults([]);
-    setPatientSearchMessage("");
   };
 
   const openMedicationForm = () => {
@@ -1889,15 +2136,116 @@ function DoctorReminderContent({ headerAction = null }) {
   };
 
   const openHealthTipForm = () => {
+    resetHealthTipForm();
+    setHealthTipsMessage("");
+    setIsHealthTipFormOpen(true);
+  };
+
+  const openEditHealthTipForm = (tip) => {
+    if (!tip?.databaseBacked) {
+      setHealthTipsMessage("Only saved health tips can be edited.");
+      return;
+    }
+
+    // Close the View All modal first so the edit form cannot open behind it.
+    setViewAllSection(null);
+    setHealthTipActionMenu(null);
+
+    setHealthTipFormMode("edit");
+    setEditingHealthTipId(tip.id);
+    setHealthTipForm({
+      category: tip.category || "Nutrition",
+      icon: tip.icon || "bulb",
+      title: tip.title || "",
+      text: tip.text || "",
+      displaySchedule: tip.displaySchedule || "Daily",
+    });
+    setHealthTipFormErrors({});
+    setHealthTipsMessage("");
     setIsHealthTipFormOpen(true);
   };
 
   const closeHealthTipForm = () => {
     setIsHealthTipFormOpen(false);
+    setHealthTipFormErrors({});
+    setHealthTipActionMenu(null);
+  };
+
+  const openHealthTipsViewAll = () => {
+    setHealthTipManagementFilter("Active");
+    setHealthTipActionMenu(null);
+    setViewAllSection("healthTips");
   };
 
   const closeViewAll = () => {
     setViewAllSection(null);
+    setHealthTipActionMenu(null);
+  };
+
+  const getHealthTipMenuPosition = (button) => {
+    const rect = button.getBoundingClientRect();
+    const menuWidth = 170;
+    const menuHeight = 138;
+    const viewportPadding = 12;
+    const belowTop = rect.bottom + 6;
+    const aboveTop = rect.top - menuHeight - 6;
+    const hasRoomBelow = belowTop + menuHeight <= window.innerHeight - viewportPadding;
+
+    return {
+      top: Math.max(
+        viewportPadding,
+        Math.min(
+          hasRoomBelow ? belowTop : aboveTop,
+          window.innerHeight - menuHeight - viewportPadding
+        )
+      ),
+      left: Math.max(
+        viewportPadding,
+        Math.min(
+          rect.right - menuWidth,
+          window.innerWidth - menuWidth - viewportPadding
+        )
+      ),
+    };
+  };
+
+  const openHealthTipActionMenu = (tip, event) => {
+    event.stopPropagation();
+    const position = getHealthTipMenuPosition(event.currentTarget);
+
+    setHealthTipActionMenu((current) =>
+      current?.tipId === tip.id
+        ? null
+        : {
+            tipId: tip.id,
+            ...position,
+          }
+    );
+  };
+
+  const handleHealthTipAction = (tip, action) => {
+    setHealthTipActionMenu(null);
+
+    if (action === "edit") {
+      openEditHealthTipForm(tip);
+      return;
+    }
+
+    if (action === "archive") {
+      updateHealthTipActiveState(tip, false);
+      return;
+    }
+
+    if (action === "restore") {
+      updateHealthTipActiveState(tip, true);
+      return;
+    }
+
+    if (action === "delete") {
+      // Close View All first so the confirmation dialog is always visible.
+      setViewAllSection(null);
+      setDeleteHealthTipTarget(tip);
+    }
   };
 
   React.useEffect(() => {
@@ -1914,6 +2262,8 @@ function DoctorReminderContent({ headerAction = null }) {
       closeMedicationForm();
       closeHealthTipForm();
       closeViewAll();
+      setDeleteHealthTipTarget(null);
+      setHealthTipActionMenu(null);
     };
 
     document.body.classList.add("doctor-reminder-modal-open");
@@ -1925,25 +2275,49 @@ function DoctorReminderContent({ headerAction = null }) {
     };
   }, [isAnyModalOpen]);
 
+  React.useEffect(() => {
+    if (!healthTipActionMenu) {
+      return undefined;
+    }
+
+    const closeMenu = () => setHealthTipActionMenu(null);
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    };
+
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [healthTipActionMenu]);
+
   return (
-    <section className="doctor-reminder-page">
-      <header className="doctor-dashboard-header doctor-reminder-header">
-        <div className="doctor-reminder-title-block">
-          <h1>Reminder</h1>
-          <p>Manage patient daily health protocols and checkup schedules.</p>
-        </div>
-        {headerAction || <ReminderProfileMenu />}
-      </header>
+    <section className="doctor-reminder-page clinical-workflow clinical-workflow--reminders">
+      <ClinicalWorkflowHeader
+        title="Reminders"
+        subtitle="Manage appointment alerts, medication schedules, and patient health guidance."
+        action={headerAction || <ReminderProfileMenu doctorIdentity={doctorIdentity} />}
+        className="doctor-dashboard-header doctor-reminder-header"
+      />
 
       <div className="doctor-reminder-layout">
-        <section className="doctor-reminder-card doctor-reminder-appointments-card">
-          <header className="doctor-reminder-card__header">
+        <section className="doctor-reminder-card doctor-reminder-appointments-card clinical-workflow-card">
+          <header className="doctor-reminder-card__header clinical-workflow-card-header">
             <span className="doctor-reminder-card__icon"><Icon icon="solar:calendar-mark-bold" /></span>
             <h2>Appointment Reminder</h2>
             <button type="button" onClick={() => setViewAllSection("appointments")}>View All</button>
           </header>
           <div className="doctor-reminder-toolbar">
-            <div className="doctor-reminder-tabs" aria-label="Appointment reminder filters">
+            <div className="doctor-reminder-tabs clinical-workflow-tabs" aria-label="Appointment reminder filters">
               {["Today", "Tomorrow", "Upcoming"].map((filter) => (
                 <button
                   className={appointmentReminderFilter === filter ? "is-active" : ""}
@@ -1955,11 +2329,16 @@ function DoctorReminderContent({ headerAction = null }) {
                 </button>
               ))}
             </div>
-            <button className="doctor-reminder-primary-action" type="button" onClick={openReminderForm}>
+            <button className="doctor-reminder-primary-action clinical-workflow-primary-action" type="button" onClick={openReminderForm}>
               Set Reminder
             </button>
           </div>
-          <div className="doctor-reminder-appointment-table">
+          {appointmentRemindersMessage ? (
+            <p className="doctor-reminder-message">
+              {appointmentRemindersMessage}
+            </p>
+          ) : null}
+          <div className="doctor-reminder-appointment-table clinical-workflow-table">
             <div className="doctor-reminder-appointment-head">
               <span>Patient</span>
               <span>Date</span>
@@ -2002,14 +2381,14 @@ function DoctorReminderContent({ headerAction = null }) {
           </div>
         </section>
 
-        <section className="doctor-reminder-card doctor-health-tips-card">
-          <header className="doctor-reminder-card__header">
+        <section className="doctor-reminder-card doctor-health-tips-card clinical-workflow-card">
+          <header className="doctor-reminder-card__header clinical-workflow-card-header">
             <span className="doctor-reminder-card__icon"><Icon icon="solar:lightbulb-bold" /></span>
             <h2>Health Tips</h2>
-            <button type="button" onClick={() => setViewAllSection("healthTips")}>View All</button>
+            <button type="button" onClick={openHealthTipsViewAll}>View All</button>
           </header>
           <div className="doctor-health-tips-panel">
-            <div className="doctor-health-tip-tabs" aria-label="Health tip filters">
+            <div className="doctor-health-tip-tabs clinical-workflow-tabs" aria-label="Health tip filters">
               {healthTipCategories.map((tab) => (
                 <button
                   className={healthTipFilter === tab ? "is-active" : ""}
@@ -2037,10 +2416,10 @@ function DoctorReminderContent({ headerAction = null }) {
                   </div>
                 </article>
               ))}
-              {visibleHealthTips.length === 0 ? (
+              {!isLoadingHealthTips && !healthTipsMessage && visibleHealthTips.length === 0 ? (
                 <article className="doctor-health-tip-empty">
                   <span className="doctor-health-tip-logo"><Icon icon="solar:lightbulb-linear" /></span>
-                  <p>No health tips in this category yet.</p>
+                  <p>No health tips available.</p>
                 </article>
               ) : null}
             </div>
@@ -2056,14 +2435,14 @@ function DoctorReminderContent({ headerAction = null }) {
           </div>
         </section>
 
-        <section className="doctor-reminder-card doctor-medication-card">
-          <header className="doctor-reminder-card__header">
+        <section className="doctor-reminder-card doctor-medication-card clinical-workflow-card">
+          <header className="doctor-reminder-card__header clinical-workflow-card-header">
             <span className="doctor-reminder-card__icon"><Icon icon="solar:calendar-mark-bold" /></span>
             <h2>Medication Reminder</h2>
             <button type="button" onClick={() => setViewAllSection("medications")}>View All</button>
           </header>
           <div className="doctor-reminder-toolbar doctor-medication-toolbar">
-            <div className="doctor-reminder-tabs" aria-label="Medication reminder filters">
+            <div className="doctor-reminder-tabs clinical-workflow-tabs" aria-label="Medication reminder filters">
               {["Today", "Tomorrow", "Upcoming"].map((filter) => (
                 <button
                   className={medicationReminderFilter === filter ? "is-active" : ""}
@@ -2075,12 +2454,18 @@ function DoctorReminderContent({ headerAction = null }) {
                 </button>
               ))}
             </div>
-            <button className="doctor-reminder-primary-action" type="button" onClick={openMedicationForm}>
+            <button className="doctor-reminder-primary-action clinical-workflow-primary-action" type="button" onClick={openMedicationForm}>
               Add Medication
             </button>
           </div>
+          {medicationRemindersMessage ? (
+            <p className="doctor-reminder-message">{medicationRemindersMessage}</p>
+          ) : null}
+          {medicationOccurrencesMessage ? (
+            <p className="doctor-reminder-message">{medicationOccurrencesMessage}</p>
+          ) : null}
           {medicationStatusMessage ? <p className="doctor-reminder-message">{medicationStatusMessage}</p> : null}
-          <div className="doctor-medication-table">
+          <div className="doctor-medication-table clinical-workflow-table">
             <div className="doctor-medication-head">
               <span>Patient</span>
               <span>Medication</span>
@@ -2095,26 +2480,32 @@ function DoctorReminderContent({ headerAction = null }) {
                 <span>{reminder.medication}</span>
                 <span>{reminder.dosage}</span>
                 <span>{reminder.schedule || `${formatReminderDisplayTime(reminder.scheduleTime)} daily`}</span>
-                <mark>{reminder.status}</mark>
+                <mark className={`is-${reminder.statusClassName || getStatusClass(reminder.status)}`}>
+                  {reminder.status}
+                </mark>
                 <span className="doctor-medication-actions">
                   <button
                     type="button"
                     title="Mark complete"
-                    onClick={() => updateMedicationStatus(reminder.id, "Complete")}
+                    onClick={() => updateMedicationStatus(reminder.sourceReminderId || reminder.id, "Complete")}
                   >
                     <Icon icon="carbon:notification" />
                   </button>
                   <button
                     type="button"
                     title="Delete reminder"
-                    onClick={() => deleteMedicationReminder(reminder.id)}
+                    onClick={() => deleteMedicationReminder(reminder.sourceReminderId || reminder.id)}
                   >
                     <Icon icon="charm:menu-kebab" />
                   </button>
                 </span>
               </div>
             )) : (
-              <div className="doctor-reminder-appointment-empty">No medication reminders yet.</div>
+              <div className="doctor-reminder-appointment-empty">
+                {isLoadingMedicationReminders
+                  ? "Loading medication reminders..."
+                  : medicationRemindersMessage || "No medication reminders yet."}
+              </div>
             )}
           </div>
         </section>
@@ -2141,8 +2532,8 @@ function DoctorReminderContent({ headerAction = null }) {
                   {viewAllSection === "appointments"
                     ? `${availableAppointments.length} appointment${availableAppointments.length === 1 ? "" : "s"}`
                     : viewAllSection === "medications"
-                      ? `${medicationReminders.length} medication reminder${medicationReminders.length === 1 ? "" : "s"}`
-                      : `${healthTips.length} health tip${healthTips.length === 1 ? "" : "s"}`}
+                      ? `${allMedicationRows.length} medication schedule row${allMedicationRows.length === 1 ? "" : "s"}`
+                      : `${managedHealthTips.length} ${healthTipManagementFilter.toLowerCase()} health tip${managedHealthTips.length === 1 ? "" : "s"} (${databaseHealthTips.length} total)`}
                 </p>
               </div>
               <button type="button" aria-label="Close view all" onClick={closeViewAll}>&times;</button>
@@ -2191,7 +2582,11 @@ function DoctorReminderContent({ headerAction = null }) {
                       );
                     })
                   ) : (
-                    <div className="doctor-reminder-appointment-empty">No saved appointments found.</div>
+                    <div className="doctor-reminder-appointment-empty">
+                      {isLoadingAppointments
+                        ? "Loading appointments..."
+                        : appointmentsMessage || "No saved appointments found."}
+                    </div>
                   )}
                 </div>
               </div>
@@ -2206,40 +2601,71 @@ function DoctorReminderContent({ headerAction = null }) {
                     <span>Status</span>
                     <span>Action</span>
                   </div>
-                  {medicationReminders.length > 0 ? medicationReminders.map((reminder) => (
+                  {allMedicationRows.length > 0 ? allMedicationRows.map((reminder) => (
                     <div className="doctor-medication-row" key={reminder.id || `${reminder.patientName}-${reminder.medication}-all`}>
                       <span>{reminder.patientName || reminder.patient}</span>
                       <span>{reminder.medication}</span>
                       <span>{reminder.dosage}</span>
                       <span>{reminder.schedule || `${formatReminderDisplayTime(reminder.scheduleTime)} daily`}</span>
-                      <mark>{reminder.status}</mark>
+                      <mark className={`is-${reminder.statusClassName || getStatusClass(reminder.status)}`}>
+                        {reminder.status}
+                      </mark>
                       <span className="doctor-medication-actions">
                         <button
                           type="button"
                           title="Mark complete"
-                          onClick={() => updateMedicationStatus(reminder.id, "Complete")}
+                          onClick={() => updateMedicationStatus(reminder.sourceReminderId || reminder.id, "Complete")}
                         >
                           <Icon icon="carbon:notification" />
                         </button>
                         <button
                           type="button"
                           title="Delete reminder"
-                          onClick={() => deleteMedicationReminder(reminder.id)}
+                          onClick={() => deleteMedicationReminder(reminder.sourceReminderId || reminder.id)}
                         >
                           <Icon icon="charm:menu-kebab" />
                         </button>
                       </span>
                     </div>
                   )) : (
-                    <div className="doctor-reminder-appointment-empty">No medication reminders yet.</div>
+                    <div className="doctor-reminder-appointment-empty">
+                      {isLoadingMedicationReminders
+                        ? "Loading medication reminders..."
+                        : medicationRemindersMessage || "No medication reminders yet."}
+                    </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="doctor-reminder-view-all__content doctor-reminder-view-all__tips">
-                {healthTips.length > 0 ? (
-                  healthTips.map((tip) => (
-                    <article key={tip.id}>
+              <div
+                className="doctor-reminder-view-all__content doctor-reminder-view-all__tips"
+                onScroll={() => setHealthTipActionMenu(null)}
+              >
+                <div className="doctor-health-tip-management-tabs" aria-label="Health tip status filters">
+                  {healthTipManagementFilters.map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      className={healthTipManagementFilter === filter ? "is-active" : ""}
+                      onClick={() => {
+                        setHealthTipActionMenu(null);
+                        setHealthTipManagementFilter(filter);
+                      }}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+
+                {healthTipsMessage ? (
+                  <p className="doctor-reminder-message doctor-health-tip-management-message">
+                    {healthTipsMessage}
+                  </p>
+                ) : null}
+
+                {managedHealthTips.length > 0 ? (
+                  managedHealthTips.map((tip) => (
+                    <article className="doctor-health-tip-management-card" key={tip.id}>
                       <span className="doctor-health-tip-logo">
                         {getHealthTipImage(tip) ? (
                           <img src={getHealthTipImage(tip)} alt="" aria-hidden="true" />
@@ -2247,16 +2673,33 @@ function DoctorReminderContent({ headerAction = null }) {
                           <Icon icon={reminderTipIcons[tip.icon] || "solar:lightbulb-linear"} />
                         )}
                       </span>
-                      <div>
+                      <div className="doctor-health-tip-management-copy">
                         <strong>{tip.title || tip.category}</strong>
-                        <small>{tip.category}</small>
+                        <small>
+                          {tip.category}
+                          {tip.isActive === false ? " · Archived" : ""}
+                        </small>
                         <p>{tip.text}</p>
                       </div>
+                      <button
+                        className="doctor-health-tip-menu-button"
+                        type="button"
+                        aria-label={`Manage ${tip.title || tip.category} health tip`}
+                        aria-haspopup="menu"
+                        aria-expanded={healthTipActionMenu?.tipId === tip.id}
+                        onClick={(event) => openHealthTipActionMenu(tip, event)}
+                      >
+                        <Icon icon="charm:menu-kebab" aria-hidden="true" />
+                      </button>
                     </article>
                   ))
-                ) : (
-                  <div className="doctor-reminder-view-all__empty">No health tips yet.</div>
-                )}
+                ) : !healthTipsMessage ? (
+                  <div className="doctor-reminder-view-all__empty">
+                    {isLoadingHealthTips
+                      ? "Loading health tips..."
+                      : "No health tips found for this filter."}
+                  </div>
+                ) : null}
               </div>
             )}
           </section>
@@ -2264,16 +2707,108 @@ function DoctorReminderContent({ headerAction = null }) {
         document.body
       ) : null}
 
-      {isReminderFormOpen ? createPortal(
-        <div className="doctor-reminder-modal" role="dialog" aria-modal="true" aria-labelledby="doctor-reminder-form-title" onClick={closeReminderForm}>
-          <form className="doctor-panel doctor-reminder-form doctor-reminder-form--appointment" onSubmit={handleSubmit} onClick={(event) => event.stopPropagation()}>
-            <div className="doctor-reminder-form__title">
-              <div>
-                <h2 id="doctor-reminder-form-title">Set Reminder</h2>
-                <p>Configure reminder preferences to send timely notifications before the patient's appointment.</p>
-              </div>
-              <button className="doctor-reminder-modal-close" type="button" aria-label="Close reminder form" onClick={closeReminderForm}>&times;</button>
+      {activeHealthTipMenuTip && healthTipActionMenu ? createPortal(
+        <div
+          className="doctor-health-tip-action-menu"
+          role="menu"
+          style={{
+            top: `${healthTipActionMenu.top}px`,
+            left: `${healthTipActionMenu.left}px`,
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleHealthTipAction(activeHealthTipMenuTip, "edit")}
+          >
+            Edit
+          </button>
+          {activeHealthTipMenuTip.isActive === false ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleHealthTipAction(activeHealthTipMenuTip, "restore")}
+            >
+              Restore
+            </button>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleHealthTipAction(activeHealthTipMenuTip, "archive")}
+            >
+              Archive
+            </button>
+          )}
+          <button
+            className="is-danger"
+            type="button"
+            role="menuitem"
+            onClick={() => handleHealthTipAction(activeHealthTipMenuTip, "delete")}
+          >
+            Delete
+          </button>
+        </div>,
+        document.body
+      ) : null}
+
+      {deleteHealthTipTarget ? createPortal(
+        <div
+          className="doctor-reminder-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="doctor-health-tip-delete-title"
+          onClick={() => {
+            if (!isDeletingHealthTip) setDeleteHealthTipTarget(null);
+          }}
+        >
+          <section
+            className="doctor-panel doctor-health-tip-delete-dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="doctor-health-tip-delete-title">Delete Health Tip?</h2>
+            <p>This permanently deletes the health tip. This action cannot be undone.</p>
+            <div>
+              <button
+                type="button"
+                onClick={() => setDeleteHealthTipTarget(null)}
+                disabled={isDeletingHealthTip}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={deleteHealthTip}
+                disabled={isDeletingHealthTip}
+              >
+                {isDeletingHealthTip ? "Deleting..." : "Delete Permanently"}
+              </button>
             </div>
+          </section>
+        </div>,
+        document.body
+      ) : null}
+
+      {isReminderFormOpen ? createPortal(
+        <div className="doctor-reminder-modal clinical-workflow-backdrop" role="dialog" aria-modal="true" aria-labelledby="doctor-reminder-form-title" onClick={closeReminderForm}>
+          <form className="doctor-panel doctor-reminder-dialog doctor-reminder-form doctor-reminder-form--appointment clinical-workflow-dialog" onSubmit={handleSubmit} onClick={(event) => event.stopPropagation()}>
+            <header className="doctor-reminder-dialog__header doctor-reminder-form__title">
+              <div className="doctor-reminder-dialog__headline">
+                <span className="doctor-reminder-dialog__icon" aria-hidden="true">
+                  <Icon icon="solar:alarm-bold-duotone" />
+                </span>
+                <div>
+                  <h2 id="doctor-reminder-form-title">Set Reminder</h2>
+                  <p>Choose when the Patient should be notified before the appointment.</p>
+                </div>
+              </div>
+              <button className="doctor-reminder-modal-close" type="button" aria-label="Close reminder form" onClick={closeReminderForm}>
+                <Icon icon="material-symbols:close-rounded" />
+              </button>
+            </header>
+
+            <div className="doctor-reminder-dialog__body doctor-reminder-form__body">
 
             <div className="doctor-reminder-preference-block">
               <div className="doctor-reminder-preference-heading">
@@ -2321,7 +2856,7 @@ function DoctorReminderContent({ headerAction = null }) {
                 <strong>Repeat Reminder?</strong>
                 <span>(Optional)</span>
               </div>
-              <div className="doctor-reminder-repeat-options">
+              <div className="doctor-reminder-repeat-options" role="radiogroup" aria-label="Repeat reminder frequency">
                 {[
                   ["none", "No repeat"],
                   ["daily", "Daily"],
@@ -2359,7 +2894,7 @@ function DoctorReminderContent({ headerAction = null }) {
                 <span aria-hidden="true">“</span>
                 {form.message.trim() ? (
                   <p>{form.message.trim()}</p>
-                ) : (
+                ) : reminderPreviewDetails ? (
                   <p>
                     Reminder: <strong className="doctor-reminder-preview-accent">{reminderPreviewDetails.patient}</strong>{" "}
                     has <strong className="doctor-reminder-preview-accent">{reminderPreviewDetails.type}</strong>{" "}
@@ -2367,32 +2902,47 @@ function DoctorReminderContent({ headerAction = null }) {
                     <strong className="doctor-reminder-preview-accent">{reminderPreviewDetails.date}</strong>{" "}
                     at <strong className="doctor-reminder-preview-accent">{reminderPreviewDetails.time}</strong>.
                   </p>
+                ) : (
+                  <p>Select a patient, date, and time to preview this reminder.</p>
                 )}
               </div>
             </div>
 
-            {statusMessage ? <p className="doctor-reminder-message">{statusMessage}</p> : null}
+              {statusMessage ? <p className="doctor-reminder-message">{statusMessage}</p> : null}
+            </div>
 
-            <div className="doctor-reminder-form__actions">
-              <button type="submit" disabled={isSavingReminder}>
-                {isSavingReminder ? "Saving..." : "Save"}
-              </button>
+            <footer className="doctor-reminder-dialog__actions doctor-reminder-form__actions">
               <button type="button" onClick={closeReminderForm}>
                 Cancel
               </button>
-            </div>
+              <button
+                type="submit"
+                disabled={
+                  isSavingReminder ||
+                  doctorIdentity?.loading ||
+                  Boolean(doctorIdentity?.error)
+                }
+              >
+                {isSavingReminder ? "Saving..." : "Save Reminder"}
+              </button>
+            </footer>
           </form>
         </div>,
         document.body
       ) : null}
 
       {isMedicationFormOpen ? createPortal(
-        <div className="doctor-reminder-modal" role="dialog" aria-modal="true" aria-labelledby="doctor-medication-form-title" onClick={closeMedicationForm}>
-          <form className="doctor-panel doctor-medication-reminder-form" onSubmit={addMedicationReminder} onClick={(event) => event.stopPropagation()}>
-            <div className="doctor-medication-reminder-form__title">
-              <div>
-                <h2 id="doctor-medication-form-title">Add Medication Reminder</h2>
-                <p>Fill in the details to set reminder for your patient.</p>
+        <div className="doctor-reminder-modal clinical-workflow-backdrop" role="dialog" aria-modal="true" aria-labelledby="doctor-medication-form-title" onClick={closeMedicationForm}>
+          <form className="doctor-panel doctor-reminder-dialog doctor-medication-reminder-form clinical-workflow-dialog clinical-workflow-dialog--medication" onSubmit={addMedicationReminder} onClick={(event) => event.stopPropagation()}>
+            <header className="doctor-reminder-dialog__header doctor-medication-reminder-form__title">
+              <div className="doctor-reminder-dialog__headline">
+                <span className="doctor-reminder-dialog__icon" aria-hidden="true">
+                  <Icon icon="solar:pills-3-bold-duotone" />
+                </span>
+                <div>
+                  <h2 id="doctor-medication-form-title">Add Medication Reminder</h2>
+                  <p>Add the prescription details and the Patient's medication schedule.</p>
+                </div>
               </div>
               <button
                 className="doctor-medication-reminder-close"
@@ -2400,9 +2950,11 @@ function DoctorReminderContent({ headerAction = null }) {
                 aria-label="Close medication reminder form"
                 onClick={closeMedicationForm}
               >
-                &times;
+                <Icon icon="material-symbols:close-rounded" />
               </button>
-            </div>
+            </header>
+
+            <div className="doctor-reminder-dialog__body doctor-medication-reminder-form__body">
 
             <section className="doctor-medication-reminder-section">
               <h3>Patient Information</h3>
@@ -2410,6 +2962,7 @@ function DoctorReminderContent({ headerAction = null }) {
                 <span>Patient <b>*</b></span>
                 <input
                   type="text"
+                  placeholder="Search Patient by name or ID"
                   value={medicationPatientSearch}
                   onChange={(event) => {
                     setMedicationPatientSearch(event.target.value);
@@ -2557,69 +3110,63 @@ function DoctorReminderContent({ headerAction = null }) {
               </h3>
               <textarea
                 name="message"
+                placeholder="Add special instructions or notes for the Patient"
                 value={medicationForm.message}
                 onChange={handleMedicationChange}
               />
             </section>
 
-            <section className="doctor-medication-reminder-section doctor-medication-reminder-section--settings">
-              <h3>Reminder Settings</h3>
-              <p>When should the patient be reminded?</p>
-              <div className="doctor-medication-reminder-radios">
-                {[
-                  ["medication", "At the time of medication"],
-                  ["daily", "Daily"],
-                  ["hourly", "Every Hour"],
-                ].map(([value, label]) => (
-                  <label key={value}>
-                    <input
-                      type="radio"
-                      name="reminderTiming"
-                      value={value}
-                      checked={medicationForm.reminderTiming === value}
-                      onChange={handleMedicationChange}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
+              {medicationStatusMessage ? <p className="doctor-reminder-message">{medicationStatusMessage}</p> : null}
+            </div>
 
-            {medicationStatusMessage ? <p className="doctor-reminder-message">{medicationStatusMessage}</p> : null}
-
-            <div className="doctor-medication-reminder-actions">
-              <button type="submit" disabled={isSavingMedicationReminder}>
-                {isSavingMedicationReminder ? "Saving..." : "Save"}
-              </button>
+            <footer className="doctor-reminder-dialog__actions doctor-medication-reminder-actions">
               <button
                 type="button"
                 onClick={closeMedicationForm}
               >
                 Cancel
               </button>
-            </div>
+              <button
+                type="submit"
+                disabled={
+                  isSavingMedicationReminder ||
+                  doctorIdentity?.loading ||
+                  Boolean(doctorIdentity?.error)
+                }
+              >
+                {isSavingMedicationReminder ? "Saving..." : "Save Reminder"}
+              </button>
+            </footer>
           </form>
         </div>,
         document.body
       ) : null}
 
       {isHealthTipFormOpen ? createPortal(
-        <div className="doctor-reminder-modal" role="dialog" aria-modal="true" aria-labelledby="doctor-health-tip-form-title" onClick={closeHealthTipForm}>
-          <form className="doctor-panel doctor-health-tip-form doctor-health-tip-form--detailed" onSubmit={addHealthTip} onClick={(event) => event.stopPropagation()}>
-            <div className="doctor-health-tip-form__title">
-              <div className="doctor-health-tip-form__headline">
-                <span className="doctor-health-tip-form__icon" aria-hidden="true">
+        <div className="doctor-reminder-modal clinical-workflow-backdrop" role="dialog" aria-modal="true" aria-labelledby="doctor-health-tip-form-title" onClick={closeHealthTipForm}>
+          <form className="doctor-panel doctor-reminder-dialog doctor-health-tip-form doctor-health-tip-form--detailed clinical-workflow-dialog clinical-workflow-dialog--health-tip" onSubmit={saveHealthTip} onClick={(event) => event.stopPropagation()}>
+            <header className="doctor-reminder-dialog__header doctor-health-tip-form__title">
+              <div className="doctor-reminder-dialog__headline doctor-health-tip-form__headline">
+                <span className="doctor-reminder-dialog__icon doctor-health-tip-form__icon" aria-hidden="true">
                   <Icon icon="solar:sun-2-bold" />
                 </span>
                 <div>
-                  <h2 id="doctor-health-tip-form-title">Add Health Tip</h2>
-                  <p>Create a helpful health tip for your patients.</p>
+                  <h2 id="doctor-health-tip-form-title">
+                    {healthTipFormMode === "edit" ? "Edit Health Tip" : "Add Health Tip"}
+                  </h2>
+                  <p>
+                    {healthTipFormMode === "edit"
+                      ? "Update this patient-facing health tip."
+                      : "Create a helpful health tip for your patients."}
+                  </p>
                 </div>
               </div>
               <button className="doctor-health-tip-form__close" type="button" aria-label="Close health tip form" onClick={closeHealthTipForm}>
                 <Icon icon="material-symbols:close-rounded" />
               </button>
-            </div>
+            </header>
+
+            <div className="doctor-reminder-dialog__body doctor-health-tip-form__body">
 
             <label className="doctor-health-tip-form__field doctor-health-tip-form__field--category">
               <span>Tip Category<b>*</b></span>
@@ -2628,6 +3175,9 @@ function DoctorReminderContent({ headerAction = null }) {
                   <option key={category}>{category}</option>
                 ))}
               </select>
+              {healthTipFormErrors.category ? (
+                <small className="doctor-health-tip-form__error">{healthTipFormErrors.category}</small>
+              ) : null}
             </label>
 
             <label className="doctor-health-tip-form__field doctor-health-tip-form__field--wide">
@@ -2644,10 +3194,13 @@ function DoctorReminderContent({ headerAction = null }) {
                 />
                 <small>{healthTipForm.title.length}/100</small>
               </div>
+              {healthTipFormErrors.title ? (
+                <small className="doctor-health-tip-form__error">{healthTipFormErrors.title}</small>
+              ) : null}
             </label>
 
             <label className="doctor-health-tip-form__field doctor-health-tip-form__field--wide">
-              <span>Tip Description<b>*</b></span>
+              <span>Message<b>*</b></span>
               <div className="doctor-health-tip-form__counted-control doctor-health-tip-form__counted-control--textarea">
                 <textarea
                   name="text"
@@ -2659,6 +3212,9 @@ function DoctorReminderContent({ headerAction = null }) {
                 />
                 <small>{healthTipForm.text.length}/500</small>
               </div>
+              {healthTipFormErrors.text ? (
+                <small className="doctor-health-tip-form__error">{healthTipFormErrors.text}</small>
+              ) : null}
             </label>
 
             <label className="doctor-health-tip-form__field doctor-health-tip-form__field--category">
@@ -2671,13 +3227,26 @@ function DoctorReminderContent({ headerAction = null }) {
               </select>
             </label>
 
-            <div className="doctor-health-tip-form__actions">
-              <button type="submit" disabled={isSavingHealthTip}>
-                <Icon icon="solar:download-minimalistic-outline" />
-                {isSavingHealthTip ? "Saving..." : "Save"}
-              </button>
-              <button type="button" onClick={closeHealthTipForm}>Cancel</button>
             </div>
+
+            <footer className="doctor-reminder-dialog__actions doctor-health-tip-form__actions">
+              <button type="button" onClick={closeHealthTipForm}>Cancel</button>
+              <button
+                type="submit"
+                disabled={
+                  isSavingHealthTip ||
+                  doctorIdentity?.loading ||
+                  Boolean(doctorIdentity?.error)
+                }
+              >
+                <Icon icon="solar:download-minimalistic-outline" />
+                {isSavingHealthTip
+                  ? "Saving..."
+                  : healthTipFormMode === "edit"
+                    ? "Save Changes"
+                    : "Add Health Tip"}
+              </button>
+            </footer>
           </form>
         </div>,
         document.body

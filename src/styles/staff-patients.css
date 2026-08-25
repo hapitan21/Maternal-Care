@@ -3,7 +3,7 @@
 /* =========================================================
    STAFF PATIENTS - COMPLETE CLEAN CSS
    Replace your whole staff-patients.css with this file.
-   This restores the 1-4 Register Patient pages and keeps
+   This styles the Staff Patients pages and keeps
    the smaller search/register button on the Patients list.
 ========================================================= */
 
@@ -33,8 +33,20 @@
   padding-bottom: 48px;
 }
 
+.staff-dashboard-shell .doctor-main:has(.staff-register-page) {
+  padding: 0;
+  min-width: 0;
+}
+
 .staff-register-page {
-  padding: 28px 30px 42px 28px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 100vh;
+  margin: 0;
+  padding: 24px;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .staff-patients-page *,
@@ -91,7 +103,7 @@
 
 .staff-patients-actions {
   display: grid;
-  grid-template-columns: minmax(260px, 420px) max-content;
+  grid-template-columns: minmax(260px, 420px) minmax(280px, 1fr) max-content;
   justify-content: space-between;
   align-items: center;
   gap: 18px;
@@ -170,6 +182,70 @@
   height: 18px;
 }
 
+.staff-patients-toolbar-right {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.staff-patients-status-select {
+  position: relative;
+  width: 190px;
+  min-width: 190px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #dfe2ec;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(22, 27, 41, 0.025);
+  color: #596174;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.staff-patients-status-select:focus-within {
+  border-color: rgba(255, 47, 125, 0.65);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-patients-status-select select {
+  width: 100%;
+  height: 100%;
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #414755;
+  padding: 0 36px 0 40px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.staff-patients-status-select-icon,
+.staff-patients-status-select-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.staff-patients-status-select-icon {
+  left: 13px;
+  width: 18px;
+  height: 18px;
+  color: var(--patients-pink);
+}
+
+.staff-patients-status-select-arrow {
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  color: #7b8292;
+}
+
 .staff-patients-card {
   overflow: hidden;
   width: 100%;
@@ -189,7 +265,7 @@
 
 .staff-patients-table {
   width: 100%;
-  min-width: 850px;
+  min-width: 930px;
   border-collapse: collapse;
 }
 
@@ -320,22 +396,122 @@
   white-space: nowrap;
 }
 
-.staff-patient-view-btn {
-  min-width: 90px;
-  height: 38px;
-  border: 2px solid var(--patients-pink);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--patients-pink);
-  font-size: 13px;
+.staff-patient-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: #eef7f1;
+  color: #177446;
+  font-size: 12px;
   font-weight: 800;
-  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  white-space: nowrap;
 }
 
-.staff-patient-view-btn:hover {
-  background: var(--patients-pink);
-  color: #fff;
-  box-shadow: 0 10px 20px rgba(255, 47, 125, 0.18);
+.staff-patient-status.is-inactive {
+  background: #f2f4f8;
+  color: #596174;
+}
+
+.staff-patient-status.is-pending_activation,
+.staff-patient-status.is-unlinked {
+  background: #eef7f1;
+  color: #08773f;
+}
+
+.staff-patient-status.is-archived {
+  background: #fff0d5;
+  color: #a86400;
+}
+
+.staff-patient-medical-access {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid #d9dde7;
+  border-radius: 999px;
+  background: #f5f6f9;
+  color: #596174;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.staff-patient-medical-access svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+
+.staff-patient-action-group {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.staff-patient-notification-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.staff-patient-notification-action .send-patient-notification-trigger,
+.staff-patient-action-group .staff-patient-notification-action.send-patient-notification-trigger {
+  min-width: 92px !important;
+  width: auto !important;
+  min-height: 34px !important;
+  height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  white-space: nowrap !important;
+  line-height: 1 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+.staff-patient-notification-action .send-patient-notification-trigger svg,
+.staff-patient-action-group .staff-patient-notification-action.send-patient-notification-trigger svg {
+  width: 15px !important;
+  height: 15px !important;
+  flex: 0 0 15px !important;
+}
+
+.staff-patient-action-btn {
+  min-width: 88px;
+  min-height: 34px;
+  border: 1px solid #d7dae7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #414755;
+  font-size: 12px;
+  font-weight: 800;
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+
+.staff-patient-action-btn:hover {
+  border-color: var(--patients-pink);
+  background: #fff0f6;
+  color: var(--patients-pink);
+}
+
+.staff-patient-action-btn.is-danger {
+  border-color: #ffd0d8;
+  color: #c81e48;
+}
+
+.staff-patient-action-btn.is-danger:hover {
+  background: #fff1f3;
+  color: #9f1239;
 }
 
 .staff-patients-empty-cell {
@@ -368,15 +544,38 @@
 /* Register page shell */
 .staff-register-shell {
   width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  margin-inline: 0;
+  box-sizing: border-box;
+}
+
+.staff-register-workspace {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  margin-inline: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  column-gap: 22px;
+  box-sizing: border-box;
+}
+
+.staff-register-main-column {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 22px;
 }
 
 .staff-back-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 28px;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -392,20 +591,11 @@
   transform: translateX(-2px);
 }
 
-.staff-register-hero-grid {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 282px;
-  gap: 22px;
-  align-items: start;
-  margin: 0 0 16px;
-}
-
 .staff-register-top {
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding-top: 18px;
+  padding-top: 0;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -413,8 +603,8 @@
 }
 
 .staff-register-top > div:first-child {
-  width: min(100%, 720px);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
 }
 
 .staff-register-top h2 {
@@ -436,14 +626,6 @@
   text-align: center;
 }
 
-.staff-register-layout {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 282px;
-  gap: 22px;
-  align-items: start;
-}
-
 .staff-register-main {
   min-width: 0;
   width: 100%;
@@ -454,49 +636,36 @@
   position: relative;
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
   gap: 0;
-  margin: 0 0 28px;
-  padding: 0 26px;
+  margin: 0;
+  padding: 0;
   overflow: visible;
 }
 
 .staff-register-step-line {
   position: absolute;
   top: 18px;
-  left: 62px;
-  right: 62px;
+  left: calc(100% / 6);
+  right: calc(100% / 6);
   height: 2px;
   border-radius: 999px;
-  background:
-    linear-gradient(
-      90deg,
-      var(--patients-pink) 0,
-      var(--patients-pink) var(--step-progress),
-      #dfe3eb var(--step-progress),
-      #dfe3eb 100%
-    );
+  background: #dfe3eb;
   z-index: 0;
 }
 
 .staff-register-stepper[style*="--step-progress: 0%"] .staff-register-step-line {
-  background:
-    linear-gradient(
-      90deg,
-      var(--patients-pink) 0,
-      var(--patients-pink) 8%,
-      #dfe3eb 8%,
-      #dfe3eb 100%
-    );
+  background: #dfe3eb;
 }
 
 .staff-register-step {
   position: relative;
   z-index: 1;
-  display: grid;
-  justify-items: center;
-  gap: 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
   border: 0;
   background: transparent;
@@ -522,15 +691,22 @@
   display: inline-flex;
   justify-content: center;
   align-items: flex-start;
-  width: min(100%, 170px);
-  min-height: 31px;
-  padding-bottom: 8px;
+  width: auto;
+  max-width: 220px;
+  min-height: 34px;
+  padding: 0 8px 9px;
   color: inherit;
   font-size: 10.5px;
   font-weight: 900;
-  line-height: 1.2;
-  letter-spacing: 0.035em;
+  line-height: 1.15;
+  letter-spacing: 0;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.staff-register-step:nth-of-type(2) small {
+  max-width: 170px;
+  white-space: normal;
 }
 
 .staff-register-step small::after {
@@ -546,13 +722,11 @@
   transition: width 180ms ease;
 }
 
-.staff-register-step.is-active,
-.staff-register-step.is-complete {
+.staff-register-step.is-active {
   color: var(--patients-pink);
 }
 
-.staff-register-step.is-active span,
-.staff-register-step.is-complete span {
+.staff-register-step.is-active span {
   background: var(--patients-pink);
   color: #fff;
 }
@@ -560,10 +734,6 @@
 /* Only current step has underline */
 .staff-register-step.is-active small::after {
   width: 100%;
-}
-
-.staff-register-step.is-complete:not(.is-active) small::after {
-  width: 0;
 }
 
 /* Register form card */
@@ -575,6 +745,7 @@
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 18px 42px rgba(22, 27, 41, 0.055);
+  overflow: visible;
 }
 
 .staff-register-card > header {
@@ -769,32 +940,8 @@
   gap: 9px;
 }
 
-.staff-allergy-group > div {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 42px;
-  gap: 18px;
-  align-items: end;
-}
-
 .staff-allergy-group .staff-register-field {
   gap: 0;
-}
-
-.staff-allergy-group button {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--patients-pink);
-  border-radius: 10px;
-  background: #fff;
-  color: var(--patients-pink);
-  transition: background-color 180ms ease, color 180ms ease;
-}
-
-.staff-allergy-group button:hover {
-  background: var(--patients-pink);
-  color: #fff;
 }
 
 .staff-check-section {
@@ -997,10 +1144,12 @@
 
 /* Right credential panel */
 .staff-register-side {
+  width: 100%;
   position: sticky;
-  top: 22px;
-  display: grid;
-  gap: 15px;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   min-width: 0;
 }
 
@@ -1012,11 +1161,13 @@
 }
 
 .staff-register-success-card {
+  width: calc(100% - 24px);
   min-height: 190px;
   display: grid;
   justify-items: center;
   align-content: center;
-  padding: 24px 22px;
+  margin-inline: auto;
+  padding: 22px 18px;
   border: 1px solid #d7f7e1;
   background: #effdf4;
   text-align: center;
@@ -1054,6 +1205,7 @@
 }
 
 .staff-register-credential-card {
+  width: 100%;
   padding: 25px 24px;
 }
 
@@ -1132,6 +1284,45 @@
   height: 148px !important;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.staff-qr-error {
+  min-height: 72px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  border: 1px solid #ffd5e4;
+  border-radius: 9px;
+  background: #fff6f9;
+  color: #ba315e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.staff-patient-access-link {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.staff-patient-access-link small {
+  color: #788091;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-patient-access-link a {
+  min-width: 0;
+  color: #596174;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .staff-register-credential-card em {
@@ -1269,39 +1460,632 @@
   }
 }
 
+/* =========================================================
+   Staff walk-in registration workflow
+========================================================= */
+
+.staff-register-page,
+.staff-register-page h2,
+.staff-register-page h3,
+.staff-register-page small {
+  letter-spacing: 0;
+}
+
+.staff-register-page .staff-register-step-line {
+  left: calc(100% / 6);
+  right: calc(100% / 6);
+}
+
+.staff-next-btn:disabled,
+.staff-prev-btn:disabled,
+.staff-register-patient-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.staff-walkin-page {
+  padding: 24px 28px 32px;
+}
+
+.staff-walkin-shell {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.staff-walkin-top {
+  text-align: center;
+  margin: 18px 0 34px;
+}
+
+.staff-walkin-top h2 {
+  margin: 0;
+  color: var(--patients-pink);
+  font-size: clamp(28px, 3vw, 34px);
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.staff-walkin-top p {
+  margin: 8px 0 0;
+  color: #65718a;
+  font-size: 14px;
+}
+
+.staff-walkin-doctor-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 220px) minmax(190px, 220px);
+  align-items: center;
+  gap: 22px;
+  padding: 24px;
+  border: 1px solid #edf0f6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(22, 27, 41, 0.055);
+}
+
+.staff-walkin-doctor-profile {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.staff-walkin-avatar {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #d9f5f2;
+  color: #203045;
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.staff-walkin-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.staff-walkin-doctor-profile h3 {
+  margin: 0;
+  color: #20283a;
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.staff-walkin-doctor-profile p {
+  margin: 5px 0 0;
+  color: #6d7891;
+  font-size: 13.5px;
+}
+
+.staff-walkin-doctor-select {
+  display: grid;
+  gap: 6px;
+}
+
+.staff-walkin-doctor-select span {
+  color: #9aa2b2;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-walkin-doctor-select select {
+  width: min(100%, 280px);
+  height: 42px;
+  border: 1px solid #d6dbe6;
+  border-radius: 9px;
+  padding: 0 12px;
+  color: #20283a;
+  font-weight: 700;
+}
+
+.staff-walkin-stat {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 14px;
+  padding-left: 20px;
+  border-left: 1px solid #edf0f6;
+}
+
+.staff-walkin-stat svg {
+  grid-row: span 2;
+  width: 48px;
+  height: 48px;
+  padding: 13px;
+  border-radius: 12px;
+  background: #f8f9fc;
+  color: #8a97ad;
+}
+
+.staff-walkin-stat strong {
+  color: #20283a;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.staff-walkin-stat span {
+  color: #65718a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.staff-walkin-slots-section {
+  margin-top: 34px;
+}
+
+.staff-walkin-slots-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.staff-walkin-slots-heading h3 {
+  margin: 0;
+  color: #20283a;
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.staff-walkin-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  color: #65718a;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.staff-walkin-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-walkin-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.staff-walkin-legend .is-available { background: #5abd76; }
+.staff-walkin-legend .is-selected { background: var(--patients-pink); }
+.staff-walkin-legend .is-full { background: #cfd5df; }
+
+.staff-walkin-date-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.staff-walkin-date-row label {
+  position: relative;
+  min-width: 200px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid #d9deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #3d465a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.staff-walkin-date-row label svg {
+  color: #8895aa;
+}
+
+.staff-walkin-date-row input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.staff-walkin-change-date-btn {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #fff0f6;
+  color: var(--patients-pink);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.staff-walkin-change-date-btn:hover {
+  border-color: rgba(255, 47, 125, 0.22);
+  background: #ffe5f0;
+}
+
+.staff-walkin-change-date-btn:active {
+  transform: translateY(1px);
+}
+
+.staff-walkin-change-date-btn:focus-visible {
+  outline: 3px solid rgba(255, 47, 125, 0.18);
+  outline-offset: 2px;
+}
+
+.staff-walkin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e6e9f1;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(22, 27, 41, 0.04);
+}
+
+.staff-walkin-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+}
+
+.staff-walkin-table thead {
+  background: var(--patients-pink);
+}
+
+.staff-walkin-table th {
+  height: 52px;
+  padding: 0 24px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 850;
+  text-align: left;
+}
+
+.staff-walkin-table td {
+  height: 56px;
+  padding: 0 24px;
+  border-bottom: 1px solid #edf0f6;
+  color: #3d465a;
+  font-size: 13.5px;
+}
+
+.staff-walkin-table tbody tr {
+  background: #fff;
+  transition: background-color 160ms ease;
+}
+
+.staff-walkin-table tbody tr.is-selected {
+  background: #fff8fb;
+}
+
+.staff-walkin-table tbody tr:not(.is-selected):hover {
+  background: #fbfcff;
+}
+
+.staff-walkin-radio {
+  display: inline-grid;
+  place-items: center;
+}
+
+.staff-walkin-radio input {
+  position: absolute;
+  opacity: 0;
+}
+
+.staff-walkin-radio span {
+  width: 19px;
+  height: 19px;
+  border: 2px solid #d5dbe6;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.staff-walkin-radio input:checked + span {
+  border-color: var(--patients-pink);
+  background:
+    radial-gradient(circle, var(--patients-pink) 0 45%, transparent 48%),
+    #fff;
+}
+
+.staff-walkin-radio input:disabled + span {
+  background: #f4f5f8;
+}
+
+.staff-walkin-status {
+  min-width: 78px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.staff-walkin-status.is-available {
+  background: #eaf8ef;
+  color: #42b968;
+}
+
+.staff-walkin-status.is-selected {
+  background: #ffe7f0;
+  color: var(--patients-pink);
+}
+
+.staff-walkin-status.is-full,
+.staff-walkin-status.is-unavailable,
+.staff-walkin-status.is-reserved {
+  background: #f1f3f6;
+  color: #7b8496;
+}
+
+.staff-walkin-empty {
+  height: 130px !important;
+  text-align: center;
+  color: #7b8496 !important;
+}
+
+.staff-walkin-info-banner {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff2f6;
+  color: #59647a;
+  font-size: 12.5px;
+}
+
+.staff-walkin-info-banner svg {
+  color: var(--patients-pink);
+  flex: 0 0 auto;
+}
+
+.staff-walkin-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 40px;
+}
+
+.staff-allergy-group > div.staff-allergy-entry-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  overflow: visible;
+}
+
+.staff-allergy-entry-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1.15fr) minmax(180px, 1.15fr) 48px;
+  gap: 18px;
+  align-items: end;
+  min-width: 0;
+}
+
+.staff-allergy-type-select {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+
+.staff-allergy-type-trigger,
+.staff-allergy-type-menu button {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #d6dbe6;
+  border-radius: 10px;
+  background: #fff;
+  color: #293143;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.staff-allergy-type-trigger {
+  justify-content: flex-start;
+  padding: 0 14px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.staff-allergy-type-trigger svg:last-child {
+  margin-left: auto;
+  color: #8b93a4;
+  flex: 0 0 auto;
+}
+
+.staff-allergy-type-trigger span,
+.staff-allergy-type-menu button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-allergy-type-trigger:focus,
+.staff-allergy-type-menu button:focus {
+  outline: none;
+  border-color: rgba(255, 47, 125, 0.65);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-allergy-type-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 8px);
+  left: 0;
+  width: max(100%, 300px);
+  max-width: min(360px, calc(100vw - 32px));
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid #f1d5df;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(255, 47, 125, 0.24);
+}
+
+.staff-allergy-type-menu button {
+  border: 0;
+  border-radius: 9px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.staff-allergy-type-menu button.is-selected,
+.staff-allergy-type-menu button:hover {
+  background: #fbf1f5;
+}
+
+.staff-allergy-type-menu svg,
+.staff-allergy-type-trigger svg:first-child {
+  width: 22px;
+  height: 22px;
+  color: #6c535d;
+  flex: 0 0 auto;
+}
+
+.staff-allergy-icon-btn,
+.staff-pregnancy-remove-btn {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--patients-pink);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--patients-pink);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.staff-allergy-icon-btn:hover,
+.staff-pregnancy-remove-btn:hover {
+  background: var(--patients-pink);
+  color: #fff;
+}
+
+.staff-add-allergy-btn {
+  justify-self: start;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid var(--patients-pink);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--patients-pink);
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (max-width: 1120px) {
+  .staff-walkin-doctor-card {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-walkin-stat {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .staff-allergy-entry-row {
+    grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 48px;
+  }
+
+  .staff-allergy-entry-row .staff-allergy-type-select {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-register-page .staff-register-stepper {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    overflow: visible !important;
+  }
+
+  .staff-register-page .staff-register-step-line {
+    left: calc(100% / 6) !important;
+    right: calc(100% / 6) !important;
+    width: auto !important;
+  }
+
+  .staff-walkin-top {
+    text-align: left;
+  }
+
+  .staff-walkin-slots-heading,
+  .staff-walkin-date-row,
+  .staff-walkin-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .staff-walkin-actions .staff-prev-btn,
+  .staff-walkin-actions .staff-next-btn {
+    width: 100%;
+  }
+}
+
 /* Responsive */
 @media (max-width: 1120px) {
   .staff-register-shell {
-    max-width: 880px;
+    max-width: none;
   }
 
-  .staff-register-hero-grid,
-  .staff-register-layout {
+  .staff-register-workspace {
     grid-template-columns: 1fr;
+    row-gap: 18px;
   }
 
   .staff-register-side {
     position: static;
   }
-
-  .staff-register-hero-grid > .staff-register-success-card {
-    width: min(100%, 360px);
-    justify-self: center;
-  }
 }
 
 @media (max-width: 1024px) {
   .staff-register-page {
-    padding: 24px 18px 34px;
+    padding: 18px 18px 34px;
+  }
+
+  .staff-walkin-page {
+    padding: 20px 22px 34px;
   }
 
   .staff-register-stepper {
-    padding: 0 12px;
+    padding: 0;
   }
 
   .staff-register-step-line {
-    left: 42px;
-    right: 42px;
+    left: calc(100% / 6);
+    right: calc(100% / 6);
   }
 
   .staff-register-grid,
@@ -1322,6 +2106,14 @@
 }
 
 @media (max-width: 760px) {
+  .staff-register-page {
+    padding: 16px 16px 34px;
+  }
+
+  .staff-walkin-page {
+    padding: 16px 16px 34px;
+  }
+
   .staff-patients-header {
     flex-direction: column;
     align-items: stretch;
@@ -1377,37 +2169,37 @@
   }
 
   .staff-register-top {
-    justify-content: flex-start;
-    text-align: left;
+    justify-content: center;
+    text-align: center;
   }
 
   .staff-register-top h2,
   .staff-register-top p {
-    text-align: left;
-  }
-
-  .staff-register-hero-grid > .staff-register-success-card {
-    justify-self: stretch;
-    width: 100%;
+    text-align: center;
   }
 
   .staff-register-stepper {
-    overflow-x: auto;
-    grid-template-columns: repeat(4, 150px);
-    justify-content: start;
-    padding-bottom: 8px;
+    overflow: visible;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: stretch;
+    padding-bottom: 0;
   }
 
   .staff-register-step-line {
-    left: 45px;
-    right: auto;
-    width: 500px;
+    left: calc(100% / 6);
+    right: calc(100% / 6);
+    width: auto;
+  }
+
+  .staff-register-step small {
+    max-width: 120px;
+    white-space: normal;
   }
 
   .staff-register-grid,
   .staff-register-grid.is-three,
   .staff-check-grid,
-  .staff-allergy-group > div {
+  .staff-allergy-group > div:not(.staff-allergy-entry-list) {
     grid-template-columns: 1fr;
   }
 
@@ -1454,355 +2246,9 @@
   }
 }
 
-
-
-/* =========================================================
-   REGISTER PAGE GAP + ALIGNMENT FIX
-   Fixes the large vertical gap by keeping the title and
-   1-4 stepper in the same left column while the green card
-   stays on the right.
-========================================================= */
-
-.staff-register-page {
-  padding: 26px 30px 42px 28px !important;
-}
-
-.staff-register-shell {
-  max-width: 1100px !important;
-}
-
-.staff-back-btn {
-  margin: 0 0 22px !important;
-}
-
-.staff-register-hero-grid {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 282px !important;
-  gap: 22px !important;
-  align-items: start !important;
-  margin: 0 0 26px !important;
-}
-
-.staff-register-hero-main {
-  min-width: 0 !important;
-  display: grid !important;
-  align-content: start !important;
-}
-
-.staff-register-top {
-  padding-top: 6px !important;
-  margin: 0 !important;
-}
-
-.staff-register-top h2 {
-  font-size: clamp(32px, 3vw, 42px) !important;
-  line-height: 1.03 !important;
-}
-
-.staff-register-top p {
-  margin-top: 8px !important;
-}
-
-/* Stepper now sits right below the title, not below the green card height */
-.staff-register-hero-main .staff-register-stepper {
-  margin: 34px 0 0 !important;
-}
-
-/* No extra stepper space inside the form column */
-.staff-register-layout {
-  margin: 0 !important;
-  grid-template-columns: minmax(0, 1fr) 282px !important;
-  gap: 22px !important;
-  align-items: start !important;
-}
-
-.staff-register-card {
-  margin-top: 0 !important;
-}
-
-/* Keep the success card aligned with the title area */
-.staff-register-hero-grid > .staff-register-success-card {
-  align-self: start !important;
-}
-
-/* Slightly tighter form card to match the clean reference */
-.staff-register-card {
-  padding: 30px 34px 28px !important;
-}
-
-@media (max-width: 1120px) {
-  .staff-register-shell {
-    max-width: 880px !important;
-  }
-
-  .staff-register-hero-grid,
-  .staff-register-layout {
-    grid-template-columns: 1fr !important;
-  }
-
-  .staff-register-hero-grid > .staff-register-success-card {
-    width: min(100%, 360px) !important;
-    justify-self: center !important;
-  }
-
-  .staff-register-hero-main .staff-register-stepper {
-    margin-top: 28px !important;
-  }
-}
-
-@media (max-width: 760px) {
-  .staff-register-page {
-    padding: 22px 16px 34px !important;
-  }
-
-  .staff-back-btn {
-    margin-bottom: 20px !important;
-  }
-
-  .staff-register-hero-grid {
-    margin-bottom: 22px !important;
-  }
-
-  .staff-register-top {
-    padding-top: 0 !important;
-  }
-
-  .staff-register-hero-main .staff-register-stepper {
-    margin-top: 24px !important;
-  }
-}
-
-
-
-/* =========================================================
-   REGISTER TITLE TO STEPPER GAP FIX
-   Adds a cleaner breathing space between the title/description
-   and the 1-4 stepper, matching the reference spacing.
-========================================================= */
-
-.staff-register-hero-main .staff-register-stepper {
-  margin-top: 50px !important;
-}
-
-.staff-register-hero-grid {
-  margin-bottom: 28px !important;
-}
-
-/* Keep the right success card aligned while the left side gets breathing room */
-.staff-register-hero-grid > .staff-register-success-card {
-  margin-top: 0 !important;
-}
-
-/* Slightly smaller adjustment for medium screens */
-@media (max-width: 1120px) {
-  .staff-register-hero-main .staff-register-stepper {
-    margin-top: 42px !important;
-  }
-}
-
-/* Mobile/tablet: keep it readable without creating too much vertical height */
-@media (max-width: 760px) {
-  .staff-register-hero-main .staff-register-stepper {
-    margin-top: 34px !important;
-  }
-
-  .staff-register-hero-grid {
-    margin-bottom: 24px !important;
-  }
-}
-
-
-
-/* =========================================================
-   FINAL EXACT REGISTER ALIGNMENT PATCH
-   Apply this at the very bottom of staff-patients.css.
-   This version fixes the visible "no change" issue by using
-   stronger selectors and removing the old margin-based spacing.
-   Target:
-   - Title area is higher and centered like the reference.
-   - Clear breathing gap between subtitle and 1-4 stepper.
-   - Form card starts closer under the stepper.
-   - Right cards stay aligned with the title/form column.
-========================================================= */
-
-.staff-register-page {
-  padding: 10px 30px 42px 28px !important;
-}
-
-.staff-register-shell {
-  width: 100% !important;
-  max-width: 1100px !important;
-  margin: 0 auto !important;
-}
-
-.staff-register-page .staff-back-btn {
-  margin: 0 0 24px !important;
-}
-
-/* Title + stepper + right green card row */
-.staff-register-page .staff-register-hero-grid {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 282px !important;
-  column-gap: 22px !important;
-  align-items: start !important;
-  margin: 0 0 22px !important;
-}
-
-/* This controls the REAL gap between Register New Patient and 1-4 */
-.staff-register-page .staff-register-hero-main {
-  min-width: 0 !important;
-  display: grid !important;
-  grid-template-rows: auto auto !important;
-  row-gap: 48px !important;
-  align-content: start !important;
-}
-
-.staff-register-page .staff-register-top {
-  width: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  display: flex !important;
-  justify-content: center !important;
-  text-align: center !important;
-}
-
-.staff-register-page .staff-register-top > div:first-child {
-  width: min(100%, 720px) !important;
-  margin: 0 auto !important;
-}
-
-.staff-register-page .staff-register-top h2 {
-  margin: 0 !important;
-  color: var(--patients-pink) !important;
-  font-size: clamp(32px, 3vw, 42px) !important;
-  font-weight: 900 !important;
-  line-height: 1.03 !important;
-  letter-spacing: -0.055em !important;
-}
-
-.staff-register-page .staff-register-top p {
-  margin: 8px 0 0 !important;
-  color: #697183 !important;
-  font-size: 15px !important;
-  font-weight: 500 !important;
-}
-
-/* Remove every older margin rule that kept the stepper too close */
-.staff-register-page .staff-register-hero-main > .staff-register-stepper,
-.staff-register-page .staff-register-hero-main .staff-register-stepper {
-  margin: 0 !important;
-}
-
-/* Robust fallback in case an older JSX still places the stepper inside main */
-.staff-register-page .staff-register-layout .staff-register-main > .staff-register-stepper {
-  margin: 48px 0 22px !important;
-}
-
-/* Stepper sizing/positioning */
-.staff-register-page .staff-register-stepper {
-  position: relative !important;
-  width: 100% !important;
-  display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  align-items: start !important;
-  gap: 0 !important;
-  padding: 0 26px !important;
-  overflow: visible !important;
-}
-
-.staff-register-page .staff-register-step-line {
-  top: 18px !important;
-  left: 62px !important;
-  right: 62px !important;
-}
-
-/* Form and credential layout under the hero */
-.staff-register-page .staff-register-layout {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 282px !important;
-  gap: 22px !important;
-  align-items: start !important;
-  width: 100% !important;
-  margin: 0 !important;
-}
-
-.staff-register-page .staff-register-card {
-  margin-top: 0 !important;
-  padding: 30px 34px 28px !important;
-}
-
-/* Keep the right green card aligned and compact */
-.staff-register-page .staff-register-hero-grid > .staff-register-success-card {
-  align-self: start !important;
-  margin: 0 !important;
-  min-height: 190px !important;
-}
-
-/* Right credential card starts on the same row as the form card */
-.staff-register-page .staff-register-side {
-  position: sticky !important;
-  top: 22px !important;
-  margin: 0 !important;
-}
-
-/* Responsive */
-@media (max-width: 1120px) {
-  .staff-register-page {
-    padding: 22px 18px 34px !important;
-  }
-
-  .staff-register-page .staff-register-shell {
-    max-width: 880px !important;
-  }
-
-  .staff-register-page .staff-register-hero-grid,
-  .staff-register-page .staff-register-layout {
-    grid-template-columns: 1fr !important;
-  }
-
-  .staff-register-page .staff-register-hero-main {
-    row-gap: 40px !important;
-  }
-
-  .staff-register-page .staff-register-hero-grid > .staff-register-success-card {
-    width: min(100%, 360px) !important;
-    justify-self: center !important;
-  }
-
-  .staff-register-page .staff-register-side {
-    position: static !important;
-  }
-}
-
-@media (max-width: 760px) {
-  .staff-register-page {
-    padding: 20px 16px 34px !important;
-  }
-
-  .staff-register-page .staff-register-top {
-    justify-content: flex-start !important;
-    text-align: left !important;
-  }
-
-  .staff-register-page .staff-register-top h2,
-  .staff-register-page .staff-register-top p {
-    text-align: left !important;
-  }
-
-  .staff-register-page .staff-register-hero-main {
-    row-gap: 30px !important;
-  }
-
-  .staff-register-page .staff-register-stepper {
-    grid-template-columns: repeat(4, 150px) !important;
-    overflow-x: auto !important;
-    padding-bottom: 8px !important;
-  }
-
-  .staff-register-page .staff-register-step-line {
-    left: 45px !important;
-    right: auto !important;
-    width: 500px !important;
+@media (max-width: 480px) {
+  .staff-walkin-page {
+    padding: 14px 14px 32px;
   }
 }
 
@@ -1975,6 +2421,87 @@
   }
 }
 
+/* =========================================================
+   STAFF WALK-IN — OWN RESERVATION RECOVERY
+   ========================================================= */
+
+.staff-walkin-page .staff-patients-status-message.is-success {
+  color: #198754 !important;
+}
+
+.staff-walkin-legend .is-mine {
+  background: #ff8ab6;
+  box-shadow: 0 0 0 3px #ffe6ef;
+}
+
+.staff-walkin-table tbody tr.is-reserved-by-you {
+  background: #fff7fa;
+  box-shadow: inset 4px 0 0 var(--patients-pink);
+}
+
+.staff-walkin-table tbody tr.is-reserved-by-you:hover {
+  background: #fff2f7;
+}
+
+.staff-walkin-table tbody tr.is-reserved-by-you td {
+  color: #343b4d;
+}
+
+.staff-walkin-table .staff-walkin-status.is-mine {
+  min-width: 126px;
+  background: #ffe5ef;
+  color: var(--patients-pink);
+}
+
+.staff-walkin-table tr.is-reserved-by-you .staff-walkin-radio span {
+  border-color: var(--patients-pink);
+  background:
+    radial-gradient(circle, var(--patients-pink) 0 45%, transparent 48%),
+    #fff;
+}
+
+.staff-walkin-info-banner.is-active-reservation {
+  align-items: flex-start;
+  border: 1px solid #ffd2e2;
+  background: #fff8fb;
+  color: #4f586b;
+  line-height: 1.55;
+}
+
+.staff-walkin-info-banner.is-active-reservation svg {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+
+.staff-walkin-info-banner.is-active-reservation strong {
+  color: #252b3a;
+}
+
+.staff-walkin-page .staff-release-slot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-color: #ff7ba9;
+  color: var(--patients-pink);
+}
+
+.staff-walkin-page .staff-release-slot-btn:hover:not(:disabled) {
+  background: #fff1f6;
+}
+
+.staff-walkin-date-display:has(input:disabled),
+.staff-walkin-change-date-btn:disabled,
+.staff-walkin-doctor-select select:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.staff-walkin-date-display input:disabled {
+  cursor: not-allowed;
+}
+
 
 
 /* =========================================================
@@ -2029,11 +2556,25 @@
 .staff-patients-page .staff-patients-actions {
   width: 100% !important;
   display: grid !important;
-  grid-template-columns: minmax(320px, 480px) 256px !important;
+  grid-template-columns: minmax(320px, 480px) minmax(0, 1fr) !important;
   justify-content: space-between !important;
   align-items: center !important;
   gap: 24px !important;
-  margin: 0 0 35px !important;
+  margin: 0 0 28px !important;
+}
+
+.staff-patients-page .staff-patients-toolbar-right {
+  justify-self: end !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+}
+
+.staff-patients-page .staff-patients-status-select {
+  width: 190px !important;
+  min-width: 190px !important;
+  height: 48px !important;
 }
 
 /* Search bar: bigger and cleaner like first photo */
@@ -2069,22 +2610,22 @@
 
 /* Register button: reference size and position */
 .staff-patients-page .staff-register-patient-btn {
-  width: 256px !important;
-  min-width: 256px !important;
-  height: 64px !important;
+  width: 205px !important;
+  min-width: 205px !important;
+  height: 48px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 14px !important;
-  padding: 0 24px !important;
+  gap: 9px !important;
+  padding: 0 18px !important;
   border: 0 !important;
-  border-radius: 12px !important;
+  border-radius: 10px !important;
   background: var(--patients-pink) !important;
   color: #ffffff !important;
-  font-size: 18px !important;
+  font-size: 14px !important;
   font-weight: 800 !important;
   line-height: 1 !important;
-  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.18) !important;
+  box-shadow: 0 10px 20px rgba(255, 47, 125, 0.16) !important;
 }
 
 .staff-patients-status-message {
@@ -2102,8 +2643,293 @@
 }
 
 .staff-patients-page .staff-register-patient-btn svg {
-  width: 23px !important;
-  height: 23px !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* Patient registration review and access confirmation */
+.staff-next-btn:disabled,
+.staff-prev-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.staff-register-credential-card.is-placeholder {
+  min-height: 330px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.staff-register-credential-card.is-placeholder h3 {
+  margin: 0;
+  color: #283044;
+  font-size: 18px;
+  text-transform: none;
+}
+
+.staff-register-credential-card.is-placeholder p {
+  max-width: 220px;
+  margin: 0;
+  color: #778095;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.staff-access-placeholder-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff0f5;
+  color: var(--patients-pink);
+}
+
+.staff-access-placeholder-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.staff-register-credential-card .staff-qr-block > div {
+  height: 212px;
+}
+
+.staff-register-credential-card .staff-qr-block canvas {
+  width: 188px !important;
+  height: 188px !important;
+}
+
+.staff-registration-review > header,
+.staff-access-confirmation > header {
+  align-items: flex-start;
+}
+
+.staff-registration-review > header p,
+.staff-access-confirmation > header p {
+  margin: 5px 0 0;
+  color: #7b8496;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.staff-registration-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.staff-registration-review-grid > section {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #e9edf3;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.staff-registration-review-grid h4 {
+  margin: 0 0 12px;
+  color: #2a3142;
+  font-size: 14px;
+}
+
+.staff-registration-review-grid dl,
+.staff-registration-review-grid dd {
+  margin: 0;
+}
+
+.staff-registration-review-grid dl {
+  display: grid;
+  gap: 8px;
+}
+
+.staff-registration-review-grid dl > div {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.staff-registration-review-grid dt {
+  color: #8992a4;
+}
+
+.staff-registration-review-grid dd {
+  overflow-wrap: anywhere;
+  color: #3d4659;
+  font-weight: 700;
+}
+
+.staff-registration-review-grid button,
+.staff-access-confirmation-details button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--patients-pink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.staff-access-confirmation-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.staff-access-confirmation-qr {
+  display: grid;
+  justify-items: center;
+  padding: 14px;
+  border: 1px solid #ffd8e5;
+  border-radius: 8px;
+  background: #fff9fb;
+}
+
+.staff-access-confirmation-qr canvas {
+  max-width: 100%;
+  height: auto !important;
+}
+
+.staff-access-confirmation-qr strong {
+  margin-top: 8px;
+  color: #273044;
+  font-size: 14px;
+}
+
+.staff-access-confirmation-qr span {
+  margin-top: 3px;
+  color: #7d8799;
+  font-size: 11px;
+}
+
+.staff-access-confirmation-details {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.staff-access-confirmation-details > section {
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid #e8ecf2;
+  border-radius: 7px;
+}
+
+.staff-access-confirmation-details > section > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #8b94a5;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-access-confirmation-details strong,
+.staff-access-confirmation-details a {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #31394b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.staff-access-confirmation-details a {
+  color: #596479;
+  font-size: 10px;
+}
+
+.staff-access-confirmation-details .staff-print-access-btn {
+  width: 100%;
+  min-height: 42px;
+  justify-content: center;
+  margin: 2px 0 0;
+  border: 1px solid #dce1e9;
+  border-radius: 7px;
+  background: #fff;
+  color: #4d576a;
+}
+
+.staff-access-copy-message {
+  margin: 0;
+  color: #16854c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.staff-access-instruction {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 11px;
+  margin-top: 22px;
+  padding: 15px;
+  border-left: 3px solid #ed9f25;
+  background: #fff9ee;
+  color: #625843;
+}
+
+.staff-access-instruction svg {
+  width: 22px;
+  height: 22px;
+  color: #d88b11;
+}
+
+.staff-access-instruction p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.staff-access-receipt-check {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 10px;
+  align-items: start;
+  margin-top: 18px;
+  color: #343d50;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.staff-access-receipt-check input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--patients-pink);
+}
+
+@media (max-width: 760px) {
+  .staff-registration-review-grid,
+  .staff-access-confirmation-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-access-confirmation-qr {
+    width: min(100%, 300px);
+    justify-self: center;
+  }
+}
+
+@media print {
+  body:has(.staff-access-confirmation):not(.is-printing-report) * {
+    visibility: hidden !important;
+  }
+  .staff-access-confirmation,
+  .staff-access-confirmation * { visibility: visible !important; }
+  .staff-access-confirmation { position: absolute; inset: 0; box-shadow: none !important; }
+  .staff-access-confirmation button,
+  .staff-access-receipt-check,
+  .staff-register-footer { display: none !important; }
 }
 
 /* Table card: closer to toolbar, exact card feel */
@@ -2174,17 +3000,6 @@
   font-weight: 500 !important;
 }
 
-.staff-patients-page .staff-patient-view-btn {
-  min-width: 90px !important;
-  height: 38px !important;
-  border: 2px solid var(--patients-pink) !important;
-  border-radius: 8px !important;
-  background: #ffffff !important;
-  color: var(--patients-pink) !important;
-  font-size: 13px !important;
-  font-weight: 800 !important;
-}
-
 /* Keeps profile card aligned when switching Dashboard / Patients / Appointments */
 .staff-dashboard-shell .staff-patients-header .staff-profile-wrapper,
 .staff-dashboard-shell .staff-patients-header .doctor-profile-wrapper {
@@ -2210,19 +3025,42 @@
     margin-bottom: 18px !important;
   }
 
-  .staff-patients-page .staff-patients-search,
-  .staff-patients-page .staff-register-patient-btn {
+  .staff-patients-page .staff-patients-search {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .staff-patients-page .staff-patients-toolbar-right {
+    width: 100% !important;
+    justify-self: stretch !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) max-content !important;
+    gap: 10px !important;
+  }
+
+  .staff-patients-page .staff-patients-status-select {
     width: 100% !important;
     min-width: 0 !important;
   }
 
   .staff-patients-page .staff-register-patient-btn {
-    height: 50px !important;
-    font-size: 15px !important;
+    width: 205px !important;
+    min-width: 205px !important;
+    height: 48px !important;
+    font-size: 14px !important;
   }
 }
 
 @media (max-width: 640px) {
+  .staff-patients-page .staff-patients-toolbar-right {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-patients-page .staff-register-patient-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
   .staff-patients-page .staff-patients-header h2 {
     font-size: 31px !important;
   }
@@ -2252,7 +3090,7 @@
 
 /* =========================================================
    MEDICAL RECORDS COLUMN RIGHT ALIGNMENT FIX
-   Moves the Medical Records column/header/button farther right
+   Moves the Medical Records column/header/badge farther right
    so the Patients table uses the full horizontal space like
    the reference design.
 ========================================================= */
@@ -2283,7 +3121,7 @@
   padding-right: 66px !important;
 }
 
-.staff-patients-page .staff-patient-view-btn {
+.staff-patients-page .staff-patient-medical-access {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -2302,7 +3140,7 @@
     padding-right: 22px !important;
   }
 
-  .staff-patients-page .staff-patient-view-btn {
+  .staff-patients-page .staff-patient-medical-access {
     margin-left: 0 !important;
   }
 }
@@ -2311,7 +3149,7 @@
 
 /* =========================================================
    MEDICAL RECORDS HEADER SLIGHT RIGHT FIX
-   Keeps the View buttons in the good position, but moves only
+   Keeps the access badges in the good position, but moves only
    the Medical Records column title a little more to the right.
 ========================================================= */
 
@@ -2320,7 +3158,7 @@
   padding-right: 34px !important;
 }
 
-/* Keep View button position unchanged */
+/* Keep access badge position unchanged */
 .staff-patients-page .staff-patients-table td:nth-child(4) {
   text-align: right !important;
   padding-right: 34px !important;
@@ -2332,4 +3170,693 @@
     text-align: left !important;
     padding-right: 22px !important;
   }
+}
+
+
+/* =========================================================
+   STAFF PATIENTS — ROW ACTION MENU
+   ========================================================= */
+.staff-patients-page .staff-patients-table th:last-child,
+.staff-patients-page .staff-patients-table td:last-child {
+  width: 112px !important;
+  min-width: 112px !important;
+  padding-right: 24px !important;
+  padding-left: 24px !important;
+}
+
+.staff-patients-page .staff-patient-action-group {
+  position: relative !important;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  white-space: nowrap !important;
+}
+
+.staff-patients-page .staff-patient-notification-proxy-host {
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.staff-patients-page .staff-patient-notification-proxy {
+  display: none !important;
+}
+
+.staff-patients-page .staff-patient-action-menu-trigger {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  flex: 0 0 34px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #6c7282;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.staff-patients-page .staff-patient-action-menu-trigger span {
+  position: relative;
+  top: -2px;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+
+.staff-patients-page .staff-patient-action-menu-trigger:hover,
+.staff-patients-page .staff-patient-action-menu-trigger.is-open {
+  background: #fff1f7;
+  color: var(--patients-pink);
+}
+
+.staff-patients-page .staff-patient-action-menu-trigger:focus-visible {
+  outline: 3px solid rgba(255, 47, 125, 0.2);
+  outline-offset: 2px;
+}
+
+.staff-patient-action-menu {
+  position: fixed;
+  z-index: 5000;
+  width: 176px;
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid #eadfe5;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgba(32, 39, 55, 0.18);
+}
+
+.staff-patient-action-menu-item {
+  width: 100%;
+  min-height: 39px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #3b4354;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.staff-patient-action-menu-item svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
+
+.staff-patient-action-menu-item:hover,
+.staff-patient-action-menu-item:focus-visible {
+  outline: 0;
+  background: #fff0f6;
+  color: var(--patients-pink);
+}
+
+.staff-patient-action-menu-item:last-child:hover,
+.staff-patient-action-menu-item:last-child:focus-visible {
+  background: #fff1f3;
+  color: #be123c;
+}
+
+@media (max-width: 640px) {
+  .staff-patients-page .staff-patients-table {
+    min-width: 930px !important;
+  }
+}
+
+
+/* =========================================================
+   STAFF REGISTER PATIENT — FINAL UI CLEANUP
+   Keeps registration/Supabase behavior unchanged.
+   ========================================================= */
+
+/* Give the walk-in footer enough breathing room above the OS taskbar. */
+.staff-dashboard-shell .staff-register-page.staff-walkin-page {
+  min-height: auto !important;
+  padding: 20px 28px 28px !important;
+}
+
+.staff-dashboard-shell .staff-walkin-top {
+  margin: 8px 0 26px !important;
+}
+
+.staff-dashboard-shell .staff-walkin-doctor-card {
+  padding: 20px 22px !important;
+  border-radius: 14px !important;
+}
+
+.staff-dashboard-shell .staff-walkin-slots-section {
+  margin-top: 28px !important;
+}
+
+.staff-dashboard-shell .staff-walkin-actions {
+  margin-top: 20px !important;
+  padding-bottom: 0 !important;
+}
+
+/* Registration page shell */
+.staff-dashboard-shell .staff-register-page:not(.staff-walkin-page) {
+  padding: 22px 28px 72px !important;
+}
+
+.staff-dashboard-shell .staff-register-workspace {
+  grid-template-columns: minmax(0, 1fr) 270px !important;
+  column-gap: 20px !important;
+}
+
+.staff-dashboard-shell .staff-register-main-column {
+  gap: 17px !important;
+}
+
+.staff-dashboard-shell .staff-register-top h2 {
+  font-size: clamp(30px, 2.6vw, 38px) !important;
+  line-height: 1.05 !important;
+}
+
+.staff-dashboard-shell .staff-register-top p {
+  margin-top: 7px !important;
+  font-size: 14px !important;
+}
+
+.staff-dashboard-shell .staff-register-stepper {
+  margin-top: 2px !important;
+}
+
+.staff-dashboard-shell .staff-register-step {
+  gap: 8px !important;
+}
+
+.staff-dashboard-shell .staff-register-step small {
+  min-height: 31px !important;
+  padding-bottom: 8px !important;
+  font-size: 10px !important;
+}
+
+/* Form card is slightly tighter so each step is easier to scan. */
+.staff-dashboard-shell .staff-register-card {
+  padding: 26px 30px 24px !important;
+  border-radius: 14px !important;
+}
+
+.staff-dashboard-shell .staff-register-card > header {
+  margin-bottom: 22px !important;
+}
+
+.staff-dashboard-shell .staff-register-card h3 {
+  font-size: 21px !important;
+}
+
+.staff-dashboard-shell .staff-register-grid {
+  column-gap: 18px !important;
+  row-gap: 16px !important;
+}
+
+.staff-dashboard-shell .staff-register-grid.is-three {
+  column-gap: 22px !important;
+  row-gap: 18px !important;
+}
+
+.staff-dashboard-shell .staff-register-field {
+  gap: 7px !important;
+}
+
+.staff-dashboard-shell .staff-register-field > span,
+.staff-dashboard-shell .staff-register-radio-group > span,
+.staff-dashboard-shell .staff-allergy-group > label {
+  font-size: 12.5px !important;
+}
+
+.staff-dashboard-shell .staff-register-input-wrap input,
+.staff-dashboard-shell .staff-register-input-wrap select,
+.staff-dashboard-shell .staff-contraceptive-trigger {
+  height: 48px !important;
+  min-height: 48px !important;
+}
+
+/* Right Patient Access helper: one compact card during form/review. */
+.staff-dashboard-shell .staff-register-side {
+  top: 20px !important;
+  gap: 12px !important;
+}
+
+.staff-dashboard-shell .staff-register-credential-card.is-placeholder {
+  min-height: 238px !important;
+  padding: 26px 22px !important;
+  gap: 10px !important;
+}
+
+.staff-dashboard-shell .staff-register-credential-card.is-placeholder p {
+  max-width: 210px !important;
+  line-height: 1.55 !important;
+}
+
+.staff-dashboard-shell .staff-register-success-card {
+  width: 100% !important;
+  min-height: 205px !important;
+  padding: 24px 20px !important;
+}
+
+/* Step 2: compact custom contraceptive selector. */
+.staff-contraceptive-select {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.staff-contraceptive-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border: 1px solid #d6dbe6;
+  border-radius: 10px;
+  background: #fff;
+  color: #293143;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  outline: none;
+}
+
+.staff-contraceptive-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-contraceptive-trigger svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: #8b93a4;
+  transition: transform 160ms ease;
+}
+
+.staff-contraceptive-select.is-open .staff-contraceptive-trigger {
+  border-color: rgba(255, 47, 125, 0.65);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-contraceptive-select.is-open .staff-contraceptive-trigger svg {
+  transform: rotate(180deg);
+}
+
+.staff-contraceptive-menu {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% + 7px);
+  left: 0;
+  width: 100%;
+  min-width: 250px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid #ecdce3;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 36px rgba(38, 32, 36, 0.16);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 47, 125, 0.42) transparent;
+}
+
+.staff-contraceptive-menu button {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #30384a;
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.staff-contraceptive-menu button:hover,
+.staff-contraceptive-menu button.is-selected {
+  background: #fff0f6;
+  color: var(--patients-pink);
+}
+
+/* Step 2: make the previous-pregnancy area read as one section. */
+.staff-pregnancy-table-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 22px;
+  margin-bottom: 12px;
+}
+
+.staff-pregnancy-table-heading > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.staff-pregnancy-table-heading strong {
+  color: #30384a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.staff-pregnancy-table-heading span {
+  color: #7b8496;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.staff-dashboard-shell .staff-pregnancy-table-actions {
+  margin: 0 !important;
+}
+
+.staff-dashboard-shell .staff-pregnancy-table-wrap {
+  margin-top: 0 !important;
+}
+
+/* Step 3: allergy row and check sections are tighter/aligned. */
+.staff-dashboard-shell .staff-allergy-entry-row {
+  grid-template-columns:
+    minmax(180px, 0.95fr)
+    minmax(190px, 1.1fr)
+    minmax(190px, 1.1fr)
+    48px !important;
+  gap: 14px !important;
+}
+
+.staff-dashboard-shell .staff-allergy-type-trigger,
+.staff-dashboard-shell .staff-allergy-icon-btn {
+  min-height: 48px !important;
+  height: 48px !important;
+}
+
+.staff-dashboard-shell .staff-allergy-type-menu {
+  max-height: 260px !important;
+  overflow-y: auto !important;
+  box-shadow: 0 18px 36px rgba(38, 32, 36, 0.16) !important;
+}
+
+.staff-dashboard-shell .staff-check-section {
+  gap: 12px !important;
+  padding-top: 16px !important;
+}
+
+.staff-dashboard-shell .staff-check-columns {
+  column-gap: 28px !important;
+}
+
+/* Footer buttons: same size and never sit against bottom edge. */
+.staff-dashboard-shell .staff-register-footer {
+  margin-top: 24px !important;
+}
+
+.staff-dashboard-shell .staff-prev-btn,
+.staff-dashboard-shell .staff-next-btn {
+  min-width: 170px !important;
+  height: 50px !important;
+}
+
+/* Mid-size layouts: move Patient Access below form before things become cramped. */
+@media (max-width: 1180px) {
+  .staff-dashboard-shell .staff-register-workspace {
+    grid-template-columns: 1fr !important;
+    row-gap: 18px !important;
+  }
+
+  .staff-dashboard-shell .staff-register-side {
+    position: static !important;
+  }
+
+  .staff-dashboard-shell .staff-register-credential-card.is-placeholder,
+  .staff-dashboard-shell .staff-register-success-card {
+    min-height: 170px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-dashboard-shell .staff-register-page:not(.staff-walkin-page),
+  .staff-dashboard-shell .staff-register-page.staff-walkin-page {
+    padding: 16px 16px 72px !important;
+  }
+
+  .staff-pregnancy-table-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .staff-pregnancy-table-heading .staff-pregnancy-table-actions,
+  .staff-pregnancy-table-heading .staff-pregnancy-table-actions button {
+    width: 100%;
+  }
+
+  .staff-dashboard-shell .staff-allergy-entry-row {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .staff-dashboard-shell .staff-allergy-icon-btn {
+    width: 100% !important;
+  }
+
+  .staff-contraceptive-menu {
+    min-width: 100%;
+  }
+}
+
+
+/* =========================================================
+   STAFF WALK-IN — DATE PICKER + BOTTOM SPACING FIX
+   ========================================================= */
+.staff-dashboard-shell .staff-walkin-date-display {
+  cursor: pointer !important;
+}
+
+.staff-dashboard-shell .staff-walkin-date-display input[type="date"] {
+  cursor: pointer !important;
+}
+
+.staff-dashboard-shell .staff-walkin-change-date-btn {
+  position: relative;
+  z-index: 2;
+}
+
+.staff-dashboard-shell .staff-walkin-shell {
+  padding-bottom: 0 !important;
+}
+
+/* =========================================================
+   FINAL STAFF PATIENTS — BOTTOM GAP / VIEWPORT TABLE FIX
+   Keeps the Patients card filling the available desktop height
+   and makes the patient rows scroll inside the card.
+   ========================================================= */
+@media (min-width: 981px) {
+  .staff-dashboard-shell .staff-patients-page {
+    min-height: 0 !important;
+    padding-bottom: 24px !important;
+  }
+
+  .staff-dashboard-shell .staff-patients-page .staff-patients-card {
+    height: clamp(520px, calc(100dvh - 250px), 650px) !important;
+    min-height: 520px !important;
+    margin-bottom: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .staff-dashboard-shell .staff-patients-page .staff-patients-table-scroll {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+  }
+}
+
+/* =========================================================
+   REGISTER PATIENT — STEP 3 REFERENCE LAYOUT
+   ========================================================= */
+.staff-dashboard-shell .staff-register-medical-history-card {
+  padding: 30px 34px 28px !important;
+}
+
+.staff-dashboard-shell .staff-register-medical-history-card > header {
+  margin-bottom: 30px !important;
+}
+
+.staff-dashboard-shell .staff-register-medical-history-card .staff-register-grid {
+  row-gap: 26px !important;
+}
+
+.staff-dashboard-shell .staff-register-medical-history-card .staff-allergy-group {
+  gap: 13px !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-allergy-entry-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 28px !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-allergy-entry-row.has-remove {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 48px !important;
+  gap: 18px !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-add-allergy-btn.is-icon-only {
+  width: 48px !important;
+  min-width: 48px !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  display: grid !important;
+  place-items: center !important;
+  margin-top: 2px !important;
+  padding: 0 !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-add-allergy-btn.is-icon-only svg {
+  width: 20px;
+  height: 20px;
+}
+
+.staff-dashboard-shell .staff-register-medical-history-card .staff-check-section {
+  gap: 18px !important;
+  padding-top: 12px !important;
+  border-top: 0 !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-check-section
+  h4 {
+  margin: 0 !important;
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-check-columns.is-medical {
+  grid-template-columns: repeat(2, minmax(210px, 1fr)) !important;
+  max-width: 760px !important;
+  column-gap: 72px !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-check-columns.is-family.is-family-side {
+  grid-template-columns: repeat(3, minmax(170px, 1fr)) !important;
+  max-width: none !important;
+  column-gap: 54px !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-check-column {
+  gap: 16px !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-register-check {
+  font-size: 14px !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-specify-field {
+  width: 100% !important;
+  max-width: 310px !important;
+}
+
+.staff-dashboard-shell
+  .staff-register-medical-history-card
+  .staff-specify-field
+  .staff-register-input-wrap
+  input {
+  height: 44px !important;
+}
+
+.staff-dashboard-shell .staff-register-medical-history-card .staff-register-footer {
+  margin-top: 36px !important;
+}
+
+.staff-dashboard-shell .staff-register-medical-history-card .staff-prev-btn,
+.staff-dashboard-shell .staff-register-medical-history-card .staff-next-btn {
+  min-width: 210px !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell
+    .staff-register-medical-history-card
+    .staff-allergy-entry-row,
+  .staff-dashboard-shell
+    .staff-register-medical-history-card
+    .staff-allergy-entry-row.has-remove {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .staff-dashboard-shell
+    .staff-register-medical-history-card
+    .staff-allergy-icon-btn {
+    width: 48px !important;
+  }
+
+  .staff-dashboard-shell
+    .staff-register-medical-history-card
+    .staff-check-columns.is-medical {
+    column-gap: 28px !important;
+  }
+
+  .staff-dashboard-shell
+    .staff-register-medical-history-card
+    .staff-check-columns.is-family.is-family-side {
+    column-gap: 24px !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .staff-dashboard-shell
+    .staff-register-medical-history-card
+    .staff-check-columns.is-medical,
+  .staff-dashboard-shell
+    .staff-register-medical-history-card
+    .staff-check-columns.is-family.is-family-side {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Keep active-reservation controls visibly locked after final page overrides. */
+.staff-dashboard-shell
+  .staff-walkin-date-display
+  input[type="date"]:disabled,
+.staff-dashboard-shell .staff-walkin-change-date-btn:disabled,
+.staff-dashboard-shell .staff-walkin-doctor-select select:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.62 !important;
 }

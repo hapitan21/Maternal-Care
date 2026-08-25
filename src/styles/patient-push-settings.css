@@ -1,0 +1,245 @@
+.patient-push-settings-card {
+  width: 100%;
+  padding: 30px;
+  overflow: hidden;
+}
+
+.patient-push-settings-card > .patient-push-settings-header {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 40px;
+  align-items: start;
+  gap: 16px;
+  min-height: 0;
+  padding: 0 0 24px;
+  border-bottom: 1px solid var(--pwa-border);
+}
+
+.patient-push-settings-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 12px;
+  background: #ffe9f1;
+  color: var(--pwa-pink);
+}
+
+.patient-push-settings-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.patient-push-settings-card .patient-push-settings-header h3 {
+  margin: 1px 0 5px;
+  color: var(--pwa-text);
+  font-size: 20px;
+  line-height: 26px;
+}
+
+.patient-push-settings-card .patient-push-settings-header p {
+  max-width: 620px;
+  margin: 0;
+  color: #6d7a90;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.patient-push-settings-card .patient-push-refresh {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--pwa-border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #5f6d84;
+}
+
+.patient-push-settings-card .patient-push-refresh:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.patient-push-settings-card .patient-push-refresh svg {
+  width: 19px;
+  height: 19px;
+}
+
+.patient-push-status-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 24px 0;
+}
+
+.patient-push-status-list > div {
+  display: flex;
+  min-width: 0;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 18px;
+  border: 1px solid var(--pwa-border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.patient-push-status-list span {
+  color: #6d7a90;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.patient-push-status-list strong {
+  max-width: 58%;
+  color: var(--pwa-text);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.patient-push-status-list strong.is-enabled {
+  color: #138a5b;
+}
+
+.patient-push-guidance {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 13px 15px;
+  border: 1px solid #c9ddff;
+  border-radius: 10px;
+  background: #eef5ff;
+  color: #36577f;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.patient-push-guidance.is-warning {
+  border-color: #ffd0df;
+  background: #fff1f6;
+  color: #9f2855;
+}
+
+.patient-push-guidance svg {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.patient-push-feedback {
+  min-height: 24px;
+}
+
+.patient-push-feedback p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.patient-push-feedback .is-error {
+  color: #b4234d;
+}
+
+.patient-push-feedback .is-success {
+  color: #138a5b;
+}
+
+.patient-push-actions {
+  display: flex;
+  align-items: center;
+}
+
+.patient-push-actions button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.patient-push-actions button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.patient-push-actions .is-enable {
+  border: 1px solid var(--pwa-pink);
+  background: var(--pwa-pink);
+  color: #ffffff;
+}
+
+.patient-push-actions .is-disable {
+  border: 1px solid var(--pwa-pink);
+  background: #ffffff;
+  color: var(--pwa-pink);
+}
+
+.patient-push-actions button:disabled {
+  cursor: not-allowed;
+  border-color: #cbd3df;
+  background: #eef1f5;
+  color: #8c98aa;
+}
+
+.patient-push-shared-device-note {
+  margin: 16px 0 0;
+  color: #7b8799;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+@media (max-width: 700px) {
+  .patient-push-settings-card {
+    padding: 22px;
+  }
+
+  .patient-push-status-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 430px) {
+  .patient-push-settings-card {
+    padding: 18px;
+  }
+
+  .patient-push-settings-card > .patient-push-settings-header {
+    grid-template-columns: 42px minmax(0, 1fr) 36px;
+    gap: 11px;
+  }
+
+  .patient-push-settings-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .patient-push-settings-card .patient-push-refresh {
+    width: 36px;
+    height: 36px;
+  }
+
+  .patient-push-status-list > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .patient-push-status-list strong {
+    max-width: none;
+    text-align: left;
+  }
+
+  .patient-push-actions,
+  .patient-push-actions button {
+    width: 100%;
+  }
+}

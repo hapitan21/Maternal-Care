@@ -1,0 +1,531 @@
+.send-patient-notification-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #ff3d7f;
+  border-radius: 8px;
+  background: #ff3d7f;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.send-patient-notification-trigger svg {
+  width: 18px;
+  height: 18px;
+}
+
+.send-patient-notification-trigger.is-outline {
+  background: #fff;
+  color: #f52f76;
+}
+
+.send-patient-notification-trigger:focus-visible,
+.send-patient-notification-modal button:focus-visible,
+.send-patient-notification-modal input:focus-visible,
+.send-patient-notification-modal select:focus-visible,
+.send-patient-notification-modal textarea:focus-visible {
+  outline: 3px solid rgba(68, 142, 255, 0.28);
+  outline-offset: 2px;
+}
+
+.send-patient-notification-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.doctor-patient-header-action-slot > .send-patient-notification-trigger {
+  align-self: flex-end;
+}
+
+.doctor-reminder-notification-action {
+  display: flex;
+  justify-content: center;
+}
+
+.send-patient-notification-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(22, 28, 45, 0.55);
+  overflow-y: auto;
+}
+
+.send-patient-notification-modal {
+  width: min(100%, 570px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  border: 1px solid #f4dce6;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(31, 39, 58, 0.22);
+  color: #182235;
+}
+
+.send-patient-notification-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #edf0f5;
+  background: #fff;
+}
+
+.send-patient-notification-header > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.send-patient-notification-header-icon,
+.send-patient-notification-preview-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: #ffeaf2;
+  color: #f52f76;
+}
+
+.send-patient-notification-header-icon svg,
+.send-patient-notification-preview-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.send-patient-notification-header h2 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.send-patient-notification-header p {
+  margin: 5px 0 0;
+  color: #6f7990;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.send-patient-notification-close {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #717b90;
+  cursor: pointer;
+}
+
+.send-patient-notification-close svg {
+  width: 24px;
+  height: 24px;
+}
+
+.send-patient-notification-modal form {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 24px;
+}
+
+.send-patient-notification-patient,
+.send-patient-notification-target {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 14px;
+  padding: 13px 14px;
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.send-patient-notification-patient span,
+.send-patient-notification-target span {
+  color: #7a8498;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.send-patient-notification-patient strong,
+.send-patient-notification-target strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.send-patient-notification-context {
+  padding: 13px 14px;
+  border-left: 3px solid #f52f76;
+  background: #fff7fa;
+}
+
+.send-patient-notification-context strong {
+  display: block;
+  color: #333d52;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.send-patient-notification-context p {
+  margin: 5px 0 0;
+  color: #6f7990;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.send-patient-notification-target code {
+  grid-column: 2;
+  color: #6f7990;
+  font-family: inherit;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.send-patient-notification-field {
+  position: relative;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding-bottom: 18px;
+}
+
+.send-patient-notification-field > span,
+.send-patient-notification-priority legend {
+  color: #333d52;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.send-patient-notification-field input,
+.send-patient-notification-field select,
+.send-patient-notification-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #ccd3e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #182235;
+  font: inherit;
+  font-size: 14px;
+}
+
+.send-patient-notification-field input,
+.send-patient-notification-field select {
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.send-patient-notification-field textarea {
+  min-height: 104px;
+  padding: 11px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.send-patient-notification-field small {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  color: #8992a5;
+  font-size: 11px;
+}
+
+.send-patient-notification-priority {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.send-patient-notification-priority > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px;
+  border-radius: 8px;
+  background: #f2f5fa;
+}
+
+.send-patient-notification-priority button {
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #687287;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.send-patient-notification-priority button.is-active {
+  border-color: #ffb5ce;
+  background: #fff;
+  color: #f52f76;
+  box-shadow: 0 2px 8px rgba(40, 48, 65, 0.08);
+}
+
+.send-patient-notification-preview {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #f7ccdc;
+  border-radius: 8px;
+  background: #fff7fa;
+}
+
+.send-patient-notification-preview.is-important {
+  border-color: #f1d39b;
+  background: #fffaf0;
+}
+
+.send-patient-notification-preview.is-urgent {
+  border-color: #f3b3b3;
+  background: #fff4f4;
+}
+
+.send-patient-notification-preview > div {
+  min-width: 0;
+}
+
+.send-patient-notification-preview small {
+  display: block;
+  padding-right: 72px;
+  color: #f52f76;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.send-patient-notification-preview strong {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.send-patient-notification-preview p {
+  margin: 5px 0 0;
+  color: #657087;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.send-patient-notification-preview-priority {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #ffe2ed;
+  color: #d91d60;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.send-patient-notification-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid #d92d20;
+  background: #fff2f0;
+  color: #a51c14;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.send-patient-notification-actions {
+  position: sticky;
+  bottom: -24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 2px -24px -24px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid #edf0f5;
+  background: #fff;
+}
+
+.send-patient-notification-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #ff3d7f;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.send-patient-notification-actions .is-secondary {
+  background: #fff;
+  color: #f52f76;
+}
+
+.send-patient-notification-actions .is-primary {
+  background: #ff3d7f;
+  color: #fff;
+}
+
+.send-patient-notification-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.send-patient-notification-toast {
+  position: fixed;
+  z-index: 13000;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(390px, calc(100vw - 32px));
+  padding: 13px 16px;
+  border: 1px solid #b9e9ce;
+  border-radius: 8px;
+  background: #ecfff4;
+  box-shadow: 0 14px 32px rgba(28, 46, 38, 0.18);
+  color: #12683b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.send-patient-notification-toast.is-error {
+  border-color: #e6a0ad;
+  background: #fff1f3;
+  color: #9b1c36;
+}
+
+.send-patient-notification-toast svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 600px) {
+  .send-patient-notification-backdrop {
+    align-items: end;
+    padding: 8px;
+  }
+
+  .send-patient-notification-modal {
+    max-height: calc(100dvh - 16px);
+  }
+
+  .send-patient-notification-header {
+    padding: 18px 16px 14px;
+  }
+
+  .send-patient-notification-header h2 {
+    font-size: 18px;
+  }
+
+  .send-patient-notification-header p {
+    font-size: 12px;
+  }
+
+  .send-patient-notification-modal form {
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .send-patient-notification-patient,
+  .send-patient-notification-target {
+    grid-template-columns: 1fr;
+  }
+
+  .send-patient-notification-target code {
+    grid-column: 1;
+  }
+
+  .send-patient-notification-actions {
+    bottom: -16px;
+    display: grid;
+    grid-template-columns: 1fr 1.55fr;
+    margin: 0 -16px -16px;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .send-patient-notification-actions button {
+    min-width: 0;
+    padding: 0 10px;
+  }
+
+  .send-patient-notification-preview small {
+    padding-right: 0;
+  }
+
+  .send-patient-notification-preview-priority {
+    position: static;
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 3px;
+  }
+
+  .send-patient-notification-toast {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    max-width: none;
+  }
+}
+
+/* =========================================================
+   SEND PATIENT NOTIFICATION — FINAL MODAL LAYERING FIX
+   ---------------------------------------------------------
+   The overlap was not the modal subtitle itself.
+   Staff page header/profile content was rendering above the
+   notification overlay. Keep the notification portal above
+   the complete Staff workspace.
+   ========================================================= */
+
+.send-patient-notification-backdrop {
+  z-index: 2147483000 !important;
+  isolation: isolate !important;
+}
+
+.send-patient-notification-modal {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Keep the sticky modal header above its own scrolling form. */
+.send-patient-notification-header {
+  z-index: 3 !important;
+  background: #ffffff !important;
+}
+
+/* Toast must remain above the open notification modal. */
+.send-patient-notification-toast {
+  z-index: 2147483647 !important;
+}
