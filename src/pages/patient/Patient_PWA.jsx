@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import PatientNotificationBell from "../../components/patient/PatientNotificationBell";
 import PatientNotificationsProvider from "../../components/patient/PatientNotificationsProvider";
 import PatientPwaStatus from "../../components/patient/PatientPwaStatus";
@@ -236,7 +237,7 @@ function PatientLoadingScreen() {
   return (
     <div className="pwa-shell pwa-loading-shell">
       <div className="pwa-loading-card" role="status">
-        <img src="/images/maternal-care-logo.png" alt="" />
+        <MaternalCareLogo decorative variant="status" />
         <span>{patientLoadingMessage}</span>
       </div>
     </div>
@@ -256,7 +257,7 @@ function PatientAccessStateScreen({ state, onRetry, linkPatientUrl }) {
   return (
     <main className="pwa-access-state" role="alert">
       <section className="pwa-access-state-card">
-        <img src="/images/maternal-care-logo.png" alt="" />
+        <MaternalCareLogo decorative variant="status" />
         <h1>Maternal Care Patient</h1>
         <p>{message}</p>
         {import.meta.env.DEV && state.details ? (
@@ -616,14 +617,8 @@ export default function PatientPWA() {
     <PatientNotificationsProvider patientId={profile.recordId}>
       <div className="pwa-shell">
         <aside className="pwa-sidebar">
-        <div className="pwa-brand">
-          <span className="pwa-brand-icon">
-            <Icon icon="mdi:human-pregnant" />
-          </span>
-          <div>
-            <h1>Maternal Care</h1>
-            <p>Reminder &amp; Management</p>
-          </div>
+        <div className="pwa-brand maternal-care-brand">
+          <MaternalCareLogo variant="patient-sidebar" />
         </div>
 
         <nav className="pwa-nav" aria-label="Patient PWA navigation">
@@ -657,11 +652,7 @@ export default function PatientPWA() {
               onClick={() => handleNavigate("dashboard")}
               aria-label="Open patient dashboard"
             >
-              <span aria-hidden="true"><Icon icon="mdi:human-pregnant" /></span>
-              <span>
-                <strong>Maternal Care</strong>
-                <small>Patient portal</small>
-              </span>
+              <MaternalCareLogo decorative variant="mobile" />
             </button>
 
             <div className="pwa-topbar-actions">

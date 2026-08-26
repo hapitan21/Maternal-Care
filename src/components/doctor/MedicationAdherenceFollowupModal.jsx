@@ -630,7 +630,7 @@ export default function MedicationAdherenceFollowupModal({
 
   return createPortal(
     <div
-      className="maf-backdrop clinical-workflow-backdrop"
+      className={`maf-backdrop clinical-workflow-backdrop${action === "contacted" ? " maf-backdrop--contacted" : ""}`}
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !isSaving) onClose();
@@ -638,7 +638,7 @@ export default function MedicationAdherenceFollowupModal({
     >
       <section
         ref={dialogRef}
-        className="maf-modal clinical-workflow-dialog clinical-workflow-dialog--followup"
+        className={`maf-modal clinical-workflow-dialog clinical-workflow-dialog--followup${action === "contacted" ? " maf-modal--contacted" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="maf-title"

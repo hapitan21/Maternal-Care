@@ -21,6 +21,7 @@ import {
 } from "../../lib/patientPendingLink";
 
 import { supabase } from "../../lib/supabaseClient";
+import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 
 import "../../styles/patient-access.css";
 
@@ -242,19 +243,13 @@ function PatientLogin() {
         aria-label="Patient login"
       >
         <div className="patient-access-panel">
-          <div className="patient-access-brand is-compact">
-            <img
-              src="/images/maternal-care-logo.png"
-              alt="Maternal Care logo"
-            />
-
-            <h1>Maternal Care</h1>
-            <p>Patient Login</p>
+          <div className="patient-access-brand is-compact maternal-care-brand">
+            <MaternalCareLogo variant="access" />
           </div>
 
           <div className="patient-access-heading">
             <span className="patient-access-eyebrow">Welcome back</span>
-            <h2>Sign in to your patient account</h2>
+            <h2>Login to your patient account</h2>
             <p>Use the email and password connected to your Maternal Care record.</p>
           </div>
 

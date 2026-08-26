@@ -6,6 +6,7 @@ import {
   clearPatientPendingLink,
   resolvePatientPendingLink,
 } from "../../lib/patientPendingLink";
+import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import "../../styles/patient-access.css";
 
 async function copyText(value) {
@@ -51,10 +52,8 @@ function PatientAccess() {
     <main className="patient-access-container">
       <section className="patient-access-shell is-landing" aria-label="Patient access">
         <div className="patient-access-panel">
-          <div className="patient-access-brand">
-            <img src="/images/maternal-care-logo.png" alt="Maternal Care logo" />
-            <h1>Maternal Care</h1>
-            <p>Secure Patient Access</p>
+          <div className="patient-access-brand maternal-care-brand">
+            <MaternalCareLogo variant="access" />
           </div>
 
           <div className="patient-access-heading">

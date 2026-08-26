@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Icon } from "@iconify/react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { isClinicAccountInactive } from "../../lib/clinicAccountStatus";
 import {
@@ -7,7 +8,9 @@ import {
 } from "../../lib/patientAccountStatus";
 import { supabase } from "../../lib/supabaseClient";
 import { recordAuditEvent } from "../../lib/auditLog";
+import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import "../../styles/login.css";
+import "../../styles/patient-access.css";
 
 const roleRoutes = {
   admin: "/admin",
@@ -209,6 +212,7 @@ function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [loginError, setLoginError] = useState(initialReason);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -447,11 +451,7 @@ function Login() {
           role="status"
           aria-live="polite"
         >
-          <img
-            className="login-logo"
-            src="/images/maternal-care-logo.png"
-            alt=""
-          />
+          <MaternalCareLogo decorative variant="status" />
 
           <span>Opening Maternal Care</span>
         </div>
@@ -460,68 +460,87 @@ function Login() {
   }
 
   return (
-    <div className="login-container">
+    <main className="patient-access-container patient-login-container clinic-login-container">
       <section
-        className="login-shell"
+        className="patient-access-shell patient-login-shell clinic-login-shell"
         aria-label="Maternal Care login"
       >
         <form
-          className="login-panel"
+          className="patient-access-panel clinic-login-panel"
           onSubmit={handleLogin}
           noValidate
         >
-          <div className="login-brand">
-            <img
-              className="login-logo"
-              src="/images/maternal-care-logo.png"
-              alt="Maternal Care logo"
-            />
+          <div className="patient-access-brand is-compact maternal-care-brand">
+            <MaternalCareLogo variant="access" />
+          </div>
 
-            <h1>Maternal Care</h1>
-
+          <div className="patient-access-heading">
+            <h2>Login</h2>
             <p>
-              Reminder &amp; Appointment
-              <br />
-              Management System
+              Use the email and password connected to your Maternal Care account.
             </p>
           </div>
 
-          <div className="login-fields">
-            <label htmlFor="login-email">
-              Email:
-              <input
-                id="login-email"
-                type="email"
-                value={email}
-                autoComplete="email"
-                inputMode="email"
-                disabled={isLoggingIn}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  setLoginError("");
-                  setVerificationMessage("");
-                  setCanResendVerification(false);
-                }}
-                required
-              />
-            </label>
+          <div className="patient-access-form clinic-login-form">
+            <div className="patient-access-field">
+              <label htmlFor="login-email">Email address</label>
+              <div className="patient-access-input-wrap">
+                <Icon icon="solar:letter-linear" aria-hidden="true" />
+                <input
+                  id="login-email"
+                  type="email"
+                  value={email}
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="you@example.com"
+                  disabled={isLoggingIn}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    setLoginError("");
+                    setVerificationMessage("");
+                    setCanResendVerification(false);
+                  }}
+                  required
+                />
+              </div>
+            </div>
 
-            <label htmlFor="login-password">
-              Password:
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                autoComplete="current-password"
-                disabled={isLoggingIn}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  setLoginError("");
-                  setVerificationMessage("");
-                }}
-                required
-              />
-            </label>
+            <div className="patient-access-field">
+              <label htmlFor="login-password">Password</label>
+              <div className="patient-access-input-wrap">
+                <Icon icon="solar:lock-password-linear" aria-hidden="true" />
+                <input
+                  id="login-password"
+                  type={passwordVisible ? "text" : "password"}
+                  value={password}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  disabled={isLoggingIn}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setLoginError("");
+                    setVerificationMessage("");
+                  }}
+                  required
+                />
+                <button
+                  type="button"
+                  className="patient-access-password-toggle"
+                  onClick={() => setPasswordVisible((visible) => !visible)}
+                  aria-label={passwordVisible ? "Hide password" : "Show password"}
+                  aria-pressed={passwordVisible}
+                  disabled={isLoggingIn}
+                >
+                  <Icon
+                    icon={
+                      passwordVisible
+                        ? "solar:eye-closed-linear"
+                        : "solar:eye-linear"
+                    }
+                  />
+                </button>
+              </div>
+            </div>
 
             {loginError ? (
               <p
@@ -558,7 +577,6 @@ function Login() {
 
             <button
               type="submit"
-              className="login-btn"
               disabled={isLoggingIn}
             >
               {isLoggingIn ? "Logging in..." : "Login"}
@@ -566,22 +584,28 @@ function Login() {
 
             <Link
               to="/forgot-password"
-              className="forgot-password-link"
+              className="patient-access-link-button clinic-login-link"
             >
-              Forgot Password?
+              Forgot Password
             </Link>
           </div>
         </form>
 
-        <div className="login-hero" aria-hidden="true">
+        <div className="patient-access-hero" aria-hidden="true">
           <img
-            className="login-illustration"
             src="/images/login-hero.png"
             alt=""
           />
+
+          <div className="patient-access-hero-copy">
+            <span>Care coordination, in one place</span>
+            <strong>
+              Patients, appointments, and clinical workflows—always within reach.
+            </strong>
+          </div>
         </div>
       </section>
-    </div>
+    </main>
   );
 }
 

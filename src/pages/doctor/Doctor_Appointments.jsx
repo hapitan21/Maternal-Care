@@ -24,6 +24,7 @@ import {
   normalizeAppointmentStatus,
 } from "../../lib/appointmentDate";
 import {
+  APPOINTMENT_CATEGORIES,
   APPOINTMENT_TYPES,
   buildThirtyMinuteAppointmentRange,
   getAppointmentTypeCategory,
@@ -209,12 +210,62 @@ function formatLongDate(value) {
   return value ? formatAppointmentDate(value, { day: "2-digit" }) : "";
 }
 
-function formatMonthYear(dateValue) {
-  const date = toDate(`${dateValue}T00:00:00`) || new Date();
+function getLocalDateKey(date = new Date()) {
+  const value = date instanceof Date ? date : new Date(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
+function toCalendarDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function addMonths(date, amount) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function isSameDay(first, second) {
+  return (
+    first.getFullYear() === second.getFullYear() &&
+    first.getMonth() === second.getMonth() &&
+    first.getDate() === second.getDate()
+  );
+}
+
+function formatMonthTitle(date) {
   return date.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
+  });
+}
+
+function buildMiniMonthDays(monthDate, activeDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const start = addDays(firstDay, -firstDay.getDay());
+
+  return Array.from({ length: 35 }, (_, index) => {
+    const date = addDays(start, index);
+    return {
+      date,
+      value: date.getDate(),
+      disabled: date.getMonth() !== month,
+      active: isSameDay(date, activeDate),
+      hasEvent: false,
+    };
   });
 }
 
@@ -694,61 +745,6 @@ function DoctorAppointmentDetailsModal({
   );
 }
 
-function MiniMonthCalendar({ selectedDate, onSelectDate, onMoveMonth }) {
-  const anchor = toDate(`${selectedDate}T00:00:00`) || new Date();
-  const firstDay = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const start = new Date(firstDay);
-  start.setDate(firstDay.getDate() - firstDay.getDay());
-
-  const cells = Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-
-    return {
-      key: toDateInputValue(date),
-      number: date.getDate(),
-      muted: date.getMonth() !== anchor.getMonth(),
-      selected: toDateInputValue(date) === selectedDate,
-    };
-  });
-
-  return (
-    <section className="doctor-mini-calendar-card">
-      <header>
-        <h3>{formatMonthYear(selectedDate)}</h3>
-
-        <div>
-          <button type="button" onClick={() => onMoveMonth(-1)} aria-label="Previous month">
-            ‹
-          </button>
-          <button type="button" onClick={() => onMoveMonth(1)} aria-label="Next month">
-            ›
-          </button>
-        </div>
-      </header>
-
-      <div className="doctor-mini-calendar-weekdays">
-        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
-          <span key={day}>{day}</span>
-        ))}
-      </div>
-
-      <div className="doctor-mini-calendar-days">
-        {cells.map((cell) => (
-          <button
-            className={`${cell.muted ? "is-muted" : ""} ${cell.selected ? "is-selected" : ""}`}
-            key={cell.key}
-            type="button"
-            onClick={() => onSelectDate(cell.key)}
-          >
-            {cell.number}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function FigmaWeekCalendar({
   schedules,
   selectedDate,
@@ -857,6 +853,56 @@ function FigmaWeekCalendar({
   );
 }
 
+
+function DoctorAppointmentSummary({ summary }) {
+  const cards = [
+    {
+      label: "Total",
+      value: summary.total,
+      icon: "solar:calendar-bold",
+      tone: "is-total",
+    },
+    {
+      label: "Pending",
+      value: summary.pending,
+      icon: "solar:hourglass-line-duotone",
+      tone: "is-pending",
+    },
+    {
+      label: "Checked in",
+      value: summary.checkedIn,
+      icon: "solar:check-circle-bold",
+      tone: "is-checked",
+    },
+    {
+      label: "Cancelled",
+      value: summary.cancelled,
+      icon: "solar:close-circle-bold",
+      tone: "is-cancelled",
+    },
+  ];
+
+  return (
+    <section className="doctor-appointment-summary" aria-label="Appointment summary">
+      {cards.map((card) => (
+        <article
+          className={`doctor-appointment-summary-card ${card.tone}`}
+          key={card.label}
+        >
+          <span className="doctor-appointment-summary-icon">
+            <Icon icon={card.icon} aria-hidden="true" />
+          </span>
+
+          <div>
+            <span>{card.label}</span>
+            <strong>{card.value}</strong>
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
 export function DoctorAppointmentsContent({
   embedded = false,
   headerAction = null,
@@ -877,6 +923,10 @@ export function DoctorAppointmentsContent({
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState(() => getManilaDateKey());
+  const [miniMonthDate, setMiniMonthDate] = useState(() => {
+    const today = toCalendarDate(getManilaDateKey()) || new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -901,6 +951,14 @@ export function DoctorAppointmentsContent({
   const appointmentsRequestRef = useRef(null);
   const appointmentsMountedRef = useRef(true);
   const patientsRequestRef = useRef(null);
+
+  const selectCalendarDate = useCallback((value) => {
+    const nextDate = value instanceof Date ? new Date(value) : toCalendarDate(value);
+    if (!nextDate || Number.isNaN(nextDate.getTime())) return;
+
+    setSelectedDate(getLocalDateKey(nextDate));
+    setMiniMonthDate(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+  }, []);
 
   const hookAppointmentDoctor = useMemo(
     () => getAppointmentDoctorFromIdentity(doctorIdentity),
@@ -938,6 +996,51 @@ export function DoctorAppointmentsContent({
     Boolean(appointmentDoctor?.id) &&
     !isAppointmentDoctorLoading &&
     !visibleAppointmentDoctorError;
+
+  const appointmentSummary = useMemo(() => {
+    return schedules.reduce(
+      (summary, schedule) => {
+        const status = normalizeAppointmentStatus(schedule.status);
+
+        summary.total += 1;
+
+        if (status === appointmentStatuses.scheduled) {
+          summary.pending += 1;
+        }
+
+        if (status === appointmentStatuses.checkedIn) {
+          summary.checkedIn += 1;
+        }
+
+        if (
+          status === appointmentStatuses.cancelled ||
+          status === appointmentStatuses.missed
+        ) {
+          summary.cancelled += 1;
+        }
+
+        return summary;
+      },
+      {
+        total: 0,
+        pending: 0,
+        checkedIn: 0,
+        cancelled: 0,
+      }
+    );
+  }, [schedules]);
+
+  const miniMonthDays = useMemo(() => {
+    const activeDate = toCalendarDate(selectedDate) || new Date();
+
+    return buildMiniMonthDays(miniMonthDate, activeDate).map((day) => ({
+      ...day,
+      hasEvent: schedules.some(
+        (schedule) =>
+          getManilaDateKey(schedule.start_time) === getLocalDateKey(day.date)
+      ),
+    }));
+  }, [miniMonthDate, schedules, selectedDate]);
 
   const visibleSchedules = useMemo(
     () =>
@@ -1052,7 +1155,7 @@ export function DoctorAppointmentsContent({
         );
 
         if (nextSchedules.length > 0 && !preserveSelectedDate) {
-          setSelectedDate(toDateInputValue(nextSchedules[0].start_time));
+          selectCalendarDate(toDateInputValue(nextSchedules[0].start_time));
         }
       }
       return { ok: true, count: nextSchedules.length };
@@ -1066,7 +1169,7 @@ export function DoctorAppointmentsContent({
     };
     request.then(clearPendingAppointmentRequest, clearPendingAppointmentRequest);
     return request;
-  }, []);
+  }, [selectCalendarDate]);
 
   useEffect(() => {
     if (isVisitFormRoute || doctorIdentity?.loading || !authenticatedDoctorId) {
@@ -1296,15 +1399,8 @@ export function DoctorAppointmentsContent({
 
 
   const moveWeek = (direction) => {
-    const date = toDate(`${selectedDate}T00:00:00`) || new Date();
-    date.setDate(date.getDate() + direction * 7);
-    setSelectedDate(toDateInputValue(date));
-  };
-
-  const moveMonth = (direction) => {
-    const date = toDate(`${selectedDate}T00:00:00`) || new Date();
-    date.setMonth(date.getMonth() + direction);
-    setSelectedDate(toDateInputValue(date));
+    const date = toCalendarDate(selectedDate) || new Date();
+    selectCalendarDate(addDays(date, direction * 7));
   };
 
   const createAppointment = async (event) => {
@@ -1430,7 +1526,7 @@ export function DoctorAppointmentsContent({
     setForm(initialAppointmentForm);
     setIsAdding(false);
     setActiveTab("All");
-    setSelectedDate(toDateInputValue(payload.start_time));
+    selectCalendarDate(toDateInputValue(payload.start_time));
     setStatusMessage(
       notificationResult.ok
         ? "Appointment created and Patient notified."
@@ -1765,7 +1861,7 @@ export function DoctorAppointmentsContent({
     setSelectedCalendarSchedule((current) =>
       current?.id === rescheduleSchedule.id ? updatedSchedule : current
     );
-    setSelectedDate(toDateInputValue(startDate));
+    selectCalendarDate(toDateInputValue(startDate));
     const refreshResult = await loadAppointments({ preserveSelectedDate: true });
     logDoctorAppointmentDetailDebug("edit saved", {
       scheduleId: rescheduleSchedule.id,
@@ -1802,7 +1898,7 @@ export function DoctorAppointmentsContent({
     >
       <AppointmentPageHeader
         title="Appointments"
-        subtitle="Schedule, monitor, and update patient appointments."
+        subtitle="Manage scheduling, arrivals, and appointment status."
         tabs={appointmentTabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -1811,6 +1907,12 @@ export function DoctorAppointmentsContent({
         titleBlockClassName="doctor-appointments-title-block"
         tabsClassName="doctor-appointments-tabs"
       />
+
+      {statusMessage ? (
+        <p className="doctor-appointments-status-message" role="status">
+          {statusMessage}
+        </p>
+      ) : null}
 
       <AppointmentToolbar className="doctor-appointments-action-row doctor-appointments-toolbar doctor-appointments-toolbar-labeled">
         <AppointmentControlGroup
@@ -1893,7 +1995,7 @@ export function DoctorAppointmentsContent({
         </AppointmentControlGroup>
       </AppointmentToolbar>
 
-      {statusMessage ? <p className="doctor-appointments-status-message">{statusMessage}</p> : null}
+      <DoctorAppointmentSummary summary={appointmentSummary} />
 
       <section
         className="doctor-appointments-table-card appointment-ui-table-card"
@@ -1993,18 +2095,77 @@ export function DoctorAppointmentsContent({
         <FigmaWeekCalendar
           schedules={schedules}
           selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
+          onSelectDate={selectCalendarDate}
           onPreviousWeek={() => moveWeek(-1)}
           onNextWeek={() => moveWeek(1)}
           onSelectSchedule={openCalendarAppointmentDetails}
         />
 
-        <aside className="doctor-calendar-sidebar">
-          <MiniMonthCalendar
-            selectedDate={selectedDate}
-            onSelectDate={setSelectedDate}
-            onMoveMonth={moveMonth}
-          />
+        <aside className="staff-calendar-sidebar">
+          <section className="staff-mini-calendar-card">
+            <header>
+              <h3>{formatMonthTitle(miniMonthDate)}</h3>
+              <div>
+                <button
+                  type="button"
+                  aria-label="Previous month"
+                  onClick={() => setMiniMonthDate((current) => addMonths(current, -1))}
+                >
+                  <Icon icon="solar:alt-arrow-left-linear" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next month"
+                  onClick={() => setMiniMonthDate((current) => addMonths(current, 1))}
+                >
+                  <Icon icon="solar:alt-arrow-right-linear" />
+                </button>
+              </div>
+            </header>
+
+            <div className="staff-mini-calendar-weekdays">
+              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+
+            <div className="staff-mini-calendar-days">
+              {miniMonthDays.map((day, index) => (
+                <button
+                  key={`${day.value}-${index}`}
+                  type="button"
+                  className={[
+                    day.disabled ? "is-disabled" : "",
+                    day.hasEvent ? "is-soft" : "",
+                    day.active ? "is-active" : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    selectCalendarDate(day.date);
+                  }}
+                >
+                  {day.value}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="doctor-categories-card" aria-label="Appointment categories">
+            <h3>Categories</h3>
+
+            <div className="doctor-category-grid">
+              {APPOINTMENT_CATEGORIES.map((category) => (
+                <div
+                  className={`doctor-category-item ${category.colorClass}`}
+                  key={category.id}
+                >
+                  <span aria-hidden="true">
+                    <Icon icon={category.icon} />
+                  </span>
+                  <strong>{category.label}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
         </aside>
       </section>
 

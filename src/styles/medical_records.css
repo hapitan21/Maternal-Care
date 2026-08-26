@@ -6058,3 +6058,608 @@ body:has(.medical-records-page),
     font-size: 9px;
   }
 }
+
+/* ============================================================
+   FINAL FIX: DOCTOR MEDICAL RECORDS — APPOINTMENTS TAB UI
+   Compact summary cards + balanced feature panels + cleaner
+   timeline/history spacing. Appointment data/logic is untouched.
+   Scoped to Doctor Appointments tab only.
+   ============================================================ */
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel {
+  gap: 18px !important;
+}
+
+/* ---------------- Compact 5-card appointment summary ---------------- */
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card {
+  width: 100% !important;
+  height: 88px !important;
+  min-height: 88px !important;
+  display: grid !important;
+  grid-template-columns: 36px minmax(0, 1fr) !important;
+  grid-template-rows: 1fr !important;
+  align-items: center !important;
+  justify-items: stretch !important;
+  gap: 10px !important;
+  padding: 12px 13px !important;
+  border-radius: 15px !important;
+  text-align: left !important;
+  box-shadow: 0 8px 22px rgba(31, 35, 48, 0.055) !important;
+  overflow: hidden !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon {
+  width: 36px !important;
+  height: 36px !important;
+  align-self: center !important;
+  justify-self: start !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon::before {
+  filter: blur(10px) !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon.is-calendar svg,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon.is-check svg,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon.is-clock svg,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon.is-close svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon.is-attendance svg {
+  width: 19px !important;
+  height: 19px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-content {
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-rows: auto auto auto !important;
+  justify-content: stretch !important;
+  align-content: center !important;
+  align-items: start !important;
+  gap: 1px !important;
+  text-align: left !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card p {
+  min-height: 0 !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  font-size: 10.5px !important;
+  line-height: 1.18 !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  text-transform: uppercase !important;
+  white-space: normal !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card strong {
+  margin: 1px 0 0 !important;
+  font-size: 21px !important;
+  line-height: 1.05 !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card small {
+  min-height: 0 !important;
+  margin: 1px 0 0 !important;
+  font-size: 9.5px !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+/* ---------------- Upcoming + Timeline panels ---------------- */
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-feature-grid {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) !important;
+  gap: 20px !important;
+  align-items: stretch !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-upcoming-appointments-card,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-timeline-card {
+  min-height: 286px !important;
+  height: 286px !important;
+  padding: 18px 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-radius: 15px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-section-header {
+  min-height: 42px !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 0 16px !important;
+  padding: 0 0 13px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-section-header h3,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-history-card > h3 {
+  font-size: 18px !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-section-header button {
+  min-height: 30px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 4px 8px !important;
+  border-radius: 7px !important;
+  color: var(--mr-pink-2) !important;
+  background: transparent !important;
+  font-size: 10.5px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  transition: background-color 150ms ease !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-section-header button:hover {
+  background: #fff1f6 !important;
+}
+
+/* Upcoming card body */
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-next-appointment {
+  grid-template-columns: 42px minmax(0, 1fr) auto !important;
+  gap: 14px !important;
+  min-height: 96px !important;
+  padding: 15px 16px !important;
+  border-radius: 10px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-next-appointment strong {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-next-appointment p {
+  margin-top: 3px !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-next-appointment small {
+  margin-top: 2px !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-next-appointment time {
+  gap: 6px !important;
+  font-size: 12px !important;
+}
+
+/* Timeline gets comfortable space between badges and its scrollbar. */
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-timeline {
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 4px 18px 4px 10px !important;
+  scrollbar-gutter: stable !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-timeline article {
+  grid-template-columns: 24px minmax(0, 1fr) 86px !important;
+  gap: 10px !important;
+  min-height: 72px !important;
+  padding: 0 2px 8px 0 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-timeline mark {
+  width: 82px !important;
+  min-width: 82px !important;
+  max-width: 82px !important;
+  height: 24px !important;
+  padding: 0 8px !important;
+  border-radius: 6px !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* ---------------- Appointment history ---------------- */
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-history-card {
+  margin-top: 2px !important;
+  padding: 18px 20px 20px !important;
+  border-radius: 15px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-history-card > h3 {
+  margin: 0 0 14px !important;
+  padding: 0 0 13px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-history-wrap {
+  margin: 0 !important;
+  border-radius: 11px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-history-table {
+  font-size: 11.5px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-history-table th {
+  height: 46px !important;
+  padding: 10px 14px !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-history-table td {
+  padding: 12px 14px !important;
+}
+
+/* ---------------- Responsive ---------------- */
+
+@media (max-width: 1280px) {
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary {
+    gap: 10px !important;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary-card {
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary-icon {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary-card p {
+    font-size: 9.5px !important;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary-card strong {
+    font-size: 19px !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-feature-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-upcoming-appointments-card,
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-timeline-card {
+    height: auto !important;
+    min-height: 260px !important;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-timeline {
+    height: 205px !important;
+    flex: none !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary-card {
+    min-height: 82px !important;
+    height: 82px !important;
+  }
+}
+
+@media (max-width: 460px) {
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ============================================================
+   FINAL VISUAL PASS: DOCTOR APPOINTMENT SUMMARY — LIGHT THEME
+   Keeps the centered layout, but matches the cleaner/lighter
+   reference: pale cards, thin borders, white icon tiles,
+   dark readable values, and no glow.
+   ============================================================ */
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card {
+  min-height: 132px !important;
+  height: 132px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  padding: 16px 12px !important;
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-radius: 18px !important;
+  text-align: center !important;
+  box-shadow: 0 8px 22px rgba(31, 35, 48, 0.035) !important;
+}
+
+/* Remove the old pink glow and use a clean white rounded icon tile. */
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon {
+  width: 42px !important;
+  height: 42px !important;
+  margin: 0 auto 3px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: 0 4px 12px rgba(31, 35, 48, 0.045) !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon::before {
+  display: none !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-icon svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Clear hierarchy: colored label, dark value, soft note. */
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-content {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  text-align: center !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card p {
+  margin: 0 !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  font-size: 10.5px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  text-transform: uppercase !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card strong {
+  margin: 1px 0 0 !important;
+  color: #14213d !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card small {
+  margin: 1px 0 0 !important;
+  color: #8b93a7 !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+}
+
+/* Individual light pastel cards — close to the reference image. */
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.purple {
+  color: #7166e8 !important;
+  background: #f6f7ff !important;
+  border-color: #dfe3ff !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.pink {
+  color: #ee5d93 !important;
+  background: #fff8fb !important;
+  border-color: #f9dce7 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.yellow {
+  color: #f07a2f !important;
+  background: #fffaf5 !important;
+  border-color: #f7dfc5 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.green {
+  color: #23a683 !important;
+  background: #f5fcf9 !important;
+  border-color: #d4f0e6 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.blue {
+  color: #4f7df3 !important;
+  background: #f6f9ff !important;
+  border-color: #d9e5ff !important;
+}
+
+/* Keep each icon tied to its card color. */
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.purple .mr-appointment-summary-icon,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.purple .mr-appointment-summary-icon svg {
+  color: #7166e8 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.pink .mr-appointment-summary-icon,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.pink .mr-appointment-summary-icon svg {
+  color: #ee5d93 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.yellow .mr-appointment-summary-icon,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.yellow .mr-appointment-summary-icon svg {
+  color: #f07a2f !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.green .mr-appointment-summary-icon,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.green .mr-appointment-summary-icon svg {
+  color: #23a683 !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.blue .mr-appointment-summary-icon,
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .mr-appointments-panel
+  .mr-appointment-summary-card.blue .mr-appointment-summary-icon svg {
+  color: #4f7df3 !important;
+}
+
+/* Keep the 5-card row on normal desktop widths. */
+@media (min-width: 1101px) {
+  .doctor-dashboard:not(.staff-dashboard-shell)
+    .mr-appointments-panel
+    .mr-appointment-summary {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+  }
+}

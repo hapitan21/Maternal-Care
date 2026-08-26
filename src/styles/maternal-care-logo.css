@@ -1,0 +1,106 @@
+.maternal-care-logo {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.maternal-care-logo--sidebar {
+  width: 144px;
+}
+
+.maternal-care-logo--patient-sidebar {
+  width: 144px;
+}
+
+.maternal-care-logo--mobile {
+  width: 140px;
+}
+
+.maternal-care-logo--access {
+  width: 180px;
+}
+
+.maternal-care-logo--status {
+  width: 170px;
+}
+
+.pwa-brand.maternal-care-brand {
+  height: 42px !important;
+  margin-bottom: 42px !important;
+}
+
+.doctor-brand.maternal-care-brand {
+  height: 63px;
+}
+
+.patient-access-brand.maternal-care-brand,
+.patient-access-brand.is-compact.maternal-care-brand,
+.patient-login-shell .patient-access-brand.is-compact.maternal-care-brand {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.patient-access-brand.maternal-care-brand .maternal-care-logo--access,
+.patient-access-brand.is-compact.maternal-care-brand .maternal-care-logo--access,
+.patient-login-shell .patient-access-brand.is-compact.maternal-care-brand
+  .maternal-care-logo--access {
+  width: min(180px, 100%) !important;
+  height: auto !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+.pwa-loading-card .maternal-care-logo--status,
+.pwa-access-state-card .maternal-care-logo--status {
+  width: min(170px, 100%) !important;
+  height: auto !important;
+}
+
+.login-opening-card .maternal-care-logo--status {
+  width: min(170px, 100%);
+  height: auto;
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .pwa-brand.maternal-care-brand {
+    margin-bottom: 36px !important;
+  }
+
+  .maternal-care-logo--patient-sidebar {
+    width: 68px;
+  }
+}
+
+@media (max-width: 980px) {
+  .maternal-care-logo--sidebar {
+    width: 68px;
+  }
+}
+
+@media (max-width: 520px) {
+  .patient-access-brand.maternal-care-brand .maternal-care-logo--access,
+  .patient-access-brand.is-compact.maternal-care-brand .maternal-care-logo--access,
+  .patient-login-shell .patient-access-brand.is-compact.maternal-care-brand
+    .maternal-care-logo--access {
+    width: min(150px, 100%) !important;
+  }
+
+  .maternal-care-logo--mobile {
+    width: 134px;
+  }
+}
+
+@media (max-width: 370px) {
+  .maternal-care-logo--mobile {
+    width: 128px;
+  }
+}

@@ -2877,6 +2877,24 @@ function StaffAppointmentsContent({ headerAction }) {
               ))}
             </div>
           </section>
+
+          <section className="staff-categories-card" aria-label="Appointment categories">
+            <h3>Categories</h3>
+
+            <div className="staff-category-grid">
+              {categoryList.map((category) => (
+                <div
+                  className={`staff-category-item ${category.colorClass}`}
+                  key={category.id}
+                >
+                  <span aria-hidden="true">
+                    <Icon icon={category.icon} />
+                  </span>
+                  <strong>{category.label}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
         </aside>
       </div>
 

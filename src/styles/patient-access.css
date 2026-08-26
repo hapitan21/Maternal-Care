@@ -796,3 +796,151 @@
     min-height: 108px;
   }
 }
+
+/* =========================================================
+   PATIENT LOGIN — MOBILE FULL-VIEWPORT FIX
+   Keeps the Patient sign-in page focused and removes the
+   decorative hero from the mobile flow. Other Patient Access
+   / account-creation pages keep their existing behavior.
+========================================================= */
+@media (max-width: 900px) {
+  .patient-login-container {
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    padding: 0;
+    place-items: stretch;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .patient-login-shell {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100dvh;
+    grid-template-columns: 1fr;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: hidden;
+  }
+
+  .patient-login-shell .patient-access-hero {
+    display: none !important;
+  }
+
+  .patient-login-shell .patient-access-panel {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    align-content: center;
+    padding:
+      max(18px, env(safe-area-inset-top))
+      clamp(18px, 6vw, 30px)
+      max(18px, env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .patient-login-shell .patient-access-brand,
+  .patient-login-shell .patient-access-brand.is-compact {
+    margin-bottom: 20px;
+  }
+
+  .patient-login-shell .patient-access-heading {
+    margin-bottom: 18px;
+  }
+
+  .patient-login-shell .patient-access-form {
+    gap: 12px;
+  }
+
+  .patient-login-shell .patient-access-field {
+    gap: 6px;
+  }
+
+  .patient-login-shell .patient-access-input-wrap {
+    min-height: 48px;
+  }
+
+  .patient-login-shell .patient-access-form .patient-access-input-wrap input {
+    height: 46px;
+  }
+
+  .patient-login-shell .patient-access-form > button[type="submit"] {
+    min-height: 48px;
+  }
+}
+
+@media (max-width: 520px) {
+  .patient-login-shell .patient-access-panel {
+    align-content: center;
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .patient-login-shell .patient-access-brand,
+  .patient-login-shell .patient-access-brand.is-compact {
+    grid-template-columns: 46px minmax(0, 1fr);
+    margin-bottom: 18px;
+  }
+
+  .patient-login-shell .patient-access-brand img,
+  .patient-login-shell .patient-access-brand.is-compact img {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+  }
+
+  .patient-login-shell .patient-access-heading h2 {
+    font-size: 22px;
+  }
+
+  .patient-login-shell .patient-access-heading p {
+    line-height: 1.5;
+  }
+}
+
+/* Compact only when the usable phone viewport is unusually short
+   (small device, landscape, or browser UI taking extra space). */
+@media (max-width: 900px) and (max-height: 650px) {
+  .patient-login-shell .patient-access-panel {
+    align-content: start;
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  .patient-login-shell .patient-access-brand,
+  .patient-login-shell .patient-access-brand.is-compact {
+    margin-bottom: 12px;
+  }
+
+  .patient-login-shell .patient-access-heading {
+    margin-bottom: 12px;
+  }
+
+  .patient-login-shell .patient-access-heading p {
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+
+  .patient-login-shell .patient-access-form {
+    gap: 9px;
+  }
+
+  .patient-login-shell .patient-access-input-wrap {
+    min-height: 44px;
+  }
+
+  .patient-login-shell .patient-access-form .patient-access-input-wrap input {
+    height: 42px;
+  }
+
+  .patient-login-shell .patient-access-form > button[type="submit"] {
+    min-height: 44px;
+  }
+}
+

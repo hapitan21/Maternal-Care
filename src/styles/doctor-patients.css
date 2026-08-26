@@ -575,3 +575,153 @@
   }
 }
 
+/* =========================================================
+   FINAL FIX: DOCTOR PATIENTS — OPEN RECORD BUTTON FIRST LOAD
+   Makes Doctor Patients own the complete button styling so it
+   does not depend on styles loaded later by Medical Records.
+   ========================================================= */
+
+.doctor-patients-page .doctor-patient-view-btn {
+  width: auto !important;
+  min-width: 132px !important;
+  height: 40px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 0 16px !important;
+  border: 1.5px solid var(--patients-pink) !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  color: var(--patients-pink) !important;
+  font-family: "Plus Jakarta Sans", sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease !important;
+}
+
+.doctor-patients-page .doctor-patient-view-btn svg {
+  width: 15px !important;
+  height: 15px !important;
+  flex: 0 0 15px !important;
+  display: block !important;
+  color: currentColor !important;
+}
+
+.doctor-patients-page .doctor-patient-view-btn:hover {
+  background: var(--patients-pink) !important;
+  border-color: var(--patients-pink) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(251, 52, 124, 0.16) !important;
+}
+
+.doctor-patients-page .doctor-patient-view-btn:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 4px rgba(251, 52, 124, 0.12) !important;
+}
+
+.doctor-patients-page .doctor-patient-view-btn:active {
+  transform: translateY(1px) !important;
+}
+
+@media (max-width: 760px) {
+  .doctor-patients-page .doctor-patient-view-btn {
+    min-width: 124px !important;
+    height: 38px !important;
+    padding: 0 14px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* =========================================================
+   FINAL FIX: OPEN RECORD HOVER AFTER VISITING MEDICAL RECORD
+   Medical Record styles are lazy-loaded and remain in the page
+   after returning. These high-specificity Doctor Patients rules
+   keep the hover state identical before and after navigation.
+   ========================================================= */
+
+.doctor-dashboard
+  .doctor-content
+  .doctor-patients-page
+  .doctor-patients-list-page
+  .doctor-patients-table
+  td
+  button.doctor-patient-view-btn:hover,
+.doctor-dashboard
+  .doctor-main
+  .doctor-patients-page
+  .doctor-patients-table
+  td
+  button.doctor-patient-view-btn:hover,
+.doctor-patients-page
+  .doctor-patients-table
+  td
+  button.doctor-patient-view-btn:hover {
+  background-color: var(--patients-pink) !important;
+  background-image: none !important;
+  border-color: var(--patients-pink) !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  box-shadow: 0 8px 18px rgba(251, 52, 124, 0.16) !important;
+  filter: none !important;
+}
+
+.doctor-dashboard
+  .doctor-content
+  .doctor-patients-page
+  .doctor-patient-view-btn:hover
+  svg,
+.doctor-dashboard
+  .doctor-main
+  .doctor-patients-page
+  .doctor-patient-view-btn:hover
+  svg,
+.doctor-patients-page
+  .doctor-patient-view-btn:hover
+  svg {
+  color: #ffffff !important;
+  fill: currentColor !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Ensure returning from Medical Record also restores the normal state cleanly. */
+.doctor-dashboard
+  .doctor-content
+  .doctor-patients-page
+  button.doctor-patient-view-btn:not(:hover),
+.doctor-dashboard
+  .doctor-main
+  .doctor-patients-page
+  button.doctor-patient-view-btn:not(:hover) {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border-color: var(--patients-pink) !important;
+  color: var(--patients-pink) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.doctor-dashboard
+  .doctor-content
+  .doctor-patients-page
+  button.doctor-patient-view-btn:not(:hover)
+  svg,
+.doctor-dashboard
+  .doctor-main
+  .doctor-patients-page
+  button.doctor-patient-view-btn:not(:hover)
+  svg {
+  color: var(--patients-pink) !important;
+  fill: currentColor !important;
+  opacity: 1 !important;
+  filter: none !important;
+}

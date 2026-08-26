@@ -13,6 +13,7 @@ import {
   resolvePatientPendingLink,
 } from "../../lib/patientPendingLink";
 import { supabase } from "../../lib/supabaseClient";
+import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import "../../styles/patient-access.css";
 
 function PatientCreateAccount() {
@@ -112,10 +113,8 @@ function PatientCreateAccount() {
     <main className="patient-access-container">
       <section className="patient-access-shell" aria-label="Create Patient account">
         <div className="patient-access-panel">
-          <div className="patient-access-brand is-compact">
-            <img src="/images/maternal-care-logo.png" alt="Maternal Care logo" />
-            <h1>Maternal Care</h1>
-            <p>Create Patient Account</p>
+          <div className="patient-access-brand is-compact maternal-care-brand">
+            <MaternalCareLogo variant="access" />
           </div>
 
           <div className="patient-access-heading">

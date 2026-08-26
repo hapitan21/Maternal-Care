@@ -956,6 +956,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [isSearchingMedicationPatients, setIsSearchingMedicationPatients] = React.useState(false);
   const [medicationPatientSearchMessage, setMedicationPatientSearchMessage] = React.useState("");
   const [medicationStatusMessage, setMedicationStatusMessage] = React.useState("");
+  const [isMedicationTimePickerOpen, setIsMedicationTimePickerOpen] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(() => Date.now());
   const medicationTimeInputRef = React.useRef(null);
 
@@ -1419,15 +1420,37 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     setMedicationPatientSearch("");
     setMedicationPatientResults([]);
     setMedicationPatientSearchMessage("");
+    setIsMedicationTimePickerOpen(false);
   };
 
-  const addMedicationTime = () => {
+  const showMedicationTimePicker = () => {
+    setIsMedicationTimePickerOpen(true);
+
+    window.requestAnimationFrame(() => {
+      const timeInput = medicationTimeInputRef.current;
+      timeInput?.focus();
+
+      if (typeof timeInput?.showPicker === "function") {
+        try {
+          timeInput.showPicker();
+        } catch {
+          // The compact input remains visible if the browser blocks its native picker.
+        }
+      }
+    });
+  };
+
+  const openMedicationTimePicker = () => {
+    setMedicationStatusMessage("");
+    showMedicationTimePicker();
+  };
+
+  const handleAddScheduleTime = () => {
     const nextTime = normalizeDatabaseTime(medicationForm.scheduleTime);
 
     if (!nextTime) {
       setMedicationStatusMessage("Choose a medication time before adding it.");
-      medicationTimeInputRef.current?.focus();
-      medicationTimeInputRef.current?.showPicker?.();
+      showMedicationTimePicker();
       return;
     }
 
@@ -1445,11 +1468,32 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       scheduleTimes: Array.from(new Set([...current.scheduleTimes, nextTime])).sort(),
     }));
     setMedicationStatusMessage("");
+    setIsMedicationTimePickerOpen(false);
     logMedicationReminderDebug("selected medication times", {
       medicationTimes: Array.from(
         new Set([...medicationForm.scheduleTimes, nextTime])
       ).sort(),
     });
+    medicationTimeInputRef.current?.blur();
+  };
+
+  const handleMedicationTimeChange = (event) => {
+    const { value } = event.target;
+
+    setMedicationForm((current) => ({
+      ...current,
+      scheduleTime: value,
+    }));
+    setMedicationStatusMessage("");
+  };
+
+  const cancelMedicationTime = () => {
+    setMedicationForm((current) => ({
+      ...current,
+      scheduleTime: "",
+    }));
+    setMedicationStatusMessage("");
+    setIsMedicationTimePickerOpen(false);
     medicationTimeInputRef.current?.blur();
   };
 
@@ -1513,14 +1557,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       return;
     }
 
-    const normalizedTimes = Array.from(
-      new Set([
-        ...medicationForm.scheduleTimes,
-        ...(medicationForm.scheduleTime
-          ? [medicationForm.scheduleTime]
-          : []),
-      ])
-    )
+    const normalizedTimes = Array.from(new Set(medicationForm.scheduleTimes))
       .map(normalizeDatabaseTime)
       .filter(Boolean)
       .sort();
@@ -1533,7 +1570,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       setMedicationStatusMessage(
         "Add at least one medication reminder time."
       );
-      medicationTimeInputRef.current?.focus();
+      showMedicationTimePicker();
       return;
     }
 
@@ -2128,11 +2165,13 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
   const openMedicationForm = () => {
     setMedicationStatusMessage("");
+    setIsMedicationTimePickerOpen(false);
     setIsMedicationFormOpen(true);
   };
 
   const closeMedicationForm = () => {
     setIsMedicationFormOpen(false);
+    setIsMedicationTimePickerOpen(false);
     setMedicationStatusMessage("");
   };
 
@@ -3082,23 +3121,48 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                         <span className="doctor-medication-reminder-time-chip" key={`${timeValue}-${timeIndex}`}>
                           {formatMedicationReminderTime(timeValue)}
                           <button type="button" aria-label={`Remove ${formatMedicationReminderTime(timeValue)}`} onClick={() => removeMedicationTime(timeIndex)}>
-                            x
+                            &times;
                           </button>
                         </span>
                       ))}
                     </div>
-                    <input
-                      className="doctor-medication-reminder-time-input"
-                      ref={medicationTimeInputRef}
-                      name="scheduleTime"
-                      type="time"
-                      value={medicationForm.scheduleTime}
-                      onChange={handleMedicationChange}
-                      aria-label="Medication reminder time"
-                    />
-                    <button className="doctor-medication-reminder-add-time" type="button" onClick={addMedicationTime}>
-                      + Add Time
-                    </button>
+                    {isMedicationTimePickerOpen ? (
+                      <>
+                        <input
+                          className="doctor-medication-reminder-time-input"
+                          ref={medicationTimeInputRef}
+                          name="scheduleTime"
+                          type="time"
+                          value={medicationForm.scheduleTime}
+                          onChange={handleMedicationTimeChange}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              event.stopPropagation();
+                              cancelMedicationTime();
+                            }
+                          }}
+                          aria-label="Choose medication reminder time"
+                        />
+                        <button
+                          className="doctor-medication-reminder-confirm-time"
+                          type="button"
+                          onClick={handleAddScheduleTime}
+                        >
+                          Add
+                        </button>
+                        <button
+                          className="doctor-medication-reminder-cancel-time"
+                          type="button"
+                          onClick={cancelMedicationTime}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button className="doctor-medication-reminder-add-time" type="button" onClick={openMedicationTimePicker}>
+                        + Add Time
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

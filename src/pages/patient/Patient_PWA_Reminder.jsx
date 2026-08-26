@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import { maternalCareLogo } from "../../components/common/MaternalCareLogo";
 import {
   getStoredHealthTips,
   mapScheduleRowToReminder,
@@ -694,7 +695,7 @@ async function sendPatientNotification(reminder) {
     if (registration?.showNotification) {
       await registration.showNotification(title, {
         body,
-        icon: "/images/maternal-care-logo.png",
+        icon: maternalCareLogo,
         badge: "/favicon.svg",
         data: { url: "/patient/reminders" },
       });
@@ -703,12 +704,12 @@ async function sendPatientNotification(reminder) {
 
     new Notification(title, {
       body,
-      icon: "/images/maternal-care-logo.png",
+      icon: maternalCareLogo,
     });
   } catch {
     new Notification(title, {
       body,
-      icon: "/images/maternal-care-logo.png",
+      icon: maternalCareLogo,
     });
   }
 }

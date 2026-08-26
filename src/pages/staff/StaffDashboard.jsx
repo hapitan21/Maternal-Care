@@ -8,6 +8,7 @@ import {
   staffSettingsUpdatedEvent,
 } from "../../lib/staffProfile";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import "../../styles/doctor-dashboard.css";
 import "../../styles/staff-dashboard.css";
 import "../../styles/staff-doctor-parity.css";
@@ -1102,38 +1103,8 @@ function StaffDashboard() {
     <div className="doctor-dashboard staff-dashboard-shell">
       <aside className="doctor-sidebar">
         <div className="doctor-sidebar-inner">
-          <div className="doctor-brand">
-            <div className="doctor-brand-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle
-                  cx="12"
-                  cy="5.6"
-                  r="2.2"
-                  fill="currentColor"
-                />
-
-                <path
-                  d="M8.3 12.2a3.7 3.7 0 0 1 7.4 0c0 2.5-1.4 4.8-3.7 6.9-2.3-2.1-3.7-4.4-3.7-6.9Z"
-                  fill="currentColor"
-                />
-
-                <path
-                  d="M7.8 9.7 12 3.4l4.2 6.3M9.2 21h5.6"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                />
-              </svg>
-            </div>
-
-            <div className="doctor-brand-text">
-              <h1>Maternal Care</h1>
-              <p>
-                Reminder &amp; Appointment Management System
-              </p>
-            </div>
+          <div className="doctor-brand maternal-care-brand">
+            <MaternalCareLogo variant="sidebar" />
           </div>
 
           <nav
