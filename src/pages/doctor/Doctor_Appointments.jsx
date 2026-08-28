@@ -75,6 +75,57 @@ const initialRescheduleForm = {
   message: "",
 };
 
+const initialRescheduleTimeDraft = {
+  hour: "08",
+  minute: "00",
+  period: "AM",
+};
+
+function getRescheduleTimeDraft(value) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) return initialRescheduleTimeDraft;
+
+  const hour24 = Number(match[1]);
+  const minute = match[2];
+  if (!Number.isInteger(hour24) || hour24 < 0 || hour24 > 23) {
+    return initialRescheduleTimeDraft;
+  }
+
+  return {
+    hour: String(hour24 % 12 || 12).padStart(2, "0"),
+    minute,
+    period: hour24 >= 12 ? "PM" : "AM",
+  };
+}
+
+function getRescheduleTimeValue(draft) {
+  const hour12 = Number(draft?.hour);
+  const minute = String(draft?.minute || "00").padStart(2, "0");
+  const period = draft?.period === "PM" ? "PM" : "AM";
+
+  if (!Number.isInteger(hour12) || hour12 < 1 || hour12 > 12 || !/^\d{2}$/.test(minute)) {
+    return "";
+  }
+
+  let hour24 = hour12 % 12;
+  if (period === "PM") hour24 += 12;
+
+  return `${String(hour24).padStart(2, "0")}:${minute}`;
+}
+
+function formatRescheduleTime(value) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) return "--:-- --";
+
+  const hour24 = Number(match[1]);
+  const minute = match[2];
+  if (!Number.isInteger(hour24) || hour24 < 0 || hour24 > 23) return "--:-- --";
+
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+  return `${String(hour12).padStart(2, "0")}:${minute} ${period}`;
+}
+
 
 function getAppointmentDoctorFromIdentity(doctorIdentity) {
   const doctorId = doctorIdentity?.authUser?.id || doctorIdentity?.profile?.id || "";
@@ -913,6 +964,10 @@ export function DoctorAppointmentsContent({
   const visitRoute = parseAppointmentVisitRoute(location.pathname, "doctor");
   const isVisitFormRoute = Boolean(visitRoute);
   const authenticatedDoctorId = doctorIdentity?.authUser?.id || "";
+  const dashboardAppointmentTarget = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return String(params.get("appointmentId") || "").trim();
+  }, [location.search]);
   const [form, setForm] = useState(initialAppointmentForm);
   const [patients, setPatients] = useState([]);
   const [schedules, setSchedules] = useState([]);
@@ -936,6 +991,8 @@ export function DoctorAppointmentsContent({
   const [cancelConfirmationSchedule, setCancelConfirmationSchedule] = useState(null);
   const [rescheduleSchedule, setRescheduleSchedule] = useState(null);
   const [rescheduleForm, setRescheduleForm] = useState(initialRescheduleForm);
+  const [isRescheduleTimePickerOpen, setIsRescheduleTimePickerOpen] = useState(false);
+  const [rescheduleTimeDraft, setRescheduleTimeDraft] = useState(initialRescheduleTimeDraft);
   const [refreshedAppointmentDoctor, setRefreshedAppointmentDoctor] = useState(null);
   const [isResolvingAppointmentDoctor, setIsResolvingAppointmentDoctor] = useState(false);
   const [appointmentDoctorError, setAppointmentDoctorError] = useState(null);
@@ -1201,6 +1258,60 @@ export function DoctorAppointmentsContent({
     };
   }, [authenticatedDoctorId, doctorIdentity?.loading, isVisitFormRoute, loadAppointments]);
 
+  /*
+   * Dashboard "View Appointment" deep link.
+   *
+   * The Doctor Dashboard sends the public MA number (or, as a fallback,
+   * the internal schedule UUID) in ?appointmentId=. Once schedules load,
+   * resolve that exact row, align Main/History, move the calendar to the
+   * appointment date, filter the table, and open the existing details modal.
+   */
+  useEffect(() => {
+    if (
+      isVisitFormRoute ||
+      !dashboardAppointmentTarget ||
+      schedules.length === 0
+    ) {
+      return undefined;
+    }
+
+    const target = schedules.find(
+      (schedule) =>
+        String(schedule.id || "") === dashboardAppointmentTarget ||
+        String(schedule.maternal_appointment_id || "") ===
+          dashboardAppointmentTarget
+    );
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (!target) {
+        setStatusMessage(
+          `Appointment ${dashboardAppointmentTarget} could not be found.`
+        );
+        return;
+      }
+
+      const classification = classifyAppointment(target);
+      const visibleAppointmentId =
+        target.maternal_appointment_id || dashboardAppointmentTarget;
+
+      setActiveTab("All");
+      setAppointmentView(classification.isHistory ? "History" : "Main");
+      setSearchTerm(visibleAppointmentId);
+      setMonthFilter("");
+      setCurrentPage(1);
+      selectCalendarDate(toDateInputValue(target.start_time));
+      setDetailActionError("");
+      setSelectedCalendarSchedule(target);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    dashboardAppointmentTarget,
+    isVisitFormRoute,
+    schedules,
+    selectCalendarDate,
+  ]);
+
   useEffect(() => {
     if (isVisitFormRoute || doctorIdentity?.loading || !authenticatedDoctorId) {
       return undefined;
@@ -1322,10 +1433,33 @@ export function DoctorAppointmentsContent({
     });
   }, []);
 
-  const closeCalendarAppointmentDetails = () => {
+  const closeCalendarAppointmentDetails = useCallback(() => {
     setSelectedCalendarSchedule(null);
     setDetailActionError("");
-  };
+
+    // Remove the Dashboard target after closing so realtime refreshes
+    // do not immediately reopen the same appointment.
+    if (!dashboardAppointmentTarget) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    params.delete("appointmentId");
+    const nextSearch = params.toString();
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true }
+    );
+  }, [
+    dashboardAppointmentTarget,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
 
   const updateFormValue = (field, value) => {
     setForm((current) => ({
@@ -1655,14 +1789,18 @@ export function DoctorAppointmentsContent({
       currentStatus: schedule.status,
       selectedAction: "edit",
     });
+    const currentTime = toTimeInputValue(schedule.start_time);
+
     setSelectedCalendarSchedule(null);
     setDetailActionError("");
     setRescheduleSchedule(schedule);
     setRescheduleForm({
       date: toDateInputValue(schedule.start_time),
-      time: toTimeInputValue(schedule.start_time),
+      time: currentTime,
       message: schedule.description || "",
     });
+    setRescheduleTimeDraft(getRescheduleTimeDraft(currentTime));
+    setIsRescheduleTimePickerOpen(false);
   };
 
   const checkInAppointment = async (schedule) => {
@@ -1775,18 +1913,37 @@ export function DoctorAppointmentsContent({
   const startRescheduleAppointment = () => {
     if (!cancelConfirmationSchedule) return;
 
+    const currentTime = toTimeInputValue(cancelConfirmationSchedule.start_time);
+
     setRescheduleSchedule(cancelConfirmationSchedule);
     setRescheduleForm({
       date: toDateInputValue(cancelConfirmationSchedule.start_time),
-      time: toTimeInputValue(cancelConfirmationSchedule.start_time),
+      time: currentTime,
       message: cancelConfirmationSchedule.description || "",
     });
+    setRescheduleTimeDraft(getRescheduleTimeDraft(currentTime));
+    setIsRescheduleTimePickerOpen(false);
     setCancelConfirmationSchedule(null);
+  };
+
+  const openRescheduleTimePicker = () => {
+    setRescheduleTimeDraft(getRescheduleTimeDraft(rescheduleForm.time));
+    setIsRescheduleTimePickerOpen(true);
+  };
+
+  const applyRescheduleTime = () => {
+    const nextTime = getRescheduleTimeValue(rescheduleTimeDraft);
+    if (!nextTime) return;
+
+    setRescheduleForm((current) => ({ ...current, time: nextTime }));
+    setIsRescheduleTimePickerOpen(false);
   };
 
   const closeRescheduleModal = () => {
     setRescheduleSchedule(null);
     setRescheduleForm(initialRescheduleForm);
+    setRescheduleTimeDraft(initialRescheduleTimeDraft);
+    setIsRescheduleTimePickerOpen(false);
   };
 
   const saveRescheduleAppointment = async (event) => {
@@ -2379,17 +2536,114 @@ export function DoctorAppointmentsContent({
                     />
                   </label>
 
-                  <label>
-                    Select Time:
-                    <input
-                      type="time"
-                      value={rescheduleForm.time}
-                      onChange={(event) =>
-                        setRescheduleForm((current) => ({ ...current, time: event.target.value }))
+                  <div className="doctor-reschedule-time-field">
+                    <span className="doctor-reschedule-time-label">Select Time:</span>
+
+                    <button
+                      type="button"
+                      className="doctor-reschedule-time-trigger"
+                      aria-expanded={isRescheduleTimePickerOpen}
+                      aria-controls="doctor-reschedule-time-picker"
+                      onClick={() =>
+                        isRescheduleTimePickerOpen
+                          ? setIsRescheduleTimePickerOpen(false)
+                          : openRescheduleTimePicker()
                       }
-                      required
-                    />
-                  </label>
+                    >
+                      <span
+                        className={`doctor-reschedule-time-value ${
+                          rescheduleForm.time ? "" : "is-placeholder"
+                        }`}
+                      >
+                        {formatRescheduleTime(rescheduleForm.time)}
+                      </span>
+
+                      <span className="doctor-reschedule-time-action">
+                        <InlineIcon name="clock" />
+                        Choose Time
+                      </span>
+                    </button>
+
+                    {isRescheduleTimePickerOpen ? (
+                      <div
+                        id="doctor-reschedule-time-picker"
+                        className="doctor-reschedule-time-picker"
+                        role="group"
+                        aria-label="Choose appointment time"
+                      >
+                        <div className="doctor-reschedule-time-picker-grid">
+                          <label>
+                            <span>Hour</span>
+                            <select
+                              value={rescheduleTimeDraft.hour}
+                              onChange={(event) =>
+                                setRescheduleTimeDraft((current) => ({
+                                  ...current,
+                                  hour: event.target.value,
+                                }))
+                              }
+                            >
+                              {Array.from({ length: 12 }, (_, index) => {
+                                const value = String(index + 1).padStart(2, "0");
+                                return <option key={value} value={value}>{value}</option>;
+                              })}
+                            </select>
+                          </label>
+
+                          <label>
+                            <span>Minute</span>
+                            <select
+                              value={rescheduleTimeDraft.minute}
+                              onChange={(event) =>
+                                setRescheduleTimeDraft((current) => ({
+                                  ...current,
+                                  minute: event.target.value,
+                                }))
+                              }
+                            >
+                              {Array.from({ length: 60 }, (_, index) => {
+                                const value = String(index).padStart(2, "0");
+                                return <option key={value} value={value}>{value}</option>;
+                              })}
+                            </select>
+                          </label>
+
+                          <label>
+                            <span>Period</span>
+                            <select
+                              value={rescheduleTimeDraft.period}
+                              onChange={(event) =>
+                                setRescheduleTimeDraft((current) => ({
+                                  ...current,
+                                  period: event.target.value,
+                                }))
+                              }
+                            >
+                              <option value="AM">AM</option>
+                              <option value="PM">PM</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <div className="doctor-reschedule-time-picker-actions">
+                          <button
+                            type="button"
+                            className="doctor-reschedule-time-set"
+                            onClick={applyRescheduleTime}
+                          >
+                            Set Time
+                          </button>
+                          <button
+                            type="button"
+                            className="doctor-reschedule-time-close"
+                            onClick={() => setIsRescheduleTimePickerOpen(false)}
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
 
                   <label>
                     Message:

@@ -1,12 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
-import {
-  PatientDirectoryHeader,
-  PatientDirectorySearch,
-  PatientDirectoryToolbar,
-  PatientTableShell,
-} from "../../components/patients/PatientDirectoryUi";
 import "../../styles/doctor-patients.css";
 
 const patientSelectColumns =
@@ -118,29 +113,30 @@ function PatientListPage({
 
   return (
     <section className="doctor-patients-list-page">
-      <PatientDirectoryHeader
-        subtitle="Manage and view patient information across your practice."
-        action={headerAction ?? null}
-        className="doctor-patients-header"
-      />
+      <header className="doctor-patients-header">
+        <div>
+          <h2>Patients</h2>
+          <p>Manage and view patient information across your practice.</p>
+        </div>
+        {headerAction ?? null}
+      </header>
 
-      <PatientDirectoryToolbar searchOnly>
-        <PatientDirectorySearch
+      <label className="doctor-patients-search-wrap">
+        <Icon icon="solar:magnifer-linear" />
+        <input
+          type="text"
+          placeholder="Search by name or ID"
           value={searchTerm}
-          onChange={setSearchTerm}
-          className="doctor-patients-search-wrap"
+          onChange={(event) => setSearchTerm(event.target.value)}
         />
-      </PatientDirectoryToolbar>
+      </label>
 
       {statusMessage ? (
         <p className="doctor-patients-status-message">{statusMessage}</p>
       ) : null}
 
-      <PatientTableShell
-        as="div"
-        className="doctor-patients-table-card"
-        scrollClassName="doctor-patients-table-scroll"
-      >
+      <div className="doctor-patients-table-card">
+        <div className="doctor-patients-table-scroll">
           <table className="doctor-patients-table">
             <thead>
               <tr>
@@ -177,8 +173,7 @@ function PatientListPage({
                       type="button"
                       onClick={() => onViewRecord(patient.patientId)}
                     >
-                      <Icon icon="solar:document-medicine-linear" aria-hidden="true" />
-                      Open record
+                      View
                     </button>
                   </td>
                 </tr>
@@ -193,15 +188,32 @@ function PatientListPage({
               ) : null}
             </tbody>
           </table>
-      </PatientTableShell>
+        </div>
+      </div>
     </section>
   );
 }
 
 function DoctorPatientsContent({ headerAction = null }) {
+  const location = useLocation();
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusMessage, setStatusMessage] = useState("Loading patients...");
+  const dashboardPatientTargetRef = useRef("");
+
+  const dashboardPatientTarget = useMemo(() => {
+    const match = location.pathname.match(
+      /^\/doctor\/patients\/([^/?#]+)\/?$/i
+    );
+
+    if (!match?.[1]) return "";
+
+    try {
+      return decodeURIComponent(match[1]).trim();
+    } catch {
+      return String(match[1] || "").trim();
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     let active = true;
@@ -246,6 +258,47 @@ function DoctorPatientsContent({ headerAction = null }) {
     };
   }, []);
 
+  /*
+   * Dashboard "View Patient" deep link.
+   *
+   * The Dashboard routes to /doctor/patients/:patientRecordId. Resolve that
+   * UUID against the loaded Doctor directory, then put the public Patient ID
+   * into the existing search field so only the exact patient row is shown,
+   * matching the working Staff Dashboard behavior.
+   */
+  useEffect(() => {
+    if (!dashboardPatientTarget) {
+      if (dashboardPatientTargetRef.current) {
+        dashboardPatientTargetRef.current = "";
+        setSearchTerm("");
+      }
+      return;
+    }
+
+    if (patients.length === 0) {
+      return;
+    }
+
+    const target = patients.find(
+      (patient) =>
+        String(patient.recordId || "") === dashboardPatientTarget ||
+        String(patient.patientId || "") === dashboardPatientTarget
+    );
+
+    dashboardPatientTargetRef.current = dashboardPatientTarget;
+
+    if (!target) {
+      setSearchTerm("");
+      setStatusMessage(
+        `Patient ${dashboardPatientTarget} could not be found.`
+      );
+      return;
+    }
+
+    setSearchTerm(target.patientId || target.name);
+    setStatusMessage("");
+  }, [dashboardPatientTarget, patients]);
+
   const handleViewRecord = (patientId) => {
     const patient = patients.find((item) => item.patientId === patientId);
     if (!patient?.recordId) return;
@@ -266,7 +319,7 @@ function DoctorPatientsContent({ headerAction = null }) {
   };
 
   return (
-    <section className="doctor-patients-page patient-directory patient-directory--doctor">
+    <section className="doctor-patients-page">
       <PatientListPage
         patients={patients}
         searchTerm={searchTerm}

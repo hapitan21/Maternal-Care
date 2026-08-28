@@ -1,15 +1,46 @@
+import { createContext, useContext } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
 
-export function PatientPageHeader({ title, subtitle, eyebrow, action, className = "" }) {
+const PatientTopbarSecondaryTargetContext = createContext(null);
+
+export function PatientTopbarSecondaryProvider({ target, children }) {
   return (
-    <header className={`pwa-page-title pwa-ui-page-header ${className}`.trim()}>
-      <div>
-        {eyebrow ? <span className="pwa-ui-eyebrow">{eyebrow}</span> : null}
-        <h1>{title}</h1>
-        {subtitle ? <p>{subtitle}</p> : null}
-      </div>
-      {action ? <div className="pwa-ui-page-action">{action}</div> : null}
-    </header>
+    <PatientTopbarSecondaryTargetContext.Provider value={target}>
+      {children}
+    </PatientTopbarSecondaryTargetContext.Provider>
+  );
+}
+
+export function PatientPageHeader({
+  title,
+  subtitle,
+  eyebrow,
+  action,
+  actionPlacement = "page",
+  className = "",
+}) {
+  const topbarSecondaryTarget = useContext(PatientTopbarSecondaryTargetContext);
+  const usesTopbarSecondary = actionPlacement === "profile-secondary";
+  const renderActionInTopbar = Boolean(action && usesTopbarSecondary && topbarSecondaryTarget);
+  const actionElement = action ? <div className="pwa-ui-page-action">{action}</div> : null;
+
+  return (
+    <>
+      <header
+        className={`pwa-page-title pwa-ui-page-header ${
+          usesTopbarSecondary ? "has-profile-secondary-action" : ""
+        } ${className}`.trim()}
+      >
+        <div>
+          {eyebrow ? <span className="pwa-ui-eyebrow">{eyebrow}</span> : null}
+          <h1>{title}</h1>
+          {subtitle ? <p>{subtitle}</p> : null}
+        </div>
+        {!renderActionInTopbar ? actionElement : null}
+      </header>
+      {renderActionInTopbar ? createPortal(actionElement, topbarSecondaryTarget) : null}
+    </>
   );
 }
 

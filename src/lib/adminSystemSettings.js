@@ -26,8 +26,6 @@ const sectionKeys = {
   notifications: [
     "appointmentReminders",
     "medicationReminderAlerts",
-    "medicationAdherenceAlerts",
-    "doctorFollowupAlerts",
     "browserPushNotifications",
     "appointmentReminderTiming",
     "secondReminder",
@@ -89,8 +87,6 @@ export function normalizeAdminSystemSettings(data, fallback) {
     maximumDailyAppointments: String(row.maximum_daily_appointments ?? fallback.maximumDailyAppointments),
     appointmentReminders: booleanValue(row.appointment_reminders_enabled, fallback.appointmentReminders),
     medicationReminderAlerts: booleanValue(row.medication_reminder_alerts_enabled, fallback.medicationReminderAlerts),
-    medicationAdherenceAlerts: booleanValue(row.medication_adherence_alerts_enabled, fallback.medicationAdherenceAlerts),
-    doctorFollowupAlerts: booleanValue(row.doctor_followup_alerts_enabled, fallback.doctorFollowupAlerts),
     browserPushNotifications: booleanValue(row.browser_push_notifications_enabled, fallback.browserPushNotifications),
     appointmentReminderTiming: formatReminder(row.appointment_reminder_hours_before),
     secondReminder: row.second_reminder_hours_before == null
@@ -179,8 +175,6 @@ function buildUpdateParameters(section, values) {
     p_maximum_daily_appointments: Number(values.maximumDailyAppointments),
     p_appointment_reminders_enabled: values.appointmentReminders,
     p_medication_reminder_alerts_enabled: values.medicationReminderAlerts,
-    p_medication_adherence_alerts_enabled: values.medicationAdherenceAlerts,
-    p_doctor_followup_alerts_enabled: values.doctorFollowupAlerts,
     p_browser_push_notifications_enabled: values.browserPushNotifications,
     p_appointment_reminder_hours_before: parseReminder(values.appointmentReminderTiming),
     p_second_reminder_hours_before: parseReminder(values.secondReminder),

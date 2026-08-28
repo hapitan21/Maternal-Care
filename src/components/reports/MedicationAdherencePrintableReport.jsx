@@ -2,13 +2,6 @@ import {
   formatAppointmentDate,
   formatAppointmentTime,
 } from "../../lib/appointmentDate";
-import {
-  formatMedicationFollowupDate,
-  formatMedicationFollowupDateTime,
-  formatMedicationFollowupRate,
-  formatMedicationFollowupSeverity,
-  formatMedicationFollowupStatus,
-} from "../../lib/medicationAdherenceFollowups";
 import { formatReportTimestamp } from "../../lib/reportExport";
 import {
   PrintableMetricGrid,
@@ -194,71 +187,6 @@ function PrintableAdherenceCharts({ daily }) {
   );
 }
 
-function getAssignedDoctorName(followup) {
-  const doctor = Array.isArray(followup?.assigned_doctor)
-    ? followup.assigned_doctor[0]
-    : followup?.assigned_doctor;
-  return doctor?.full_name || "Assigned Doctor";
-}
-
-function PrintableFollowups({ activeFollowup, followups }) {
-  const resolved = (followups || []).filter(
-    (followup) => followup.status === "resolved"
-  );
-
-  return (
-    <>
-      <section className="report-print-section">
-        <h2>Active Follow-up Summary</h2>
-        {activeFollowup ? (
-          <dl className="report-print-definition-grid">
-            <div><dt>Status</dt><dd>{formatMedicationFollowupStatus(activeFollowup.status)}</dd></div>
-            <div><dt>Assigned Doctor</dt><dd>{getAssignedDoctorName(activeFollowup)}</dd></div>
-            <div><dt>Started</dt><dd>{formatMedicationFollowupDate(activeFollowup.created_at)}</dd></div>
-            <div><dt>Last Confirmed Contact</dt><dd>{formatMedicationFollowupDateTime(activeFollowup.last_contacted_at, "Not available")}</dd></div>
-            <div><dt>Next Follow-up</dt><dd>{formatMedicationFollowupDateTime(activeFollowup.next_follow_up_at, "Not available")}</dd></div>
-            <div><dt>Original Severity</dt><dd>{formatMedicationFollowupSeverity(activeFollowup.severity_snapshot)}</dd></div>
-          </dl>
-        ) : (
-          <p>No active medication adherence follow-up.</p>
-        )}
-      </section>
-
-      <section className="report-print-section">
-        <h2>Previous Follow-ups</h2>
-        {resolved.length ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Created</th>
-                <th>Resolved</th>
-                <th>Original Severity</th>
-                <th>Snapshot Adherence</th>
-                <th>Assigned Doctor</th>
-                <th>Resolution Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resolved.map((followup) => (
-                <tr key={followup.id}>
-                  <td>{formatMedicationFollowupDate(followup.created_at)}</td>
-                  <td>{formatMedicationFollowupDate(followup.resolved_at)}</td>
-                  <td>{formatMedicationFollowupSeverity(followup.severity_snapshot)}</td>
-                  <td>{formatMedicationFollowupRate(followup.adherence_rate_snapshot)}</td>
-                  <td>{getAssignedDoctorName(followup)}</td>
-                  <td>{followup.resolution_summary || "Not recorded"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>No previous medication adherence follow-ups.</p>
-        )}
-      </section>
-    </>
-  );
-}
-
 export default function MedicationAdherencePrintableReport({
   patient,
   doctorName,
@@ -267,8 +195,6 @@ export default function MedicationAdherencePrintableReport({
   generatedAt,
   trendData,
   historyRows,
-  activeFollowup,
-  followups,
 }) {
   const current = trendData.currentSummary;
   const previous = trendData.previousSummary;
@@ -404,7 +330,6 @@ export default function MedicationAdherencePrintableReport({
         )}
       </section>
 
-      <PrintableFollowups activeFollowup={activeFollowup} followups={followups} />
       <PrintableReportFooter generatedAt={generatedAt} />
     </PrintableReportPortal>
   );

@@ -22,7 +22,6 @@ const AdminAppointmentOverview = lazy(() =>
   import("./pages/admin/AdminAppointmentOverview")
 );
 const AdminAuditLogs = lazy(() => import("./pages/admin/AdminAuditLogs"));
-const AdminFollowUps = lazy(() => import("./pages/admin/Admin_FollowUps"));
 const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
 const AdminAppointmentSummaryReport = lazy(() =>
   import("./pages/admin/AdminReports").then((module) => ({
@@ -515,11 +514,6 @@ function App() {
             element={
               <AdminRedirect to="/admin/appointment-overview" />
             }
-          />
-
-          <Route
-            path="follow-ups"
-            element={<AdminFollowUps />}
           />
 
           <Route

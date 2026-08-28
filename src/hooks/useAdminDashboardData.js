@@ -6,6 +6,14 @@ import {
   mapAdminAuditActivity,
 } from "../lib/adminDashboard";
 
+const supportedAdminAlertTargets = new Set([
+  "users",
+  "appointments",
+  "reports",
+  "logs",
+  "dashboard",
+]);
+
 const emptyTotals = {
   totalUsers: 0,
   patients: 0,
@@ -14,7 +22,6 @@ const emptyTotals = {
   admins: 0,
   totalAppointments: 0,
   pendingAppointments: 0,
-  activeFollowupAlerts: 0,
   todaysAppointments: 0,
 };
 
@@ -125,12 +132,13 @@ function mapSummary(payload, range) {
       admins: Number(totals.admins) || 0,
       totalAppointments: Number(totals.total_appointments) || 0,
       pendingAppointments: Number(totals.pending_appointments) || 0,
-      activeFollowupAlerts: Number(totals.active_followup_alerts) || 0,
       todaysAppointments: Number(totals.todays_appointments) || 0,
     },
     appointmentOverview: mapAppointmentOverview(payload?.appointment_overview),
     registrationTrend: mergeRegistrationTrend(payload?.registration_trend, range),
-    systemAlerts: Array.isArray(payload?.system_alerts) ? payload.system_alerts : [],
+    systemAlerts: Array.isArray(payload?.system_alerts)
+      ? payload.system_alerts.filter((alert) => supportedAdminAlertTargets.has(alert?.target))
+      : [],
     generatedAt: payload?.generated_at || null,
   };
 }

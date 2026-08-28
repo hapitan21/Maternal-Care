@@ -42,7 +42,7 @@ No production-like patient, appointment, medication, notification, or user recor
 - Check browser console and network panels while completing the authenticated workflows below. The in-app browser was unavailable during this run, so these could not be truthfully marked passed.
 - Use safe demo accounts to confirm cross-role redirects for Doctor, Staff, Patient, and Admin, plus signed-out deep links and logout.
 - Confirm Patient registration/account linking with a designated demo patient and a non-production control code.
-- Confirm appointment create/filter/status-change, medical-record view/edit, reminder/notification delivery, medication follow-up action, Admin user navigation, and all Patient PWA sections.
+- Confirm appointment create/filter/status-change, medical-record view/edit, reminder/notification delivery, Admin user navigation, and all Patient PWA sections.
 - Confirm installability and service-worker update behavior from a production or HTTPS build. Local development does not fully represent install behavior.
 
 ### Non-blocking warnings
@@ -57,10 +57,10 @@ No production-like patient, appointment, medication, notification, or user recor
 | Role/state | Minimum confirmation |
 | --- | --- |
 | Signed out | Deep-link to each protected workspace; confirm login/access screen and preserved safe destination where supported. |
-| Doctor | Dashboard, patients, appointments, one medical record, reminders, medication follow-ups, notifications, profile/settings, logout. |
+| Doctor | Dashboard, patients, appointments, one medical record, reminders, profile/settings, logout. |
 | Staff | Dashboard, patient directory/registration, appointment create/filter/status flow, profile/settings, logout. |
 | Patient | Account linking, dashboard, profile, appointments, medical records, reminders/medication actions, notifications, settings, logout. |
-| Admin | Dashboard, user management/details, appointment overview, follow-ups, reports, audit logs, settings/profile, logout. |
+| Admin | Dashboard, user management/details, appointment overview, reports, audit logs, settings/profile, logout. |
 | Cross-role | Try each other role's protected URL and confirm the account is redirected or denied before protected data renders. |
 | Missing route | Open a random public path and random path beneath each role; confirm a not-found screen or canonical safe redirect. |
 
@@ -78,7 +78,7 @@ Open a pre-authenticated Staff browser profile. Show the dashboard, responsive n
 
 ### 1:45–3:05 — Doctor clinical workflow
 
-Switch to a pre-authenticated Doctor browser profile. Show today's dashboard totals and upcoming sessions, then open the same demo patient's medical record. Move through overview/prenatal or diagnostic content, explain that editing remains tied to the authenticated Doctor and Supabase policies, and show the medication follow-up queue plus one non-destructive action or prepared demo event.
+Switch to a pre-authenticated Doctor browser profile. Show today's dashboard totals and upcoming sessions, then open the same demo patient's medical record. Move through overview/prenatal or diagnostic content, explain that editing remains tied to the authenticated Doctor and Supabase policies, and show the medication adherence history without changing any reminder data.
 
 ### 3:05–4:20 — Patient PWA
 
@@ -86,7 +86,7 @@ Switch to the Patient profile at a 390 px viewport. Show the fixed bottom naviga
 
 ### 4:20–5:20 — Admin oversight
 
-Switch to Admin. Show dashboard metrics, User Management navigation and account status controls without confirming a destructive change, Appointment Overview, medication follow-up oversight, reports, and audit logs. Emphasize that Admin pages reject non-Admin accounts before rendering protected content.
+Switch to Admin. Show dashboard metrics, User Management navigation and account status controls without confirming a destructive change, Appointment Overview, reports, and audit logs. Emphasize that Admin pages reject non-Admin accounts before rendering protected content.
 
 ### 5:20–6:10 — Quality and reliability proof
 

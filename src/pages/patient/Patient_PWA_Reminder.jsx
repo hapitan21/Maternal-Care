@@ -1519,6 +1519,7 @@ export default function PatientPWAReminder({ profile }) {
         title="My Reminders"
         subtitle="See your next visit, medication schedule, and daily care guidance."
         className="pwa-reminders-title"
+        actionPlacement="profile-secondary"
         action={(
           <span className="pwa-reminders-today" aria-live="polite">
             <Icon icon="solar:pills-3-bold-duotone" />

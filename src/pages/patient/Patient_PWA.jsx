@@ -7,6 +7,7 @@ import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import PatientNotificationBell from "../../components/patient/PatientNotificationBell";
 import PatientNotificationsProvider from "../../components/patient/PatientNotificationsProvider";
 import PatientPwaStatus from "../../components/patient/PatientPwaStatus";
+import { PatientTopbarSecondaryProvider } from "../../components/patient/PatientPwaUi";
 import {
   isPatientRecordArchived,
   normalizePatientAccountStatus,
@@ -297,6 +298,7 @@ export default function PatientPWA() {
   const navigate = useNavigate();
   const activePage = getPageFromPath(location.pathname);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [topbarSecondaryTarget, setTopbarSecondaryTarget] = useState(null);
   const [profile, setProfile] = useState(defaultPatientProfile);
   const [accessState, setAccessState] = useState({
     status: "loading",
@@ -615,7 +617,8 @@ export default function PatientPWA() {
 
   return (
     <PatientNotificationsProvider patientId={profile.recordId}>
-      <div className="pwa-shell">
+      <PatientTopbarSecondaryProvider target={topbarSecondaryTarget}>
+        <div className="pwa-shell">
         <aside className="pwa-sidebar">
         <div className="pwa-brand maternal-care-brand">
           <MaternalCareLogo variant="patient-sidebar" />
@@ -663,6 +666,10 @@ export default function PatientPWA() {
                 onLogout={handleLogout}
                 onOpenChange={setProfileMenuOpen}
               />
+              <div
+                className="pwa-topbar-secondary"
+                ref={setTopbarSecondaryTarget}
+              />
             </div>
           </header>
           <PatientPwaStatus />
@@ -672,7 +679,8 @@ export default function PatientPWA() {
             </Suspense>
           </div>
         </main>
-      </div>
+        </div>
+      </PatientTopbarSecondaryProvider>
     </PatientNotificationsProvider>
   );
 }

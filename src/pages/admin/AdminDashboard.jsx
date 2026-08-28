@@ -15,7 +15,6 @@ const dateRangeOptions = [
 const adminRoutes = {
   users: "/admin/user-management",
   appointments: "/admin/appointment-overview",
-  followups: "/admin/follow-ups",
   reports: "/admin/reports",
   logs: "/admin/audit-logs",
   dashboard: "/admin/dashboard",

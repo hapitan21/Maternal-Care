@@ -10,10 +10,6 @@
   padding-bottom: 54px;
 }
 
-.pwa-appointments-title {
-  margin-bottom: 58px !important;
-}
-
 .pwa-appointments-top-grid {
   width: 100%;
   display: grid;
@@ -568,10 +564,6 @@
 }
 
 @media (max-width: 760px) {
-  .pwa-appointments-title {
-    margin-bottom: 24px !important;
-  }
-
   .pwa-next-appointment-card {
     grid-template-columns: 1fr;
     padding: 20px;

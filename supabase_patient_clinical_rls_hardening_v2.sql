@@ -39,8 +39,6 @@ begin
       ('patient_obstetric_history', 'patient_id', 'uuid'),
       ('medication_reminders', 'patient_id', 'uuid'),
       ('medication_reminder_occurrences', 'patient_id', 'uuid'),
-      ('medication_adherence_followups', 'id', 'uuid'),
-      ('medication_adherence_followup_events', 'id', 'uuid'),
       ('staff_visit_intake', 'id', 'uuid')
   )
   select pg_catalog.array_agg(
@@ -92,8 +90,6 @@ begin
       ('patient_obstetric_history'),
       ('medication_reminders'),
       ('medication_reminder_occurrences'),
-      ('medication_adherence_followups'),
-      ('medication_adherence_followup_events'),
       ('staff_visit_intake')
   )
   select pg_catalog.array_agg(
@@ -117,8 +113,6 @@ begin
       ('medical_records', 'Clinic users can read medical records', 'SELECT', '59abf4e1fdebd637d55cb7379e69cb6e', null),
       ('medical_records', 'Clinic users can update medical records', 'UPDATE', '59abf4e1fdebd637d55cb7379e69cb6e', '59abf4e1fdebd637d55cb7379e69cb6e'),
       ('medical_records', 'Patients read own medical records', 'SELECT', 'd6bdd3f996e1209b153fc7c4380d5934', null),
-      ('medication_adherence_followup_events', 'Doctors and admins can read medication adherence followup event', 'SELECT', '6d33b46c5a4e79025f1cc021494e5d9c', null),
-      ('medication_adherence_followups', 'Doctors and admins can read medication adherence followups', 'SELECT', '6d33b46c5a4e79025f1cc021494e5d9c', null),
       ('medication_reminder_occurrences', 'Doctors can read medication reminder occurrences', 'SELECT', 'd074cfa73a2bed04e6dee0d48dc8bb01', null),
       ('medication_reminder_occurrences', 'Patients can read own medication reminder occurrences', 'SELECT', '380ffac0a783c5a2edb28ae90e09b98d', null),
       ('medication_reminders', 'Clinic users can manage medication reminders', 'ALL', '75e957d2cfce11590332d5218c0f94d0', '75e957d2cfce11590332d5218c0f94d0'),
@@ -164,8 +158,7 @@ begin
         'medical_records', 'patient_initial_assessment',
         'patient_medical_history', 'patient_obstetric_history',
         'medication_reminders', 'medication_reminder_occurrences',
-        'medication_adherence_followups',
-        'medication_adherence_followup_events', 'staff_visit_intake'
+        'staff_visit_intake'
       )
   ), drift as (
     select
@@ -568,32 +561,6 @@ drop policy "Doctors can read medication reminder occurrences"
   on public.medication_reminder_occurrences;
 create policy "Active Doctors can read medication reminder occurrences"
 on public.medication_reminder_occurrences for select to authenticated
-using (
-  exists (
-    select 1 from public.profiles as profile
-    where profile.id = auth.uid()
-      and pg_catalog.lower(pg_catalog.btrim(coalesce(profile.role, ''::text))) = 'doctor'
-      and pg_catalog.lower(pg_catalog.btrim(coalesce(profile.account_status, ''::text))) = 'active'
-  )
-);
-
-drop policy "Doctors and admins can read medication adherence followups"
-  on public.medication_adherence_followups;
-create policy "Active Doctors can read medication adherence followups"
-on public.medication_adherence_followups for select to authenticated
-using (
-  exists (
-    select 1 from public.profiles as profile
-    where profile.id = auth.uid()
-      and pg_catalog.lower(pg_catalog.btrim(coalesce(profile.role, ''::text))) = 'doctor'
-      and pg_catalog.lower(pg_catalog.btrim(coalesce(profile.account_status, ''::text))) = 'active'
-  )
-);
-
-drop policy "Doctors and admins can read medication adherence followup event"
-  on public.medication_adherence_followup_events;
-create policy "Active Doctors can read medication adherence followup events"
-on public.medication_adherence_followup_events for select to authenticated
 using (
   exists (
     select 1 from public.profiles as profile

@@ -4,10 +4,6 @@
   margin-right: auto;
 }
 
-.pwa-reminders-title {
-  margin-bottom: 58px !important;
-}
-
 .pwa-reminder-top-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -841,10 +837,6 @@
 }
 
 @media (max-width: 720px) {
-  .pwa-reminders-title {
-    margin-bottom: 24px !important;
-  }
-
   .pwa-reminder-card,
   .pwa-medication-card {
     padding: 20px 16px;

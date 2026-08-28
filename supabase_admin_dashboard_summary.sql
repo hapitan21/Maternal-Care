@@ -12,13 +12,6 @@
 --   and table_name in ('profiles', 'patients', 'schedule', 'audit_logs')
 -- order by table_name, ordinal_position;
 --
--- select p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid),
---        pg_catalog.pg_get_function_result(p.oid), p.prosecdef, p.proconfig
--- from pg_catalog.pg_proc as p
--- join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
--- where n.nspname = 'public'
---   and p.proname = 'get_admin_followup_oversight_summary';
-
 begin;
 
 do $preflight$
@@ -55,12 +48,6 @@ begin
   if v_missing is not null then
     raise exception 'Admin Dashboard preflight failed. Missing columns: %', v_missing;
   end if;
-
-  if pg_catalog.to_regprocedure(
-    'public.get_admin_followup_oversight_summary(date,date)'
-  ) is null then
-    raise exception 'Admin Dashboard preflight failed: get_admin_followup_oversight_summary(date,date) is required.';
-  end if;
 end;
 $preflight$;
 
@@ -83,8 +70,6 @@ declare
   v_now timestamptz := pg_catalog.now();
   v_today_start_at timestamptz;
   v_today_end_at timestamptz;
-  v_followup_active bigint := 0;
-  v_followup_critical bigint := 0;
   v_result jsonb;
 begin
   if auth.uid() is null then
@@ -119,10 +104,6 @@ begin
   v_end_at := (p_end_date + 1)::timestamp without time zone at time zone 'Asia/Manila';
   v_today_start_at := (v_now at time zone 'Asia/Manila')::date::timestamp without time zone at time zone 'Asia/Manila';
   v_today_end_at := v_today_start_at + interval '1 day';
-
-  select summary.due_today + summary.overdue, summary.critical
-  into v_followup_active, v_followup_critical
-  from public.get_admin_followup_oversight_summary(null::date, null::date) as summary;
 
   with profile_users as materialized (
     select
@@ -288,7 +269,6 @@ begin
       'admins', users.admins,
       'total_appointments', metrics.total_appointments,
       'pending_appointments', metrics.pending_appointments,
-      'active_followup_alerts', v_followup_active,
       'todays_appointments', metrics.todays_appointments
     ),
     'appointment_overview', (
@@ -314,34 +294,27 @@ begin
       select coalesce(pg_catalog.jsonb_agg(alert.item order by alert.ordinal), '[]'::jsonb)
       from (
         select 1 as ordinal, pg_catalog.jsonb_build_object(
-          'id', 'critical-followups', 'icon', 'solar:danger-triangle-linear',
-          'count', v_followup_critical, 'severity', 'Critical',
-          'title', 'Critical medication follow-ups',
-          'detail', 'Critical unresolved follow-up cases require review.', 'target', 'followups'
-        ) as item where v_followup_critical > 0
-        union all
-        select 2, pg_catalog.jsonb_build_object(
           'id', 'overdue-appointments', 'icon', 'solar:calendar-minimalistic-linear',
           'count', alerts.overdue_appointments, 'severity', 'High',
           'title', 'Overdue appointments unresolved',
           'detail', 'Past assigned appointments still have an active status.', 'target', 'appointments'
-        ) where alerts.overdue_appointments > 0
+        ) as item where alerts.overdue_appointments > 0
         union all
-        select 3, pg_catalog.jsonb_build_object(
+        select 2, pg_catalog.jsonb_build_object(
           'id', 'unassigned-appointments', 'icon', 'solar:user-cross-rounded-linear',
           'count', alerts.unassigned_appointments, 'severity', 'High',
           'title', 'Appointments without a Doctor',
           'detail', 'Active appointments require a Doctor assignment.', 'target', 'appointments'
         ) where alerts.unassigned_appointments > 0
         union all
-        select 4, pg_catalog.jsonb_build_object(
+        select 3, pg_catalog.jsonb_build_object(
           'id', 'unlinked-patients', 'icon', 'solar:link-broken-minimalistic-linear',
           'count', alerts.unlinked_patients, 'severity', 'Review',
           'title', 'Patient accounts not linked',
           'detail', 'Non-archived Patient records are missing an account link.', 'target', 'users'
         ) where alerts.unlinked_patients > 0
         union all
-        select 5, pg_catalog.jsonb_build_object(
+        select 4, pg_catalog.jsonb_build_object(
           'id', 'inactive-professionals', 'icon', 'solar:user-block-rounded-linear',
           'count', alerts.inactive_professionals, 'severity', 'Review',
           'title', 'Inactive clinic professionals',

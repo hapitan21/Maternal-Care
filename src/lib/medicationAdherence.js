@@ -22,30 +22,17 @@ export const MEDICATION_ADHERENCE_ALERT_SEVERITIES = {
 
 export const MEDICATION_ADHERENCE_NOTIFICATION_DRAFT = {
   type: "medication_reminder",
-  title: "Medication Reminder Follow-up",
+  title: "Medication Adherence Alert",
   message:
     "Please review your medication reminders. Contact the clinic if you need assistance with your medication schedule.",
   priority: "important",
-};
-
-export const MEDICATION_ADHERENCE_FOLLOWUP_NOTIFICATION_CONTEXT = {
-  type: "medication_reminder",
-  title: "Medication Follow-up",
-  message:
-    "Please review your medication schedule and recorded doses. Contact the clinic if you need help following your medication plan.",
-  priority: "important",
-  targetPath: "/patient/reminders/medications",
-  triggerLabel: "Send Follow-up Message",
-  contextLabel: "Medication adherence follow-up",
-  contextHelper:
-    "This is a manual message from your Doctor and does not create or change a medication schedule.",
 };
 
 const severityLabels = {
   [MEDICATION_ADHERENCE_ALERT_SEVERITIES.normal]: "Normal",
   [MEDICATION_ADHERENCE_ALERT_SEVERITIES.warning]: "Needs Attention",
   [MEDICATION_ADHERENCE_ALERT_SEVERITIES.high]: "High Priority",
-  [MEDICATION_ADHERENCE_ALERT_SEVERITIES.critical]: "Critical Follow-up",
+  [MEDICATION_ADHERENCE_ALERT_SEVERITIES.critical]: "Critical",
 };
 
 const severitySortOrder = {

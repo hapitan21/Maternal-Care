@@ -14,7 +14,6 @@ function getSectionClasses(pathname) {
   if (pathname === "/admin/dashboard") return { shell: "admin-dashboard-shell", main: "admin-dashboard-main" };
   if (pathname.includes("/user-management")) return { shell: "", main: "" };
   if (pathname.includes("/appointment-overview")) return { shell: "admin-appointment-shell", main: "admin-appointment-main" };
-  if (pathname.includes("/follow-ups")) return { shell: "admin-followup-shell", main: "admin-followup-main" };
   if (pathname.includes("/reports")) return { shell: "admin-reports-shell", main: "admin-reports-main" };
   if (pathname.includes("/audit-logs")) return { shell: "admin-audit-shell", main: "admin-audit-main" };
   return { shell: "", main: "" };

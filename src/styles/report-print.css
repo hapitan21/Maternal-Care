@@ -261,18 +261,6 @@
     fill: #684397;
   }
 
-  .report-print-followup-bar.is-created,
-  .report-print-legend i.is-created {
-    fill: #7c2342;
-    background: #7c2342;
-  }
-
-  .report-print-followup-bar.is-resolved,
-  .report-print-legend i.is-resolved {
-    fill: #2d7555;
-    background: #2d7555;
-  }
-
   .report-print-legend {
     display: flex;
     flex-wrap: wrap;

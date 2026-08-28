@@ -6,26 +6,10 @@ import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
 import { usePatientAppointments } from "../../hooks/usePatientAppointments";
 import { usePatientMedicalOverview } from "../../hooks/usePatientMedicalOverview";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
-import MedicationAdherenceFollowupModal, {
-  MedicationAdherencePreviousFollowups,
-} from "../../components/doctor/MedicationAdherenceFollowupModal";
 import MedicationAdherenceTrendCharts from "../../components/doctor/MedicationAdherenceTrendCharts";
 import MedicationAdherencePrintableReport from "../../components/reports/MedicationAdherencePrintableReport";
 import "../../styles/patient-record-ui-system.css";
 import "../../styles/clinical-workflow-ui-system.css";
-import {
-  addMedicationAdherenceFollowupEvent,
-  loadPatientMedicationAdherenceFollowups,
-} from "../../lib/medicationAdherenceFollowupApi";
-import {
-  canTransitionMedicationAdherenceFollowup,
-  formatMedicationFollowupDate,
-  formatMedicationFollowupDateTime,
-  formatMedicationFollowupStatus,
-  getMedicationFollowupDueState,
-  getMedicationFollowupNotificationId,
-  isActiveMedicationAdherenceFollowup,
-} from "../../lib/medicationAdherenceFollowups";
 import {
   MEDICATION_ADHERENCE_NOTIFICATION_DRAFT,
   calculateMedicationAdherenceAlert,
@@ -1953,9 +1937,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
   const [loadError, setLoadError] = React.useState(false);
   const [trendLoadError, setTrendLoadError] = React.useState(false);
   const [alertLoadError, setAlertLoadError] = React.useState(false);
-  const [followups, setFollowups] = React.useState([]);
-  const [followupStatus, setFollowupStatus] = React.useState("loading");
-  const [followupModal, setFollowupModal] = React.useState(null);
   const [reportAction, setReportAction] = React.useState("");
   const [reportFeedback, setReportFeedback] = React.useState({
     message: "",
@@ -1991,11 +1972,9 @@ function MedicationAdherencePanel({ patient, doctorName }) {
       setOccurrences([]);
       setTrendOccurrences([]);
       setAlertOccurrences([]);
-      setFollowups([]);
       setLoadError(false);
       setTrendLoadError(false);
       setAlertLoadError(false);
-      setFollowupStatus("ready");
       return;
     }
 
@@ -2003,11 +1982,10 @@ function MedicationAdherencePanel({ patient, doctorName }) {
     setLoadError(false);
     setTrendLoadError(false);
     setAlertLoadError(false);
-    setFollowupStatus("loading");
     const alertDateRange = getMedicationAdherenceAlertDateRange();
     const nowIso = new Date().toISOString();
 
-    const [reminderResult, occurrenceResult, alertOccurrenceResult, followupResult] = await Promise.all([
+    const [reminderResult, occurrenceResult, alertOccurrenceResult] = await Promise.all([
       supabase
         .from("medication_reminders")
         .select(
@@ -2059,9 +2037,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
         .lte("scheduled_for", nowIso)
         .in("status", ["taken", "skipped", "missed"])
         .order("scheduled_for", { ascending: true }),
-      loadPatientMedicationAdherenceFollowups(patientId)
-        .then((data) => ({ data, error: null }))
-        .catch((error) => ({ data: [], error })),
     ]);
 
     setIsLoading(false);
@@ -2104,13 +2079,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
       setAlertOccurrences(alertOccurrenceResult.data || []);
     }
 
-    if (followupResult.error) {
-      setFollowups([]);
-      setFollowupStatus("error");
-    } else {
-      setFollowups(followupResult.data || []);
-      setFollowupStatus("ready");
-    }
   }, [
     dateRange.endDate,
     dateRange.endIso,
@@ -2204,23 +2172,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
     return calculateMedicationAdherenceAlert(alertOccurrences);
   }, [alertOccurrences, patient]);
   const adherenceAlert = liveAdherence?.shouldAlert ? liveAdherence : null;
-  const activeFollowup = React.useMemo(
-    () => followups.find(isActiveMedicationAdherenceFollowup) || null,
-    [followups]
-  );
-  const followupDueState = getMedicationFollowupDueState(activeFollowup);
-
-  const recordNotificationEvent = async (notification) => {
-    if (!activeFollowup?.id) return;
-    const notificationId = getMedicationFollowupNotificationId(notification);
-    if (!notificationId) throw new Error("Notification identifier was not returned.");
-    await addMedicationAdherenceFollowupEvent({
-      followupId: activeFollowup.id,
-      eventType: "notification_sent",
-      relatedNotificationId: notificationId,
-    });
-    await loadAdherenceRecords();
-  };
 
   const filteredRows = React.useMemo(() => {
     if (statusFilter === "All") {
@@ -2464,7 +2415,7 @@ function MedicationAdherencePanel({ patient, doctorName }) {
           <div className="mr-adherence-alert-content">
             <span className="mr-adherence-alert-label">
               {adherenceAlert.severity === "critical"
-                ? "Critical Medication Follow-up"
+                ? "Critical Medication Adherence Alert"
                 : `${adherenceAlert.severityLabel} Medication Adherence Alert`}
             </span>
             <small>Based on the last 7 days</small>
@@ -2483,16 +2434,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
             </div>
           </div>
           <div className="mr-adherence-alert-actions">
-            {!activeFollowup && followupStatus === "ready" ? (
-              <button
-                type="button"
-                className="mr-adherence-alert-followup"
-                onClick={() => setFollowupModal({ followup: null, initialAction: "" })}
-              >
-                <Icon icon="solar:clipboard-add-linear" aria-hidden="true" />
-                Start Follow-up
-              </button>
-            ) : null}
             <SendPatientNotificationAction
               patientId={patient.id}
               patientName={patient.full_name}
@@ -2501,7 +2442,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
               defaultMessage={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.message}
               defaultPriority={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.priority}
               className="mr-adherence-alert-notification"
-              onSent={activeFollowup ? recordNotificationEvent : null}
             />
             <button
               type="button"
@@ -2514,95 +2454,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
             </button>
           </div>
         </section>
-      ) : null}
-
-      {followupStatus === "error" ? (
-        <div className="mr-adherence-alert-load-error" role="alert">
-          <span>Medication adherence follow-up could not be loaded.</span>
-          <button type="button" onClick={loadAdherenceRecords}>Retry</button>
-        </div>
-      ) : followupStatus === "loading" && !followups.length ? (
-        <div className="mr-followup-status-card" aria-label="Loading medication adherence follow-up">
-          Loading medication adherence follow-up...
-        </div>
-      ) : activeFollowup ? (
-        <section className="mr-followup-status-card" aria-labelledby="mr-followup-status-title">
-          <header>
-            <div>
-              <h3 id="mr-followup-status-title">Medication Follow-up</h3>
-              <p>Doctor-managed operational follow-up for this Patient.</p>
-            </div>
-            <strong className={`maf-status is-${activeFollowup.status}`}>
-              {formatMedicationFollowupStatus(activeFollowup.status)}
-            </strong>
-          </header>
-
-          {liveAdherence?.severity === "normal" ? (
-            <p className="maf-improved">
-              Adherence has improved. Doctor review is still required before resolving this follow-up.
-            </p>
-          ) : null}
-
-          <div className="mr-followup-status-details">
-            <div>
-              <span>Started</span>
-              <strong>{formatMedicationFollowupDate(activeFollowup.created_at)}</strong>
-            </div>
-            <div>
-              <span>Last Contact</span>
-              <strong>{formatMedicationFollowupDateTime(activeFollowup.last_contacted_at, "Not recorded")}</strong>
-            </div>
-            <div>
-              <span>Next Follow-up</span>
-              <strong>{formatMedicationFollowupDateTime(activeFollowup.next_follow_up_at)}</strong>
-            </div>
-            <div>
-              <span>Assigned Doctor</span>
-              <strong>
-                {(Array.isArray(activeFollowup.assigned_doctor)
-                  ? activeFollowup.assigned_doctor[0]
-                  : activeFollowup.assigned_doctor)?.full_name || "Assigned Doctor"}
-              </strong>
-            </div>
-          </div>
-
-          {followupDueState === "overdue" || followupDueState === "today" ? (
-            <p className="doctor-medication-followup-due">
-              {followupDueState === "overdue" ? "Follow-up overdue" : "Follow-up due today"}
-            </p>
-          ) : null}
-
-          <div className="mr-followup-status-actions">
-            <button type="button" onClick={() => setFollowupModal({ followup: activeFollowup, initialAction: "" })}>
-              <Icon icon="solar:folder-open-linear" /> Open Follow-up
-            </button>
-            <button type="button" onClick={() => setFollowupModal({ followup: activeFollowup, initialAction: "note" })}>
-              <Icon icon="solar:notes-linear" /> Add Note
-            </button>
-            <SendPatientNotificationAction
-              patientId={patient.id}
-              patientName={patient.full_name}
-              defaultType={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.type}
-              defaultTitle={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.title}
-              defaultMessage={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.message}
-              defaultPriority={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.priority}
-              outline
-              onSent={recordNotificationEvent}
-            />
-            {canTransitionMedicationAdherenceFollowup(activeFollowup.status, "resolved") ? (
-              <button type="button" onClick={() => setFollowupModal({ followup: activeFollowup, initialAction: "resolve" })}>
-                <Icon icon="solar:check-circle-linear" /> Resolve
-              </button>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-
-      {followupStatus === "ready" ? (
-        <MedicationAdherencePreviousFollowups
-          followups={followups}
-          onView={(followup) => setFollowupModal({ followup, initialAction: "" })}
-        />
       ) : null}
 
       <section className="mr-appointment-summary mr-adherence-summary" aria-label="Medication adherence summary">
@@ -2755,17 +2606,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
         </section>
       )}
 
-      {followupModal ? (
-        <MedicationAdherenceFollowupModal
-          patient={patient}
-          liveAlert={liveAdherence}
-          followup={followupModal.followup}
-          initialAction={followupModal.initialAction}
-          onClose={() => setFollowupModal(null)}
-          onChanged={loadAdherenceRecords}
-        />
-      ) : null}
-
       {reportAction === "print" ? (
         <MedicationAdherencePrintableReport
           patient={patient}
@@ -2775,8 +2615,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
           generatedAt={reportGeneratedAt}
           trendData={trendData}
           historyRows={filteredRows}
-          activeFollowup={activeFollowup}
-          followups={followups}
         />
       ) : null}
     </div>

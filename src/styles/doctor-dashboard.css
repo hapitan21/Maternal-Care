@@ -187,28 +187,6 @@ body:has(.doctor-dashboard) {
   transition: 180ms ease;
 }
 
-.doctor-followup-nav-badge {
-  min-width: 23px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  padding: 0 6px;
-  border: 1px solid #fff;
-  border-radius: 999px;
-  background: #a51f3d;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 850;
-  line-height: 1;
-}
-
-.doctor-nav-link.active .doctor-followup-nav-badge {
-  background: #fff;
-  color: #a51f3d;
-}
-
 .doctor-nav-link:focus-visible {
   outline: 3px solid rgb(47 111 235 / 28%);
   outline-offset: 2px;
@@ -925,6 +903,76 @@ body:has(.doctor-dashboard) {
   height: 19px;
 }
 
+/* Doctor Dashboard: Staff-style 3-dot selection menu for Upcoming Sessions. */
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-session-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-session-actions.is-open {
+  z-index: 80;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-session-action-menu {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% + 7px);
+  right: 0;
+  width: 176px;
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid #e7e9ef;
+  border-radius: 11px;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(17, 24, 39, 0.14);
+  text-align: left;
+}
+
+/* Keep menus for the final rows inside the dashboard card. */
+.doctor-dashboard:not(.staff-dashboard-shell)
+  .doctor-sessions-table
+  tbody
+  tr:nth-last-child(-n + 2)
+  .doctor-session-action-menu {
+  top: auto;
+  bottom: calc(100% + 7px);
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-session-action-menu button {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #4b5160;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-session-action-menu button:hover,
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-session-action-menu button:focus-visible {
+  background: #fff0f5;
+  color: #c52361;
+  outline: none;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-session-action-menu button svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
+
 /* RESPONSIVE */
 
 @media (max-width: 1180px) {
@@ -984,14 +1032,6 @@ body:has(.doctor-dashboard) {
 
   .doctor-nav-link span {
     display: none;
-  }
-
-  .doctor-nav-link .doctor-followup-nav-badge {
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    display: inline-flex;
-    margin: 0;
   }
 
   .doctor-topbar {
@@ -1067,12 +1107,6 @@ body:has(.doctor-dashboard) {
 
   .doctor-nav-link span {
     display: inline;
-  }
-
-  .doctor-nav-link .doctor-followup-nav-badge {
-    position: static;
-    display: inline-flex;
-    margin-left: auto;
   }
 
   .doctor-main {
@@ -1170,14 +1204,6 @@ body:has(.doctor-dashboard) {
 @media (max-width: 520px) {
   .doctor-nav-link span {
     display: none;
-  }
-
-  .doctor-nav-link .doctor-followup-nav-badge {
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    display: inline-flex;
-    margin: 0;
   }
 
   .doctor-profile-card {
@@ -1734,8 +1760,7 @@ body:has(.doctor-dashboard) {
 .doctor-dashboard .doctor-content .doctor-appointments-header,
 .doctor-dashboard .doctor-content .doctor-dashboard-header.doctor-reminder-header,
 .doctor-dashboard .doctor-content .doctor-settings-page > .doctor-dashboard-header,
-.doctor-dashboard .doctor-content .doctor-profile-page-header,
-.doctor-dashboard .doctor-content .doctor-followup-queue-header {
+.doctor-dashboard .doctor-content .doctor-profile-page-header {
   padding-right: var(--doctor-unified-profile-reserve) !important;
   min-height: var(--doctor-unified-profile-height) !important;
   box-sizing: border-box !important;
@@ -1828,8 +1853,7 @@ body:has(.doctor-dashboard) {
   .doctor-dashboard .doctor-content .doctor-appointments-header,
   .doctor-dashboard .doctor-content .doctor-dashboard-header.doctor-reminder-header,
   .doctor-dashboard .doctor-content .doctor-settings-page > .doctor-dashboard-header,
-  .doctor-dashboard .doctor-content .doctor-profile-page-header,
-  .doctor-dashboard .doctor-content .doctor-followup-queue-header {
+  .doctor-dashboard .doctor-content .doctor-profile-page-header {
     padding-right: 0 !important;
   }
 }
@@ -2094,12 +2118,6 @@ body:has(.doctor-dashboard) {
     margin-left: 0;
   }
 
-  .doctor-dashboard:not(.staff-dashboard-shell) .doctor-followup-queue-page {
-    margin-right: auto;
-    margin-left: 0;
-    padding-left: 0;
-  }
-
   .doctor-dashboard:not(.staff-dashboard-shell) .doctor-reminder-page {
     margin-right: auto !important;
     margin-left: 0 !important;
@@ -2107,8 +2125,7 @@ body:has(.doctor-dashboard) {
 }
 
 /* Small Doctor-only title normalization for pages outside the shared header set. */
-.doctor-dashboard:not(.staff-dashboard-shell) .mr-page-header h1,
-.doctor-dashboard:not(.staff-dashboard-shell) .doctor-followup-queue-header h1 {
+.doctor-dashboard:not(.staff-dashboard-shell) .mr-page-header h1 {
   margin: 0;
   color: #20232b;
   font-family: "Poppins", sans-serif;
