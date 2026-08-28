@@ -37,6 +37,10 @@ const initialValues = {
   maximumDailyAppointments: "30",
   appointmentReminders: true,
   medicationReminderAlerts: true,
+  // Hidden compatibility values required by the current Supabase RPC.
+  // They are not rendered as Admin settings and are round-tripped unchanged.
+  medicationAdherenceAlerts: true,
+  doctorFollowupAlerts: true,
   browserPushNotifications: false,
   appointmentReminderTiming: "24 hours before",
   secondReminder: "2 hours before",
