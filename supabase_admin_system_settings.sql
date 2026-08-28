@@ -62,6 +62,8 @@ create table if not exists public.system_settings (
 
   appointment_reminders_enabled boolean not null default true,
   medication_reminder_alerts_enabled boolean not null default true,
+  medication_adherence_alerts_enabled boolean not null default true,
+  doctor_followup_alerts_enabled boolean not null default true,
   browser_push_notifications_enabled boolean not null default false,
   appointment_reminder_hours_before integer not null default 24,
   second_reminder_hours_before integer default 2,
@@ -150,6 +152,8 @@ begin
       ('maximum_daily_appointments', 'int4'),
       ('appointment_reminders_enabled', 'bool'),
       ('medication_reminder_alerts_enabled', 'bool'),
+      ('medication_adherence_alerts_enabled', 'bool'),
+      ('doctor_followup_alerts_enabled', 'bool'),
       ('browser_push_notifications_enabled', 'bool'),
       ('appointment_reminder_hours_before', 'int4'),
       ('second_reminder_hours_before', 'int4'),
@@ -208,6 +212,8 @@ returns table (
   maximum_daily_appointments integer,
   appointment_reminders_enabled boolean,
   medication_reminder_alerts_enabled boolean,
+  medication_adherence_alerts_enabled boolean,
+  doctor_followup_alerts_enabled boolean,
   browser_push_notifications_enabled boolean,
   appointment_reminder_hours_before integer,
   second_reminder_hours_before integer,
@@ -256,6 +262,8 @@ begin
     settings.maximum_daily_appointments,
     settings.appointment_reminders_enabled,
     settings.medication_reminder_alerts_enabled,
+    settings.medication_adherence_alerts_enabled,
+    settings.doctor_followup_alerts_enabled,
     settings.browser_push_notifications_enabled,
     settings.appointment_reminder_hours_before,
     settings.second_reminder_hours_before,
@@ -284,6 +292,8 @@ create or replace function public.update_admin_system_settings(
   p_maximum_daily_appointments integer,
   p_appointment_reminders_enabled boolean,
   p_medication_reminder_alerts_enabled boolean,
+  p_medication_adherence_alerts_enabled boolean,
+  p_doctor_followup_alerts_enabled boolean,
   p_browser_push_notifications_enabled boolean,
   p_appointment_reminder_hours_before integer,
   p_second_reminder_hours_before integer,
@@ -307,6 +317,8 @@ returns table (
   maximum_daily_appointments integer,
   appointment_reminders_enabled boolean,
   medication_reminder_alerts_enabled boolean,
+  medication_adherence_alerts_enabled boolean,
+  doctor_followup_alerts_enabled boolean,
   browser_push_notifications_enabled boolean,
   appointment_reminder_hours_before integer,
   second_reminder_hours_before integer,
@@ -389,6 +401,8 @@ begin
 
   if p_appointment_reminders_enabled is null
      or p_medication_reminder_alerts_enabled is null
+     or p_medication_adherence_alerts_enabled is null
+     or p_doctor_followup_alerts_enabled is null
      or p_browser_push_notifications_enabled is null then
     raise exception 'Notification enabled values are required.' using errcode = '22023';
   end if;
@@ -434,6 +448,8 @@ begin
     maximum_daily_appointments = case when v_section = 'appointments' then p_maximum_daily_appointments else settings.maximum_daily_appointments end,
     appointment_reminders_enabled = case when v_section = 'notifications' then p_appointment_reminders_enabled else settings.appointment_reminders_enabled end,
     medication_reminder_alerts_enabled = case when v_section = 'notifications' then p_medication_reminder_alerts_enabled else settings.medication_reminder_alerts_enabled end,
+    medication_adherence_alerts_enabled = case when v_section = 'notifications' then p_medication_adherence_alerts_enabled else settings.medication_adherence_alerts_enabled end,
+    doctor_followup_alerts_enabled = case when v_section = 'notifications' then p_doctor_followup_alerts_enabled else settings.doctor_followup_alerts_enabled end,
     browser_push_notifications_enabled = case when v_section = 'notifications' then p_browser_push_notifications_enabled else settings.browser_push_notifications_enabled end,
     appointment_reminder_hours_before = case when v_section = 'notifications' then p_appointment_reminder_hours_before else settings.appointment_reminder_hours_before end,
     second_reminder_hours_before = case when v_section = 'notifications' then p_second_reminder_hours_before else settings.second_reminder_hours_before end,
@@ -459,6 +475,8 @@ begin
     settings.maximum_daily_appointments,
     settings.appointment_reminders_enabled,
     settings.medication_reminder_alerts_enabled,
+    settings.medication_adherence_alerts_enabled,
+    settings.doctor_followup_alerts_enabled,
     settings.browser_push_notifications_enabled,
     settings.appointment_reminder_hours_before,
     settings.second_reminder_hours_before,
@@ -478,7 +496,7 @@ alter function public.update_admin_system_settings(
   text, text, text, text, text, text, text,
   time without time zone, time without time zone,
   integer, integer, integer, integer,
-  boolean, boolean, boolean,
+  boolean, boolean, boolean, boolean, boolean,
   integer, integer, text, text, integer, integer
 ) owner to postgres;
 
@@ -491,14 +509,14 @@ revoke all on function public.update_admin_system_settings(
   text, text, text, text, text, text, text,
   time without time zone, time without time zone,
   integer, integer, integer, integer,
-  boolean, boolean, boolean,
+  boolean, boolean, boolean, boolean, boolean,
   integer, integer, text, text, integer, integer
 ) from public, anon, authenticated;
 grant execute on function public.update_admin_system_settings(
   text, text, text, text, text, text, text,
   time without time zone, time without time zone,
   integer, integer, integer, integer,
-  boolean, boolean, boolean,
+  boolean, boolean, boolean, boolean, boolean,
   integer, integer, text, text, integer, integer
 ) to authenticated, service_role;
 
@@ -508,7 +526,7 @@ comment on function public.update_admin_system_settings(
   text, text, text, text, text, text, text,
   time without time zone, time without time zone,
   integer, integer, integer, integer,
-  boolean, boolean, boolean,
+  boolean, boolean, boolean, boolean, boolean,
   integer, integer, text, text, integer, integer
 ) is 'Updates one approved settings section for an authenticated active Admin and returns the safe settings record.';
 
