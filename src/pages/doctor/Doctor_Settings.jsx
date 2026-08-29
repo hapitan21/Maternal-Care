@@ -324,6 +324,7 @@ function createDoctorSettingsSnapshot(
       defaultDoctorSettings.accountStatus,
 
     avatarUrl:
+      doctorIdentity?.avatarUrl ||
       profile.avatar_url ||
       "",
 

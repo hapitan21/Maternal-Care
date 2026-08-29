@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Icon } from "@iconify/react";
+import ProfilePictureActions from "../../components/common/ProfilePictureActions";
+import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import {
   clinicAccountStatuses,
   normalizeClinicAccountStatus,
@@ -88,6 +90,7 @@ function ProfileDetailRow({ item }) {
 
 function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }) {
   const [activeTab, setActiveTab] = useState("personal");
+  const [avatarOverride, setAvatarOverride] = useState(null);
   const personal = doctorIdentity?.personalInformation;
   const professional = doctorIdentity?.professionalInformation;
   const identityProfile = doctorIdentity?.profile;
@@ -189,6 +192,7 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
   ];
 
   const initials = getDoctorInitials(profile.displayName);
+  const avatarUrl = avatarOverride ?? doctorIdentity?.avatarUrl ?? "";
 
   return (
     <section className="doctor-profile-page">
@@ -222,10 +226,22 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
       {!doctorIdentity?.loading && !doctorIdentity?.error && profile.id ? (
         <>
       <section className="doctor-profile-hero-card">
-        <div className="doctor-profile-main-photo-wrap">
-          <div className="doctor-profile-main-photo">
-            {initials}
+        <div className="profile-picture-editor doctor-profile-picture-editor">
+          <div className="doctor-profile-main-photo-wrap">
+            <div className="doctor-profile-main-photo">
+              <ProfileAvatarContent
+                src={avatarUrl}
+                alt={`${profile.displayName} profile`}
+                fallback={initials}
+              />
+            </div>
           </div>
+
+          <ProfilePictureActions
+            avatarUrl={avatarUrl}
+            disabled={doctorIdentity?.loading}
+            onChange={(nextAvatarUrl) => setAvatarOverride(nextAvatarUrl)}
+          />
         </div>
 
         <div className="doctor-profile-main-info">

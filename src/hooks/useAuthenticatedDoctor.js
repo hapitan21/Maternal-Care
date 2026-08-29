@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { isClinicAccountInactive } from "../lib/clinicAccountStatus";
+import {
+  getProfilePictureDisplayUrl,
+  profilePictureUpdatedEvent,
+} from "../lib/profilePicture";
 
 const doctorPersonalTable = "doctor_personal_information";
 const doctorProfessionalTable = "doctor_professional_information";
@@ -65,18 +69,28 @@ export async function loadAuthenticatedDoctor(authUserOverride = null) {
 
   let { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, full_name, email, contact_number, role, account_status")
+    .select("id, full_name, email, contact_number, role, account_status, avatar_url")
     .eq("id", authUser.id)
     .maybeSingle();
 
   if (profileError && isSchemaColumnError(profileError)) {
-    const legacyResult = await supabase
+    const withoutAvatarResult = await supabase
       .from("profiles")
-      .select("id, full_name, email, contact_number, role")
+      .select("id, full_name, email, contact_number, role, account_status")
       .eq("id", authUser.id)
       .maybeSingle();
-    profile = legacyResult.data;
-    profileError = legacyResult.error;
+    profile = withoutAvatarResult.data;
+    profileError = withoutAvatarResult.error;
+
+    if (profileError && isSchemaColumnError(profileError)) {
+      const legacyResult = await supabase
+        .from("profiles")
+        .select("id, full_name, email, contact_number, role")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      profile = legacyResult.data;
+      profileError = legacyResult.error;
+    }
   }
 
   if (profileError) {
@@ -145,6 +159,17 @@ export async function loadAuthenticatedDoctor(authUserOverride = null) {
     profile,
     personalInformation
   );
+  let avatarUrl = "";
+
+  if (profile.avatar_url) {
+    try {
+      avatarUrl = await getProfilePictureDisplayUrl(profile.avatar_url);
+    } catch (avatarError) {
+      if (import.meta.env.DEV) {
+        console.warn("[Doctor Identity] unable to resolve profile picture", avatarError);
+      }
+    }
+  }
 
   return {
     authUser,
@@ -159,6 +184,7 @@ export async function loadAuthenticatedDoctor(authUserOverride = null) {
       "",
     doctorContactNumber:
       professionalInformation?.contact_number || profile.contact_number || "",
+    avatarUrl,
     role: "doctor",
   };
 }
@@ -296,11 +322,13 @@ export function useAuthenticatedDoctor() {
     });
 
     window.addEventListener("doctor-settings-updated", syncDoctorIdentity);
+    window.addEventListener(profilePictureUpdatedEvent, syncDoctorIdentity);
 
     return () => {
       mountedRef.current = false;
       authListener.subscription.unsubscribe();
       window.removeEventListener("doctor-settings-updated", syncDoctorIdentity);
+      window.removeEventListener(profilePictureUpdatedEvent, syncDoctorIdentity);
     };
   }, [clearIdentity, refresh, resolveDoctorIdentity]);
 
@@ -312,6 +340,7 @@ export function useAuthenticatedDoctor() {
     doctorDisplayName: identity?.doctorDisplayName || "",
     doctorEmail: identity?.doctorEmail || "",
     doctorContactNumber: identity?.doctorContactNumber || "",
+    avatarUrl: identity?.avatarUrl || "",
     role: identity?.role || "",
     loading,
     error,

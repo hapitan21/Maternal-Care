@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
+import ProfilePictureActions from "../../components/common/ProfilePictureActions";
+import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
+import {
+  loadCurrentProfilePicture,
+  profilePictureUpdatedEvent,
+} from "../../lib/profilePicture";
 import {
   cacheStaffSettings,
   getStaffInitials,
@@ -10,8 +16,6 @@ import {
 import "../../styles/doctor-viewprofile.css";
 import "../../styles/staff-viewprofile.css";
 
-const staffProfilePhotoKey = "staff_profile_photo";
-const defaultStaffProfilePhoto = "";
 const staffPersonalSelect = `
   auth_user_id,
   full_name,
@@ -48,14 +52,6 @@ const staffProfessionalLegacySelect = `
   clinic_hospital_name,
   clinic_address
 `;
-
-function getStaffProfilePhoto() {
-  try {
-    return window.localStorage.getItem(staffProfilePhotoKey) || "";
-  } catch {
-    return defaultStaffProfilePhoto;
-  }
-}
 
 function getTodayRange() {
   const start = new Date();
@@ -309,7 +305,7 @@ function StaffViewProfileContent({ headerAction }) {
   const initialProfileSnapshot = getSharedProfileSnapshot();
 
   const [activeTab, setActiveTab] = useState("personal");
-  const [profilePhoto, setProfilePhoto] = useState(getStaffProfilePhoto);
+  const [profilePhoto, setProfilePhoto] = useState("");
 
   const [profile, setProfile] = useState(
     initialProfileSnapshot
@@ -365,7 +361,7 @@ function StaffViewProfileContent({ headerAction }) {
         );
       }
 
-      const [profileResult, personalResult, professionalResult] = await Promise.all([
+      const [profileResult, personalResult, professionalResult, avatarResult] = await Promise.all([
         supabase
           .from("profiles")
           .select("full_name, email, account_status")
@@ -383,6 +379,12 @@ function StaffViewProfileContent({ headerAction }) {
           staffProfessionalLegacySelect,
           user.id
         ),
+        loadCurrentProfilePicture().catch((error) => {
+          if (import.meta.env.DEV) {
+            console.warn("Unable to load Staff profile picture:", error);
+          }
+          return { displayUrl: "" };
+        }),
       ]);
 
       if (profileResult.error) {
@@ -402,6 +404,7 @@ function StaffViewProfileContent({ headerAction }) {
       const profileData = profileResult.data;
       const personalData = personalResult.data;
       const professionalData = professionalResult.data;
+      setProfilePhoto(avatarResult.displayUrl || "");
 
       const loadedProfile = {
         displayName:
@@ -508,8 +511,11 @@ function StaffViewProfileContent({ headerAction }) {
 
   useEffect(() => {
     const syncProfile = () => {
-      setProfilePhoto(getStaffProfilePhoto());
       loadStaffProfile();
+    };
+
+    const syncProfilePicture = (event) => {
+      setProfilePhoto(event.detail?.displayUrl || "");
     };
 
     window.addEventListener(
@@ -523,6 +529,7 @@ function StaffViewProfileContent({ headerAction }) {
     );
 
     window.addEventListener("storage", syncProfile);
+    window.addEventListener(profilePictureUpdatedEvent, syncProfilePicture);
 
     return () => {
       window.removeEventListener(
@@ -536,6 +543,7 @@ function StaffViewProfileContent({ headerAction }) {
       );
 
       window.removeEventListener("storage", syncProfile);
+      window.removeEventListener(profilePictureUpdatedEvent, syncProfilePicture);
     };
   }, [loadStaffProfile]);
 
@@ -732,17 +740,22 @@ function StaffViewProfileContent({ headerAction }) {
       </header>
 
       <section className="doctor-profile-hero-card">
-        <div className="doctor-profile-main-photo-wrap">
-          <div className="doctor-profile-main-photo">
-            {profilePhoto ? (
-              <img
+        <div className="profile-picture-editor staff-profile-picture-editor">
+          <div className="doctor-profile-main-photo-wrap">
+            <div className="doctor-profile-main-photo">
+              <ProfileAvatarContent
                 src={profilePhoto}
                 alt={profile.displayName || "Staff profile"}
+                fallback={initials}
               />
-            ) : (
-              initials
-            )}
+            </div>
           </div>
+
+          <ProfilePictureActions
+            avatarUrl={profilePhoto}
+            disabled={loadingProfile}
+            onChange={(nextAvatarUrl) => setProfilePhoto(nextAvatarUrl)}
+          />
         </div>
 
         <div className="doctor-profile-main-info">

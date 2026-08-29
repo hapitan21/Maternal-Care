@@ -8,8 +8,13 @@ import {
   getStaffSettings,
   staffSettingsUpdatedEvent,
 } from "../../lib/staffProfile";
+import {
+  loadCurrentProfilePicture,
+  profilePictureUpdatedEvent,
+} from "../../lib/profilePicture";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
+import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import "../../styles/doctor-dashboard.css";
 import "../../styles/staff-dashboard.css";
 import "../../styles/staff-doctor-parity.css";
@@ -18,9 +23,6 @@ const StaffAppointmentsContent = lazy(() => import("./Staff_Appointments"));
 const StaffPatientsContent = lazy(() => import("./Staff_Patients"));
 const StaffSettingsContent = lazy(() => import("./Staff_Settings"));
 const StaffViewProfileContent = lazy(() => import("./Staff_ViewProfile"));
-
-const staffProfilePhotoKey = "staff_profile_photo";
-const defaultStaffProfilePhoto = "/images/doctor-kempee-profile.svg";
 
 const staffDashboardScheduleColumns =
   "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, description, start_time, end_time, status";
@@ -32,18 +34,6 @@ const staffPagePaths = {
   profile: "/staff/profile",
   settings: "/staff/settings",
 };
-
-function getStaffProfilePhoto() {
-  try {
-    return (
-      window.localStorage.getItem(staffProfilePhotoKey) ||
-      window.localStorage.getItem("doctor_profile_photo") ||
-      defaultStaffProfilePhoto
-    );
-  } catch {
-    return defaultStaffProfilePhoto;
-  }
-}
 
 const navItems = [
   {
@@ -173,38 +163,23 @@ function StaffProfileDropdown({
   onViewProfile,
   onSettings,
   onLogout,
-  profilePhoto,
-  settings,
 }) {
-  const initials = getStaffInitials(settings.displayName);
-
   return (
-    <div className="doctor-profile-dropdown" role="menu" aria-label="Staff account">
-      <div className="doctor-dropdown-user">
-        <div className="doctor-dropdown-avatar">
-          {profilePhoto ? <img src={profilePhoto} alt="" /> : initials}
-        </div>
-
-        <div>
-          <strong>{settings.displayName}</strong>
-          <span>Staff Account</span>
-        </div>
-      </div>
-
+    <div className="doctor-profile-dropdown" role="menu" aria-label="Staff profile menu">
       <div className="doctor-dropdown-menu">
         <button type="button" role="menuitem" onClick={onViewProfile}>
-          <Icon icon="solar:user-rounded-linear" aria-hidden="true" />
-          <span>View Profile</span>
+          <Icon icon="solar:user-rounded-bold" aria-hidden="true" />
+          <span>Profile</span>
         </button>
 
         <button type="button" role="menuitem" onClick={onSettings}>
-          <Icon icon="solar:settings-linear" aria-hidden="true" />
+          <Icon icon="solar:settings-bold" aria-hidden="true" />
           <span>Settings</span>
         </button>
 
         <button type="button" role="menuitem" className="logout" onClick={onLogout}>
-          <Icon icon="solar:logout-2-linear" aria-hidden="true" />
-          <span>Logout</span>
+          <Icon icon="solar:logout-2-bold" aria-hidden="true" />
+          <span>Log out</span>
         </button>
       </div>
     </div>
@@ -219,16 +194,31 @@ function StaffProfileCard({ onNavigate }) {
 
   const [isOpen, setIsOpen] = useState(false);
   const [settings, setSettings] = useState(getStaffSettings);
-  const [profilePhoto, setProfilePhoto] = useState(getStaffProfilePhoto);
+  const [profilePhoto, setProfilePhoto] = useState("");
 
   useEffect(() => {
     openRef.current = isOpen;
   }, [isOpen]);
 
   useEffect(() => {
+    let active = true;
+
+    loadCurrentProfilePicture()
+      .then((result) => {
+        if (active) setProfilePhoto(result.displayUrl);
+      })
+      .catch((error) => {
+        if (import.meta.env.DEV) {
+          console.warn("Unable to load Staff profile picture:", error);
+        }
+      });
+
     const syncProfile = () => {
       setSettings(getStaffSettings());
-      setProfilePhoto(getStaffProfilePhoto());
+    };
+
+    const syncProfilePicture = (event) => {
+      setProfilePhoto(event.detail?.displayUrl || "");
     };
 
     const handleClickOutside = (event) => {
@@ -252,13 +242,16 @@ function StaffProfileCard({ onNavigate }) {
     window.addEventListener(staffSettingsUpdatedEvent, syncProfile);
     window.addEventListener("doctor-settings-updated", syncProfile);
     window.addEventListener("storage", syncProfile);
+    window.addEventListener(profilePictureUpdatedEvent, syncProfilePicture);
 
     return () => {
+      active = false;
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
       window.removeEventListener(staffSettingsUpdatedEvent, syncProfile);
       window.removeEventListener("doctor-settings-updated", syncProfile);
       window.removeEventListener("storage", syncProfile);
+      window.removeEventListener(profilePictureUpdatedEvent, syncProfilePicture);
     };
   }, []);
 
@@ -304,7 +297,7 @@ function StaffProfileCard({ onNavigate }) {
         aria-haspopup="menu"
       >
         <div className="doctor-profile-avatar">
-          {profilePhoto ? <img src={profilePhoto} alt="" /> : initials}
+          <ProfileAvatarContent src={profilePhoto} fallback={initials} />
         </div>
 
         <div className="doctor-profile-info">
@@ -320,8 +313,6 @@ function StaffProfileCard({ onNavigate }) {
 
       {isOpen ? (
         <StaffProfileDropdown
-          settings={settings}
-          profilePhoto={profilePhoto}
           onViewProfile={handleViewProfile}
           onSettings={handleSettings}
           onLogout={handleLogout}

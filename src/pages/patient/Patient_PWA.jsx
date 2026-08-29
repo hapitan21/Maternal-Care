@@ -7,6 +7,10 @@ import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import PatientNotificationBell from "../../components/patient/PatientNotificationBell";
 import PatientNotificationsProvider from "../../components/patient/PatientNotificationsProvider";
 import PatientPwaStatus from "../../components/patient/PatientPwaStatus";
+import {
+  getProfilePictureDisplayUrl,
+  profilePictureUpdatedEvent,
+} from "../../lib/profilePicture";
 import { PatientTopbarSecondaryProvider } from "../../components/patient/PatientPwaUi";
 import {
   isPatientRecordArchived,
@@ -151,6 +155,7 @@ function mapPatientProfile(row, profile) {
     recordId: row?.id || "",
     displayName: row?.full_name || profile?.full_name || defaultPatientProfile.displayName,
     patientId: row?.patient_id || defaultPatientProfile.patientId,
+    avatar: profile?.avatarDisplayUrl || "",
     age: getAgeLabel(row),
     email: row?.email || profile?.email || defaultPatientProfile.email,
     phone: row?.contact_number || defaultPatientProfile.phone,
@@ -367,11 +372,24 @@ export default function PatientPWA() {
           ),
         });
 
-        const { data: profileRow, error: profileError } = await supabase
+        let { data: profileRow, error: profileError } = await supabase
           .from("profiles")
-          .select("id, full_name, email, role")
+          .select("id, full_name, email, role, avatar_url")
           .eq("id", user.id)
           .maybeSingle();
+
+        if (
+          profileError &&
+          ["42703", "PGRST204"].includes(profileError.code)
+        ) {
+          const legacyResult = await supabase
+            .from("profiles")
+            .select("id, full_name, email, role")
+            .eq("id", user.id)
+            .maybeSingle();
+          profileRow = legacyResult.data;
+          profileError = legacyResult.error;
+        }
 
         if (!active) return;
 
@@ -505,10 +523,22 @@ export default function PatientPWA() {
           return;
         }
 
+        let avatarDisplayUrl = "";
+        if (profileRow?.avatar_url) {
+          try {
+            avatarDisplayUrl = await getProfilePictureDisplayUrl(profileRow.avatar_url);
+          } catch (avatarError) {
+            if (import.meta.env.DEV) {
+              console.warn("Unable to load Patient profile picture:", avatarError);
+            }
+          }
+        }
+
         setProfile(
           mapPatientProfile(patientRow, {
             ...(profileRow || { email: user.email }),
             authUser: user,
+            avatarDisplayUrl,
           })
         );
         rememberPatientProfile(patientRow, profileRow || { email: user.email });
@@ -547,6 +577,20 @@ export default function PatientPWA() {
   }, [reloadToken]);
 
   useEffect(() => {
+    const syncProfilePicture = (event) => {
+      setProfile((current) => ({
+        ...current,
+        avatar: event.detail?.displayUrl || "",
+      }));
+    };
+
+    window.addEventListener(profilePictureUpdatedEvent, syncProfilePicture);
+    return () => {
+      window.removeEventListener(profilePictureUpdatedEvent, syncProfilePicture);
+    };
+  }, []);
+
+  useEffect(() => {
     if (accessState.status !== "active") {
       return;
     }
@@ -578,7 +622,14 @@ export default function PatientPWA() {
   const renderContent = () => {
     switch (activePage) {
       case "profile":
-        return <PatientPWAViewProfile profile={profile} />;
+        return (
+          <PatientPWAViewProfile
+            profile={profile}
+            onAvatarChange={(avatar) =>
+              setProfile((current) => ({ ...current, avatar }))
+            }
+          />
+        );
 
       case "settings":
         return <PatientPWASettings profile={profile} />;
@@ -769,9 +820,9 @@ function TopProfile({ profile, onNavigate, onLogout, onOpenChange }) {
 }
 
 function Avatar({ profile, className = "" }) {
-  const [imageError, setImageError] = useState(false);
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState("");
 
-  if (!profile.avatar || imageError) {
+  if (!profile.avatar || failedAvatarUrl === profile.avatar) {
     return (
       <span className={`pwa-avatar-fallback ${className}`}>
         {profile.displayName
@@ -788,7 +839,7 @@ function Avatar({ profile, className = "" }) {
       className={className}
       src={profile.avatar}
       alt=""
-      onError={() => setImageError(true)}
+      onError={() => setFailedAvatarUrl(profile.avatar)}
     />
   );
 }

@@ -76,6 +76,10 @@
   justify-content: center;
 }
 
+.staff-profile-page .staff-profile-picture-editor {
+  justify-self: center;
+}
+
 .staff-profile-page .doctor-profile-main-photo {
   width: 126px;
   height: 126px;

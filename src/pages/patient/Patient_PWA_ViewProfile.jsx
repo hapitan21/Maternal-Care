@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
+import ProfilePictureActions from "../../components/common/ProfilePictureActions";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
 import "../../styles/patient-PWA-viewprofile.css";
 
@@ -35,7 +36,7 @@ const defaultProfile = {
   clinic: "",
 };
 
-export default function PatientPWAViewProfile({ profile }) {
+export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
   const initialProfile = normalizeProfile(profile);
 
   const [profileData, setProfileData] = useState(initialProfile);
@@ -400,8 +401,22 @@ export default function PatientPWAViewProfile({ profile }) {
       ) : null}
 
       <section className="pwa-profile-hero">
-        <div className="pwa-profile-photo-ring">
-          <Avatar profile={profileData} />
+        <div className="profile-picture-editor patient-profile-picture-editor">
+          <div className="pwa-profile-photo-ring">
+            <Avatar profile={profileData} />
+          </div>
+
+          <ProfilePictureActions
+            avatarUrl={profileData.avatar}
+            disabled={loading}
+            onChange={(nextAvatarUrl) => {
+              setProfileData((current) => ({
+                ...current,
+                avatar: nextAvatarUrl,
+              }));
+              onAvatarChange?.(nextAvatarUrl);
+            }}
+          />
         </div>
 
         <div className="pwa-profile-main-copy">
@@ -950,9 +965,9 @@ function Info({ label, value, icon, wide }) {
 }
 
 function Avatar({ profile }) {
-  const [error, setError] = useState(false);
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState("");
 
-  if (!profile.avatar || error) {
+  if (!profile.avatar || failedAvatarUrl === profile.avatar) {
     return (
       <span className="pwa-profile-photo-fallback">
         {getInitials(profile.displayName)}
@@ -960,7 +975,13 @@ function Avatar({ profile }) {
     );
   }
 
-  return <img src={profile.avatar} alt="" onError={() => setError(true)} />;
+  return (
+    <img
+      src={profile.avatar}
+      alt=""
+      onError={() => setFailedAvatarUrl(profile.avatar)}
+    />
+  );
 }
 
 function getInitials(name) {

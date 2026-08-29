@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import {
   classifyAppointment,
   compareUpcomingAppointments,
@@ -197,38 +198,23 @@ function ProfileDropdown({
   onViewProfile,
   onSettings,
   onLogout,
-  profile,
-  profilePhoto,
 }) {
-  const initials = getInitials(profile.displayName || profile.roleLabel);
-
   return (
-    <div className="doctor-profile-dropdown" role="menu" aria-label="Doctor account">
-      <div className="doctor-dropdown-user">
-        <div className="doctor-dropdown-avatar">
-          {profilePhoto ? <img src={profilePhoto} alt="" /> : initials}
-        </div>
-
-        <div>
-          <strong>{profile.displayName}</strong>
-          <span>{profile.roleLabel} Account</span>
-        </div>
-      </div>
-
+    <div className="doctor-profile-dropdown" role="menu" aria-label="Doctor profile menu">
       <div className="doctor-dropdown-menu">
         <button type="button" role="menuitem" onClick={onViewProfile}>
-          <Icon icon="solar:user-rounded-linear" aria-hidden="true" />
-          <span>View Profile</span>
+          <Icon icon="solar:user-rounded-bold" aria-hidden="true" />
+          <span>Profile</span>
         </button>
 
         <button type="button" role="menuitem" onClick={onSettings}>
-          <Icon icon="solar:settings-linear" aria-hidden="true" />
+          <Icon icon="solar:settings-bold" aria-hidden="true" />
           <span>Settings</span>
         </button>
 
         <button type="button" role="menuitem" className="logout" onClick={onLogout}>
-          <Icon icon="solar:logout-2-linear" aria-hidden="true" />
-          <span>Logout</span>
+          <Icon icon="solar:logout-2-bold" aria-hidden="true" />
+          <span>Log out</span>
         </button>
       </div>
     </div>
@@ -303,7 +289,7 @@ function ProfileCard({ setActivePage, profile }) {
         aria-haspopup="menu"
       >
         <div className="doctor-profile-avatar">
-          {initials}
+          <ProfileAvatarContent src={profile.avatarUrl} fallback={initials} />
         </div>
 
         <div className="doctor-profile-info">
@@ -322,8 +308,6 @@ function ProfileCard({ setActivePage, profile }) {
           onViewProfile={handleViewProfile}
           onSettings={handleSettings}
           onLogout={handleLogout}
-          profile={profile}
-          profilePhoto=""
         />
       )}
     </div>
@@ -616,6 +600,7 @@ function Doctor_Dashboard() {
         : doctorIdentity.error
           ? "Doctor profile not found"
           : defaultDoctorDashboardProfile.displayName),
+    avatarUrl: doctorIdentity.avatarUrl || "",
   };
   useEffect(() => {
     if (!inactiveDoctorError) {
