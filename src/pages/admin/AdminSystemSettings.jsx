@@ -37,13 +37,14 @@ const initialValues = {
   maximumDailyAppointments: "30",
   appointmentReminders: true,
   medicationReminderAlerts: true,
+  // Hidden compatibility values required by the current Supabase RPC.
+  // They are not rendered as Admin settings and are round-tripped unchanged.
   medicationAdherenceAlerts: true,
   doctorFollowupAlerts: true,
   browserPushNotifications: false,
   appointmentReminderTiming: "24 hours before",
   secondReminder: "2 hours before",
-  // The unchanged RPC requires these persisted compatibility values even
-  // though personal display preferences are no longer editable on this page.
+  // These persisted display preferences are not editable on this page.
   dateFormat: "MM/DD/YYYY",
   timeFormat: "12-hour",
   recordsPerPage: "20",
@@ -381,8 +382,6 @@ export default function AdminSystemSettings() {
                 <div className="admin-settings-toggle-list">
                   <Toggle id="appointment-reminders" label="Appointment Reminders" description="Send reminders for scheduled Patient appointments." checked={values.appointmentReminders} onChange={updateValue("appointmentReminders")} />
                   <Toggle id="medication-reminder-alerts" label="Medication Reminder Alerts" description="Notify Patients about scheduled medication reminders." checked={values.medicationReminderAlerts} onChange={updateValue("medicationReminderAlerts")} />
-                  <Toggle id="medication-adherence-alerts" label="Medication Adherence Alerts" description="Alert Doctors when medication adherence requires attention." checked={values.medicationAdherenceAlerts} onChange={updateValue("medicationAdherenceAlerts")} />
-                  <Toggle id="doctor-followup-alerts" label="Doctor Follow-up Alerts" description="Notify Doctors about follow-up cases requiring review." checked={values.doctorFollowupAlerts} onChange={updateValue("doctorFollowupAlerts")} />
                   <Toggle id="browser-push-notifications" label="Browser Push Notifications" description="Allow supported browsers to display operational notifications." checked={values.browserPushNotifications} onChange={updateValue("browserPushNotifications")} />
                 </div>
               </SettingsGroup>

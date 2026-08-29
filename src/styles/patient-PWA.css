@@ -201,12 +201,13 @@ button {
 }
 
 .pwa-main {
+  --pwa-content-inline-gutter: clamp(28px, 3vw, 40px);
   position: relative !important;
   min-width: 0 !important;
   min-height: 100vh !important;
   min-height: 100dvh !important;
   background: var(--pwa-bg) !important;
-  padding: 40px clamp(28px, 3vw, 40px) 56px !important;
+  padding: 40px var(--pwa-content-inline-gutter) 56px !important;
   overflow-x: hidden !important;
   overflow-y: visible !important;
   -webkit-overflow-scrolling: touch !important;

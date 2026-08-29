@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import {
+  cacheStaffSettings,
   getStaffInitials,
   getStaffSettings,
   staffSettingsUpdatedEvent,
@@ -958,6 +959,92 @@ function getInitialPage(pathname) {
 function StaffDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let active = true;
+
+    const hydrateStaffIdentity = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (!active || userError || !user) {
+        return;
+      }
+
+      const [profileResult, personalResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, email, role, account_status")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("staff_personal_information")
+          .select("full_name")
+          .eq("auth_user_id", user.id)
+          .maybeSingle(),
+      ]);
+
+      if (!active || profileResult.error || !profileResult.data) {
+        return;
+      }
+
+      const profile = profileResult.data;
+
+      const role = String(profile.role || "")
+        .trim()
+        .toLowerCase();
+
+      const accountStatus = String(profile.account_status || "")
+        .trim()
+        .toLowerCase();
+
+      if (role !== "staff" || accountStatus !== "active") {
+        return;
+      }
+
+      /*
+       * Staff View Profile treats staff_personal_information.full_name as the
+       * authoritative personal name. profiles.full_name may intentionally hold
+       * the generic account label "Staff Account", so use it only as fallback.
+       */
+      const personalName = String(
+        personalResult.data?.full_name || ""
+      ).trim();
+
+      const profileName = String(
+        profile.full_name || ""
+      ).trim();
+
+      const metadataName = String(
+        user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          ""
+      ).trim();
+
+      const displayName =
+        personalName ||
+        profileName ||
+        metadataName ||
+        "Staff";
+
+      cacheStaffSettings({
+        ...getStaffSettings(),
+        displayName,
+        email:
+          profile.email ||
+          user.email ||
+          "",
+      });
+    };
+
+    hydrateStaffIdentity();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const activePage = getInitialPage(location.pathname);
 

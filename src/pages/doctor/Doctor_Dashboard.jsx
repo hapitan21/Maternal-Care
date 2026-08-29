@@ -1,16 +1,10 @@
-import { lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, startTransition, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
-import DoctorNotificationBell from "../../components/doctor/DoctorNotificationBell";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
-import { loadAssignedMedicationAdherenceFollowupQueue } from "../../lib/medicationAdherenceFollowupApi";
-import {
-  buildMedicationFollowupQueueItems,
-  summarizeMedicationFollowupQueue,
-} from "../../lib/medicationFollowupQueue";
 import {
   classifyAppointment,
   compareUpcomingAppointments,
@@ -25,7 +19,6 @@ const doctorSectionLoaders = {
   medicalRecords: () => import("./Doctor_Medical_Records"),
   patients: () => import("./Doctor_Patients"),
   reminders: () => import("./Doctor_Reminder"),
-  followups: () => import("./Doctor_Followup_Queue"),
   settings: () => import("./Doctor_Settings"),
   profile: () => import("./Doctor_ViewProfile"),
 };
@@ -43,7 +36,6 @@ const DoctorAppointmentsContent = lazy(() =>
 const DoctorMedicalRecords = lazy(doctorSectionLoaders.medicalRecords);
 const DoctorPatientsContent = lazy(doctorSectionLoaders.patients);
 const DoctorReminderContent = lazy(doctorSectionLoaders.reminders);
-const DoctorFollowupQueue = lazy(doctorSectionLoaders.followups);
 const DoctorSettingsContent = lazy(doctorSectionLoaders.settings);
 const DoctorViewProfileContent = lazy(doctorSectionLoaders.profile);
 
@@ -73,11 +65,6 @@ const navItems = [
     label: "Reminders",
     icon: "solar:bell-linear",
   },
-  {
-    key: "followups",
-    label: "Medication Follow-ups",
-    icon: "solar:clipboard-heart-linear",
-  },
 ];
 
 const doctorPagePaths = {
@@ -85,7 +72,6 @@ const doctorPagePaths = {
   patients: "/doctor/patients",
   appointments: "/doctor/appointments",
   reminders: "/doctor/reminders",
-  followups: "/doctor/follow-ups",
   profile: "/doctor/profile",
   settings: "/doctor/settings",
 };
@@ -115,8 +101,6 @@ const dashboardStatusCards = [
     target: "appointments",
   },
 ];
-
-const dashboardFollowupLimit = 24;
 
 const medicalRecordTabParamByLabel = {
   Overview: "overview",
@@ -165,7 +149,6 @@ function getInitialDoctorPage(pathname, search) {
   if (pathname.includes("/doctor/patients")) return "patients";
   if (pathname.includes("/doctor/appointments")) return "appointments";
   if (pathname.includes("/doctor/reminders")) return "reminders";
-  if (pathname.includes("/doctor/follow-ups")) return "followups";
   if (pathname.includes("/doctor/profile")) return "profile";
   if (pathname.includes("/doctor/settings")) return "settings";
 
@@ -200,6 +183,7 @@ function getInitials(name) {
 function mapUpcomingSession(row) {
   return {
     id: row.id,
+    patientId: row.patient_id || "",
     appointmentId: row.maternal_appointment_id || "MA ID not assigned",
     initials: getInitials(row.patient_name),
     patient: row.patient_name || "Patient",
@@ -346,10 +330,9 @@ function ProfileCard({ setActivePage, profile }) {
   );
 }
 
-function DoctorHeaderControls({ doctorId, setActivePage, profile, profileKey }) {
+function DoctorHeaderControls({ setActivePage, profile, profileKey }) {
   return (
     <div className="doctor-shell-header-controls">
-      <DoctorNotificationBell doctorId={doctorId} />
       <ProfileCard
         key={profileKey}
         setActivePage={setActivePage}
@@ -367,6 +350,33 @@ function DashboardHome({
   dashboardMessage,
   accountName,
 }) {
+  const [activeSessionActionId, setActiveSessionActionId] = useState("");
+
+  useEffect(() => {
+    const closeSessionActions = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") {
+        return;
+      }
+
+      if (
+        event.type === "mousedown" &&
+        event.target.closest?.(".doctor-session-actions")
+      ) {
+        return;
+      }
+
+      setActiveSessionActionId("");
+    };
+
+    document.addEventListener("mousedown", closeSessionActions);
+    document.addEventListener("keydown", closeSessionActions);
+
+    return () => {
+      document.removeEventListener("mousedown", closeSessionActions);
+      document.removeEventListener("keydown", closeSessionActions);
+    };
+  }, []);
+
   const statusCards = dashboardStatusCards.map((card) => ({
     ...card,
     value: String(dashboardStats[card.statKey] ?? 0),
@@ -485,14 +495,73 @@ function DashboardHome({
                     </td>
 
                     <td>
-                      <button
-                        type="button"
-                        className="doctor-table-action"
-                        aria-label={`View appointment for ${session.patient}`}
-                        onClick={() => setActivePage("appointments")}
+                      <div
+                        className={`doctor-session-actions ${
+                          activeSessionActionId === session.id ? "is-open" : ""
+                        }`}
                       >
-                        <Icon icon="lucide:ellipsis" />
-                      </button>
+                        <button
+                          type="button"
+                          className="doctor-table-action"
+                          aria-label={`Open actions for ${session.patient}`}
+                          aria-haspopup="menu"
+                          aria-expanded={activeSessionActionId === session.id}
+                          onClick={() =>
+                            setActiveSessionActionId((current) =>
+                              current === session.id ? "" : session.id
+                            )
+                          }
+                        >
+                          <Icon icon="solar:menu-dots-bold" />
+                        </button>
+
+                        {activeSessionActionId === session.id ? (
+                          <div
+                            className="doctor-session-action-menu"
+                            role="menu"
+                            aria-label={`Actions for ${session.patient}`}
+                          >
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setActiveSessionActionId("");
+
+                                const appointmentTarget =
+                                  session.appointmentId &&
+                                  session.appointmentId !== "MA ID not assigned"
+                                    ? session.appointmentId
+                                    : session.id;
+
+                                setActivePage("appointments", {
+                                  path: `/doctor/appointments?appointmentId=${encodeURIComponent(
+                                    appointmentTarget
+                                  )}`,
+                                });
+                              }}
+                            >
+                              <Icon icon="solar:calendar-linear" />
+                              <span>View Appointment</span>
+                            </button>
+
+                            {session.patientId ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setActiveSessionActionId("");
+                                  setActivePage("patients", {
+                                    path: `/doctor/patients/${session.patientId}`,
+                                  });
+                                }}
+                              >
+                                <Icon icon="solar:user-rounded-linear" />
+                                <span>View Patient</span>
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -528,26 +597,11 @@ function Doctor_Dashboard() {
   });
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [dashboardMessage, setDashboardMessage] = useState("");
-  const [followupAttentionDataset, setFollowupAttentionDataset] = useState({
-    doctorId: "",
-    followups: [],
-    patients: [],
-    events: [],
-    controlEventsLimited: false,
-    generatedAt: "",
-  });
-  const [followupAttentionStatus, setFollowupAttentionStatus] =
-    useState("loading");
-  const [followupAttentionNow, setFollowupAttentionNow] = useState(
-    () => new Date()
-  );
   const [medicalRecordTarget, setMedicalRecordTarget] = useState(() =>
     getMedicalRecordTargetFromSearch(location.search)
   );
   const [doctorPatientHeaderAction, setDoctorPatientHeaderAction] = useState(null);
   const dashboardStatsRequestRef = useRef(0);
-  const followupAttentionRequestRef = useRef(0);
-  const followupAttentionInFlightRef = useRef(false);
   const navigate = useNavigate();
   const authenticatedDoctorId = doctorIdentity.profile?.id || "";
   const inactiveDoctorError =
@@ -563,46 +617,6 @@ function Doctor_Dashboard() {
           ? "Doctor profile not found"
           : defaultDoctorDashboardProfile.displayName),
   };
-  const followupAttentionQueueItems = useMemo(
-    () =>
-      buildMedicationFollowupQueueItems({
-        followups:
-          followupAttentionDataset.doctorId === authenticatedDoctorId
-            ? followupAttentionDataset.followups
-            : [],
-        patients:
-          followupAttentionDataset.doctorId === authenticatedDoctorId
-            ? followupAttentionDataset.patients
-            : [],
-        events:
-          followupAttentionDataset.doctorId === authenticatedDoctorId
-            ? followupAttentionDataset.events
-            : [],
-        doctorName: profile.displayName,
-        now: followupAttentionNow,
-      }),
-    [
-      followupAttentionDataset.followups,
-      followupAttentionDataset.patients,
-      followupAttentionDataset.events,
-      followupAttentionDataset.doctorId,
-      followupAttentionNow,
-      authenticatedDoctorId,
-      profile.displayName,
-    ]
-  );
-  const followupAttentionSummary = useMemo(
-    () => summarizeMedicationFollowupQueue(followupAttentionQueueItems),
-    [followupAttentionQueueItems]
-  );
-  const effectiveFollowupAttentionStatus = authenticatedDoctorId
-    ? followupAttentionDataset.doctorId === authenticatedDoctorId
-      ? followupAttentionStatus
-      : "loading"
-    : doctorIdentity.loading
-      ? "loading"
-      : "error";
-
   useEffect(() => {
     if (!inactiveDoctorError) {
       return undefined;
@@ -650,7 +664,7 @@ function Doctor_Dashboard() {
       supabase
         .from("schedule")
         .select(
-          "id, maternal_appointment_id, patient_name, start_time, end_time, status"
+          "id, maternal_appointment_id, patient_id, patient_name, start_time, end_time, status"
         )
         .gte("start_time", todayRange.start.toISOString())
         .order("start_time", { ascending: true }),
@@ -694,74 +708,12 @@ function Doctor_Dashboard() {
     );
   }, [authenticatedDoctorId]);
 
-  const loadFollowupAttention = useCallback(async () => {
-    const doctorId = authenticatedDoctorId;
-    if (!doctorId || followupAttentionInFlightRef.current) return;
-
-    followupAttentionInFlightRef.current = true;
-    const requestId = followupAttentionRequestRef.current + 1;
-    followupAttentionRequestRef.current = requestId;
-    setFollowupAttentionStatus((current) =>
-      current === "ready" || current === "error" ? "refreshing" : "loading"
-    );
-
-    try {
-      const dataset = await loadAssignedMedicationAdherenceFollowupQueue(
-        doctorId,
-        { limit: dashboardFollowupLimit }
-      );
-      if (followupAttentionRequestRef.current !== requestId) return;
-
-      setFollowupAttentionDataset({ ...dataset, doctorId });
-      setFollowupAttentionNow(new Date());
-      setFollowupAttentionStatus("ready");
-    } catch (error) {
-      if (followupAttentionRequestRef.current !== requestId) return;
-      console.error("Doctor follow-up attention load failed.", {
-        name: error?.name || "unknown",
-      });
-      setFollowupAttentionDataset((current) =>
-        current.doctorId === doctorId
-          ? current
-          : {
-              doctorId,
-              followups: [],
-              patients: [],
-              events: [],
-              controlEventsLimited: false,
-              generatedAt: "",
-            }
-      );
-      setFollowupAttentionStatus("error");
-    } finally {
-      if (followupAttentionRequestRef.current === requestId) {
-        followupAttentionInFlightRef.current = false;
-      }
-    }
-  }, [authenticatedDoctorId]);
-
-  const refreshDashboardData = useCallback(
-    async () => {
-      await Promise.all([
-        loadDashboardStats(),
-        loadFollowupAttention(),
-      ]);
-    },
-    [loadDashboardStats, loadFollowupAttention]
-  );
-
   useEffect(() => {
     if (activePage !== "dashboard" || !authenticatedDoctorId) {
       return undefined;
     }
 
-    followupAttentionRequestRef.current += 1;
-    followupAttentionInFlightRef.current = false;
-
-    const refresh = () => {
-      setFollowupAttentionNow(new Date());
-      refreshDashboardData();
-    };
+    const refresh = () => loadDashboardStats();
     const handleWindowFocus = () => refresh();
     const initialLoadTimer = window.setTimeout(refresh, 0);
     const refreshTimer = window.setInterval(refresh, 60_000);
@@ -788,8 +740,6 @@ function Doctor_Dashboard() {
 
     return () => {
       dashboardStatsRequestRef.current += 1;
-      followupAttentionRequestRef.current += 1;
-      followupAttentionInFlightRef.current = false;
       window.clearTimeout(initialLoadTimer);
       window.clearInterval(refreshTimer);
       window.removeEventListener("focus", handleWindowFocus);
@@ -799,7 +749,6 @@ function Doctor_Dashboard() {
     activePage,
     authenticatedDoctorId,
     loadDashboardStats,
-    refreshDashboardData,
   ]);
 
   const openMedicalRecordTarget = useCallback((target, options = {}) => {
@@ -837,9 +786,12 @@ function Doctor_Dashboard() {
     });
   }, [activePage, medicalRecordTarget?.returnPage, navigate]);
 
-  const navigateDoctorPage = useCallback((page) => {
+  const navigateDoctorPage = useCallback((page, options = {}) => {
     const safePage = doctorPagePaths[page] ? page : "dashboard";
-    const destination = doctorPagePaths[safePage];
+    const destination =
+      typeof options.path === "string" && options.path.startsWith("/doctor/")
+        ? options.path
+        : doctorPagePaths[safePage];
     preloadDoctorSection(safePage);
 
     startTransition(() => {
@@ -849,11 +801,9 @@ function Doctor_Dashboard() {
 
       setActivePage(safePage);
 
-      if (
-        safePage !== "medicalRecords" &&
-        (location.pathname !== destination || location.search)
-      ) {
-        navigate(destination, { replace: true });
+      const currentLocation = `${location.pathname}${location.search}`;
+      if (safePage !== "medicalRecords" && currentLocation !== destination) {
+        navigate(destination, { replace: options.replace === true });
       }
     });
   }, [location.pathname, location.search, navigate]);
@@ -863,7 +813,13 @@ function Doctor_Dashboard() {
 
     if (!nextTarget) {
       const nextPage = getInitialDoctorPage(location.pathname, location.search);
+      const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
+      const isDashboardPath =
+        normalizedPath === "/doctor" || normalizedPath === doctorPagePaths.dashboard;
       const pageTimer = window.setTimeout(() => {
+        if (nextPage === "dashboard" && !isDashboardPath) {
+          navigate(doctorPagePaths.dashboard, { replace: true });
+        }
         preloadDoctorSection(nextPage);
         startTransition(() => {
           setActivePage((current) => (current === nextPage ? current : nextPage));
@@ -891,7 +847,7 @@ function Doctor_Dashboard() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
     const handleDoctorNavigation = async (event) => {
@@ -927,7 +883,6 @@ function Doctor_Dashboard() {
     const doctorPatientHeaderActions = (
       <div className="doctor-patient-header-actions">
         <DoctorHeaderControls
-          doctorId={authenticatedDoctorId}
           profileKey={`medical-records-${location.pathname}-${location.search}`}
           setActivePage={navigateDoctorPage}
           profile={profile}
@@ -993,21 +948,6 @@ function Doctor_Dashboard() {
       case "reminders":
         return <DoctorReminderContent doctorIdentity={doctorIdentity} headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />} />;
 
-      case "followups":
-        return (
-          <DoctorFollowupQueue
-            doctorIdentity={doctorIdentity}
-            doctorName={profile.displayName}
-            onViewAdherence={(patientId) =>
-              openMedicalRecordTarget({
-                patientId,
-                activeTab: "Medication Adherence",
-                returnPage: "followups",
-              })
-            }
-          />
-        );
-
       case "profile":
         return (
           <DoctorViewProfileContent
@@ -1055,19 +995,11 @@ function Doctor_Dashboard() {
           </div>
 
           <nav className="doctor-nav" aria-label="Doctor dashboard navigation">
-            {navItems.map((item) => {
-              const attentionCount = followupAttentionSummary.attention;
-              const isFollowups = item.key === "followups";
-              const accessibleLabel =
-                isFollowups && attentionCount
-                  ? `Medication Follow-ups, ${attentionCount} tasks require attention`
-                  : item.label;
-
-              return (
+            {navItems.map((item) => (
                 <button
                   key={item.key}
                   type="button"
-                  aria-label={accessibleLabel}
+                  aria-label={item.label}
                   aria-current={activePage === item.key ? "page" : undefined}
                   onPointerEnter={() => preloadDoctorSection(item.key)}
                   onFocus={() => preloadDoctorSection(item.key)}
@@ -1078,19 +1010,8 @@ function Doctor_Dashboard() {
                 >
                   <Icon icon={item.icon} />
                   <span>{item.label}</span>
-                  {isFollowups && attentionCount ? (
-                    <span className="doctor-followup-nav-badge" aria-hidden="true">
-                      {attentionCount > 99 ? "99+" : attentionCount}
-                    </span>
-                  ) : null}
                 </button>
-              );
-            })}
-            <span className="doctor-visually-hidden" role="status" aria-live="polite">
-              {effectiveFollowupAttentionStatus === "ready"
-                ? `${followupAttentionSummary.attention} medication follow-up tasks require attention.`
-                : ""}
-            </span>
+            ))}
           </nav>
         </div>
       </aside>
@@ -1100,7 +1021,6 @@ function Doctor_Dashboard() {
           <div className="doctor-global-profile-slot">
             <div className="doctor-patient-header-actions">
               <DoctorHeaderControls
-                doctorId={authenticatedDoctorId}
                 profileKey={`${activePage}-${location.pathname}-${location.search}`}
                 setActivePage={navigateDoctorPage}
                 profile={profile}

@@ -1,0 +1,265 @@
+.appointment-time-picker {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-width: 0;
+  font-family: "Poppins", sans-serif;
+}
+
+.appointment-time-picker.is-open {
+  z-index: 90;
+}
+
+.appointment-time-picker__trigger {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1.4px solid #d9dde7;
+  border-radius: 11px;
+  outline: 0;
+  background: #ffffff;
+  color: #1f2937;
+  box-shadow: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.25;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.appointment-time-picker__trigger:hover {
+  border-color: #f4a0bf;
+}
+
+.appointment-time-picker__trigger:focus-visible,
+.appointment-time-picker.is-open .appointment-time-picker__trigger {
+  border-color: #fa2f7a;
+  box-shadow: 0 0 0 3px rgba(250, 47, 122, 0.12);
+}
+
+.appointment-time-picker__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.appointment-time-picker__trigger > svg {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  color: #fa2f7a;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.appointment-time-picker__trigger > div {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appointment-time-picker__trigger > div.is-placeholder {
+  color: #8a91a0;
+}
+
+.appointment-time-picker__trigger .appointment-time-picker__chevron {
+  width: 17px;
+  height: 17px;
+  color: #71798a;
+  transition: transform 160ms ease;
+}
+
+.appointment-time-picker.is-open .appointment-time-picker__chevron {
+  transform: rotate(180deg);
+}
+
+.appointment-time-picker__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 100;
+  width: min(100%, 350px);
+  max-width: 100%;
+  padding: 14px;
+  border: 1px solid #f3c9d9;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(35, 39, 51, 0.18);
+  color: #273244;
+}
+
+.appointment-time-picker[data-placement="above"] .appointment-time-picker__popover {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+.appointment-time-picker__heading {
+  margin-bottom: 11px;
+  color: #273244;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.appointment-time-picker__columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.appointment-time-picker__columns label {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.appointment-time-picker__columns small {
+  color: #70798b;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.appointment-time-picker__select {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 8px !important;
+  border: 1px solid #dce1e9 !important;
+  border-radius: 9px !important;
+  outline: 0 !important;
+  appearance: auto !important;
+  background: #ffffff !important;
+  color: #273244 !important;
+  box-shadow: none !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+}
+
+.appointment-time-picker__select:hover {
+  border-color: #f3a0bf !important;
+}
+
+.appointment-time-picker__select:focus-visible,
+.appointment-time-picker__select:focus {
+  border-color: #fa2f7a !important;
+  box-shadow: 0 0 0 3px rgba(250, 47, 122, 0.11) !important;
+}
+
+.appointment-time-picker__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #f0e2e8;
+}
+
+.appointment-time-picker__actions button {
+  width: auto;
+  min-width: 74px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: "Poppins", sans-serif;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 700;
+  transition: background-color 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease, transform 150ms ease;
+}
+
+.appointment-time-picker__cancel {
+  border: 1px solid #ead4dd;
+  background: #ffffff;
+  color: #c32262;
+}
+
+.appointment-time-picker__cancel:hover {
+  border-color: #f2a7c3;
+  background: #fff5f8;
+}
+
+.appointment-time-picker__apply {
+  border: 1px solid #fa2f7a;
+  background: #fa2f7a;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(250, 47, 122, 0.2);
+}
+
+.appointment-time-picker__apply:hover {
+  border-color: #e9226c;
+  background: #e9226c;
+  transform: translateY(-1px);
+}
+
+.appointment-time-picker__actions button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(250, 47, 122, 0.18);
+}
+
+.staff-add-appointment-field .appointment-time-picker__trigger {
+  min-height: 50px;
+  border: 1.5px solid #696969;
+  border-radius: 5px;
+  color: #3f3f3f;
+  font-weight: 500;
+}
+
+.staff-add-appointment-field .appointment-time-picker__trigger:focus-visible,
+.staff-add-appointment-field .appointment-time-picker.is-open .appointment-time-picker__trigger {
+  border-color: var(--staff-appointments-pink, #ff2f7d);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.09);
+}
+
+.doctor-medication-reminder-field .appointment-time-picker__trigger {
+  min-height: 46px;
+  border: 1px solid #dfe3eb;
+  border-radius: 11px;
+  color: #273044;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.doctor-medication-reminder-field .appointment-time-picker__trigger:focus-visible,
+.doctor-medication-reminder-field .appointment-time-picker.is-open .appointment-time-picker__trigger {
+  border-color: #fb2f7d;
+  box-shadow: 0 0 0 3px rgba(251, 47, 125, 0.1);
+}
+
+@media (max-width: 640px) {
+  .appointment-form-card.appointment-add-card .appointment-time-picker__trigger {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 380px) {
+  .appointment-time-picker__popover {
+    padding: 12px;
+  }
+
+  .appointment-time-picker__columns {
+    gap: 6px;
+  }
+
+  .appointment-time-picker__select {
+    padding: 0 5px !important;
+    font-size: 13px !important;
+  }
+}

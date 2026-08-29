@@ -57,7 +57,6 @@ const doctorPaths = [
   "/doctor/appointments/:appointmentId/initial-visit",
   "/doctor/appointments/:appointmentId/follow-up",
   "/doctor/reminders",
-  "/doctor/follow-ups",
   "/doctor/profile",
   "/doctor/settings",
   "/doctor/*",

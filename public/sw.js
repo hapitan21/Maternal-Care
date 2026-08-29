@@ -1,4 +1,4 @@
-const CACHE_NAME = "maternal-care-patient-shell-v8";
+const CACHE_NAME = "maternal-care-patient-shell-v10";
 const DEV_HOST_PATTERNS = [
   /^localhost$/,
   /^127\./,
@@ -22,10 +22,11 @@ const APP_SHELL = [
   "/patient/settings",
   "/index.html",
   "/manifest.webmanifest",
-  "/favicon.svg",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/maskable-512.png",
+  "/icons/maternal-care-icon-32.png",
+  "/icons/maternal-care-icon-48.png",
+  "/icons/maternal-care-icon-192.png",
+  "/icons/maternal-care-icon-512.png",
+  "/icons/maternal-care-favicon.png",
   "/images/maternal-care-logo.png",
   "/images/dashboard-hero-people.png",
   "/images/maria-makiling-profile.svg"
@@ -40,15 +41,6 @@ const ALLOWED_PATIENT_NOTIFICATION_ROUTES = new Set([
   "/patient/profile",
   "/patient/settings",
 ]);
-const DEFAULT_DOCTOR_NOTIFICATION_URL = "/doctor/follow-ups";
-const DOCTOR_FOLLOWUP_ESCALATIONS = new Set([
-  "due_today",
-  "recently_overdue",
-  "high",
-  "critical",
-]);
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function getSafeNotificationText(value, fallback, maxLength) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -75,49 +67,13 @@ function getAllowedPatientNotificationUrl(value) {
   }
 }
 
-function getAllowedDoctorNotificationUrl(value) {
-  if (typeof value !== "string") {
-    return DEFAULT_DOCTOR_NOTIFICATION_URL;
-  }
-
-  try {
-    const url = new URL(value, self.location.origin);
-    const keys = Array.from(url.searchParams.keys());
-    const escalation = String(url.searchParams.get("escalation") || "")
-      .trim()
-      .toLowerCase();
-    const followupId = String(url.searchParams.get("followupId") || "").trim();
-
-    if (
-      url.origin !== self.location.origin ||
-      url.pathname !== DEFAULT_DOCTOR_NOTIFICATION_URL ||
-      url.hash ||
-      keys.length !== 2 ||
-      !keys.includes("escalation") ||
-      !keys.includes("followupId") ||
-      !DOCTOR_FOLLOWUP_ESCALATIONS.has(escalation) ||
-      !UUID_PATTERN.test(followupId)
-    ) {
-      return DEFAULT_DOCTOR_NOTIFICATION_URL;
-    }
-
-    const safeParams = new URLSearchParams({ escalation, followupId });
-    return `${DEFAULT_DOCTOR_NOTIFICATION_URL}?${safeParams.toString()}`;
-  } catch {
-    return DEFAULT_DOCTOR_NOTIFICATION_URL;
-  }
-}
-
 function getSafeNotificationPayload(payload) {
   const data = payload && typeof payload === "object" ? payload : {};
-  const audience = data.audience === "doctor" ? "doctor" : "patient";
-  const targetUrl = audience === "doctor"
-    ? getAllowedDoctorNotificationUrl(data.url)
-    : getAllowedPatientNotificationUrl(
-        data.type === "medication_reminder"
-          ? "/patient/reminders/medications"
-          : data.url
-      );
+  const targetUrl = getAllowedPatientNotificationUrl(
+    data.type === "medication_reminder"
+      ? "/patient/reminders/medications"
+      : data.url
+  );
   const notificationId =
     typeof data.notificationId === "string"
       ? data.notificationId.trim().slice(0, 128)
@@ -126,7 +82,7 @@ function getSafeNotificationPayload(payload) {
     typeof data.tag === "string" ? data.tag.trim().slice(0, 128) : "";
 
   return {
-    audience,
+    audience: "patient",
     notificationId,
     title: getSafeNotificationText(data.title, "Maternal Care", 80),
     body: getSafeNotificationText(
@@ -137,7 +93,7 @@ function getSafeNotificationPayload(payload) {
     url: targetUrl,
     tag:
       suppliedTag ||
-      `${audience}-notification-${notificationId || `${Date.now()}-${Math.random()}`}`,
+      `patient-notification-${notificationId || `${Date.now()}-${Math.random()}`}`,
   };
 }
 
@@ -245,12 +201,16 @@ self.addEventListener("message", (event) => {
     return;
   }
 
+  if (event.data.payload?.audience === "doctor") {
+    return;
+  }
+
   const payload = getSafeNotificationPayload(event.data.payload);
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/icons/icon-192.png",
-      badge: "/favicon.svg",
+      icon: "/icons/maternal-care-icon-192.png",
+      badge: "/icons/maternal-care-icon-192.png",
       tag: payload.tag,
       data: {
         audience: payload.audience,
@@ -272,12 +232,16 @@ self.addEventListener("push", (event) => {
     }
   }
 
+  if (rawPayload?.audience === "doctor") {
+    return;
+  }
+
   const payload = getSafeNotificationPayload(rawPayload);
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/icons/icon-192.png",
-      badge: "/favicon.svg",
+      icon: "/icons/maternal-care-icon-192.png",
+      badge: "/icons/maternal-care-icon-192.png",
       tag: payload.tag,
       data: {
         audience: payload.audience,
@@ -290,13 +254,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const audience = event.notification.data?.audience === "doctor"
-    ? "doctor"
-    : "patient";
-  const targetUrl = audience === "doctor"
-    ? getAllowedDoctorNotificationUrl(event.notification.data?.url)
-    : getAllowedPatientNotificationUrl(event.notification.data?.url);
-  const clientPathPrefix = audience === "doctor" ? "/doctor/" : "/patient/";
+  const targetUrl = getAllowedPatientNotificationUrl(event.notification.data?.url);
 
   event.waitUntil(
     self.clients
@@ -307,7 +265,7 @@ self.addEventListener("notificationclick", (event) => {
             const url = new URL(client.url);
             return (
               url.origin === self.location.origin &&
-              url.pathname.startsWith(clientPathPrefix)
+              url.pathname.startsWith("/patient/")
             );
           } catch {
             return false;

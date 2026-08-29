@@ -12,7 +12,6 @@ const navGroups = [
     items: [
       { label: "User Management", icon: "solar:users-group-rounded-bold", path: "/admin/user-management" },
       { label: "Appointment Overview", icon: "solar:calendar-mark-linear", path: "/admin/appointment-overview" },
-      { label: "Medication Follow-ups", icon: "solar:clipboard-heart-linear", path: "/admin/follow-ups" },
     ],
   },
   {

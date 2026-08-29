@@ -7,6 +7,12 @@ import {
   getAppointmentStart,
   parseAppointmentTimestamp,
 } from "../lib/appointmentDate";
+import {
+  getLatestCompletedClinicalValue,
+  isCompletedClinicalVisitRecord,
+  isMeaningfulClinicalValue,
+  normalizeClinicalVisitFormData,
+} from "../lib/clinicalVisitData";
 
 const emptyOverview = {
   latestVitalSigns: null,
@@ -29,9 +35,7 @@ function displayValue(value) {
 }
 
 function getFormData(record) {
-  return record?.form_data && typeof record.form_data === "object"
-    ? record.form_data
-    : {};
+  return normalizeClinicalVisitFormData(record);
 }
 
 function normalizeList(value) {
@@ -370,10 +374,18 @@ function weeksFromLmp(value) {
   return Number.isFinite(weeks) ? Math.max(0, Math.min(40, weeks)) : null;
 }
 
-function makePregnancyProgress(patient, latestVitalSignsRecord) {
-  const formData = getFormData(latestVitalSignsRecord);
+function makePregnancyProgress(patient, records) {
+  const pregnancyRecord = records.find((record) => {
+    const formData = getFormData(record);
+    return [
+      fieldValue(formData, ["gestationalAge"], ["Gestational Age"]),
+      fieldValue(formData, ["expectedDeliveryDate"], ["Expected Delivery Date"]),
+      fieldValue(formData, ["lastMenstrualPeriod", "lmp"], ["Last Menstrual Period"]),
+    ].some(isMeaningfulClinicalValue);
+  }) || null;
+  const formData = getFormData(pregnancyRecord);
   const patientWeeks = parseWeeks(patient?.gestational_age);
-  const formWeeks = parseClinicalWeeks(latestVitalSignsRecord);
+  const formWeeks = parseClinicalWeeks(pregnancyRecord);
   const eddWeeks = weeksFromEdd(
     patient?.expected_delivery_date || formData.expectedDeliveryDate
   );
@@ -381,6 +393,10 @@ function makePregnancyProgress(patient, latestVitalSignsRecord) {
     patient?.last_menstrual_period || formData.lastMenstrualPeriod || formData.lmp
   );
   const weeks = eddWeeks ?? lmpWeeks ?? formWeeks ?? patientWeeks;
+  const fetalHeartRate = getLatestCompletedClinicalValue(records, "fetalHeartRate");
+  const fundalHeight = getLatestCompletedClinicalValue(records, "fundalHeight");
+  const babyPosition = getLatestCompletedClinicalValue(records, "babyPosition");
+  const fetalMovement = getLatestCompletedClinicalValue(records, "fetalMovement");
 
   return {
     weeks,
@@ -389,30 +405,30 @@ function makePregnancyProgress(patient, latestVitalSignsRecord) {
       {
         icon: "ph:heartbeat",
         title: "Fetal Heart rate",
-        value: withUnit(fieldValue(formData, ["fetalHeartRate"], ["Fetal Heart Rate"]), "bpm"),
-        date: latestVitalSignsRecord ? formatRecordDateTime(latestVitalSignsRecord) : "",
+        value: withUnit(fetalHeartRate.value, "bpm"),
+        date: fetalHeartRate.record ? formatRecordDateTime(fetalHeartRate.record) : "",
         className: "purple",
       },
       {
         icon: "solar:ruler-broken",
         title: "Fundal Height",
-        value: withUnit(fieldValue(formData, ["fundalHeight"], ["Fundal Height"]), "cm"),
-        date: latestVitalSignsRecord ? formatRecordDateTime(latestVitalSignsRecord) : "",
+        value: withUnit(fundalHeight.value, "cm"),
+        date: fundalHeight.record ? formatRecordDateTime(fundalHeight.record) : "",
         className: "pink",
       },
       {
         icon: "glyphs:baby-outline",
         title: "Baby Position",
-        value: displayValue(fieldValue(formData, ["presentation", "fetalPosition"], ["Presentation", "Fetal Position"])),
-        date: latestVitalSignsRecord ? formatRecordDateTime(latestVitalSignsRecord) : "",
+        value: displayValue(babyPosition.value),
+        date: babyPosition.record ? formatRecordDateTime(babyPosition.record) : "",
         className: "yellow",
         iconClass: "mr-baby-position-icon",
       },
       {
         icon: "icon-park-outline:baby-feet",
         title: "Movement",
-        value: displayValue(fieldValue(formData, ["movement", "fetalMovement"], ["Movement", "Fetal Movement"])),
-        date: latestVitalSignsRecord ? formatRecordDateTime(latestVitalSignsRecord) : "",
+        value: displayValue(fetalMovement.value),
+        date: fetalMovement.record ? formatRecordDateTime(fetalMovement.record) : "",
         className: "green",
       },
     ],
@@ -420,20 +436,17 @@ function makePregnancyProgress(patient, latestVitalSignsRecord) {
 }
 
 function buildOverview({ patient, records, schedules, profileMap }) {
-  const sortedRecords = [...records].sort((first, second) => {
+  const sortedRecords = records.filter(isCompletedClinicalVisitRecord).sort((first, second) => {
     const firstTime = getRecordTimestamp(first)?.getTime() ?? 0;
     const secondTime = getRecordTimestamp(second)?.getTime() ?? 0;
     return secondTime - firstTime;
   });
-  const latestVitalSignsRecord =
-    sortedRecords.find((record) => makeVitalSigns([record])) || null;
-
   return {
     latestVitalSigns: makeVitalSigns(sortedRecords),
     nextAppointment: makeNextAppointment(schedules, profileMap),
     lastVisit: makeLastVisit(sortedRecords, schedules, profileMap),
     latestNotes: makeLatestNotes(sortedRecords),
-    pregnancyProgress: makePregnancyProgress(patient, latestVitalSignsRecord),
+    pregnancyProgress: makePregnancyProgress(patient, sortedRecords),
   };
 }
 

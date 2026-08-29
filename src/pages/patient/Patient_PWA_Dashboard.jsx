@@ -10,6 +10,7 @@ import {
   getStoredHealthTips,
   patientMatchesValue,
 } from "../../lib/patientData";
+import { usePatientPregnancyTracking } from "../../hooks/usePatientPregnancyTracking";
 import "../../styles/patient-PWA-dashboard.css";
 
 const pregnancyMilestones = {
@@ -36,6 +37,21 @@ function parseDisplayDate(value) {
   if (!value || value === "Not provided") return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatExpectedDeliveryDate(value) {
+  if (!value) return "Not provided";
+
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function addDays(date, amount) {
@@ -109,8 +125,23 @@ function dedupeHealthTips(tips) {
 }
 
 export default function PatientPWADashboard({ profile, onNavigate }) {
-  const currentWeek = toPregnancyWeek(profile.pregnancyWeek);
-  const journeyWeeks = useMemo(() => buildJourneyWeeks(profile), [profile]);
+  const pregnancyState = usePatientPregnancyTracking(profile.recordId);
+  const tracking = pregnancyState.tracking;
+  const isPregnancyLoading = pregnancyState.status === "loading";
+  const hasPregnancy = pregnancyState.status === "ready" && tracking?.hasCurrentPregnancy;
+  const currentWeek = hasPregnancy ? tracking.week : null;
+  const journeyProfile = useMemo(
+    () => ({
+      ...profile,
+      pregnancyWeek: currentWeek ?? "",
+      dueDate: tracking?.expectedDeliveryDate || "",
+    }),
+    [currentWeek, profile, tracking?.expectedDeliveryDate]
+  );
+  const journeyWeeks = useMemo(
+    () => (hasPregnancy ? buildJourneyWeeks(journeyProfile) : []),
+    [hasPregnancy, journeyProfile]
+  );
   const [selectedWeek, setSelectedWeek] = useState("");
   const [healthTips, setHealthTips] = useState(() =>
     getStoredHealthTips({ includeDefaults: false })
@@ -216,12 +247,25 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
         <div className="pwa-hero-copy">
           <span className="pwa-hero-eyebrow">Pregnancy overview</span>
           <h2>Welcome back, {profile.displayName || "Patient"}!</h2>
-          {currentWeek ? (
+          {isPregnancyLoading ? (
+            <div className="pwa-pregnancy-loading" role="status" aria-live="polite">
+              <p>Loading your pregnancy journey...</p>
+              <span aria-hidden="true" />
+            </div>
+          ) : currentWeek !== null ? (
             <>
               <p>You&apos;re on your</p>
               <strong>
                 <span>{getOrdinalWeek(currentWeek)} week</span> of pregnancy.
               </strong>
+            </>
+          ) : pregnancyState.status === "error" ? (
+            <>
+              <p>Your pregnancy overview</p>
+              <strong className="pwa-hero-week-missing">could not be loaded.</strong>
+              <small className="pwa-hero-helper">
+                Please check your connection and try again below.
+              </small>
             </>
           ) : (
             <>
@@ -241,6 +285,46 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
           <span className="pwa-hero-person pwa-hero-nurse">🧑‍⚕️</span>
         </div>
       </section>
+
+      {hasPregnancy ? (
+        <section className="pwa-pregnancy-summary" aria-label="Current pregnancy summary">
+          <div className="pwa-pregnancy-summary-grid">
+            <div>
+              <span>Current week</span>
+              <strong>Week {currentWeek}</strong>
+              {tracking.pregnancyNumber ? <small>{tracking.pregnancyNumber}</small> : null}
+            </div>
+            <div>
+              <span>Trimester</span>
+              <strong>{tracking.trimester?.label || "Not provided"}</strong>
+            </div>
+            <div>
+              <span>Time remaining</span>
+              <strong>{tracking.weeksRemaining} weeks to go</strong>
+            </div>
+            <div>
+              <span>Expected delivery</span>
+              <strong>{formatExpectedDeliveryDate(tracking.expectedDeliveryDate)}</strong>
+            </div>
+          </div>
+          <div className="pwa-pregnancy-progress">
+            <div>
+              <span>Pregnancy progress</span>
+              <strong>{tracking.progressPercent}%</strong>
+            </div>
+            <span
+              className="pwa-pregnancy-progress-track"
+              role="progressbar"
+              aria-label="Pregnancy progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={tracking.progressPercent}
+            >
+              <i style={{ width: `${tracking.progressPercent}%` }} />
+            </span>
+          </div>
+        </section>
+      ) : null}
 
       <section className="pwa-dashboard-shortcuts" aria-labelledby="pwa-quick-access-title">
         <PatientSectionHeader
@@ -274,10 +358,28 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
         <PatientSectionHeader
           id="pwa-journey-title"
           title="Your pregnancy journey"
-          subtitle={currentWeek ? `You are currently in week ${currentWeek}.` : "Weekly milestones will appear here."}
+          subtitle={
+            isPregnancyLoading
+              ? "Loading your current pregnancy information."
+              : currentWeek !== null
+                ? `You are currently in week ${currentWeek}, ${tracking.trimester?.label}.`
+                : pregnancyState.status === "error"
+                  ? "Your pregnancy information could not be loaded."
+                  : "Weekly milestones will appear here."
+          }
         />
 
-        {journeyWeeks.length ? (
+        {isPregnancyLoading ? (
+          <div className="pwa-empty-card pwa-journey-empty pwa-journey-loading" role="status">
+            <span aria-hidden="true">
+              <Icon icon="solar:refresh-circle-bold-duotone" />
+            </span>
+            <div>
+              <h2>Loading your pregnancy journey</h2>
+              <p>We&apos;re getting your latest pregnancy information from the clinic.</p>
+            </div>
+          </div>
+        ) : journeyWeeks.length ? (
           <div className="pwa-journey-carousel">
           <button
             type="button"
@@ -320,6 +422,17 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
           >
             <Icon icon="solar:alt-arrow-right-linear" />
           </button>
+          </div>
+        ) : pregnancyState.status === "error" ? (
+          <div className="pwa-empty-card pwa-journey-empty pwa-journey-error" role="alert">
+            <span aria-hidden="true">
+              <Icon icon="solar:danger-triangle-bold-duotone" />
+            </span>
+            <div>
+              <h2>Pregnancy journey could not be loaded</h2>
+              <p>Please check your connection and try again.</p>
+              <button type="button" onClick={pregnancyState.refresh}>Try Again</button>
+            </div>
           </div>
         ) : (
           <div className="pwa-empty-card pwa-journey-empty" role="status">

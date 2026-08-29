@@ -5128,3 +5128,221 @@ body:has(.appointment-modal-overlay) {
   background: #fff0f6 !important;
   color: #d91969 !important;
 }
+
+
+/* ============================================================
+   RESCHEDULE APPOINTMENT — CUSTOM TIME PICKER
+   Keeps the existing Figma modal + Save/Cancel design while
+   replacing the browser-native time popup with an inline picker.
+   ============================================================ */
+
+.doctor-reschedule-time-field {
+  width: 100%;
+  display: grid;
+  gap: 9px;
+}
+
+.doctor-reschedule-time-label {
+  color: #273244;
+  font-family: "Poppins", sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-trigger {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #d5d9e3;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #293244;
+  cursor: pointer;
+  padding: 0 12px 0 16px;
+  text-align: left;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-trigger:hover,
+.doctor-appointment-reschedule-card .doctor-reschedule-time-trigger:focus-visible,
+.doctor-appointment-reschedule-card .doctor-reschedule-time-trigger[aria-expanded="true"] {
+  border-color: #fa2f7a;
+  box-shadow: 0 0 0 3px rgba(250, 47, 122, 0.10);
+  outline: 0;
+}
+
+.doctor-reschedule-time-value {
+  min-width: 0;
+  color: #293244;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.doctor-reschedule-time-value.is-placeholder {
+  color: #8d95a4;
+  font-weight: 400;
+}
+
+.doctor-reschedule-time-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-left: 1px solid #e4e7ee;
+  color: #fa2f7a;
+  padding-left: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.doctor-reschedule-time-action .doctor-appt-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.doctor-reschedule-time-picker {
+  width: 100%;
+  display: grid;
+  gap: 14px;
+  border: 1px solid #f0c5d7;
+  border-radius: 13px;
+  background: #fff8fb;
+  box-shadow: 0 12px 30px rgba(34, 40, 55, 0.08);
+  padding: 14px;
+  animation: appointment-modal-in 150ms ease both;
+}
+
+.doctor-reschedule-time-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-picker label {
+  display: grid !important;
+  gap: 6px !important;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-picker label > span {
+  color: #626b7b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-picker select {
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  border: 1px solid #d7dbe5;
+  border-radius: 9px;
+  outline: 0;
+  background: #ffffff;
+  color: #293244;
+  font-family: "Poppins", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 9px;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-picker select:focus {
+  border-color: #fa2f7a;
+  box-shadow: 0 0 0 3px rgba(250, 47, 122, 0.10);
+}
+
+.doctor-reschedule-time-picker-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-set {
+  min-width: 104px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: #fa2f7a;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 16px;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-set:hover {
+  background: #f72576;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-close {
+  min-width: 0;
+  min-height: 38px;
+  border: 0;
+  background: transparent;
+  color: #7a8494;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 6px;
+}
+
+.doctor-appointment-reschedule-card .doctor-reschedule-time-close:hover {
+  color: #fa2f7a;
+}
+
+@media (max-width: 640px) {
+  .doctor-appointment-reschedule-card .doctor-reschedule-time-trigger {
+    min-height: 46px;
+    padding-left: 14px;
+    padding-right: 10px;
+  }
+
+  .doctor-reschedule-time-value {
+    font-size: 14px;
+  }
+
+  .doctor-reschedule-time-action {
+    font-size: 11px;
+    padding-left: 9px;
+  }
+
+  .doctor-reschedule-time-picker {
+    padding: 12px;
+  }
+
+  .doctor-reschedule-time-picker-grid {
+    gap: 8px;
+  }
+
+  .doctor-appointment-reschedule-card .doctor-reschedule-time-picker select {
+    height: 40px;
+    min-height: 40px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .doctor-reschedule-time-action {
+    font-size: 0;
+  }
+
+  .doctor-reschedule-time-action .doctor-appt-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .doctor-reschedule-time-picker-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .doctor-reschedule-time-picker-grid label:last-child {
+    grid-column: 1 / -1;
+  }
+}

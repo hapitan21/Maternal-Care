@@ -6,26 +6,10 @@ import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
 import { usePatientAppointments } from "../../hooks/usePatientAppointments";
 import { usePatientMedicalOverview } from "../../hooks/usePatientMedicalOverview";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
-import MedicationAdherenceFollowupModal, {
-  MedicationAdherencePreviousFollowups,
-} from "../../components/doctor/MedicationAdherenceFollowupModal";
 import MedicationAdherenceTrendCharts from "../../components/doctor/MedicationAdherenceTrendCharts";
 import MedicationAdherencePrintableReport from "../../components/reports/MedicationAdherencePrintableReport";
 import "../../styles/patient-record-ui-system.css";
 import "../../styles/clinical-workflow-ui-system.css";
-import {
-  addMedicationAdherenceFollowupEvent,
-  loadPatientMedicationAdherenceFollowups,
-} from "../../lib/medicationAdherenceFollowupApi";
-import {
-  canTransitionMedicationAdherenceFollowup,
-  formatMedicationFollowupDate,
-  formatMedicationFollowupDateTime,
-  formatMedicationFollowupStatus,
-  getMedicationFollowupDueState,
-  getMedicationFollowupNotificationId,
-  isActiveMedicationAdherenceFollowup,
-} from "../../lib/medicationAdherenceFollowups";
 import {
   MEDICATION_ADHERENCE_NOTIFICATION_DRAFT,
   calculateMedicationAdherenceAlert,
@@ -53,6 +37,12 @@ import {
   getManilaDateKey,
   toManilaISOString,
 } from "../../lib/appointmentDate";
+import { resolvePregnancyWeek } from "../../lib/pregnancyTracking";
+import {
+  isCompletedClinicalVisitRecord,
+  isMeaningfulClinicalValue,
+  normalizeClinicalVisitFormData,
+} from "../../lib/clinicalVisitData";
 import "../../styles/medical_records.css";
 
 const patientSelectColumns =
@@ -167,26 +157,6 @@ function parseNumericValue(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function parsePregnancyWeek(value) {
-  const weeks = parseNumericValue(value);
-  if (weeks === null || weeks < 0 || weeks > 42) return null;
-  return Math.round(weeks);
-}
-
-function calculateWeeksFromLmp(value) {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return null;
-  const weeks = Math.floor((Date.now() - date.getTime()) / 604800000);
-  return weeks >= 0 && weeks <= 42 ? weeks : null;
-}
-
-function calculateWeeksFromEdd(value) {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return null;
-  const weeks = 40 - Math.floor((date.getTime() - Date.now()) / 604800000);
-  return weeks >= 0 && weeks <= 42 ? weeks : null;
-}
-
 function parseDateValue(value) {
   if (!value) return null;
   const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
@@ -225,13 +195,13 @@ function getLatestRecordValue(records, fields) {
   for (const record of records) {
     for (const field of fields) {
       const fromRecord = cleanRecordValue(record?.[field]);
-      if (fromRecord) return fromRecord;
+      if (isMeaningfulClinicalValue(fromRecord)) return fromRecord;
     }
 
     for (const [label, value] of record?.findings || []) {
       if (fields.some((field) => normalizeLabelText(field) === normalizeLabelText(label))) {
         const clean = cleanRecordValue(value);
-        if (clean) return clean;
+        if (isMeaningfulClinicalValue(clean)) return clean;
       }
     }
   }
@@ -244,12 +214,16 @@ function normalizeLabelText(value) {
 }
 
 function getPregnancyWeek(patient, obstetric, records = []) {
-  return (
-    calculateWeeksFromEdd(obstetric?.expected_delivery_date || patient?.expected_delivery_date) ??
-    calculateWeeksFromLmp(obstetric?.last_menstrual_period) ??
-    parsePregnancyWeek(getLatestRecordValue(records, ["gestationalAge", "Gestational Age"])) ??
-    parsePregnancyWeek(patient?.gestational_age)
-  );
+  return resolvePregnancyWeek({
+    expectedDeliveryDate:
+      obstetric?.expected_delivery_date || patient?.expected_delivery_date,
+    lastMenstrualPeriod: obstetric?.last_menstrual_period,
+    clinicalGestationalAge: getLatestRecordValue(records, [
+      "gestationalAge",
+      "Gestational Age",
+    ]),
+    storedGestationalAge: patient?.gestational_age,
+  });
 }
 
 function formatPregnancyWeek(patient, obstetric, records = []) {
@@ -301,14 +275,7 @@ function normalizeRecordAttachment(attachment) {
 }
 
 function getRecordFormData(row) {
-  if (!row?.form_data) return {};
-  if (typeof row.form_data === "object") return row.form_data;
-  try {
-    const parsed = JSON.parse(row.form_data);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+  return normalizeClinicalVisitFormData(row);
 }
 
 function getFirstRecordValue(...values) {
@@ -367,7 +334,7 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
     : "";
   const clinicalFindings =
     getFirstRecordValue(formData.clinicalFindings, formData.clinical_findings) || {};
-  const pregnancyStatus =
+  const pregnancyDetails =
     getFirstRecordValue(formData.pregnancyStatus, formData.pregnancy_status) || {};
   const visitInformation =
     getFirstRecordValue(formData.visitInformation, formData.visit_information) || {};
@@ -388,7 +355,7 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
         ["Fetal Heart Rate", getClinicalValue(clinicalFindings, "fetalHeartRate", "fetal_heart_rate", formData), "bpm"],
         ["Fundal Height", getClinicalValue(clinicalFindings, "fundalHeight", "fundal_height", formData), "cm"],
         ["Estimated Fetal Weight", getClinicalValue(clinicalFindings, "estimatedFetalWeight", "estimated_fetal_weight", formData), "g"],
-        ["Baby Position", getFirstRecordValue(clinicalFindings.fetalPosition, clinicalFindings.fetal_position, formData.presentation, formData.fetalPosition, formData.fetal_position), ""],
+        ["Baby Position", getFirstRecordValue(formData.babyPosition, clinicalFindings.babyPosition, clinicalFindings.baby_position, clinicalFindings.fetalPosition, clinicalFindings.fetal_position), ""],
         ["Fetal Movement", getClinicalValue(clinicalFindings, "fetalMovement", "fetal_movement", formData), ""],
         ["Additional Findings", getFirstRecordValue(clinicalFindings.additionalFindings, clinicalFindings.additional_findings, formData.additionalFindings, formData.additional_findings), ""],
       ].filter(([label, value]) =>
@@ -416,8 +383,8 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
   const visitGestationalAge = getFirstRecordValue(
     formData.gestationalAge,
     formData.gestational_age,
-    pregnancyStatus.gestationalAge,
-    pregnancyStatus.gestational_age,
+    pregnancyDetails.gestationalAge,
+    pregnancyDetails.gestational_age,
     visitInformation.gestationalAge,
     visitInformation.gestational_age
   );
@@ -447,6 +414,7 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
       : "Not recorded"),
     visitType,
     gestationalAge: visitGestationalAge || patient?.gestational_age || "Not recorded",
+    riskLevel: formData.riskLevel || "Not recorded",
     visitGestationalAge,
     visitDateValue: validVisitDate ? validVisitDate.toISOString() : "",
     doctor: linkedDoctorName || formData.doctor || formData.attendingPhysician || formData.attending_physician || row.uploaded_by || "Doctor not recorded",
@@ -480,9 +448,9 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
             : [item?.label || item?.name || "Information", item?.value || "Not recorded"]
         )
       : [
-          ["Gestational Age", pregnancyStatus.gestationalAge || pregnancyStatus.gestational_age || formData.gestationalAge || formData.gestational_age || "Not recorded"],
-          ["Pregnancy Risk", pregnancyStatus.riskLevel || pregnancyStatus.risk_level || cleanRecordValue(formData.pregnancyStatus) || "Not recorded"],
-          ["Expected Delivery Date", pregnancyStatus.expectedDeliveryDate || pregnancyStatus.expected_delivery_date || formData.expectedDeliveryDate || formData.expected_delivery_date || "Not recorded"],
+          ["Gestational Age", pregnancyDetails.gestationalAge || pregnancyDetails.gestational_age || formData.gestationalAge || "Not recorded"],
+          ["Risk Level", formData.riskLevel || pregnancyDetails.riskLevel || pregnancyDetails.risk_level || "Not recorded"],
+          ["Expected Delivery Date", pregnancyDetails.expectedDeliveryDate || pregnancyDetails.expected_delivery_date || formData.expectedDeliveryDate || "Not recorded"],
           ["Follow-up Date", formData.followUpDate || "Not recorded"],
         ],
     diagnosis: getFirstRecordValue(formData.diagnosis, row.title, row.type) || "Medical Record",
@@ -1326,7 +1294,7 @@ function buildPrenatalData(patient, patientRelated, records) {
       ],
       [
         ["Pregnancy Number", currentPregnancyLabel],
-        ["Risk Classification", buildRiskBadge(patient?.risk_level)],
+        ["Risk Level", buildRiskBadge(patient?.risk_level || getLatestRecordValue(records, ["riskLevel", "Risk Level"]))],
       ],
     ],
     conditions,
@@ -1953,9 +1921,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
   const [loadError, setLoadError] = React.useState(false);
   const [trendLoadError, setTrendLoadError] = React.useState(false);
   const [alertLoadError, setAlertLoadError] = React.useState(false);
-  const [followups, setFollowups] = React.useState([]);
-  const [followupStatus, setFollowupStatus] = React.useState("loading");
-  const [followupModal, setFollowupModal] = React.useState(null);
   const [reportAction, setReportAction] = React.useState("");
   const [reportFeedback, setReportFeedback] = React.useState({
     message: "",
@@ -1991,11 +1956,9 @@ function MedicationAdherencePanel({ patient, doctorName }) {
       setOccurrences([]);
       setTrendOccurrences([]);
       setAlertOccurrences([]);
-      setFollowups([]);
       setLoadError(false);
       setTrendLoadError(false);
       setAlertLoadError(false);
-      setFollowupStatus("ready");
       return;
     }
 
@@ -2003,11 +1966,10 @@ function MedicationAdherencePanel({ patient, doctorName }) {
     setLoadError(false);
     setTrendLoadError(false);
     setAlertLoadError(false);
-    setFollowupStatus("loading");
     const alertDateRange = getMedicationAdherenceAlertDateRange();
     const nowIso = new Date().toISOString();
 
-    const [reminderResult, occurrenceResult, alertOccurrenceResult, followupResult] = await Promise.all([
+    const [reminderResult, occurrenceResult, alertOccurrenceResult] = await Promise.all([
       supabase
         .from("medication_reminders")
         .select(
@@ -2059,9 +2021,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
         .lte("scheduled_for", nowIso)
         .in("status", ["taken", "skipped", "missed"])
         .order("scheduled_for", { ascending: true }),
-      loadPatientMedicationAdherenceFollowups(patientId)
-        .then((data) => ({ data, error: null }))
-        .catch((error) => ({ data: [], error })),
     ]);
 
     setIsLoading(false);
@@ -2104,13 +2063,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
       setAlertOccurrences(alertOccurrenceResult.data || []);
     }
 
-    if (followupResult.error) {
-      setFollowups([]);
-      setFollowupStatus("error");
-    } else {
-      setFollowups(followupResult.data || []);
-      setFollowupStatus("ready");
-    }
   }, [
     dateRange.endDate,
     dateRange.endIso,
@@ -2204,23 +2156,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
     return calculateMedicationAdherenceAlert(alertOccurrences);
   }, [alertOccurrences, patient]);
   const adherenceAlert = liveAdherence?.shouldAlert ? liveAdherence : null;
-  const activeFollowup = React.useMemo(
-    () => followups.find(isActiveMedicationAdherenceFollowup) || null,
-    [followups]
-  );
-  const followupDueState = getMedicationFollowupDueState(activeFollowup);
-
-  const recordNotificationEvent = async (notification) => {
-    if (!activeFollowup?.id) return;
-    const notificationId = getMedicationFollowupNotificationId(notification);
-    if (!notificationId) throw new Error("Notification identifier was not returned.");
-    await addMedicationAdherenceFollowupEvent({
-      followupId: activeFollowup.id,
-      eventType: "notification_sent",
-      relatedNotificationId: notificationId,
-    });
-    await loadAdherenceRecords();
-  };
 
   const filteredRows = React.useMemo(() => {
     if (statusFilter === "All") {
@@ -2464,7 +2399,7 @@ function MedicationAdherencePanel({ patient, doctorName }) {
           <div className="mr-adherence-alert-content">
             <span className="mr-adherence-alert-label">
               {adherenceAlert.severity === "critical"
-                ? "Critical Medication Follow-up"
+                ? "Critical Medication Adherence Alert"
                 : `${adherenceAlert.severityLabel} Medication Adherence Alert`}
             </span>
             <small>Based on the last 7 days</small>
@@ -2483,16 +2418,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
             </div>
           </div>
           <div className="mr-adherence-alert-actions">
-            {!activeFollowup && followupStatus === "ready" ? (
-              <button
-                type="button"
-                className="mr-adherence-alert-followup"
-                onClick={() => setFollowupModal({ followup: null, initialAction: "" })}
-              >
-                <Icon icon="solar:clipboard-add-linear" aria-hidden="true" />
-                Start Follow-up
-              </button>
-            ) : null}
             <SendPatientNotificationAction
               patientId={patient.id}
               patientName={patient.full_name}
@@ -2501,7 +2426,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
               defaultMessage={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.message}
               defaultPriority={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.priority}
               className="mr-adherence-alert-notification"
-              onSent={activeFollowup ? recordNotificationEvent : null}
             />
             <button
               type="button"
@@ -2514,95 +2438,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
             </button>
           </div>
         </section>
-      ) : null}
-
-      {followupStatus === "error" ? (
-        <div className="mr-adherence-alert-load-error" role="alert">
-          <span>Medication adherence follow-up could not be loaded.</span>
-          <button type="button" onClick={loadAdherenceRecords}>Retry</button>
-        </div>
-      ) : followupStatus === "loading" && !followups.length ? (
-        <div className="mr-followup-status-card" aria-label="Loading medication adherence follow-up">
-          Loading medication adherence follow-up...
-        </div>
-      ) : activeFollowup ? (
-        <section className="mr-followup-status-card" aria-labelledby="mr-followup-status-title">
-          <header>
-            <div>
-              <h3 id="mr-followup-status-title">Medication Follow-up</h3>
-              <p>Doctor-managed operational follow-up for this Patient.</p>
-            </div>
-            <strong className={`maf-status is-${activeFollowup.status}`}>
-              {formatMedicationFollowupStatus(activeFollowup.status)}
-            </strong>
-          </header>
-
-          {liveAdherence?.severity === "normal" ? (
-            <p className="maf-improved">
-              Adherence has improved. Doctor review is still required before resolving this follow-up.
-            </p>
-          ) : null}
-
-          <div className="mr-followup-status-details">
-            <div>
-              <span>Started</span>
-              <strong>{formatMedicationFollowupDate(activeFollowup.created_at)}</strong>
-            </div>
-            <div>
-              <span>Last Contact</span>
-              <strong>{formatMedicationFollowupDateTime(activeFollowup.last_contacted_at, "Not recorded")}</strong>
-            </div>
-            <div>
-              <span>Next Follow-up</span>
-              <strong>{formatMedicationFollowupDateTime(activeFollowup.next_follow_up_at)}</strong>
-            </div>
-            <div>
-              <span>Assigned Doctor</span>
-              <strong>
-                {(Array.isArray(activeFollowup.assigned_doctor)
-                  ? activeFollowup.assigned_doctor[0]
-                  : activeFollowup.assigned_doctor)?.full_name || "Assigned Doctor"}
-              </strong>
-            </div>
-          </div>
-
-          {followupDueState === "overdue" || followupDueState === "today" ? (
-            <p className="doctor-medication-followup-due">
-              {followupDueState === "overdue" ? "Follow-up overdue" : "Follow-up due today"}
-            </p>
-          ) : null}
-
-          <div className="mr-followup-status-actions">
-            <button type="button" onClick={() => setFollowupModal({ followup: activeFollowup, initialAction: "" })}>
-              <Icon icon="solar:folder-open-linear" /> Open Follow-up
-            </button>
-            <button type="button" onClick={() => setFollowupModal({ followup: activeFollowup, initialAction: "note" })}>
-              <Icon icon="solar:notes-linear" /> Add Note
-            </button>
-            <SendPatientNotificationAction
-              patientId={patient.id}
-              patientName={patient.full_name}
-              defaultType={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.type}
-              defaultTitle={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.title}
-              defaultMessage={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.message}
-              defaultPriority={MEDICATION_ADHERENCE_NOTIFICATION_DRAFT.priority}
-              outline
-              onSent={recordNotificationEvent}
-            />
-            {canTransitionMedicationAdherenceFollowup(activeFollowup.status, "resolved") ? (
-              <button type="button" onClick={() => setFollowupModal({ followup: activeFollowup, initialAction: "resolve" })}>
-                <Icon icon="solar:check-circle-linear" /> Resolve
-              </button>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-
-      {followupStatus === "ready" ? (
-        <MedicationAdherencePreviousFollowups
-          followups={followups}
-          onView={(followup) => setFollowupModal({ followup, initialAction: "" })}
-        />
       ) : null}
 
       <section className="mr-appointment-summary mr-adherence-summary" aria-label="Medication adherence summary">
@@ -2755,17 +2590,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
         </section>
       )}
 
-      {followupModal ? (
-        <MedicationAdherenceFollowupModal
-          patient={patient}
-          liveAlert={liveAdherence}
-          followup={followupModal.followup}
-          initialAction={followupModal.initialAction}
-          onClose={() => setFollowupModal(null)}
-          onChanged={loadAdherenceRecords}
-        />
-      ) : null}
-
       {reportAction === "print" ? (
         <MedicationAdherencePrintableReport
           patient={patient}
@@ -2775,8 +2599,6 @@ function MedicationAdherencePanel({ patient, doctorName }) {
           generatedAt={reportGeneratedAt}
           trendData={trendData}
           historyRows={filteredRows}
-          activeFollowup={activeFollowup}
-          followups={followups}
         />
       ) : null}
     </div>
@@ -2807,7 +2629,9 @@ function buildTrackingDetails(patient, patientRelated, records) {
     trimesterLabel: getTrimesterLabel(week),
     weeksRemaining: week === null ? EMPTY_PATIENT_VALUE : `${Math.max(0, 40 - week)} weeks to go`,
     expectedDeliveryDate: formatPatientDate(obstetric.expected_delivery_date || patient?.expected_delivery_date, EMPTY_PATIENT_VALUE),
-    riskLevel: formatRiskBadge(patient?.risk_level),
+    riskLevel: formatRiskBadge(
+      patient?.risk_level || getLatestRecordValue(records, ["riskLevel", "Risk Level"])
+    ),
     babyDevelopment: [
       ["Estimated Weight", formatWithUnitFromRecord(records, ["Estimated Fetal Weight"], "g")],
       ["Estimated Length", formatWithUnitFromRecord(records, ["Estimated Fetal Length"], "cm")],
@@ -2886,7 +2710,7 @@ function PregnancyTrackingPanel({ patient, patientRelated, records }) {
                 <Icon icon="material-symbols:shield-outline-rounded" />
               </span>
               <span>
-                <small>Pregnancy Status</small>
+                <small>Risk Level</small>
                 <mark>{tracking.riskLevel}</mark>
               </span>
             </div>
@@ -3638,12 +3462,16 @@ export default function Doctor_Medical_Records({
     };
   }, [doctorIds, patient?.id]);
 
+  const completedMedicalRecordRows = React.useMemo(
+    () => medicalRecordRows.filter(isCompletedClinicalVisitRecord),
+    [medicalRecordRows]
+  );
   const medicalRecords = React.useMemo(
     () =>
-      medicalRecordRows
+      completedMedicalRecordRows
         .map((row) => mapSupabaseMedicalRecord(row, patient, doctorProfilesById))
         .sort((first, second) => second.sortTime - first.sortTime),
-    [doctorProfilesById, medicalRecordRows, patient]
+    [completedMedicalRecordRows, doctorProfilesById, patient]
   );
   const resolvedAppointments = React.useMemo(
     () =>
@@ -3668,7 +3496,7 @@ export default function Doctor_Medical_Records({
   const overviewState = usePatientMedicalOverview({
     patientId: patient?.id,
     patient: overviewPatient,
-    records: medicalRecordRows,
+    records: completedMedicalRecordRows,
     schedules: resolvedAppointments,
     doctorProfilesById,
     recordsLoading: visibleRecordsLoading,
@@ -4076,6 +3904,9 @@ export default function Doctor_Medical_Records({
       : `${overviewWeeks} Weeks`;
   const gravida = parseNumericValue(obstetric.gravida);
   const para = parseNumericValue(obstetric.para);
+  const resolvedRiskLevel =
+    cleanRecordValue(patient?.risk_level) ||
+    getLatestRecordValue(medicalRecords, ["riskLevel", "Risk Level"]);
   const pregnancyNumber =
     gravida !== null || para !== null
       ? `G${gravida ?? 0}P${para ?? 0}`
@@ -4235,8 +4066,8 @@ export default function Doctor_Medical_Records({
 
               <div>
                 <strong>Risk Level</strong>
-                <span className={`mr-risk mr-risk--${getRiskTone(patient?.risk_level)}`}>
-                  {formatRiskBadge(patient?.risk_level)}
+                <span className={`mr-risk mr-risk--${getRiskTone(resolvedRiskLevel)}`}>
+                  {formatRiskBadge(resolvedRiskLevel)}
                 </span>
               </div>
             </div>

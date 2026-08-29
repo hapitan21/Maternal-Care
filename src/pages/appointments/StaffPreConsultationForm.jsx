@@ -93,18 +93,118 @@ function createFormDefaults(visitType, appointment) {
   };
 }
 
-function normalizeLoadedForm(visitType, appointment, intake) {
+function parseGestationalAgeToDays(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const match = normalized.match(
+    /^(\d{1,2})(?:\s*(?:weeks?|wks?|wk|w))?(?:\s*(?:and\s*)?(\d{1,2})\s*(?:days?|d))?$/
+  );
+
+  if (!match) return null;
+
+  const weeks = Number(match[1]);
+  const days = Number(match[2] || 0);
+
+  if (
+    !Number.isInteger(weeks) ||
+    weeks < 0 ||
+    weeks > 45 ||
+    !Number.isInteger(days) ||
+    days < 0 ||
+    days > 6
+  ) {
+    return null;
+  }
+
+  return (weeks * 7) + days;
+}
+
+function parseDateKeyToUtc(value) {
+  const normalized = String(value || "").trim();
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+
+  const time = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3])
+  );
+
+  return Number.isFinite(time) ? time : null;
+}
+
+function progressGestationalAge(value, anchorVisitDate, currentVisitDate) {
+  const original = String(value || "").trim();
+  const baselineDays = parseGestationalAgeToDays(original);
+  const anchorTime = parseDateKeyToUtc(anchorVisitDate);
+  const currentTime = parseDateKeyToUtc(currentVisitDate);
+
+  if (
+    baselineDays == null ||
+    anchorTime == null ||
+    currentTime == null ||
+    currentTime <= anchorTime
+  ) {
+    return original;
+  }
+
+  const elapsedDays = Math.floor(
+    (currentTime - anchorTime) / (24 * 60 * 60 * 1000)
+  );
+
+  const totalDays = baselineDays + elapsedDays;
+  const weeks = Math.floor(totalDays / 7);
+  const days = totalDays % 7;
+
+  return days
+    ? `${weeks} weeks ${days} days`
+    : `${weeks} weeks`;
+}
+
+function buildPreviousDoctorVisitDefaults(record, appointment) {
+  // The RPC returns the latest Doctor baseline plus a gestational-age anchor
+  // from the earliest completed Doctor visit that has a valid age/date pair.
+  const currentVisitDate = getManilaDateKey(appointment?.start_time);
+  const gestationalAge = progressGestationalAge(
+    record?.gestational_age_anchor || record?.gestational_age,
+    record?.gestational_age_anchor_date || record?.source_visit_date,
+    currentVisitDate
+  );
+
+  return {
+    gestationalAge: gestationalAge || String(record?.gestational_age || ""),
+    expectedDeliveryDate: String(record?.expected_delivery_date || ""),
+    pregnancyStatus: String(record?.pregnancy_status || ""),
+  };
+}
+
+function normalizeLoadedForm(visitType, appointment, intake, previousRecord = null) {
   const defaults = createFormDefaults(visitType, appointment);
+  const baselineDefaults =
+    visitType === "follow_up"
+      ? buildPreviousDoctorVisitDefaults(previousRecord, appointment)
+      : {};
   const data = intake?.intake_data && typeof intake.intake_data === "object"
     ? intake.intake_data
     : {};
 
-  return {
+  const loaded = {
     ...defaults,
+    ...baselineDefaults,
     ...Object.fromEntries(
-      Object.keys(defaults).map((key) => [key, data[key] ?? defaults[key]])
+      Object.keys(defaults).map((key) => [
+        key,
+        data[key] ?? baselineDefaults[key] ?? defaults[key],
+      ])
     ),
   };
+
+  // Gestational age is a calculated pregnancy timeline value. Recalculate it
+  // from the Doctor anchor even when an older Staff intake saved a stale age.
+  if (visitType === "follow_up" && baselineDefaults.gestationalAge) {
+    loaded.gestationalAge = baselineDefaults.gestationalAge;
+  }
+
+  return loaded;
 }
 
 function trimValue(value) {
@@ -298,6 +398,7 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
   const [appointment, setAppointment] = useState(null);
   const [patient, setPatient] = useState(null);
   const [intake, setIntake] = useState(null);
+  const [previousDoctorRecord, setPreviousDoctorRecord] = useState(null);
   const [form, setForm] = useState(() => ({ ...(isFollowUp ? followUpFields : initialFields) }));
 
   const loadForm = useCallback(async () => {
@@ -349,18 +450,34 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
       return;
     }
 
-    const [patientResult, intakeResult] = await Promise.all([
+    const [patientResult, intakeResult, previousRecordResult] = await Promise.all([
       supabase
         .rpc("get_staff_patient_directory")
         .select(patientColumns)
         .eq("id", schedule.patient_id)
         .maybeSingle(),
       supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
+      isFollowUp
+        ? supabase.rpc("get_staff_followup_baseline", {
+            p_appointment_id: appointmentId,
+          })
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
     if (requestIdRef.current !== requestId) return;
     if (patientResult.error) {
       setError(getErrorMessage(patientResult.error, "The Patient record could not be loaded."));
+      setLoading(false);
+      return;
+    }
+
+    if (previousRecordResult.error) {
+      setError(
+        getErrorMessage(
+          previousRecordResult.error,
+          "Previous Doctor visit baseline could not be loaded for follow-up autofill."
+        )
+      );
       setLoading(false);
       return;
     }
@@ -380,11 +497,18 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
     }
 
     const patientRow = patientResult.data || null;
+    const previousRecord = isFollowUp
+      ? (Array.isArray(previousRecordResult.data)
+          ? previousRecordResult.data[0]
+          : previousRecordResult.data) || null
+      : null;
+
     setRouting(routeResult);
     setAppointment(schedule);
     setPatient(patientRow);
     setIntake(loadedIntake || null);
-    setForm(normalizeLoadedForm(visitType, schedule, loadedIntake));
+    setPreviousDoctorRecord(previousRecord);
+    setForm(normalizeLoadedForm(visitType, schedule, loadedIntake, previousRecord));
     setLoading(false);
   }, [appointmentId, navigate, visitType]);
 
@@ -512,6 +636,11 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
       {intake?.staff_completed_at ? (
         <p className="staff-preconsult-message">
           Saved intake loaded. Saving again updates the Staff intake only while the Doctor record is still open.
+        </p>
+      ) : null}
+      {isFollowUp && !intake?.staff_completed_at && previousDoctorRecord ? (
+        <p className="staff-preconsult-message">
+          Pregnancy baseline was prefilled from the Patient&apos;s latest completed Doctor visit. Record today&apos;s vital signs as new measurements.
         </p>
       ) : null}
 

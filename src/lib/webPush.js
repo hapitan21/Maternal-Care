@@ -10,8 +10,6 @@ export const patientPushStatuses = Object.freeze({
   error: "error",
 });
 
-export const pushStatuses = patientPushStatuses;
-
 const patientServiceWorkerScope = "/patient/";
 const serviceWorkerReadyTimeoutMs = 12000;
 
@@ -102,42 +100,6 @@ export async function getPatientServiceWorkerRegistration() {
   } finally {
     window.clearTimeout(timeoutId);
   }
-}
-
-// Doctor pages are outside the Patient cache scope, so navigator.serviceWorker.ready
-// is not a reliable wait mechanism there. Registering the same script and scope is
-// idempotent and returns the one existing registration when it already exists.
-export async function getMaternalCarePushServiceWorkerRegistration() {
-  if (!("serviceWorker" in navigator)) {
-    throw new Error("Service workers are not supported by this browser.");
-  }
-
-  const existingRegistration =
-    await navigator.serviceWorker.getRegistration(patientServiceWorkerScope);
-  const registration = existingRegistration ||
-    await navigator.serviceWorker.register("/sw.js", {
-      scope: patientServiceWorkerScope,
-    });
-
-  if (registration.active) return registration;
-
-  let timeoutId;
-  let pollId;
-  const activeRegistration = await new Promise((resolve, reject) => {
-    pollId = window.setInterval(() => {
-      if (registration.active) {
-        window.clearInterval(pollId);
-        window.clearTimeout(timeoutId);
-        resolve(registration);
-      }
-    }, 100);
-    timeoutId = window.setTimeout(() => {
-      window.clearInterval(pollId);
-      reject(new Error("The Maternal Care push service worker is not ready."));
-    }, serviceWorkerReadyTimeoutMs);
-  });
-
-  return activeRegistration;
 }
 
 export function getPushSubscriptionPayload(subscription) {

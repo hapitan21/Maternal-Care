@@ -475,6 +475,7 @@ export default function PatientPWAAppointments({ profile }) {
         title="My Appointments"
         subtitle="Track upcoming clinic visits and review your appointment history."
         className="pwa-appointments-title"
+        actionPlacement="profile-secondary"
         action={(
           <span className="pwa-appointment-total" aria-live="polite">
             <Icon icon="solar:calendar-mark-bold-duotone" />
