@@ -206,11 +206,17 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
 }
 
 @media (min-width: 921px) {
-  .admin-dashboard-shell .admin-dashboard-main {
+  /*
+   * Unified Admin desktop header rail.
+   * The Dashboard already placed the profile card on the same top row as
+   * its page heading. Apply that same structure to every Admin route so
+   * page content no longer drops down when navigating away from Dashboard.
+   */
+  .admin-main {
     position: relative;
   }
 
-  .admin-dashboard-shell .admin-layout-topbar {
+  .admin-layout-topbar {
     position: absolute;
     top: 24px;
     right: 28px;
@@ -219,17 +225,42 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
     margin: 0;
   }
 
-  .admin-dashboard-shell .admin-page-content {
+  .admin-page-content {
     padding-top: 0;
   }
 
+  /*
+   * Reserve the same header rail on shared Admin pages while keeping the
+   * title aligned with the Dashboard title and preventing overlap with the
+   * fixed profile card on the right.
+   */
+  .admin-page-header {
+    min-height: 72px;
+    margin-bottom: 18px;
+    padding-right: 228px;
+  }
+
+  .admin-page-header > h1 {
+    margin-top: 0;
+  }
+
   .admin-dashboard-shell .admin-hero {
+    position: relative;
     min-height: 110px;
     padding-right: 228px;
   }
 
+  /*
+   * Keep the Dashboard date-range controls on the same lower hero row,
+   * but pin their right edge to the main content rail (same edge as the
+   * cards/profile column) instead of stopping early because of header space.
+   */
   .admin-dashboard-shell .admin-dashboard-controls {
-    align-self: flex-end;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    align-self: auto;
   }
 }
 

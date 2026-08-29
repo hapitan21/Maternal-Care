@@ -6381,17 +6381,17 @@ body:has(.doctor-reminder-modal) {
   }
 }
 
-/* Medication reminder times: chips and a temporary compact picker. */
+/* Medication reminder times: chips, shared picker, and explicit Add action. */
 .doctor-medication-reminder-form .doctor-medication-reminder-time-row {
-  display: flex !important;
-  align-items: center !important;
-  flex-wrap: wrap !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
   gap: 8px !important;
 }
 
 .doctor-medication-reminder-form .doctor-medication-reminder-time-chips {
   display: flex !important;
-  flex: 0 1 auto !important;
+  grid-column: 1 / -1 !important;
   align-items: center !important;
   flex-wrap: wrap !important;
   gap: 6px !important;
@@ -6403,19 +6403,12 @@ body:has(.doctor-reminder-modal) {
   display: none !important;
 }
 
-.doctor-medication-reminder-form .doctor-medication-reminder-time-input {
-  width: 132px !important;
-  min-width: 132px !important;
-  flex: 0 0 132px !important;
+.doctor-medication-reminder-form .doctor-medication-reminder-time-picker-control {
+  min-width: 0 !important;
+  position: relative !important;
 }
 
-.doctor-medication-reminder-form .doctor-medication-reminder-add-time {
-  width: auto !important;
-  flex: 0 0 auto !important;
-}
-
-.doctor-medication-reminder-form .doctor-medication-reminder-confirm-time,
-.doctor-medication-reminder-form .doctor-medication-reminder-cancel-time {
+.doctor-medication-reminder-form .doctor-medication-reminder-confirm-time {
   height: 46px !important;
   min-height: 46px !important;
   border-radius: 11px !important;
@@ -6434,10 +6427,14 @@ body:has(.doctor-reminder-modal) {
   color: #ffffff !important;
 }
 
-.doctor-medication-reminder-form .doctor-medication-reminder-cancel-time {
-  border: 1px solid #dfe3eb !important;
-  background: #ffffff !important;
-  color: #596174 !important;
+@media (max-width: 480px) {
+  .doctor-medication-reminder-form .doctor-medication-reminder-time-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .doctor-medication-reminder-form .doctor-medication-reminder-confirm-time {
+    width: 100% !important;
+  }
 }
 /* ============================================================
    FINAL FIX: ALL MEDICATION REMINDERS — CLEAN FULL-WIDTH TABLE

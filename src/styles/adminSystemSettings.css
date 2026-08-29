@@ -39,7 +39,7 @@
   color: #6f5360;
   background: #fff7fa;
   padding: 12px 15px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .admin-settings-integration-note svg {
@@ -60,7 +60,7 @@
 .admin-settings-layout {
   display: grid;
   grid-template-columns: 272px minmax(0, 1fr);
-  gap: 24px;
+  gap: 20px;
   align-items: start;
 }
 

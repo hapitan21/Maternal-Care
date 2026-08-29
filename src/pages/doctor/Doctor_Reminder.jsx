@@ -2,6 +2,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
 
+import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
 import { ClinicalWorkflowHeader } from "../../components/clinical/ClinicalWorkflowUi";
 import { supabase } from "../../lib/supabaseClient";
 import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
@@ -956,9 +957,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [isSearchingMedicationPatients, setIsSearchingMedicationPatients] = React.useState(false);
   const [medicationPatientSearchMessage, setMedicationPatientSearchMessage] = React.useState("");
   const [medicationStatusMessage, setMedicationStatusMessage] = React.useState("");
-  const [isMedicationTimePickerOpen, setIsMedicationTimePickerOpen] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(() => Date.now());
-  const medicationTimeInputRef = React.useRef(null);
+  const medicationTimePickerRef = React.useRef(null);
 
   React.useEffect(() => {
     const reminderStatusTimer = window.setInterval(() => {
@@ -1420,29 +1420,6 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     setMedicationPatientSearch("");
     setMedicationPatientResults([]);
     setMedicationPatientSearchMessage("");
-    setIsMedicationTimePickerOpen(false);
-  };
-
-  const showMedicationTimePicker = () => {
-    setIsMedicationTimePickerOpen(true);
-
-    window.requestAnimationFrame(() => {
-      const timeInput = medicationTimeInputRef.current;
-      timeInput?.focus();
-
-      if (typeof timeInput?.showPicker === "function") {
-        try {
-          timeInput.showPicker();
-        } catch {
-          // The compact input remains visible if the browser blocks its native picker.
-        }
-      }
-    });
-  };
-
-  const openMedicationTimePicker = () => {
-    setMedicationStatusMessage("");
-    showMedicationTimePicker();
   };
 
   const handleAddScheduleTime = () => {
@@ -1450,7 +1427,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
     if (!nextTime) {
       setMedicationStatusMessage("Choose a medication time before adding it.");
-      showMedicationTimePicker();
+      medicationTimePickerRef.current?.open();
       return;
     }
 
@@ -1458,7 +1435,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       setMedicationStatusMessage(
         `${formatMedicationReminderTime(nextTime)} is already added.`
       );
-      medicationTimeInputRef.current?.focus();
+      medicationTimePickerRef.current?.focus();
       return;
     }
 
@@ -1468,33 +1445,19 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       scheduleTimes: Array.from(new Set([...current.scheduleTimes, nextTime])).sort(),
     }));
     setMedicationStatusMessage("");
-    setIsMedicationTimePickerOpen(false);
     logMedicationReminderDebug("selected medication times", {
       medicationTimes: Array.from(
         new Set([...medicationForm.scheduleTimes, nextTime])
       ).sort(),
     });
-    medicationTimeInputRef.current?.blur();
   };
 
-  const handleMedicationTimeChange = (event) => {
-    const { value } = event.target;
-
+  const handleMedicationTimeChange = (value) => {
     setMedicationForm((current) => ({
       ...current,
       scheduleTime: value,
     }));
     setMedicationStatusMessage("");
-  };
-
-  const cancelMedicationTime = () => {
-    setMedicationForm((current) => ({
-      ...current,
-      scheduleTime: "",
-    }));
-    setMedicationStatusMessage("");
-    setIsMedicationTimePickerOpen(false);
-    medicationTimeInputRef.current?.blur();
   };
 
   const removeMedicationTime = (timeIndex) => {
@@ -1570,7 +1533,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       setMedicationStatusMessage(
         "Add at least one medication reminder time."
       );
-      showMedicationTimePicker();
+      medicationTimePickerRef.current?.open();
       return;
     }
 
@@ -2165,13 +2128,11 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
   const openMedicationForm = () => {
     setMedicationStatusMessage("");
-    setIsMedicationTimePickerOpen(false);
     setIsMedicationFormOpen(true);
   };
 
   const closeMedicationForm = () => {
     setIsMedicationFormOpen(false);
-    setIsMedicationTimePickerOpen(false);
     setMedicationStatusMessage("");
   };
 
@@ -2973,7 +2934,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
       {isMedicationFormOpen ? createPortal(
         <div className="doctor-reminder-modal clinical-workflow-backdrop" role="dialog" aria-modal="true" aria-labelledby="doctor-medication-form-title" onClick={closeMedicationForm}>
-          <form className="doctor-panel doctor-reminder-dialog doctor-medication-reminder-form clinical-workflow-dialog clinical-workflow-dialog--medication" onSubmit={addMedicationReminder} onClick={(event) => event.stopPropagation()}>
+          <form className="doctor-panel doctor-reminder-dialog doctor-medication-reminder-form clinical-workflow-dialog clinical-workflow-dialog--medication" data-time-picker-boundary onSubmit={addMedicationReminder} onClick={(event) => event.stopPropagation()}>
             <header className="doctor-reminder-dialog__header doctor-medication-reminder-form__title">
               <div className="doctor-reminder-dialog__headline">
                 <span className="doctor-reminder-dialog__icon" aria-hidden="true">
@@ -3114,7 +3075,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 </label>
 
                 <div className="doctor-medication-reminder-field doctor-medication-reminder-times">
-                  <span>Time(s)<b>*</b></span>
+                  <span id="doctor-medication-reminder-time-label">Time(s)<b>*</b></span>
                   <div className="doctor-medication-reminder-time-row">
                     <div className="doctor-medication-reminder-time-chips">
                       {medicationForm.scheduleTimes.map((timeValue, timeIndex) => (
@@ -3126,43 +3087,25 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                         </span>
                       ))}
                     </div>
-                    {isMedicationTimePickerOpen ? (
-                      <>
-                        <input
-                          className="doctor-medication-reminder-time-input"
-                          ref={medicationTimeInputRef}
-                          name="scheduleTime"
-                          type="time"
-                          value={medicationForm.scheduleTime}
-                          onChange={handleMedicationTimeChange}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                              event.stopPropagation();
-                              cancelMedicationTime();
-                            }
-                          }}
-                          aria-label="Choose medication reminder time"
-                        />
-                        <button
-                          className="doctor-medication-reminder-confirm-time"
-                          type="button"
-                          onClick={handleAddScheduleTime}
-                        >
-                          Add
-                        </button>
-                        <button
-                          className="doctor-medication-reminder-cancel-time"
-                          type="button"
-                          onClick={cancelMedicationTime}
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <button className="doctor-medication-reminder-add-time" type="button" onClick={openMedicationTimePicker}>
-                        + Add Time
-                      </button>
-                    )}
+                    <div className="doctor-medication-reminder-time-picker-control">
+                      <AppointmentTimePicker
+                        ref={medicationTimePickerRef}
+                        id="doctor-medication-reminder-time"
+                        label="Medication reminder time"
+                        labelId="doctor-medication-reminder-time-label"
+                        value={medicationForm.scheduleTime}
+                        onChange={handleMedicationTimeChange}
+                        className="doctor-medication-reminder-time-picker"
+                        required
+                      />
+                    </div>
+                    <button
+                      className="doctor-medication-reminder-confirm-time"
+                      type="button"
+                      onClick={handleAddScheduleTime}
+                    >
+                      Add
+                    </button>
                   </div>
                 </div>
               </div>

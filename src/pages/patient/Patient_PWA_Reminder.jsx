@@ -696,7 +696,7 @@ async function sendPatientNotification(reminder) {
       await registration.showNotification(title, {
         body,
         icon: maternalCareLogo,
-        badge: "/favicon.svg",
+        badge: "/icons/maternal-care-icon-192.png",
         data: { url: "/patient/reminders" },
       });
       return;

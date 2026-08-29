@@ -37,6 +37,12 @@ import {
   getManilaDateKey,
   toManilaISOString,
 } from "../../lib/appointmentDate";
+import { resolvePregnancyWeek } from "../../lib/pregnancyTracking";
+import {
+  isCompletedClinicalVisitRecord,
+  isMeaningfulClinicalValue,
+  normalizeClinicalVisitFormData,
+} from "../../lib/clinicalVisitData";
 import "../../styles/medical_records.css";
 
 const patientSelectColumns =
@@ -151,26 +157,6 @@ function parseNumericValue(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function parsePregnancyWeek(value) {
-  const weeks = parseNumericValue(value);
-  if (weeks === null || weeks < 0 || weeks > 42) return null;
-  return Math.round(weeks);
-}
-
-function calculateWeeksFromLmp(value) {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return null;
-  const weeks = Math.floor((Date.now() - date.getTime()) / 604800000);
-  return weeks >= 0 && weeks <= 42 ? weeks : null;
-}
-
-function calculateWeeksFromEdd(value) {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return null;
-  const weeks = 40 - Math.floor((date.getTime() - Date.now()) / 604800000);
-  return weeks >= 0 && weeks <= 42 ? weeks : null;
-}
-
 function parseDateValue(value) {
   if (!value) return null;
   const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
@@ -209,13 +195,13 @@ function getLatestRecordValue(records, fields) {
   for (const record of records) {
     for (const field of fields) {
       const fromRecord = cleanRecordValue(record?.[field]);
-      if (fromRecord) return fromRecord;
+      if (isMeaningfulClinicalValue(fromRecord)) return fromRecord;
     }
 
     for (const [label, value] of record?.findings || []) {
       if (fields.some((field) => normalizeLabelText(field) === normalizeLabelText(label))) {
         const clean = cleanRecordValue(value);
-        if (clean) return clean;
+        if (isMeaningfulClinicalValue(clean)) return clean;
       }
     }
   }
@@ -228,12 +214,16 @@ function normalizeLabelText(value) {
 }
 
 function getPregnancyWeek(patient, obstetric, records = []) {
-  return (
-    calculateWeeksFromEdd(obstetric?.expected_delivery_date || patient?.expected_delivery_date) ??
-    calculateWeeksFromLmp(obstetric?.last_menstrual_period) ??
-    parsePregnancyWeek(getLatestRecordValue(records, ["gestationalAge", "Gestational Age"])) ??
-    parsePregnancyWeek(patient?.gestational_age)
-  );
+  return resolvePregnancyWeek({
+    expectedDeliveryDate:
+      obstetric?.expected_delivery_date || patient?.expected_delivery_date,
+    lastMenstrualPeriod: obstetric?.last_menstrual_period,
+    clinicalGestationalAge: getLatestRecordValue(records, [
+      "gestationalAge",
+      "Gestational Age",
+    ]),
+    storedGestationalAge: patient?.gestational_age,
+  });
 }
 
 function formatPregnancyWeek(patient, obstetric, records = []) {
@@ -285,14 +275,7 @@ function normalizeRecordAttachment(attachment) {
 }
 
 function getRecordFormData(row) {
-  if (!row?.form_data) return {};
-  if (typeof row.form_data === "object") return row.form_data;
-  try {
-    const parsed = JSON.parse(row.form_data);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+  return normalizeClinicalVisitFormData(row);
 }
 
 function getFirstRecordValue(...values) {
@@ -351,7 +334,7 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
     : "";
   const clinicalFindings =
     getFirstRecordValue(formData.clinicalFindings, formData.clinical_findings) || {};
-  const pregnancyStatus =
+  const pregnancyDetails =
     getFirstRecordValue(formData.pregnancyStatus, formData.pregnancy_status) || {};
   const visitInformation =
     getFirstRecordValue(formData.visitInformation, formData.visit_information) || {};
@@ -372,7 +355,7 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
         ["Fetal Heart Rate", getClinicalValue(clinicalFindings, "fetalHeartRate", "fetal_heart_rate", formData), "bpm"],
         ["Fundal Height", getClinicalValue(clinicalFindings, "fundalHeight", "fundal_height", formData), "cm"],
         ["Estimated Fetal Weight", getClinicalValue(clinicalFindings, "estimatedFetalWeight", "estimated_fetal_weight", formData), "g"],
-        ["Baby Position", getFirstRecordValue(clinicalFindings.fetalPosition, clinicalFindings.fetal_position, formData.presentation, formData.fetalPosition, formData.fetal_position), ""],
+        ["Baby Position", getFirstRecordValue(formData.babyPosition, clinicalFindings.babyPosition, clinicalFindings.baby_position, clinicalFindings.fetalPosition, clinicalFindings.fetal_position), ""],
         ["Fetal Movement", getClinicalValue(clinicalFindings, "fetalMovement", "fetal_movement", formData), ""],
         ["Additional Findings", getFirstRecordValue(clinicalFindings.additionalFindings, clinicalFindings.additional_findings, formData.additionalFindings, formData.additional_findings), ""],
       ].filter(([label, value]) =>
@@ -400,8 +383,8 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
   const visitGestationalAge = getFirstRecordValue(
     formData.gestationalAge,
     formData.gestational_age,
-    pregnancyStatus.gestationalAge,
-    pregnancyStatus.gestational_age,
+    pregnancyDetails.gestationalAge,
+    pregnancyDetails.gestational_age,
     visitInformation.gestationalAge,
     visitInformation.gestational_age
   );
@@ -431,6 +414,7 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
       : "Not recorded"),
     visitType,
     gestationalAge: visitGestationalAge || patient?.gestational_age || "Not recorded",
+    riskLevel: formData.riskLevel || "Not recorded",
     visitGestationalAge,
     visitDateValue: validVisitDate ? validVisitDate.toISOString() : "",
     doctor: linkedDoctorName || formData.doctor || formData.attendingPhysician || formData.attending_physician || row.uploaded_by || "Doctor not recorded",
@@ -464,9 +448,9 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
             : [item?.label || item?.name || "Information", item?.value || "Not recorded"]
         )
       : [
-          ["Gestational Age", pregnancyStatus.gestationalAge || pregnancyStatus.gestational_age || formData.gestationalAge || formData.gestational_age || "Not recorded"],
-          ["Pregnancy Risk", pregnancyStatus.riskLevel || pregnancyStatus.risk_level || cleanRecordValue(formData.pregnancyStatus) || "Not recorded"],
-          ["Expected Delivery Date", pregnancyStatus.expectedDeliveryDate || pregnancyStatus.expected_delivery_date || formData.expectedDeliveryDate || formData.expected_delivery_date || "Not recorded"],
+          ["Gestational Age", pregnancyDetails.gestationalAge || pregnancyDetails.gestational_age || formData.gestationalAge || "Not recorded"],
+          ["Risk Level", formData.riskLevel || pregnancyDetails.riskLevel || pregnancyDetails.risk_level || "Not recorded"],
+          ["Expected Delivery Date", pregnancyDetails.expectedDeliveryDate || pregnancyDetails.expected_delivery_date || formData.expectedDeliveryDate || "Not recorded"],
           ["Follow-up Date", formData.followUpDate || "Not recorded"],
         ],
     diagnosis: getFirstRecordValue(formData.diagnosis, row.title, row.type) || "Medical Record",
@@ -1310,7 +1294,7 @@ function buildPrenatalData(patient, patientRelated, records) {
       ],
       [
         ["Pregnancy Number", currentPregnancyLabel],
-        ["Risk Classification", buildRiskBadge(patient?.risk_level)],
+        ["Risk Level", buildRiskBadge(patient?.risk_level || getLatestRecordValue(records, ["riskLevel", "Risk Level"]))],
       ],
     ],
     conditions,
@@ -2645,7 +2629,9 @@ function buildTrackingDetails(patient, patientRelated, records) {
     trimesterLabel: getTrimesterLabel(week),
     weeksRemaining: week === null ? EMPTY_PATIENT_VALUE : `${Math.max(0, 40 - week)} weeks to go`,
     expectedDeliveryDate: formatPatientDate(obstetric.expected_delivery_date || patient?.expected_delivery_date, EMPTY_PATIENT_VALUE),
-    riskLevel: formatRiskBadge(patient?.risk_level),
+    riskLevel: formatRiskBadge(
+      patient?.risk_level || getLatestRecordValue(records, ["riskLevel", "Risk Level"])
+    ),
     babyDevelopment: [
       ["Estimated Weight", formatWithUnitFromRecord(records, ["Estimated Fetal Weight"], "g")],
       ["Estimated Length", formatWithUnitFromRecord(records, ["Estimated Fetal Length"], "cm")],
@@ -2724,7 +2710,7 @@ function PregnancyTrackingPanel({ patient, patientRelated, records }) {
                 <Icon icon="material-symbols:shield-outline-rounded" />
               </span>
               <span>
-                <small>Pregnancy Status</small>
+                <small>Risk Level</small>
                 <mark>{tracking.riskLevel}</mark>
               </span>
             </div>
@@ -3476,12 +3462,16 @@ export default function Doctor_Medical_Records({
     };
   }, [doctorIds, patient?.id]);
 
+  const completedMedicalRecordRows = React.useMemo(
+    () => medicalRecordRows.filter(isCompletedClinicalVisitRecord),
+    [medicalRecordRows]
+  );
   const medicalRecords = React.useMemo(
     () =>
-      medicalRecordRows
+      completedMedicalRecordRows
         .map((row) => mapSupabaseMedicalRecord(row, patient, doctorProfilesById))
         .sort((first, second) => second.sortTime - first.sortTime),
-    [doctorProfilesById, medicalRecordRows, patient]
+    [completedMedicalRecordRows, doctorProfilesById, patient]
   );
   const resolvedAppointments = React.useMemo(
     () =>
@@ -3506,7 +3496,7 @@ export default function Doctor_Medical_Records({
   const overviewState = usePatientMedicalOverview({
     patientId: patient?.id,
     patient: overviewPatient,
-    records: medicalRecordRows,
+    records: completedMedicalRecordRows,
     schedules: resolvedAppointments,
     doctorProfilesById,
     recordsLoading: visibleRecordsLoading,
@@ -3914,6 +3904,9 @@ export default function Doctor_Medical_Records({
       : `${overviewWeeks} Weeks`;
   const gravida = parseNumericValue(obstetric.gravida);
   const para = parseNumericValue(obstetric.para);
+  const resolvedRiskLevel =
+    cleanRecordValue(patient?.risk_level) ||
+    getLatestRecordValue(medicalRecords, ["riskLevel", "Risk Level"]);
   const pregnancyNumber =
     gravida !== null || para !== null
       ? `G${gravida ?? 0}P${para ?? 0}`
@@ -4073,8 +4066,8 @@ export default function Doctor_Medical_Records({
 
               <div>
                 <strong>Risk Level</strong>
-                <span className={`mr-risk mr-risk--${getRiskTone(patient?.risk_level)}`}>
-                  {formatRiskBadge(patient?.risk_level)}
+                <span className={`mr-risk mr-risk--${getRiskTone(resolvedRiskLevel)}`}>
+                  {formatRiskBadge(resolvedRiskLevel)}
                 </span>
               </div>
             </div>

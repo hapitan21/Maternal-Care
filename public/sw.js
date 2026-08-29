@@ -1,4 +1,4 @@
-const CACHE_NAME = "maternal-care-patient-shell-v8";
+const CACHE_NAME = "maternal-care-patient-shell-v10";
 const DEV_HOST_PATTERNS = [
   /^localhost$/,
   /^127\./,
@@ -22,10 +22,11 @@ const APP_SHELL = [
   "/patient/settings",
   "/index.html",
   "/manifest.webmanifest",
-  "/favicon.svg",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/maskable-512.png",
+  "/icons/maternal-care-icon-32.png",
+  "/icons/maternal-care-icon-48.png",
+  "/icons/maternal-care-icon-192.png",
+  "/icons/maternal-care-icon-512.png",
+  "/icons/maternal-care-favicon.png",
   "/images/maternal-care-logo.png",
   "/images/dashboard-hero-people.png",
   "/images/maria-makiling-profile.svg"
@@ -208,8 +209,8 @@ self.addEventListener("message", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/icons/icon-192.png",
-      badge: "/favicon.svg",
+      icon: "/icons/maternal-care-icon-192.png",
+      badge: "/icons/maternal-care-icon-192.png",
       tag: payload.tag,
       data: {
         audience: payload.audience,
@@ -239,8 +240,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/icons/icon-192.png",
-      badge: "/favicon.svg",
+      icon: "/icons/maternal-care-icon-192.png",
+      badge: "/icons/maternal-care-icon-192.png",
       tag: payload.tag,
       data: {
         audience: payload.audience,

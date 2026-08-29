@@ -760,6 +760,90 @@
   color: #d72e69;
 }
 
+.appointment-visit-confirmation-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(32, 25, 37, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.appointment-visit-confirmation {
+  width: min(100%, 470px);
+  padding: 28px;
+  border: 1px solid #ffd4e2;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(57, 28, 43, 0.24);
+  text-align: center;
+}
+
+.appointment-visit-confirmation-icon {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: #fff0f5;
+  color: #e83674;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.appointment-visit-confirmation h2 {
+  margin: 0 0 10px;
+  color: #2f2731;
+  font-size: 21px;
+}
+
+.appointment-visit-confirmation p {
+  margin: 0;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.appointment-visit-confirmation p strong {
+  color: #3f3440;
+}
+
+.appointment-visit-confirmation > div {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.appointment-visit-confirmation button {
+  min-width: 120px;
+  min-height: 42px;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  font-weight: 800;
+}
+
+.appointment-visit-confirmation .is-primary {
+  border-color: #ff3f80;
+  background: #ff3f80;
+  color: #fff;
+}
+
+.appointment-visit-confirmation .is-secondary {
+  border-color: #ffd0de;
+  background: #fff;
+  color: #d72e69;
+}
+
+.appointment-visit-confirmation button:focus-visible {
+  outline: 3px solid rgba(255, 63, 128, 0.22);
+  outline-offset: 2px;
+}
+
 .appointment-visit-state {
   display: flex;
   min-height: 340px;
@@ -899,6 +983,18 @@
 
   .appointment-visit-actions button,
   .appointment-visit-actions .is-primary {
+    width: 100%;
+  }
+
+  .appointment-visit-confirmation {
+    padding: 24px 20px;
+  }
+
+  .appointment-visit-confirmation > div {
+    flex-direction: column-reverse;
+  }
+
+  .appointment-visit-confirmation button {
     width: 100%;
   }
 }

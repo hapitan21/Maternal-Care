@@ -16,6 +16,7 @@ import {
   AppointmentToolbar,
   AppointmentViewSwitch,
 } from "../../components/appointments/AppointmentUi";
+import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
 import {
   APPOINTMENT_CATEGORIES,
   APPOINTMENT_TYPES,
@@ -964,13 +965,16 @@ function AddAppointmentModal({
             required
           />
 
-          <AppointmentFormField
-            label="Select Time:"
-            type="time"
-            value={form.startTime}
-            onChange={(value) => onChange("startTime", value)}
-            required
-          />
+          <div className="staff-add-appointment-field">
+            <span id="staff-add-appointment-time-label">Select Time:</span>
+            <AppointmentTimePicker
+              id="staff-add-appointment-time"
+              labelId="staff-add-appointment-time-label"
+              value={form.startTime}
+              onChange={(value) => onChange("startTime", value)}
+              required
+            />
+          </div>
 
           <AppointmentFormField
             label="Select Type:"

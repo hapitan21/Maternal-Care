@@ -9,7 +9,11 @@ function warnIfLocalhostPatientAccessUrl(accessUrl) {
 
   try {
     const parsedUrl = new URL(accessUrl);
-    if (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1") {
+
+    if (
+      parsedUrl.hostname === "localhost" ||
+      parsedUrl.hostname === "127.0.0.1"
+    ) {
       console.warn(
         "Patient Access URL uses localhost. A mobile device scanning this QR code cannot access the computer's localhost; set VITE_PATIENT_ACCESS_BASE_URL to the computer's LAN URL."
       );
@@ -20,8 +24,16 @@ function warnIfLocalhostPatientAccessUrl(accessUrl) {
 }
 
 export function getPublicAppOrigin() {
+  /*
+   * Canonical environment variable:
+   *   VITE_PATIENT_ACCESS_BASE_URL=http://192.168.1.41:4173
+   *
+   * VITE_PATIENT_APP_URL is also supported as a backward-compatible alias
+   * so an existing local .env does not silently fall back to localhost.
+   */
   const configuredOrigin = normalizeBaseUrl(
-    import.meta.env.VITE_PATIENT_ACCESS_BASE_URL
+    import.meta.env.VITE_PATIENT_ACCESS_BASE_URL ||
+      import.meta.env.VITE_PATIENT_APP_URL
   );
 
   return (
@@ -42,20 +54,26 @@ export function buildPatientAccessUrl({ patientId, controlNumber } = {}) {
     patientId: normalizedPatientId,
     control: normalizedControlNumber,
   });
+
   const publicOrigin = getPublicAppOrigin();
 
-  if (!publicOrigin) return `${patientAccessPath}?${params.toString()}`;
+  if (!publicOrigin) {
+    return `${patientAccessPath}?${params.toString()}`;
+  }
 
   try {
     const accessUrl = new URL(patientAccessPath, `${publicOrigin}/`);
     accessUrl.search = params.toString();
+
     const finalUrl = accessUrl.toString();
     warnIfLocalhostPatientAccessUrl(finalUrl);
+
     return finalUrl;
   } catch (error) {
     if (import.meta.env.DEV) {
       console.error("Unable to build the patient access URL:", error);
     }
+
     return "";
   }
 }

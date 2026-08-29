@@ -8,6 +8,12 @@ import {
   getManilaDateKey,
   getManilaTimeKey,
 } from "../../lib/appointmentDate";
+import {
+  buildCanonicalClinicalVisitFormData,
+  isCompletedClinicalVisitRecord,
+  normalizeClinicalVisitFormData,
+  normalizeRiskLevel,
+} from "../../lib/clinicalVisitData";
 import "../../styles/appointment-visit-form.css";
 
 const scheduleColumns =
@@ -21,7 +27,7 @@ const emptyForm = {
   gestationalAge: "",
   expectedDeliveryDate: "",
   pregnancyType: "",
-  pregnancyStatus: "",
+  riskLevel: "",
   chiefComplaint: "",
   bloodPressure: "",
   temperature: "",
@@ -150,7 +156,6 @@ function buildStaffIntakeDefaults(intake) {
   [
     "gestationalAge",
     "expectedDeliveryDate",
-    "pregnancyStatus",
     "bloodPressure",
     "temperature",
     "respiratoryRate",
@@ -162,6 +167,11 @@ function buildStaffIntakeDefaults(intake) {
     if (String(intakeData[field] || "").trim()) defaults[field] = intakeData[field];
   });
 
+  const intakeRiskLevel = normalizeRiskLevel(
+    intakeData.riskLevel || intakeData.risk_level || intakeData.pregnancyStatus
+  );
+  if (intakeRiskLevel) defaults.riskLevel = intakeRiskLevel;
+
   if (String(intakeData.remarks || "").trim()) {
     defaults.additionalFindings = intakeData.remarks;
   }
@@ -172,23 +182,144 @@ function buildStaffIntakeDefaults(intake) {
   return defaults;
 }
 
+function parseGestationalAgeToDays(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const match = normalized.match(
+    /^(\d{1,2})(?:\s*(?:weeks?|wks?|wk|w))?(?:\s*(?:and\s*)?(\d{1,2})\s*(?:days?|d))?$/
+  );
+
+  if (!match) return null;
+
+  const weeks = Number(match[1]);
+  const days = Number(match[2] || 0);
+
+  if (
+    !Number.isInteger(weeks) ||
+    weeks < 0 ||
+    weeks > 45 ||
+    !Number.isInteger(days) ||
+    days < 0 ||
+    days > 6
+  ) {
+    return null;
+  }
+
+  return (weeks * 7) + days;
+}
+
+function parseDateKeyToUtc(value) {
+  const normalized = String(value || "").trim();
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+
+  const time = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3])
+  );
+
+  return Number.isFinite(time) ? time : null;
+}
+
+function progressGestationalAge(value, anchorVisitDate, currentVisitDate) {
+  const original = String(value || "").trim();
+  const baselineDays = parseGestationalAgeToDays(original);
+  const anchorTime = parseDateKeyToUtc(anchorVisitDate);
+  const currentTime = parseDateKeyToUtc(currentVisitDate);
+
+  if (
+    baselineDays == null ||
+    anchorTime == null ||
+    currentTime == null ||
+    currentTime <= anchorTime
+  ) {
+    return original;
+  }
+
+  const elapsedDays = Math.floor(
+    (currentTime - anchorTime) / (24 * 60 * 60 * 1000)
+  );
+
+  const totalDays = baselineDays + elapsedDays;
+  const weeks = Math.floor(totalDays / 7);
+  const days = totalDays % 7;
+
+  return days
+    ? `${weeks} weeks ${days} days`
+    : `${weeks} weeks`;
+}
+
+function buildPreviousVisitDefaults(record) {
+  const data = normalizeClinicalVisitFormData(record);
+
+  /*
+   * Follow-up autofill intentionally carries forward only information that can
+   * reasonably persist between visits. Current-visit complaints, vital signs,
+   * assessment, diagnosis, treatment, prescriptions, laboratory findings, and
+   * ultrasound findings remain blank unless the current Staff intake supplies
+   * today's measurements.
+   */
+  const defaults = {
+    previousVisitRecordId: record?.id || "",
+    previousVisitScheduleId: record?.schedule_id || "",
+    previousVisitType: record?.type || "",
+  };
+
+  [
+    "gestationalAge",
+    "expectedDeliveryDate",
+    "pregnancyType",
+    "riskLevel",
+    "lifestyleAssessment",
+    "smokingStatus",
+    "drugUse",
+    "physicalActivity",
+    "alcoholIntake",
+    "diet",
+    "vaccinationStatus",
+    "pregnancyJourneyUpdate",
+  ].forEach((field) => {
+    if (String(data[field] ?? "").trim()) {
+      defaults[field] = data[field];
+    }
+  });
+
+  if (Array.isArray(data.vaccinations)) {
+    defaults.vaccinations = data.vaccinations;
+  }
+  if (Array.isArray(data.journeyMilestones)) {
+    defaults.journeyMilestones = data.journeyMilestones;
+  }
+
+  return defaults;
+}
+
 function normalizeFormData(record, defaults = {}) {
-  const data = record?.form_data && typeof record.form_data === "object"
-    ? record.form_data
-    : {};
+  const data = normalizeClinicalVisitFormData(record);
+  const normalizedDefaults = normalizeClinicalVisitFormData(defaults);
 
   return {
     ...emptyForm,
     ...defaults,
     ...data,
-    fetalHeartRate: data.fetalHeartRate ?? data.heartRate ?? "",
+    riskLevel: data.riskLevel || normalizedDefaults.riskLevel || "",
+    babyPosition: data.babyPosition || normalizedDefaults.babyPosition || "",
+    fetalHeartRate: data.fetalHeartRate || normalizedDefaults.fetalHeartRate || "",
     laboratoryResultSummary: data.laboratoryResultSummary ?? data.laboratoryReview ?? "",
     ultrasoundFindings: data.ultrasoundFindings ?? data.ultrasoundReview ?? "",
     prescriptionInstructions: data.prescriptionInstructions ?? data.prescription ?? "",
-    vaccinations: Array.isArray(data.vaccinations) ? data.vaccinations : [],
+    vaccinations: Array.isArray(data.vaccinations)
+      ? data.vaccinations
+      : Array.isArray(defaults.vaccinations)
+        ? defaults.vaccinations
+        : [],
     medications: Array.isArray(data.medications) ? data.medications : [],
     actionSelections: Array.isArray(data.actionSelections) ? data.actionSelections : [],
-    journeyMilestones: Array.isArray(data.journeyMilestones) ? data.journeyMilestones : [],
+    journeyMilestones: Array.isArray(data.journeyMilestones)
+      ? data.journeyMilestones
+      : Array.isArray(defaults.journeyMilestones)
+        ? defaults.journeyMilestones
+        : [],
   };
 }
 
@@ -485,6 +616,17 @@ function focusFirstValidationError(errors) {
   }, 0);
 }
 
+function formatClinicalDate(value) {
+  if (!value) return "Not recorded";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function AppointmentVisitForm({ appointmentId, requestedType, workspace }) {
   const navigate = useNavigate();
   const requestIdRef = useRef(0);
@@ -497,7 +639,12 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   const [patient, setPatient] = useState(null);
   const [routing, setRouting] = useState(null);
   const [existingRecord, setExistingRecord] = useState(null);
-  const [initialBaseline, setInitialBaseline] = useState(null);
+  const [previousBaseline, setPreviousBaseline] = useState(null);
+  const [currentPregnancy, setCurrentPregnancy] = useState({
+    obstetricHistoryId: "",
+    expectedDeliveryDate: "",
+  });
+  const [eddConfirmation, setEddConfirmation] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [validationErrors, setValidationErrors] = useState({});
   const [vaccinationEditor, setVaccinationEditor] = useState(null);
@@ -518,6 +665,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     setLaboratoryFile(null);
     setUltrasoundFile(null);
     setPrescriptionFile(null);
+    setEddConfirmation(null);
 
     const { data: routingData, error: routingError } = await supabase.rpc(
       "get_appointment_visit_form_type",
@@ -563,7 +711,13 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       return;
     }
 
-    const [patientResult, recordResult, baselineResult, staffIntakeResult] = await Promise.all([
+    const [
+      patientResult,
+      recordResult,
+      baselineResult,
+      staffIntakeResult,
+      obstetricResult,
+    ] = await Promise.all([
       supabase
         .rpc("get_doctor_patient_directory")
         .select(patientColumns)
@@ -578,10 +732,15 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         .from("medical_records")
         .select(recordColumns)
         .eq("patient_id", schedule.patient_id)
-        .eq("type", "Initial Visit")
         .order("uploaded_at", { ascending: false })
-        .limit(20),
+        .limit(30),
       supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
+      supabase
+        .from("patient_obstetric_history")
+        .select("id, patient_id, expected_delivery_date")
+        .eq("patient_id", schedule.patient_id)
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     if (requestIdRef.current !== requestId) return;
@@ -593,6 +752,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       patientResult.error ||
       recordResult.error ||
       baselineResult.error ||
+      obstetricResult.error ||
       staffIntakeError;
     if (loadError) {
       logVisitError("visit information load failed", loadError);
@@ -606,31 +766,99 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     const staffIntake = Array.isArray(staffIntakeResult.data)
       ? staffIntakeResult.data[0]
       : staffIntakeResult.data;
-    const baseline = (baselineResult.data || []).find((record) => {
-      const data = record?.form_data || {};
-      const status = String(data.recordStatus || "completed").trim().toLowerCase();
-      const isDraft = ["true", "1", "yes"].includes(
-        String(data.isDraft || "false").trim().toLowerCase()
-      );
-      const isDeleted = ["true", "1", "yes"].includes(
-        String(data.deleted || "false").trim().toLowerCase()
-      );
-      return status === "completed" && !isDraft && !isDeleted;
-    }) || null;
-    const defaults = {
-      gestationalAge: patientRow?.gestational_age || "",
-      expectedDeliveryDate: patientRow?.expected_delivery_date
+    const obstetricHistory = obstetricResult.data || null;
+    const completedPriorRecords = (baselineResult.data || []).filter((candidate) => {
+      if (!isCompletedClinicalVisitRecord(candidate)) return false;
+      return candidate?.schedule_id !== appointmentId;
+    });
+    const baseline = completedPriorRecords[0] || null;
+
+    // Gestational age uses the earliest completed Doctor visit with a usable
+    // gestational-age/date pair as its anchor. This prevents older Follow-Up
+    // records that copied a stale age (for example, 14 weeks every visit) from
+    // permanently freezing the progression.
+    const gestationalAgeAnchor = [...completedPriorRecords].reverse().find((candidate) => {
+      const data = candidate?.form_data && typeof candidate.form_data === "object"
+        ? candidate.form_data
+        : {};
+      const visitDate =
+        data.appointmentDate ||
+        data.visitDate ||
+        (candidate?.uploaded_at ? getManilaDateKey(candidate.uploaded_at) : "");
+
+      return String(data.gestationalAge || "").trim() && visitDate;
+    }) || baseline;
+
+    const previousVisitDefaults =
+      requestedType === "follow_up"
+        ? buildPreviousVisitDefaults(baseline)
+        : {};
+
+    const anchorData =
+      gestationalAgeAnchor?.form_data &&
+      typeof gestationalAgeAnchor.form_data === "object"
+        ? gestationalAgeAnchor.form_data
+        : {};
+
+    const currentVisitDate = getManilaDateKey(schedule.start_time);
+    const anchorVisitDate =
+      anchorData.appointmentDate ||
+      anchorData.visitDate ||
+      (gestationalAgeAnchor?.uploaded_at
+        ? getManilaDateKey(gestationalAgeAnchor.uploaded_at)
+        : "");
+
+    const progressedGestationalAge =
+      requestedType === "follow_up"
+        ? progressGestationalAge(
+            anchorData.gestationalAge || previousVisitDefaults.gestationalAge,
+            anchorVisitDate,
+            currentVisitDate
+          )
+        : "";
+
+    const staffIntakeDefaults = buildStaffIntakeDefaults(staffIntake);
+    const currentExpectedDeliveryDate = obstetricHistory?.expected_delivery_date
+      ? getManilaDateKey(obstetricHistory.expected_delivery_date)
+      : patientRow?.expected_delivery_date
         ? getManilaDateKey(patientRow.expected_delivery_date)
-        : "",
-      pregnancyStatus: patientRow?.risk_level || "",
-      ...buildStaffIntakeDefaults(staffIntake),
+        : "";
+
+    const defaults = {
+      ...previousVisitDefaults,
+
+      // Today's Staff measurements have priority for current-visit clinical
+      // values. Gestational age itself is system-progressed below so a stale
+      // saved Staff value cannot overwrite the calculated age.
+      ...staffIntakeDefaults,
+
+      gestationalAge:
+        requestedType === "follow_up"
+          ? (
+              progressedGestationalAge ||
+              staffIntakeDefaults.gestationalAge ||
+              previousVisitDefaults.gestationalAge ||
+              patientRow?.gestational_age ||
+              ""
+            )
+          : (patientRow?.gestational_age || ""),
+      expectedDeliveryDate:
+        currentExpectedDeliveryDate || previousVisitDefaults.expectedDeliveryDate || "",
+      riskLevel:
+        patientRow?.risk_level ||
+        previousVisitDefaults.riskLevel ||
+        "",
     };
 
     setRouting(routeResult);
     setAppointment(schedule);
     setPatient(patientRow || null);
     setExistingRecord(record || null);
-    setInitialBaseline(baseline || null);
+    setPreviousBaseline(baseline || null);
+    setCurrentPregnancy({
+      obstetricHistoryId: obstetricHistory?.id || "",
+      expectedDeliveryDate: currentExpectedDeliveryDate,
+    });
     setForm(normalizeFormData(record, defaults));
     setLoading(false);
   }, [appointmentId, navigate, requestedType, workspace]);
@@ -642,6 +870,17 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       window.clearTimeout(timer);
     };
   }, [loadVisit]);
+
+  useEffect(() => {
+    if (!eddConfirmation) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape" && !saving) setEddConfirmation(null);
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [eddConfirmation, saving]);
 
   const isCompleted = useMemo(
     () => String(routing?.appointment_status || "").trim().toLowerCase() === "completed",
@@ -750,7 +989,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     setMedicationEditor(null);
   };
 
-  const saveRecord = async () => {
+  const saveRecord = async ({ updateCurrentEdd = false } = {}) => {
     if (saveLockRef.current || saving || !canSave) return;
 
     const nextValidationErrors = validateVisitForm(form);
@@ -758,6 +997,19 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       setValidationErrors(nextValidationErrors);
       focusFirstValidationError(nextValidationErrors);
       setError("Complete or correct the highlighted fields before saving.");
+      return;
+    }
+
+    const nextExpectedDeliveryDate = String(form.expectedDeliveryDate || "").trim();
+    if (
+      nextExpectedDeliveryDate &&
+      nextExpectedDeliveryDate !== currentPregnancy.expectedDeliveryDate &&
+      !updateCurrentEdd
+    ) {
+      setEddConfirmation({
+        current: currentPregnancy.expectedDeliveryDate,
+        next: nextExpectedDeliveryDate,
+      });
       return;
     }
 
@@ -771,7 +1023,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       const appointmentTime = getManilaTimeKey(appointment?.start_time);
       const visitRecordTitle = requestedType === "initial" ? "Initial Visit" : "Follow-Up Visit";
       const formDataForSave = {
-        ...form,
+        ...buildCanonicalClinicalVisitFormData(form),
         appointmentDate,
         appointmentTime,
         appointmentId,
@@ -782,6 +1034,35 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         isDraft: false,
         completedAt: existingRecord?.form_data?.completedAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+      };
+      const syncCurrentPregnancy = async () => {
+        if (!formDataForSave.riskLevel && !updateCurrentEdd) return true;
+
+        const { error: syncError } = await supabase.rpc(
+          "sync_doctor_visit_pregnancy_state",
+          {
+            p_appointment_id: appointmentId,
+            p_risk_level: formDataForSave.riskLevel || null,
+            p_expected_delivery_date: updateCurrentEdd
+              ? formDataForSave.expectedDeliveryDate || null
+              : null,
+            p_update_expected_delivery_date: updateCurrentEdd,
+            p_obstetric_history_id: currentPregnancy.obstetricHistoryId || null,
+          }
+        );
+
+        if (syncError) {
+          logVisitError("current pregnancy synchronization failed", syncError);
+          setError(
+            getErrorMessage(
+              syncError,
+              "The visit was saved, but the current pregnancy summary could not be synchronized. Retry Save Record."
+            )
+          );
+          return false;
+        }
+
+        return true;
       };
 
       if (isEditableExistingRecord) {
@@ -828,11 +1109,20 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         }
 
         setExistingRecord(data);
+        if (!(await syncCurrentPregnancy())) return;
         setMessage(
           requestedType === "initial"
             ? "Initial Visit record updated successfully."
             : "Follow-Up Visit record updated successfully."
         );
+
+        // Doctor workflow: after a successful Initial or Follow-Up Visit
+        // save/update, return to the Appointments section.
+        if (workspace === "doctor") {
+          navigate("/doctor/appointments", { replace: true });
+          return;
+        }
+
         return;
       }
 
@@ -858,11 +1148,18 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
 
       setExistingRecord(data);
       setRouting((current) => ({ ...current, appointment_status: "completed" }));
+      if (!(await syncCurrentPregnancy())) return;
       setMessage(
         requestedType === "initial"
           ? "Initial Visit record saved successfully."
           : "Follow-Up Visit record saved successfully."
       );
+
+      // Redirect only after Supabase has successfully saved the Doctor's
+      // Initial or Follow-Up Visit and completed the appointment.
+      if (workspace === "doctor") {
+        navigate("/doctor/appointments", { replace: true });
+      }
     } catch (saveError) {
       logVisitError("unexpected save failure", saveError);
       setError(getErrorMessage(saveError, "Unable to save the visit record."));
@@ -888,7 +1185,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     );
   }
 
-  const baselineData = initialBaseline?.form_data || {};
+  const baselineData = previousBaseline?.form_data || {};
   const baselineItems = [
     ["Diagnosis", getVisibleBaselineValue(baselineData.diagnosis)],
     ["Assessment", getVisibleBaselineValue(baselineData.assessment)],
@@ -932,7 +1229,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
 
       {isFollowUp && baselineItems.length ? (
         <details className="appointment-visit-baseline-disclosure">
-          <summary>View Initial Visit Baseline</summary>
+          <summary>View Previous Visit Baseline</summary>
           <div>
             {baselineItems.map(([label, value]) => (
               <p key={label}><strong>{label}:</strong> {value}</p>
@@ -959,17 +1256,17 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             <div className="appointment-visit-field-grid is-two-columns">
               <ReadOnlyField id="visit-date" label="Date of Visit" value={formatAppointmentDate(appointment?.start_time)} />
               <ReadOnlyField id="visit-time" label="Time" value={formatAppointmentTime(appointment?.start_time)} />
-              <ReadOnlyField id="visit-type" label="Visit Type" value={isFollowUp ? "Follow-up" : appointment?.title || "Initial Visit"} />
+              <ReadOnlyField id="visit-type" label="Visit Type" value={isFollowUp ? "Follow-Up Visit" : "Initial Visit"} />
               <ReadOnlyField id="visit-doctor" label="Attending Physician" value={appointment?.doctor_name || "Not assigned"} />
             </div>
           </FormCard>
 
-          <FormCard title="Pregnancy Status" className="appointment-visit-summary-card">
+          <FormCard title="Current Pregnancy" className="appointment-visit-summary-card">
             <div className="appointment-visit-field-grid">
               <TextField id="gestational-age" label="Gestational Age" value={form.gestationalAge} placeholder="e.g. 28 weeks" readOnly={isReadOnly} onChange={(value) => updateForm("gestationalAge", value)} />
               <TextField id="expected-delivery-date" label="Expected Delivery Date" value={form.expectedDeliveryDate} type="date" readOnly={isReadOnly} error={validationErrors.expectedDeliveryDate} onChange={(value) => updateForm("expectedDeliveryDate", value)} />
               <TextField id="pregnancy-type" label="Pregnancy Type" value={form.pregnancyType} placeholder="e.g. Singleton" readOnly={isReadOnly} onChange={(value) => updateForm("pregnancyType", value)} />
-              <ChoiceGroup id="pregnancy-risk" label="Pregnancy Status" value={form.pregnancyStatus} options={["Low Risk", "Moderate Risk", "High Risk"]} readOnly={isReadOnly} onChange={(value) => updateForm("pregnancyStatus", value)} />
+              <ChoiceGroup id="pregnancy-risk" label="Risk Level" value={form.riskLevel} options={["Low Risk", "Moderate Risk", "High Risk"]} readOnly={isReadOnly} onChange={(value) => updateForm("riskLevel", value)} />
             </div>
           </FormCard>
         </div>
@@ -1166,6 +1463,49 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
           </button>
         </footer>
       </form>
+
+      {eddConfirmation ? (
+        <div className="appointment-visit-confirmation-backdrop" role="presentation">
+          <section
+            className="appointment-visit-confirmation"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="appointment-visit-edd-title"
+            aria-describedby="appointment-visit-edd-description"
+          >
+            <span className="appointment-visit-confirmation-icon" aria-hidden="true">!</span>
+            <h2 id="appointment-visit-edd-title">Update Current Pregnancy EDD?</h2>
+            <p id="appointment-visit-edd-description">
+              The Expected Delivery Date was changed from{" "}
+              <strong>{formatClinicalDate(eddConfirmation.current)}</strong> to{" "}
+              <strong>{formatClinicalDate(eddConfirmation.next)}</strong>. Update the patient&apos;s
+              current pregnancy record?
+            </p>
+            <div>
+              <button
+                type="button"
+                className="is-secondary"
+                disabled={saving}
+                autoFocus
+                onClick={() => setEddConfirmation(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="is-primary"
+                disabled={saving}
+                onClick={() => {
+                  setEddConfirmation(null);
+                  saveRecord({ updateCurrentEdd: true });
+                }}
+              >
+                {saving ? "Updating..." : "Update EDD"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

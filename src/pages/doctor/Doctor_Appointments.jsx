@@ -37,6 +37,7 @@ import {
   AppointmentToolbar,
   AppointmentViewSwitch,
 } from "../../components/appointments/AppointmentUi";
+import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
 import "../../styles/doctor-appointments.css";
 
 const scheduleTableName = "schedule";
@@ -632,34 +633,193 @@ function DefaultProfileCard({ doctorIdentity }) {
 
 function StatusDropdown({
   schedule,
-  openStatusMenuId,
   updatingStatusId,
-  buttonRef,
-  onToggleStatusMenu,
+  onStatusSelect,
 }) {
-  const isOpen = openStatusMenuId === schedule.id;
+  const [isOpen, setIsOpen] = useState(false);
+  const cellRef = useRef(null);
   const statusLabel = getAppointmentStatusLabel(schedule.status);
+  const isCheckedIn = isCheckedInAppointmentStatus(schedule.status);
+  const isClosed = isClosedAppointmentStatus(schedule.status);
+
+  const availableOptions = isCheckedIn
+    ? [{ label: "Completed", value: appointmentStatuses.checkedIn }]
+    : statusOptions.filter((option) => option.value !== appointmentStatuses.scheduled);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const cell = cellRef.current;
+    const tableScroll = cell?.closest?.(".doctor-appointments-table-scroll");
+    const tableCard = cell?.closest?.(".doctor-appointments-table-card");
+
+    const targets = [tableScroll, tableCard].filter(Boolean);
+    const previousOverflow = targets.map((node) => ({
+      node,
+      value: node.style.getPropertyValue("overflow"),
+      priority: node.style.getPropertyPriority("overflow"),
+    }));
+
+    // The table normally clips overflow for scrolling. While this small menu is
+    // open, temporarily allow it to extend below the status pill like a real
+    // dropdown. Everything is restored as soon as the menu closes.
+    targets.forEach((node) => {
+      node.style.setProperty("overflow", "visible", "important");
+    });
+
+    const closeOnOutsidePointer = (event) => {
+      if (!cell?.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePointer);
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePointer);
+      window.removeEventListener("keydown", closeOnEscape);
+
+      previousOverflow.forEach(({ node, value, priority }) => {
+        if (value) {
+          node.style.setProperty("overflow", value, priority);
+        } else {
+          node.style.removeProperty("overflow");
+        }
+      });
+    };
+  }, [isOpen]);
+
+  const chooseOption = (option) => {
+    setIsOpen(false);
+    onStatusSelect(schedule, option.value);
+  };
 
   return (
-    <span className="doctor-appointment-status-cell">
+    <span
+      ref={cellRef}
+      className="doctor-appointment-status-cell"
+      style={{
+        position: "relative",
+        width: "fit-content",
+        minWidth: "fit-content",
+        justifySelf: "start",
+        overflow: "visible",
+        zIndex: isOpen ? 1000 : undefined,
+      }}
+    >
       <button
-        ref={buttonRef}
         className={`doctor-appointment-status appointment-ui-status doctor-appointment-status--${getAppointmentStatusClass(schedule.status)}`}
         type="button"
-        disabled={
-          updatingStatusId === schedule.id ||
-          isClosedAppointmentStatus(schedule.status)
-        }
-        aria-haspopup="listbox"
+        disabled={updatingStatusId === schedule.id || isClosed}
+        aria-haspopup="menu"
         aria-expanded={isOpen}
         onClick={(event) => {
           event.stopPropagation();
-          onToggleStatusMenu(schedule.id, isOpen);
+          setIsOpen((current) => !current);
+        }}
+        style={{
+          position: "relative",
+          paddingRight: "30px",
         }}
       >
-        <span>{updatingStatusId === schedule.id ? "Updating..." : statusLabel}</span>
-        <InlineIcon name="chevronDown" />
+        <span>
+          {updatingStatusId === schedule.id ? "Updating..." : statusLabel}
+        </span>
+
+        {!isClosed ? (
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              right: "10px",
+              top: "50%",
+              transform: `translateY(-50%) rotate(${isOpen ? "180deg" : "0deg"})`,
+              display: "inline-flex",
+              transition: "transform 160ms ease",
+              pointerEvents: "none",
+            }}
+          >
+            <Icon
+              icon="solar:alt-arrow-down-linear"
+              width="14"
+              height="14"
+              aria-hidden="true"
+            />
+          </span>
+        ) : null}
       </button>
+
+      {isOpen && !isClosed ? (
+        <div
+          role="menu"
+          aria-label={`Actions for ${statusLabel} appointment`}
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 100000,
+            width: "132px",
+            padding: "7px",
+            border: "1px solid #e2e6ef",
+            borderRadius: "13px",
+            background: "#ffffff",
+            boxShadow: "0 14px 34px rgba(31, 41, 55, 0.16)",
+            display: "grid",
+            gap: "5px",
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {availableOptions.map((option) => {
+            const isCompleteOption =
+              isCheckedIn &&
+              option.value === appointmentStatuses.checkedIn;
+            const isCancelOption = option.value === appointmentStatuses.cancelled;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="menuitem"
+                onClick={() => chooseOption(option)}
+                style={{
+                  width: "100%",
+                  minHeight: "34px",
+                  border: 0,
+                  borderRadius: "9px",
+                  padding: "0 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  fontFamily: "Poppins, sans-serif",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  background: isCompleteOption
+                    ? "#e9f8f0"
+                    : isCancelOption
+                      ? "#fff0f2"
+                      : "#eaf2ff",
+                  color: isCompleteOption
+                    ? "#16875f"
+                    : isCancelOption
+                      ? "#e34a61"
+                      : "#2563eb",
+                }}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </span>
   );
 }
@@ -986,7 +1146,6 @@ export function DoctorAppointmentsContent({
   const [statusMessage, setStatusMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
-  const [openStatusMenuId, setOpenStatusMenuId] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState("");
   const [cancelConfirmationSchedule, setCancelConfirmationSchedule] = useState(null);
   const [rescheduleSchedule, setRescheduleSchedule] = useState(null);
@@ -998,9 +1157,7 @@ export function DoctorAppointmentsContent({
   const [appointmentDoctorError, setAppointmentDoctorError] = useState(null);
   const [selectedCalendarSchedule, setSelectedCalendarSchedule] = useState(null);
   const [detailActionError, setDetailActionError] = useState("");
-  const [statusMenuPosition, setStatusMenuPosition] = useState(null);
   const tableScrollRef = useRef(null);
-  const statusButtonRefs = useRef({});
   const appointmentSaveLockRef = useRef(false);
   const appointmentStatusLockRef = useRef(new Set());
   const rescheduleSaveLockRef = useRef(false);
@@ -1128,56 +1285,6 @@ export function DoctorAppointmentsContent({
     const startIndex = (displayedPage - 1) * pageSize;
     return visibleSchedules.slice(startIndex, startIndex + pageSize);
   }, [displayedPage, pageSize, visibleSchedules]);
-
-  const activeStatusSchedule = useMemo(
-    () =>
-      openStatusMenuId
-        ? paginatedSchedules.find((schedule) => schedule.id === openStatusMenuId) || null
-        : null,
-    [openStatusMenuId, paginatedSchedules]
-  );
-
-  const updateStatusMenuPosition = useCallback((scheduleId) => {
-    const trigger = statusButtonRefs.current[scheduleId];
-
-    if (!trigger || typeof window === "undefined") {
-      setStatusMenuPosition(null);
-      return;
-    }
-
-    const rect = trigger.getBoundingClientRect();
-    const menuWidth = 132;
-    const estimatedMenuHeight = 128;
-    const viewportGap = 10;
-    const left = Math.min(
-      Math.max(viewportGap, rect.right - menuWidth),
-      window.innerWidth - menuWidth - viewportGap
-    );
-    let top = rect.bottom + 8;
-
-    if (top + estimatedMenuHeight > window.innerHeight - viewportGap) {
-      top = rect.top - estimatedMenuHeight - 8;
-    }
-
-    setStatusMenuPosition({
-      top: Math.max(viewportGap, top),
-      left,
-    });
-  }, []);
-
-  const toggleStatusMenu = useCallback(
-    (scheduleId, isOpen) => {
-      if (isOpen) {
-        setOpenStatusMenuId("");
-        setStatusMenuPosition(null);
-        return;
-      }
-
-      setOpenStatusMenuId(scheduleId);
-      window.requestAnimationFrame(() => updateStatusMenuPosition(scheduleId));
-    },
-    [updateStatusMenuPosition]
-  );
 
   const loadAppointments = useCallback((options = {}) => {
     if (appointmentsRequestRef.current) {
@@ -1369,38 +1476,6 @@ export function DoctorAppointmentsContent({
     searchTerm,
   ]);
 
-  useEffect(() => {
-    const closeStatusMenu = (event) => {
-      if (
-        event.target.closest?.(".doctor-appointment-status-cell") ||
-        event.target.closest?.(".doctor-appointment-status-portal-menu")
-      ) {
-        return;
-      }
-
-      setOpenStatusMenuId("");
-      setStatusMenuPosition(null);
-    };
-
-    window.addEventListener("click", closeStatusMenu);
-    return () => window.removeEventListener("click", closeStatusMenu);
-  }, []);
-
-  useEffect(() => {
-    if (!openStatusMenuId) return undefined;
-
-    const keepStatusMenuAligned = () => updateStatusMenuPosition(openStatusMenuId);
-    const frameId = window.requestAnimationFrame(keepStatusMenuAligned);
-
-    window.addEventListener("resize", keepStatusMenuAligned);
-    window.addEventListener("scroll", keepStatusMenuAligned, true);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", keepStatusMenuAligned);
-      window.removeEventListener("scroll", keepStatusMenuAligned, true);
-    };
-  }, [openStatusMenuId, paginatedSchedules, updateStatusMenuPosition]);
 
   useEffect(() => {
     if (!selectedCalendarSchedule) return undefined;
@@ -1673,7 +1748,6 @@ export function DoctorAppointmentsContent({
   };
 
   const updateScheduleStatus = async (schedule, nextStatus, options = {}) => {
-    setOpenStatusMenuId("");
     setDetailActionError("");
     logDoctorAppointmentDetailDebug("status action requested", {
       scheduleId: schedule?.id || null,
@@ -1746,7 +1820,6 @@ export function DoctorAppointmentsContent({
 
   const handleStatusSelect = (schedule, nextStatus) => {
     if (isClosedAppointmentStatus(schedule.status)) {
-      setOpenStatusMenuId("");
       setStatusMessage("Completed, cancelled, or missed appointments cannot be changed.");
       return;
     }
@@ -1755,24 +1828,25 @@ export function DoctorAppointmentsContent({
       isCheckedInAppointmentStatus(schedule.status) &&
       nextStatus !== appointmentStatuses.checkedIn
     ) {
-      setOpenStatusMenuId("");
       setStatusMessage("Open the checked-in appointment to complete its clinical visit.");
       return;
     }
 
     if (nextStatus === "scheduled") {
-      setOpenStatusMenuId("");
       return;
     }
 
     if (nextStatus === "checked_in") {
-      checkInAppointment(schedule);
+      if (isCheckedInAppointmentStatus(schedule.status)) {
+        openVisitForm(schedule);
+      } else {
+        checkInAppointment(schedule);
+      }
       return;
     }
 
     if (nextStatus === "cancelled") {
       setCancelConfirmationSchedule(schedule);
-      setOpenStatusMenuId("");
       return;
     }
 
@@ -1804,27 +1878,37 @@ export function DoctorAppointmentsContent({
   };
 
   const checkInAppointment = async (schedule) => {
-    if (!schedule?.id || updatingStatusId === schedule.id || visitRoutingLockRef.current) return;
+    if (!schedule?.id || updatingStatusId === schedule.id) return;
 
     if (!isPendingAppointmentStatus(schedule.status)) {
-      if (!isCheckedInAppointmentStatus(schedule.status)) {
-        setDetailActionError("Only pending, scheduled, or checked-in appointments can open a visit form.");
-        return;
-      }
+      setDetailActionError("Only pending or scheduled appointments can be checked in.");
+      return;
+    }
+
+    const saved = await updateScheduleStatus(schedule, "checked_in", {
+      actionLabel: "check in",
+      silentAlert: true,
+    });
+
+    if (saved) {
+      setSelectedCalendarSchedule(null);
+      setStatusMessage(
+        "Appointment checked in successfully. Staff can now complete the pre-consultation before the Doctor completes the visit."
+      );
+    }
+  };
+
+  const openVisitForm = async (schedule) => {
+    if (!schedule?.id || updatingStatusId === schedule.id || visitRoutingLockRef.current) return;
+
+    if (!isCheckedInAppointmentStatus(schedule.status)) {
+      setDetailActionError("Check in the appointment before opening the visit form.");
+      return;
     }
 
     visitRoutingLockRef.current = schedule.id;
 
     try {
-      const saved = isCheckedInAppointmentStatus(schedule.status)
-        ? true
-        : await updateScheduleStatus(schedule, "checked_in", {
-            actionLabel: "check in",
-            silentAlert: true,
-          });
-
-      if (!saved) return;
-
       const { data, error } = await supabase.rpc(
         "get_appointment_visit_form_type",
         { p_appointment_id: schedule.id }
@@ -1838,7 +1922,7 @@ export function DoctorAppointmentsContent({
           hint: error.hint || null,
         });
         setStatusMessage(
-          `Appointment checked in, but the visit form could not be opened. ${getReadableSupabaseError(error)}`
+          `The visit form could not be opened. ${getReadableSupabaseError(error)}`
         );
         return;
       }
@@ -1846,7 +1930,7 @@ export function DoctorAppointmentsContent({
       const routeResult = Array.isArray(data) ? data[0] : data;
       if (!routeResult?.visit_form_type) {
         setStatusMessage(
-          "Appointment checked in, but the visit-routing RPC returned no form type. Retry Check in."
+          "The visit-routing RPC returned no form type. Please retry."
         );
         return;
       }
@@ -1854,6 +1938,7 @@ export function DoctorAppointmentsContent({
       const routeSegment = routeResult.visit_form_type === "initial"
         ? "initial-visit"
         : "follow-up";
+
       setSelectedCalendarSchedule(null);
       navigate(`/doctor/appointments/${schedule.id}/${routeSegment}`);
     } finally {
@@ -2181,16 +2266,8 @@ export function DoctorAppointmentsContent({
                 <span>{formatTime(schedule.start_time)}</span>
                 <StatusDropdown
                   schedule={schedule}
-                  openStatusMenuId={openStatusMenuId}
                   updatingStatusId={updatingStatusId}
-                  buttonRef={(node) => {
-                    if (node) {
-                      statusButtonRefs.current[schedule.id] = node;
-                    } else {
-                      delete statusButtonRefs.current[schedule.id];
-                    }
-                  }}
-                  onToggleStatusMenu={toggleStatusMenu}
+                  onStatusSelect={handleStatusSelect}
                 />
               </div>
             ))
@@ -2211,42 +2288,6 @@ export function DoctorAppointmentsContent({
         />
       </section>
 
-      {openStatusMenuId && activeStatusSchedule && statusMenuPosition &&
-      typeof document !== "undefined"
-        ? createPortal(
-            <div
-              className="doctor-appointment-status-portal-menu"
-              role="listbox"
-              style={{
-                top: `${statusMenuPosition.top}px`,
-                left: `${statusMenuPosition.left}px`,
-              }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {statusOptions
-                .filter(
-                  (option) =>
-                    !isCheckedInAppointmentStatus(activeStatusSchedule.status) ||
-                    option.value === appointmentStatuses.checkedIn
-                )
-                .map((option) => (
-                <button
-                  className={`doctor-appointment-status-option doctor-appointment-status-option--${option.value}`}
-                  type="button"
-                  role="option"
-                  aria-selected={
-                    normalizeAppointmentStatus(activeStatusSchedule.status) === option.value
-                  }
-                  key={option.value}
-                  onClick={() => handleStatusSelect(activeStatusSchedule, option.value)}
-                >
-                  {option.label}
-                </button>
-                ))}
-            </div>,
-            document.body
-          )
-        : null}
 
       <section className="doctor-calendar-layout">
         <FigmaWeekCalendar
@@ -2401,17 +2442,18 @@ export function DoctorAppointmentsContent({
                     />
                   </label>
 
-                  <label className="appointment-form-field">
-                    <span>
+                  <div className="appointment-form-field">
+                    <span id="doctor-add-appointment-time-label">
                       Select Time:
                     </span>
-                    <input
-                      type="time"
+                    <AppointmentTimePicker
+                      id="doctor-add-appointment-time"
+                      labelId="doctor-add-appointment-time-label"
                       value={form.appointment_time}
-                      onChange={(event) => updateFormValue("appointment_time", event.target.value)}
+                      onChange={(value) => updateFormValue("appointment_time", value)}
                       required
                     />
-                  </label>
+                  </div>
 
                   <label className="appointment-form-field appointment-form-field--wide">
                     <span>
@@ -2491,7 +2533,7 @@ export function DoctorAppointmentsContent({
           onClose={closeCalendarAppointmentDetails}
           onEdit={startEditAppointment}
           onCheckIn={checkInAppointment}
-          onComplete={checkInAppointment}
+          onComplete={openVisitForm}
           onCancel={cancelDetailAppointment}
         />
       ) : null}
