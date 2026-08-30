@@ -1332,6 +1332,22 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     }));
   };
 
+  const resetAppointmentReminderForm = React.useCallback(() => {
+    setForm({
+      appointmentId: "",
+      patientId: "",
+      patientName: "",
+      scheduleDate: "",
+      scheduleTime: "",
+      appointmentType: "",
+      doctorName: "",
+      message: "",
+      reminderLeadTime: "1day",
+      customNotifyAt: "",
+      repeatReminder: "none",
+    });
+  }, []);
+
   const handleSelectAppointmentForReminder = React.useCallback((appointment) => {
     if (!appointment) return;
 
@@ -1361,6 +1377,27 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     }));
     setIsReminderFormOpen(true);
   }, [reminders]);
+
+  const handleReminderAppointmentChange = (event) => {
+    const appointmentId = event.target.value;
+
+    if (!appointmentId) {
+      resetAppointmentReminderForm();
+      setStatusMessage("");
+      return;
+    }
+
+    const appointment =
+      availableAppointments.find((item) => item.id === appointmentId) || null;
+
+    if (!appointment) {
+      resetAppointmentReminderForm();
+      setStatusMessage("The selected appointment could not be found.");
+      return;
+    }
+
+    handleSelectAppointmentForReminder(appointment);
+  };
 
   const reminderPreviewDetails = React.useMemo(() => {
     if (!form.patientName || !form.scheduleDate || !form.scheduleTime) {
@@ -2044,6 +2081,17 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     return true;
   });
   const visibleAppointmentRows = appointmentRows.slice(0, appointmentReminderFilter === "All" ? 8 : 3);
+  const reminderTargetAppointments = availableAppointments.filter((appointment) =>
+    classifyAppointment({
+      start: appointment.scheduleAt,
+      end: appointment.scheduleEndAt,
+      status: appointment.scheduleStatus,
+    }).isUpcoming
+  );
+  const selectedReminderAppointment =
+    availableAppointments.find(
+      (appointment) => appointment.id === form.appointmentId
+    ) || null;
   const medicationOccurrenceMap = React.useMemo(() => {
     return new Map(
       medicationOccurrences.map((occurrence) => [
@@ -2107,18 +2155,19 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     Boolean(deleteHealthTipTarget);
 
   const openReminderForm = () => {
-    const nextAppointment =
-      appointmentRows.find((appointment) => !remindersByAppointmentId[appointment.id]) ||
-      appointmentRows[0] ||
-      availableAppointments[0];
-
-    if (nextAppointment) {
-      handleSelectAppointmentForReminder(nextAppointment);
+    if (!reminderTargetAppointments.length) {
+      setStatusMessage("");
+      setAppointmentsMessage(
+        "No upcoming appointments linked to registered patients are available for reminders yet."
+      );
       return;
     }
 
+    // The global Set Reminder button must never silently target the first patient.
+    // Open a blank form and require the Doctor to explicitly choose one appointment.
+    resetAppointmentReminderForm();
     setStatusMessage("");
-    setAppointmentsMessage("No saved appointments are available for reminders yet.");
+    setIsReminderFormOpen(true);
   };
 
   const closeReminderForm = () => {
@@ -2800,8 +2849,12 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   <Icon icon="solar:alarm-bold-duotone" />
                 </span>
                 <div>
-                  <h2 id="doctor-reminder-form-title">Set Reminder</h2>
-                  <p>Choose when the Patient should be notified before the appointment.</p>
+                  <h2 id="doctor-reminder-form-title">
+                    {remindersByAppointmentId[form.appointmentId]
+                      ? "Edit Reminder"
+                      : "Set Reminder"}
+                  </h2>
+                  <p>Select one appointment, then choose when that Patient should be notified.</p>
                 </div>
               </div>
               <button className="doctor-reminder-modal-close" type="button" aria-label="Close reminder form" onClick={closeReminderForm}>
@@ -2810,6 +2863,64 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
             </header>
 
             <div className="doctor-reminder-dialog__body doctor-reminder-form__body">
+
+            <section className="doctor-reminder-target-block" aria-label="Reminder target">
+              <div className="doctor-reminder-preference-heading">
+                <strong>Reminder Target</strong>
+                <span>Select exactly one Patient appointment.</span>
+              </div>
+
+              <label className="doctor-reminder-target-field">
+                <span>Patient / Appointment <b>*</b></span>
+                <select
+                  value={form.appointmentId}
+                  onChange={handleReminderAppointmentChange}
+                  disabled={isLoadingAppointments || isSavingReminder}
+                  required
+                >
+                  <option value="">Select an appointment...</option>
+                  {reminderTargetAppointments.map((appointment) => (
+                    <option key={appointment.id} value={appointment.id}>
+                      {appointment.patientName} — {appointment.appointmentType} —{" "}
+                      {formatReminderDisplayDate(appointment.scheduleDate)}{" "}
+                      {formatReminderDisplayTime(appointment.scheduleTime)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {selectedReminderAppointment ? (
+                <div className="doctor-reminder-target-summary">
+                  <div>
+                    <span>Patient</span>
+                    <strong>{selectedReminderAppointment.patientName}</strong>
+                  </div>
+                  <div>
+                    <span>Appointment</span>
+                    <strong>{selectedReminderAppointment.appointmentType}</strong>
+                  </div>
+                  <div>
+                    <span>Schedule</span>
+                    <strong>
+                      {formatReminderDisplayDate(selectedReminderAppointment.scheduleDate)}{" "}
+                      {formatReminderDisplayTime(selectedReminderAppointment.scheduleTime)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Reminder</span>
+                    <strong>
+                      {remindersByAppointmentId[selectedReminderAppointment.id]
+                        ? "Existing reminder"
+                        : "New reminder"}
+                    </strong>
+                  </div>
+                </div>
+              ) : (
+                <p className="doctor-reminder-target-hint">
+                  Choose the Patient appointment that should receive this reminder.
+                </p>
+              )}
+            </section>
 
             <div className="doctor-reminder-preference-block">
               <div className="doctor-reminder-preference-heading">
@@ -2919,6 +3030,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
               <button
                 type="submit"
                 disabled={
+                  !form.appointmentId ||
                   isSavingReminder ||
                   doctorIdentity?.loading ||
                   Boolean(doctorIdentity?.error)

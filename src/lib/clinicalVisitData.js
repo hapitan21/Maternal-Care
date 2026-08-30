@@ -32,6 +32,40 @@ function getFirstValue(...values) {
   return values.find((value) => isMeaningfulClinicalValue(value)) ?? "";
 }
 
+function getObjectValue(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function getPreferredFieldValue(data, keys, ...fallbacks) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) return data[key] ?? "";
+  }
+  return getFirstValue(...fallbacks);
+}
+
+function normalizeClinicalAttachment(value) {
+  const attachment = getObjectValue(value);
+  const name = getFirstValue(attachment.name, attachment.fileName);
+  const path = getFirstValue(attachment.path, attachment.storagePath);
+  const dataUrl = getFirstValue(
+    attachment.dataUrl,
+    attachment.url,
+    attachment.publicUrl
+  );
+
+  if (!name || (!path && !dataUrl)) return null;
+
+  const normalized = {
+    name,
+    type: getFirstValue(attachment.type, attachment.fileType) || "application/pdf",
+    size: Number.isFinite(Number(attachment.size)) ? Number(attachment.size) : 0,
+  };
+
+  if (path) normalized.path = path;
+  if (dataUrl) normalized.dataUrl = dataUrl;
+  return normalized;
+}
+
 function normalizeLabel(value) {
   return String(value || "").trim().toLowerCase().replace(/[_\s/-]+/g, "");
 }
@@ -82,6 +116,64 @@ export function normalizeClinicalVisitFormData(source) {
       : typeof data.pregnancy_status !== "object"
         ? data.pregnancy_status
         : "";
+  const laboratoryReviewSource = getObjectValue(
+    data.laboratoryReview || data.laboratory_review
+  );
+  const ultrasoundReviewSource = getObjectValue(
+    data.ultrasoundReview || data.ultrasound_review
+  );
+  const laboratoryAttachment = normalizeClinicalAttachment(
+    data.laboratoryAttachment ||
+      data.laboratory_attachment ||
+      laboratoryReviewSource.attachment
+  );
+  const ultrasoundAttachment = normalizeClinicalAttachment(
+    data.ultrasoundAttachment ||
+      data.ultrasound_attachment ||
+      ultrasoundReviewSource.attachment
+  );
+  const laboratoryTestType = getPreferredFieldValue(
+    data,
+    ["laboratoryTestType", "laboratory_test_type"],
+    laboratoryReviewSource.testType,
+    laboratoryReviewSource.test_type
+  );
+  const laboratoryResultSummary = getPreferredFieldValue(
+    data,
+    ["laboratoryResultSummary", "laboratory_result_summary"],
+    laboratoryReviewSource.resultSummary,
+    laboratoryReviewSource.result_summary,
+    typeof data.laboratoryReview === "string" ? data.laboratoryReview : ""
+  );
+  const laboratoryInterpretation = getPreferredFieldValue(
+    data,
+    ["laboratoryInterpretation", "laboratory_interpretation"],
+    laboratoryReviewSource.interpretation
+  );
+  const laboratoryReportAttached = getPreferredFieldValue(
+    data,
+    ["laboratoryReportAttached", "laboratory_report_attached"],
+    laboratoryReviewSource.reportAttached,
+    laboratoryReviewSource.report_attached
+  );
+  const ultrasoundVisitDate = getPreferredFieldValue(
+    data,
+    ["ultrasoundVisitDate", "ultrasound_visit_date"],
+    ultrasoundReviewSource.visitDate,
+    ultrasoundReviewSource.visit_date
+  );
+  const ultrasoundFindings = getPreferredFieldValue(
+    data,
+    ["ultrasoundFindings", "ultrasound_findings"],
+    ultrasoundReviewSource.findings,
+    typeof data.ultrasoundReview === "string" ? data.ultrasoundReview : ""
+  );
+  const ultrasoundReportAttached = getPreferredFieldValue(
+    data,
+    ["ultrasoundReportAttached", "ultrasound_report_attached"],
+    ultrasoundReviewSource.reportAttached,
+    ultrasoundReviewSource.report_attached
+  );
 
   return {
     ...data,
@@ -142,11 +234,60 @@ export function normalizeClinicalVisitFormData(source) {
       clinicalFindings.movement,
       getFinding(data, ["Fetal Movement", "Movement"])
     ),
+    laboratoryTestType,
+    laboratoryResultSummary,
+    laboratoryInterpretation,
+    laboratoryReportAttached,
+    laboratoryAttachment,
+    laboratoryReview: {
+      ...laboratoryReviewSource,
+      testType: laboratoryTestType,
+      resultSummary: laboratoryResultSummary,
+      interpretation: laboratoryInterpretation,
+      reportAttached: laboratoryReportAttached,
+      attachment: laboratoryAttachment,
+    },
+    ultrasoundVisitDate,
+    ultrasoundFindings,
+    ultrasoundReportAttached,
+    ultrasoundAttachment,
+    ultrasoundReview: {
+      ...ultrasoundReviewSource,
+      visitDate: ultrasoundVisitDate,
+      findings: ultrasoundFindings,
+      reportAttached: ultrasoundReportAttached,
+      attachment: ultrasoundAttachment,
+    },
   };
 }
 
 export function buildCanonicalClinicalVisitFormData(source) {
   const canonical = { ...normalizeClinicalVisitFormData(source) };
+
+  const laboratoryAttachment = canonical.laboratoryReportAttached === "No"
+    ? null
+    : canonical.laboratoryAttachment;
+  const ultrasoundAttachment = canonical.ultrasoundReportAttached === "No"
+    ? null
+    : canonical.ultrasoundAttachment;
+
+  canonical.laboratoryAttachment = laboratoryAttachment;
+  canonical.laboratoryReview = {
+    ...getObjectValue(canonical.laboratoryReview),
+    testType: canonical.laboratoryTestType,
+    resultSummary: canonical.laboratoryResultSummary,
+    interpretation: canonical.laboratoryInterpretation,
+    reportAttached: canonical.laboratoryReportAttached,
+    attachment: laboratoryAttachment,
+  };
+  canonical.ultrasoundAttachment = ultrasoundAttachment;
+  canonical.ultrasoundReview = {
+    ...getObjectValue(canonical.ultrasoundReview),
+    visitDate: canonical.ultrasoundVisitDate,
+    findings: canonical.ultrasoundFindings,
+    reportAttached: canonical.ultrasoundReportAttached,
+    attachment: ultrasoundAttachment,
+  };
 
   [
     "pregnancyStatus",
@@ -156,6 +297,10 @@ export function buildCanonicalClinicalVisitFormData(source) {
     "fetalPosition",
     "fetal_position",
     "presentation",
+    "laboratory_review",
+    "laboratory_attachment",
+    "ultrasound_review",
+    "ultrasound_attachment",
   ].forEach((legacyKey) => delete canonical[legacyKey]);
 
   return canonical;

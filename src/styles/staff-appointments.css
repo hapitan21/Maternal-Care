@@ -3653,3 +3653,746 @@
     max-width: none !important;
   }
 }
+
+/* =========================================================
+   STAFF APPOINTMENTS — MAIN / HISTORY NO-SHIFT FIX
+   Keeps Main and History perfectly stationary when switching.
+   UI only — no appointment logic is changed.
+========================================================= */
+
+.staff-appointments-page .staff-appointments-view-group {
+  width: 180px !important;
+  min-width: 180px !important;
+  max-width: 180px !important;
+}
+
+.staff-appointments-page .staff-appointments-view-switch {
+  width: 180px !important;
+  min-width: 180px !important;
+  max-width: 180px !important;
+
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+
+  gap: 6px !important;
+  padding: 4px !important;
+
+  box-sizing: border-box !important;
+}
+
+/* Both buttons always occupy exactly half of the control */
+.staff-appointments-page .staff-appointments-view-switch button {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  min-height: 32px !important;
+  padding: 0 8px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  box-sizing: border-box !important;
+
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+
+  transform: none !important;
+
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease !important;
+}
+
+/* Switching state must never alter dimensions */
+.staff-appointments-page .staff-appointments-view-switch button:hover,
+.staff-appointments-page .staff-appointments-view-switch button:focus,
+.staff-appointments-page .staff-appointments-view-switch button:active,
+.staff-appointments-page .staff-appointments-view-switch button.is-active {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  transform: none !important;
+}
+
+@media (max-width: 760px) {
+  .staff-appointments-page .staff-appointments-view-group,
+  .staff-appointments-page .staff-appointments-view-switch {
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+  }
+}
+
+/* =========================================================
+   STAFF APPOINTMENTS — FINAL MAIN / HISTORY NO-MOVEMENT FIX
+   ---------------------------------------------------------
+   Fixes table/column movement when switching Main ↔ History.
+   Does NOT change appointment logic.
+========================================================= */
+
+/* Keep the table viewport exactly the same width in both views */
+.staff-appointments-page .staff-appointments-table-scroll {
+  width: 100% !important;
+
+  /* Reserve scrollbar space even when Main has fewer rows */
+  scrollbar-gutter: stable !important;
+
+  /* Keep the vertical scrollbar area consistent */
+  overflow-y: scroll !important;
+  overflow-x: auto !important;
+}
+
+/* Prevent browser from recalculating column widths based on row content */
+.staff-appointments-page .staff-appointments-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+/* =========================================================
+   FIXED COLUMN WIDTHS
+   Appointment ID | Name | Date | Time | Status
+========================================================= */
+
+.staff-appointments-page .staff-appointments-table th:nth-child(1),
+.staff-appointments-page .staff-appointments-table td:nth-child(1) {
+  width: 27% !important;
+}
+
+.staff-appointments-page .staff-appointments-table th:nth-child(2),
+.staff-appointments-page .staff-appointments-table td:nth-child(2) {
+  width: 24% !important;
+}
+
+.staff-appointments-page .staff-appointments-table th:nth-child(3),
+.staff-appointments-page .staff-appointments-table td:nth-child(3) {
+  width: 19% !important;
+}
+
+.staff-appointments-page .staff-appointments-table th:nth-child(4),
+.staff-appointments-page .staff-appointments-table td:nth-child(4) {
+  width: 17% !important;
+}
+
+.staff-appointments-page .staff-appointments-table th:nth-child(5),
+.staff-appointments-page .staff-appointments-table td:nth-child(5) {
+  width: 13% !important;
+}
+
+/* Prevent long values from changing column geometry */
+.staff-appointments-page .staff-appointments-table th,
+.staff-appointments-page .staff-appointments-table td {
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Keep the status cell aligned without affecting column width */
+.staff-appointments-page .staff-appointments-table th:last-child,
+.staff-appointments-page .staff-appointments-table td:last-child {
+  width: 13% !important;
+  min-width: 0 !important;
+}
+
+/* Do not allow text to resize/reflow the table */
+.staff-appointments-page .staff-appointments-table td {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Status dropdown must still be visible */
+.staff-appointments-page .staff-appointments-table td:last-child {
+  overflow: visible !important;
+}
+
+/* =========================================================
+   STAFF APPOINTMENTS — PAGINATION NO-SHIFT FIX
+   Keeps "Rows 10" perfectly centered in Main and History.
+========================================================= */
+
+.staff-appointments-page .staff-appointments-pagination {
+  width: 100% !important;
+
+  /* Replace space-between flex behavior */
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1fr)
+    110px
+    minmax(0, 1fr) !important;
+
+  align-items: center !important;
+  gap: 14px !important;
+
+  box-sizing: border-box !important;
+}
+
+/* Showing 1-x of x */
+.staff-appointments-page
+  .staff-appointments-pagination
+  > :first-child {
+  justify-self: start !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Rows 10 — permanently centered */
+.staff-appointments-page
+  .staff-appointments-pagination
+  > label {
+  width: 110px !important;
+  min-width: 110px !important;
+  max-width: 110px !important;
+
+  justify-self: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Previous / page / Next */
+.staff-appointments-page
+  .staff-appointments-pagination
+  > :last-child {
+  justify-self: end !important;
+  min-width: max-content !important;
+  white-space: nowrap !important;
+}
+
+/* Keep selector dimensions identical */
+.staff-appointments-page
+  .staff-appointments-pagination
+  label
+  select {
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
+  height: 32px !important;
+  box-sizing: border-box !important;
+}
+
+/* Prevent interaction states from changing dimensions */
+.staff-appointments-page
+  .staff-appointments-pagination
+  label,
+.staff-appointments-page
+  .staff-appointments-pagination
+  label:hover,
+.staff-appointments-page
+  .staff-appointments-pagination
+  label:focus-within {
+  transform: none !important;
+}
+
+/* =========================================================
+   STAFF — UNIFIED PROFILE DROPDOWN
+   ---------------------------------------------------------
+   Dashboard is the reference design.
+   Makes Dashboard, Patients, Appointments, Profile and
+   Settings use the exact same profile dropdown appearance.
+========================================================= */
+
+
+/* Keep wrapper as the dropdown anchor */
+.staff-dashboard-shell .staff-profile-wrapper,
+.staff-dashboard-shell .doctor-profile-wrapper {
+  position: relative !important;
+  overflow: visible !important;
+  z-index: 500000 !important;
+}
+
+
+/* =========================================================
+   DROPDOWN CONTAINER
+========================================================= */
+
+.staff-dashboard-shell
+  .staff-profile-wrapper
+  > .doctor-profile-dropdown,
+.staff-dashboard-shell
+  .doctor-profile-wrapper
+  > .doctor-profile-dropdown {
+  position: absolute !important;
+
+  top: calc(100% + 10px) !important;
+  right: 0 !important;
+  left: auto !important;
+
+  width: 292px !important;
+  min-width: 292px !important;
+  max-width: 292px !important;
+
+  min-height: 0 !important;
+  height: auto !important;
+
+  margin: 0 !important;
+  padding: 12px !important;
+
+  border: 0 !important;
+  border-radius: 16px !important;
+
+  background: #ffffff !important;
+
+  box-shadow:
+    0 18px 45px rgba(25, 30, 45, 0.14) !important;
+
+  box-sizing: border-box !important;
+
+  z-index: 500001 !important;
+
+  overflow: hidden !important;
+}
+
+
+/* =========================================================
+   MENU
+========================================================= */
+
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu {
+  width: 100% !important;
+
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+
+  gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+   MENU BUTTONS
+========================================================= */
+
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button {
+  width: 100% !important;
+
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+
+  gap: 12px !important;
+
+  margin: 0 !important;
+  padding: 0 15px !important;
+
+  border: 0 !important;
+  border-radius: 11px !important;
+
+  background: transparent !important;
+
+  color: #252832 !important;
+
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+
+  text-align: left !important;
+  white-space: nowrap !important;
+
+  box-shadow: none !important;
+
+  cursor: pointer !important;
+
+  transform: none !important;
+
+  transition:
+    background-color 160ms ease,
+    color 160ms ease !important;
+}
+
+
+/* Text must inherit button design */
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button
+  span {
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: inherit !important;
+
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+
+/* =========================================================
+   ICON SIZE
+========================================================= */
+
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button
+  svg {
+  width: 19px !important;
+  height: 19px !important;
+
+  min-width: 19px !important;
+  flex: 0 0 19px !important;
+
+  color: currentColor !important;
+}
+
+
+/* =========================================================
+   NORMAL + HOVER
+========================================================= */
+
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button:not(.logout) {
+  background: transparent !important;
+  color: #252832 !important;
+}
+
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button:not(.logout):hover,
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button:not(.logout):focus-visible {
+  background: #fff1f6 !important;
+  color: #cf1260 !important;
+
+  transform: none !important;
+}
+
+
+/* =========================================================
+   LOG OUT
+   Dashboard reference uses the soft pink/red treatment.
+========================================================= */
+
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button.logout {
+  background: #fff7fa !important;
+  color: #d61d63 !important;
+}
+
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button.logout:hover,
+.staff-dashboard-shell
+  .doctor-profile-dropdown
+  .doctor-dropdown-menu
+  button.logout:focus-visible {
+  background: #ffeaf2 !important;
+  color: #c51458 !important;
+
+  transform: none !important;
+}
+
+
+/* =========================================================
+   REMOVE PAGE-SPECIFIC ACTIVE/HOVER SIDE EFFECTS
+   Prevents Patients/Appointments/Settings from changing
+   the dropdown buttons.
+========================================================= */
+
+.staff-dashboard-shell
+  .staff-patients-page
+  .doctor-profile-dropdown
+  button,
+.staff-dashboard-shell
+  .staff-appointments-page
+  .doctor-profile-dropdown
+  button,
+.staff-dashboard-shell
+  .staff-settings-page
+  .doctor-profile-dropdown
+  button,
+.staff-dashboard-shell
+  .doctor-profile-page
+  .doctor-profile-dropdown
+  button {
+  width: 100% !important;
+  height: 42px !important;
+
+  margin: 0 !important;
+  padding: 0 15px !important;
+
+  border: 0 !important;
+  border-radius: 11px !important;
+
+  font-size: 14px !important;
+  font-weight: 700 !important;
+
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+
+/* Keep logout styling even inside other pages */
+.staff-dashboard-shell
+  .staff-patients-page
+  .doctor-profile-dropdown
+  button.logout,
+.staff-dashboard-shell
+  .staff-appointments-page
+  .doctor-profile-dropdown
+  button.logout,
+.staff-dashboard-shell
+  .staff-settings-page
+  .doctor-profile-dropdown
+  button.logout,
+.staff-dashboard-shell
+  .doctor-profile-page
+  .doctor-profile-dropdown
+  button.logout {
+  background: #fff7fa !important;
+  color: #d61d63 !important;
+}
+
+
+/* =========================================================
+   OPEN ARROW
+========================================================= */
+
+.staff-dashboard-shell
+  .staff-profile-card.open
+  .doctor-profile-arrow,
+.staff-dashboard-shell
+  .doctor-profile-card.open
+  .doctor-profile-arrow {
+  transform: rotate(180deg) !important;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell
+    .staff-profile-wrapper
+    > .doctor-profile-dropdown,
+  .staff-dashboard-shell
+    .doctor-profile-wrapper
+    > .doctor-profile-dropdown {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    right: 0 !important;
+    left: auto !important;
+  }
+}
+
+/* Paint the stable scrollbar track behind the sticky appointment header. */
+.staff-appointments-page .staff-appointments-table-scroll {
+  background-color: #ffffff !important;
+  background-image: linear-gradient(
+    to bottom,
+    var(--staff-appointments-pink) 0,
+    var(--staff-appointments-pink) 58px,
+    #ffffff 58px,
+    #ffffff 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-track,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+.staff-appointments-page
+  .staff-appointments-table-scroll::-webkit-scrollbar-track:vertical {
+  background: linear-gradient(
+    to bottom,
+    var(--staff-appointments-pink) 0,
+    var(--staff-appointments-pink) 58px,
+    #ffffff 58px,
+    #ffffff 100%
+  ) !important;
+}
+
+/* =========================================================
+   FINAL TABLE HEADER GUTTER PAINT FIX
+   Keeps the stable vertical scrollbar gutter, but paints the
+   table-card background pink for the header band so the
+   reserved gutter reaches the rounded top-right edge.
+   ========================================================= */
+.staff-appointments-page .staff-appointments-table-card {
+  background-image: linear-gradient(
+    to bottom,
+    var(--staff-appointments-pink) 0,
+    var(--staff-appointments-pink) 50px,
+    #ffffff 50px,
+    #ffffff 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll {
+  background: transparent !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-track,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-track-piece,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-corner,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-button {
+  background: transparent !important;
+}
+
+/* =========================================================
+   FINAL CHROMIUM SCROLLBAR HEADER-SEAM FIX
+   The appointment header is 50px high. Disable the standardized
+   scrollbar-color layer for this viewport and paint the actual
+   Chromium vertical scrollbar box pink for exactly that band.
+   ========================================================= */
+.staff-appointments-page .staff-appointments-table-scroll {
+  scrollbar-color: auto !important;
+  scrollbar-width: auto !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar {
+  width: 7px !important;
+  height: 7px !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar:vertical {
+  background: linear-gradient(
+    to bottom,
+    var(--staff-appointments-pink) 0,
+    var(--staff-appointments-pink) 50px,
+    #ffffff 50px,
+    #ffffff 100%
+  ) !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar:horizontal {
+  background: #ffffff !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-track,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-track-piece,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-corner,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-button {
+  background: transparent !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(255, 47, 125, 0.55) !important;
+}
+
+
+
+/* =========================================================
+   STRUCTURAL HEADER-SEAM FIX — STAFF APPOINTMENTS
+   The pink header now lives outside the vertical row scroller.
+   The outer x-scroll wrapper keeps header/body horizontally aligned,
+   while only the body rows own the vertical scrollbar.
+   ========================================================= */
+.staff-appointments-page .staff-appointments-table-card {
+  overflow: hidden !important;
+  background: #ffffff !important;
+  background-image: none !important;
+}
+
+.staff-appointments-page .staff-appointments-table-xscroll {
+  width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  background: #ffffff !important;
+}
+
+.staff-appointments-page .staff-appointments-table-inner {
+  width: 100% !important;
+  min-width: 850px !important;
+}
+
+.staff-appointments-page .staff-appointments-table-head-shell {
+  width: 100% !important;
+  height: 50px !important;
+  box-sizing: border-box !important;
+  padding-right: 7px !important;
+  overflow: hidden !important;
+  background: var(--staff-appointments-pink) !important;
+}
+
+.staff-appointments-page .staff-appointments-table--header,
+.staff-appointments-page .staff-appointments-table--body {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+.staff-appointments-page .staff-appointments-table--header thead,
+.staff-appointments-page .staff-appointments-table--header thead tr,
+.staff-appointments-page .staff-appointments-table--header thead th {
+  background: var(--staff-appointments-pink) !important;
+}
+
+.staff-appointments-page .staff-appointments-table--header thead th {
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
+  height: 50px !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll {
+  width: 100% !important;
+  max-height: 282px !important;
+  overflow-x: hidden !important;
+  overflow-y: scroll !important;
+  scrollbar-gutter: auto !important;
+  background: #ffffff !important;
+  background-image: none !important;
+}
+
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar:vertical,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-track,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-track-piece,
+.staff-appointments-page .staff-appointments-table-scroll::-webkit-scrollbar-corner {
+  background: #ffffff !important;
+}
+
+/* Horizontal scrolling belongs to the shared outer wrapper, not the row viewport. */
+.staff-appointments-page .staff-appointments-table-xscroll::-webkit-scrollbar {
+  height: 7px !important;
+}
+
+.staff-appointments-page .staff-appointments-table-xscroll::-webkit-scrollbar-track {
+  background: #ffffff !important;
+}
+
+.staff-appointments-page .staff-appointments-table-xscroll::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(255, 47, 125, 0.45) !important;
+}

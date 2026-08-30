@@ -7,6 +7,11 @@ import "../../styles/patient-PWA-medicalrecords.css";
 const medicalRecordColumns =
   "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, file_name, file_type, file_data_url, form_data, uploaded_at, uploaded_by";
 
+const scheduleColumns =
+  "id, maternal_appointment_id, patient_id, doctor_id, doctor_name, title, start_time, end_time, status";
+
+const MANILA_TIME_ZONE = "Asia/Manila";
+
 const findingUnits = {
   "blood pressure": "mmHg",
   weight: "kg",
@@ -79,13 +84,17 @@ function formatLongDate(value, fallback = "-") {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: MANILA_TIME_ZONE,
   });
 }
 
 function formatDayTime(dateValue, timeValue) {
   const date = toValidDate(dateValue);
   const day = date
-    ? date.toLocaleDateString("en-US", { weekday: "long" })
+    ? date.toLocaleDateString("en-US", {
+        weekday: "long",
+        timeZone: MANILA_TIME_ZONE,
+      })
     : "Visit";
 
   if (timeValue) {
@@ -97,6 +106,7 @@ function formatDayTime(dateValue, timeValue) {
   return `${day} - ${date.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: MANILA_TIME_ZONE,
   })}`;
 }
 
@@ -187,7 +197,12 @@ function normalizeObstetric(formData) {
     },
     {
       label: "Pregnancy Status",
-      value: pregnancyStatus.riskLevel || cleanRecordValue(formData.pregnancyStatus) || "-",
+      value:
+        pregnancyStatus.riskLevel ||
+        cleanRecordValue(formData.riskLevel) ||
+        cleanRecordValue(formData.pregnancyRiskLevel) ||
+        cleanRecordValue(formData.pregnancyStatus) ||
+        "-",
     },
     {
       label: "Expected Delivery Date",
@@ -202,29 +217,135 @@ function normalizeObstetric(formData) {
   ];
 }
 
-function getAttachmentMeta(row) {
-  if (!row.file_name) {
-    return null;
-  }
+function normalizeAttachmentMeta(value, fallbackLabel = "Medical report") {
+  if (!value || typeof value !== "object") return null;
+
+  const path = cleanRecordValue(value.path);
+  const name =
+    cleanRecordValue(value.name) ||
+    cleanRecordValue(value.fileName) ||
+    cleanRecordValue(value.filename) ||
+    fallbackLabel;
+  const type =
+    cleanRecordValue(value.type) ||
+    cleanRecordValue(value.mimeType) ||
+    "application/pdf";
+  const size = Number(value.size || 0) || 0;
+
+  if (!path && !cleanRecordValue(value.url)) return null;
 
   return {
-    name: row.file_name,
-    type: row.file_type || "File",
-    url: row.file_data_url || "",
+    name,
+    type,
+    size,
+    path,
+    url: cleanRecordValue(value.url),
   };
 }
 
-function mapMedicalRecord(row) {
+function getClinicalAttachments(formData, row) {
+  const laboratoryReview =
+    formData.laboratoryReview && typeof formData.laboratoryReview === "object"
+      ? formData.laboratoryReview
+      : {};
+  const ultrasoundReview =
+    formData.ultrasoundReview && typeof formData.ultrasoundReview === "object"
+      ? formData.ultrasoundReview
+      : {};
+
+  const candidates = [
+    {
+      kind: "Laboratory",
+      value:
+        formData.laboratoryAttachment ||
+        laboratoryReview.attachment ||
+        formData.labAttachment ||
+        formData.labReview?.attachment,
+    },
+    {
+      kind: "Ultrasound",
+      value:
+        formData.ultrasoundAttachment ||
+        ultrasoundReview.attachment ||
+        formData.ultrasoundReportAttachment ||
+        formData.ultrasound?.attachment,
+    },
+  ];
+
+  const attachments = candidates
+    .map(({ kind, value }) => {
+      const attachment = normalizeAttachmentMeta(value, `${kind} report.pdf`);
+      return attachment ? { ...attachment, kind } : null;
+    })
+    .filter(Boolean);
+
+  // Preserve any legacy/general medical-record attachment too.
+  if (row.file_name) {
+    attachments.push({
+      kind: "Medical Record",
+      name: row.file_name,
+      type: row.file_type || "File",
+      size: 0,
+      path: "",
+      url: row.file_data_url || "",
+    });
+  }
+
+  const seen = new Set();
+  return attachments.filter((attachment) => {
+    const key = attachment.path || `${attachment.kind}:${attachment.name}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function formatAttachmentSize(size) {
+  const bytes = Number(size || 0);
+  if (!bytes) return "PDF report";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function createAttachmentUrl(attachment) {
+  if (attachment.url) return attachment.url;
+
+  if (!attachment.path) {
+    throw new Error("This report does not have a valid storage path.");
+  }
+
+  const { data, error } = await supabase.storage
+    .from("medical-records")
+    .createSignedUrl(attachment.path, 600);
+
+  if (error || !data?.signedUrl) {
+    throw error || new Error("Unable to create a secure report link.");
+  }
+
+  return data.signedUrl;
+}
+
+function mapMedicalRecord(row, linkedSchedule = null) {
   const formData = getFormData(row);
-  const visitDate = normalizeDateSource(formData.visitDate, row.uploaded_at);
+
+  // Canonical clinical visit date/time comes from the linked appointment.
+  // uploaded_at is only the database record creation timestamp.
+  const scheduleVisitDate = linkedSchedule?.start_time || "";
+  const fallbackVisitDate = normalizeDateSource(formData.visitDate, row.uploaded_at);
+  const visitDate = scheduleVisitDate || fallbackVisitDate;
   const displayDate = formatLongDate(visitDate);
-  const dayTime = formatDayTime(visitDate || row.uploaded_at, formData.visitTime);
+  const dayTime = scheduleVisitDate
+    ? formatDayTime(scheduleVisitDate)
+    : formatDayTime(fallbackVisitDate || row.uploaded_at, formData.visitTime);
+
   const complaint =
     formData.chiefComplaint ||
     formData.complaint ||
     row.notes ||
     row.title ||
     "No chief complaint recorded.";
+
   const diagnosis =
     formData.diagnosis ||
     formData.assessment ||
@@ -233,11 +354,20 @@ function mapMedicalRecord(row) {
     "Medical Record";
 
   const appointmentReference = formatAppointmentReference(
-    formData.displayAppointmentId ||
+    linkedSchedule?.maternal_appointment_id ||
+      formData.displayAppointmentId ||
       formData.appointmentId ||
       formData.maternalAppointmentId ||
+      row.schedule_id ||
       ""
   );
+
+  const doctorName =
+    cleanRecordValue(linkedSchedule?.doctor_name) ||
+    cleanRecordValue(formData.attendingPhysician) ||
+    cleanRecordValue(formData.doctorName) ||
+    cleanRecordValue(formData.doctor) ||
+    "Doctor not recorded";
 
   return {
     id: row.id,
@@ -245,11 +375,13 @@ function mapMedicalRecord(row) {
     dayTime,
     visitType: formData.visitType || row.type || row.title || "Medical Record",
     gestationalAge: formData.gestationalAge || "Not recorded",
-    doctor: formData.doctor || row.uploaded_by || "Doctor not recorded",
+    doctor: doctorName,
     appointmentReference,
     createdDate: formatLongDate(row.uploaded_at, "Not recorded"),
     updatedDate: formData.updatedAt || "Not recorded",
-    recordStatus: formatStatusLabel(formData.recordStatus || formData.status),
+    recordStatus: formatStatusLabel(
+      formData.recordStatus || formData.status || linkedSchedule?.status
+    ),
     complaint,
     symptoms: formData.symptoms || "Not recorded",
     findings: normalizeFindings(formData),
@@ -259,7 +391,7 @@ function mapMedicalRecord(row) {
     diagnosis,
     prescriptions: toList(formData.prescriptions),
     diagnosticResults: toList(formData.diagnosticResults),
-    attachment: getAttachmentMeta(row),
+    attachments: getClinicalAttachments(formData, row),
     sortTime: toValidDate(visitDate || row.uploaded_at)?.getTime() || 0,
   };
 }
@@ -416,7 +548,7 @@ function mapRegistrationMedicalRecord(patient, obstetric, medicalHistory, assess
     ],
     treatment,
     diagnosis: patient?.trimester || patient?.status || "Registered Maternal Care Patient",
-    attachment: null,
+    attachments: [],
     prescriptions: [],
     diagnosticResults: [],
     sortTime: toValidDate(createdAt)?.getTime() || 0,
@@ -484,6 +616,36 @@ export default function PatientPWAMedicalRecords({ profile }) {
             .eq("patient_id", patient.id)
             .order("uploaded_at", { ascending: false })
         : { data: [], error: null };
+
+      const formalRecords = error ? [] : (data || []);
+      const scheduleIds = [
+        ...new Set(
+          formalRecords
+            .map((record) => record.schedule_id)
+            .filter(Boolean)
+        ),
+      ];
+
+      let schedulesById = new Map();
+
+      if (scheduleIds.length) {
+        const { data: scheduleRows, error: scheduleError } = await supabase
+          .from("schedule")
+          .select(scheduleColumns)
+          .in("id", scheduleIds);
+
+        if (scheduleError) {
+          console.warn(
+            "Patient medical record linked schedule lookup failed:",
+            scheduleError
+          );
+        } else {
+          schedulesById = new Map(
+            (scheduleRows || []).map((schedule) => [schedule.id, schedule])
+          );
+        }
+      }
+
       const [obstetric, medicalHistory, initialAssessment] = patient?.id
         ? await Promise.all([
             loadPatientDetailRow("patient_obstetric_history", patient.id),
@@ -501,8 +663,13 @@ export default function PatientPWAMedicalRecords({ profile }) {
         setLoadError(`Formal medical records could not be loaded: ${error.message}`);
       }
 
-      const formalRecords = error ? [] : (data || []);
-      const mappedRecords = formalRecords.map(mapMedicalRecord);
+      const mappedRecords = formalRecords.map((record) =>
+        mapMedicalRecord(record, schedulesById.get(record.schedule_id) || null)
+      );
+
+      // Keep registration information only as a fallback for patients who do not
+      // have a formal Doctor medical record yet. Once clinical records exist,
+      // the Patient PWA timeline mirrors the Doctor clinical record timeline.
       const registrationRecord = patient
         ? mapRegistrationMedicalRecord(
             patient,
@@ -511,10 +678,14 @@ export default function PatientPWAMedicalRecords({ profile }) {
             initialAssessment
           )
         : null;
-      const nextRecords = [
-        ...mappedRecords,
-        ...(registrationRecord ? [registrationRecord] : []),
-      ].sort((first, second) => second.sortTime - first.sortTime);
+
+      const nextRecords = (
+        mappedRecords.length
+          ? mappedRecords
+          : registrationRecord
+            ? [registrationRecord]
+            : []
+      ).sort((first, second) => second.sortTime - first.sortTime);
 
       setPatientRecords(nextRecords);
       setSelectedRecordId((current) =>
@@ -531,6 +702,11 @@ export default function PatientPWAMedicalRecords({ profile }) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "medical_records" },
+        loadRecords
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "schedule" },
         loadRecords
       )
       .on(
@@ -815,45 +991,125 @@ function MedicalRecordCard({ record }) {
               </>
             ) : null}
 
-            {record.attachment ? (
+            {record.attachments?.length ? (
               <>
-                <h3 className="pwa-attachment-title">Attachments (1)</h3>
-                {record.attachment.url ? (
-                  <a
-                    className="pwa-attachment-card"
-                    href={record.attachment.url}
-                    download={record.attachment.name}
-                  >
-                    <span>
-                      <Icon icon="solar:file-text-bold-duotone" />
-                    </span>
-                    <strong>
-                      {record.attachment.name}
-                      <small>{record.attachment.type}</small>
-                    </strong>
-                    <Icon icon="solar:download-minimalistic-linear" />
-                  </a>
-                ) : (
-                  <div
-                    className="pwa-attachment-card"
-                    aria-disabled="true"
-                  >
-                    <span>
-                      <Icon icon="solar:file-text-bold-duotone" />
-                    </span>
-                    <strong>
-                      {record.attachment.name}
-                      <small>{record.attachment.type}</small>
-                    </strong>
-                    <Icon icon="solar:file-check-linear" />
-                  </div>
-                )}
+                <h3 className="pwa-attachment-title">
+                  Reports ({record.attachments.length})
+                </h3>
+                <div className="pwa-report-list">
+                  {record.attachments.map((attachment) => (
+                    <PatientReportAttachment
+                      key={attachment.path || `${attachment.kind}-${attachment.name}`}
+                      attachment={attachment}
+                    />
+                  ))}
+                </div>
               </>
             ) : null}
           </section>
         </div>
       </article>
     </section>
+  );
+}
+
+function PatientReportAttachment({ attachment }) {
+  const [action, setAction] = useState("");
+  const [error, setError] = useState("");
+
+  const handleView = async () => {
+    if (action) return;
+
+    setError("");
+    setAction("view");
+
+    try {
+      const signedUrl = await createAttachmentUrl(attachment);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (attachmentError) {
+      console.error("Patient report view failed:", attachmentError);
+      setError(
+        attachmentError?.message ||
+          "This report could not be opened. Please try again."
+      );
+    } finally {
+      setAction("");
+    }
+  };
+
+  const handleDownload = async () => {
+    if (action) return;
+
+    setError("");
+    setAction("download");
+
+    try {
+      const signedUrl = await createAttachmentUrl(attachment);
+      const response = await fetch(signedUrl);
+
+      if (!response.ok) {
+        throw new Error("The report could not be downloaded.");
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = objectUrl;
+      link.download = attachment.name || "medical-report.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (attachmentError) {
+      console.error("Patient report download failed:", attachmentError);
+      setError(
+        attachmentError?.message ||
+          "This report could not be downloaded. Please try again."
+      );
+    } finally {
+      setAction("");
+    }
+  };
+
+  return (
+    <div className="pwa-report-card">
+      <div className="pwa-report-file">
+        <span className="pwa-report-icon" aria-hidden="true">
+          <Icon icon="solar:file-text-bold-duotone" />
+        </span>
+
+        <div>
+          <strong>{attachment.name}</strong>
+          <small>
+            {attachment.kind} · {formatAttachmentSize(attachment.size)}
+          </small>
+        </div>
+      </div>
+
+      <div className="pwa-report-actions">
+        <button
+          type="button"
+          onClick={handleView}
+          disabled={Boolean(action)}
+        >
+          <Icon icon="solar:eye-linear" />
+          {action === "view" ? "Opening..." : "View"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={Boolean(action)}
+        >
+          <Icon icon="solar:download-minimalistic-linear" />
+          {action === "download" ? "Downloading..." : "Download"}
+        </button>
+      </div>
+
+      {error ? <p className="pwa-report-error">{error}</p> : null}
+    </div>
   );
 }
 

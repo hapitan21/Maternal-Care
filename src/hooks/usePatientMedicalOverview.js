@@ -10,7 +10,6 @@ import {
 import {
   getLatestCompletedClinicalValue,
   isCompletedClinicalVisitRecord,
-  isMeaningfulClinicalValue,
   normalizeClinicalVisitFormData,
 } from "../lib/clinicalVisitData";
 
@@ -78,15 +77,6 @@ function getRecordTimestamp(record) {
     parseAppointmentTimestamp(record?.uploaded_at) ||
     parseAppointmentTimestamp(record?.created_at)
   );
-}
-
-function weeksElapsedSince(record) {
-  const timestamp = getRecordTimestamp(record);
-  if (!timestamp) return 0;
-  const today = parseAppointmentTimestamp(new Date());
-  if (!today) return 0;
-  const elapsed = Math.floor((today.getTime() - timestamp.getTime()) / 604800000);
-  return Number.isFinite(elapsed) && elapsed > 0 ? elapsed : 0;
 }
 
 function formatRecordDateTime(record) {
@@ -339,60 +329,8 @@ function makeNextAppointment(schedules, profileMap) {
   };
 }
 
-function parseWeeks(value) {
-  const clean = cleanValue(value);
-  if (!clean) return null;
-  const match = clean.match(/(\d+(?:\.\d+)?)/);
-  if (!match) return null;
-  const weeks = Number(match[1]);
-  return Number.isFinite(weeks) ? Math.max(0, Math.min(40, Math.round(weeks))) : null;
-}
-
-function parseClinicalWeeks(record) {
-  const formData = getFormData(record);
-  const clinicalWeeks = parseWeeks(
-    fieldValue(formData, ["gestationalAge", "gestational_age"], ["Gestational Age"])
-  );
-  if (clinicalWeeks === null) return null;
-  return Math.max(0, Math.min(40, clinicalWeeks + weeksElapsedSince(record)));
-}
-
-function weeksFromEdd(value) {
-  const edd = parseAppointmentTimestamp(value);
-  if (!edd) return null;
-  const today = parseAppointmentTimestamp(new Date());
-  const daysUntilDue = (edd.getTime() - today.getTime()) / 86400000;
-  const weeks = 40 - Math.floor(daysUntilDue / 7);
-  return Number.isFinite(weeks) ? Math.max(0, Math.min(40, weeks)) : null;
-}
-
-function weeksFromLmp(value) {
-  const lmp = parseAppointmentTimestamp(value);
-  if (!lmp) return null;
-  const today = parseAppointmentTimestamp(new Date());
-  const weeks = Math.floor((today.getTime() - lmp.getTime()) / 604800000);
-  return Number.isFinite(weeks) ? Math.max(0, Math.min(40, weeks)) : null;
-}
-
-function makePregnancyProgress(patient, records) {
-  const pregnancyRecord = records.find((record) => {
-    const formData = getFormData(record);
-    return [
-      fieldValue(formData, ["gestationalAge"], ["Gestational Age"]),
-      fieldValue(formData, ["expectedDeliveryDate"], ["Expected Delivery Date"]),
-      fieldValue(formData, ["lastMenstrualPeriod", "lmp"], ["Last Menstrual Period"]),
-    ].some(isMeaningfulClinicalValue);
-  }) || null;
-  const formData = getFormData(pregnancyRecord);
-  const patientWeeks = parseWeeks(patient?.gestational_age);
-  const formWeeks = parseClinicalWeeks(pregnancyRecord);
-  const eddWeeks = weeksFromEdd(
-    patient?.expected_delivery_date || formData.expectedDeliveryDate
-  );
-  const lmpWeeks = weeksFromLmp(
-    patient?.last_menstrual_period || formData.lastMenstrualPeriod || formData.lmp
-  );
-  const weeks = eddWeeks ?? lmpWeeks ?? formWeeks ?? patientWeeks;
+function makePregnancyProgress(records, pregnancyWeek) {
+  const weeks = pregnancyWeek ?? null;
   const fetalHeartRate = getLatestCompletedClinicalValue(records, "fetalHeartRate");
   const fundalHeight = getLatestCompletedClinicalValue(records, "fundalHeight");
   const babyPosition = getLatestCompletedClinicalValue(records, "babyPosition");
@@ -435,7 +373,7 @@ function makePregnancyProgress(patient, records) {
   };
 }
 
-function buildOverview({ patient, records, schedules, profileMap }) {
+function buildOverview({ records, schedules, profileMap, pregnancyWeek }) {
   const sortedRecords = records.filter(isCompletedClinicalVisitRecord).sort((first, second) => {
     const firstTime = getRecordTimestamp(first)?.getTime() ?? 0;
     const secondTime = getRecordTimestamp(second)?.getTime() ?? 0;
@@ -446,16 +384,16 @@ function buildOverview({ patient, records, schedules, profileMap }) {
     nextAppointment: makeNextAppointment(schedules, profileMap),
     lastVisit: makeLastVisit(sortedRecords, schedules, profileMap),
     latestNotes: makeLatestNotes(sortedRecords),
-    pregnancyProgress: makePregnancyProgress(patient, sortedRecords),
+    pregnancyProgress: makePregnancyProgress(sortedRecords, pregnancyWeek),
   };
 }
 
 export function usePatientMedicalOverview({
   patientId,
-  patient = null,
   records = [],
   schedules = [],
   doctorProfilesById = null,
+  pregnancyWeek = null,
   recordsLoading = false,
   schedulesLoading = false,
   recordsError = null,
@@ -466,12 +404,12 @@ export function usePatientMedicalOverview({
     if (!patientId || error) return emptyOverview;
 
     return buildOverview({
-      patient,
       records,
       schedules,
       profileMap: doctorProfilesById || new Map(),
+      pregnancyWeek,
     });
-  }, [doctorProfilesById, error, patient, patientId, records, schedules]);
+  }, [doctorProfilesById, error, patientId, pregnancyWeek, records, schedules]);
 
   return useMemo(
     () => ({

@@ -693,6 +693,19 @@
   filter: none !important;
 }
 
+/* Paint both intentionally reserved gutters behind the sticky patient header. */
+.doctor-patients-page .doctor-patients-table-scroll {
+  background-color: #ffffff !important;
+  background-image: linear-gradient(
+    to bottom,
+    var(--patients-pink) 0,
+    var(--patients-pink) 54px,
+    #ffffff 54px,
+    #ffffff 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+}
+
 /* Ensure returning from Medical Record also restores the normal state cleanly. */
 .doctor-dashboard
   .doctor-content

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, FileText, Pencil, Plus, Trash2, X } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import {
@@ -14,6 +14,7 @@ import {
   normalizeClinicalVisitFormData,
   normalizeRiskLevel,
 } from "../../lib/clinicalVisitData";
+import { calculateCurrentPregnancyWeekFromEdd } from "../../lib/pregnancyTracking";
 import "../../styles/appointment-visit-form.css";
 
 const scheduleColumns =
@@ -22,6 +23,8 @@ const patientColumns =
   "id, patient_id, full_name, age, contact_number, address, gestational_age, expected_delivery_date, risk_level";
 const recordColumns =
   "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, form_data, uploaded_at, uploaded_by";
+const MEDICAL_RECORDS_BUCKET = "medical-records";
+const MAX_REPORT_FILE_SIZE = 10 * 1024 * 1024;
 
 const emptyForm = {
   gestationalAge: "",
@@ -54,10 +57,12 @@ const emptyForm = {
   laboratoryResultSummary: "",
   laboratoryInterpretation: "",
   laboratoryReportAttached: "",
+  laboratoryAttachment: null,
   ultrasoundReview: "",
   ultrasoundVisitDate: "",
   ultrasoundFindings: "",
   ultrasoundReportAttached: "",
+  ultrasoundAttachment: null,
   assessment: "",
   diagnosis: "",
   actionsTaken: "",
@@ -107,6 +112,70 @@ function logVisitError(context, error) {
     details: error.details || null,
     hint: error.hint || null,
   });
+}
+
+function validateReportFile(file, label) {
+  if (!file) return "";
+  if (file.type !== "application/pdf" || !/\.pdf$/i.test(file.name || "")) {
+    return `${label} must be a PDF file.`;
+  }
+  if (file.size > MAX_REPORT_FILE_SIZE) {
+    return `${label} must be 10 MB or smaller.`;
+  }
+  return "";
+}
+
+function hasStoredAttachment(attachment) {
+  return Boolean(
+    attachment &&
+      typeof attachment === "object" &&
+      (String(attachment.path || "").trim() || String(attachment.dataUrl || "").trim())
+  );
+}
+
+function sanitizeStorageFilename(filename) {
+  const cleanName = String(filename || "report.pdf")
+    .split(/[\\/]/)
+    .pop()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-._]+|[-._]+$/g, "");
+  const stem = cleanName.replace(/\.pdf$/i, "").slice(0, 100) || "report";
+  const uniqueSuffix = globalThis.crypto?.randomUUID?.().slice(0, 8) || Date.now().toString(36);
+  return `${stem}-${uniqueSuffix}.pdf`;
+}
+
+async function uploadReportAttachment({ file, patientId, scheduleId, category }) {
+  const label = category === "laboratory" ? "Laboratory report" : "Ultrasound report";
+  const fileError = validateReportFile(file, label);
+  if (fileError) throw new Error(fileError);
+  if (!patientId || !scheduleId) {
+    throw new Error(`${label} could not be uploaded because the visit identifiers are missing.`);
+  }
+
+  const storagePath = `${patientId}/${scheduleId}/${category}/${sanitizeStorageFilename(file.name)}`;
+  const { error: uploadError } = await supabase.storage
+    .from(MEDICAL_RECORDS_BUCKET)
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      contentType: "application/pdf",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(
+      getErrorMessage(uploadError, `${label} could not be uploaded. Please try again.`)
+    );
+  }
+
+  return {
+    name: file.name,
+    type: "application/pdf",
+    size: file.size,
+    path: storagePath,
+  };
 }
 
 function isMissingStaffIntakeSupport(error) {
@@ -485,28 +554,51 @@ function CheckboxGrid({ id, options, selected, onChange, readOnly = false }) {
   );
 }
 
-function AttachmentField({ id, label, file, onChange, onClear, readOnly = false }) {
+function AttachmentField({
+  id,
+  label,
+  file,
+  existingFile,
+  error = "",
+  onChange,
+  onClear,
+  readOnly = false,
+}) {
+  const displayedFile = file || existingFile;
+
   return (
     <div className="appointment-visit-attachment">
       <label htmlFor={id}>{label}</label>
       {!readOnly && !file ? (
         <label className="appointment-visit-upload-control" htmlFor={id}>
-          <input id={id} type="file" onChange={(event) => onChange?.(event.target.files?.[0] || null)} />
-          <span>Upload report</span>
-          <small>No file selected</small>
+          <input
+            id={id}
+            type="file"
+            accept="application/pdf,.pdf"
+            aria-describedby={error ? `${id}-error` : undefined}
+            aria-invalid={Boolean(error)}
+            onChange={(event) => {
+              const nextFile = event.target.files?.[0] || null;
+              onChange?.(nextFile);
+              event.target.value = "";
+            }}
+          />
+          <span>{existingFile ? "Replace report" : "Upload report"}</span>
+          <small>{existingFile ? "Existing PDF will be kept unless replaced" : "PDF only, up to 10 MB"}</small>
         </label>
       ) : null}
-      {file ? (
+      {displayedFile ? (
         <div className="appointment-visit-file">
           <FileText size={15} aria-hidden="true" />
-          <span>{file.name}</span>
-          {!readOnly ? (
+          <span>{displayedFile.name}</span>
+          {!readOnly && file ? (
             <button type="button" aria-label={`Remove ${file.name}`} title="Remove selected file" onClick={onClear}>
               <X size={14} aria-hidden="true" />
             </button>
           ) : null}
         </div>
       ) : null}
+      {error ? <span id={`${id}-error`} className="appointment-visit-field-error">{error}</span> : null}
     </div>
   );
 }
@@ -526,6 +618,8 @@ const validationFieldIds = {
   assessment: "assessment",
   diagnosis: "diagnosis",
   treatmentPlan: "treatment-plan",
+  laboratoryAttachment: "laboratory-report",
+  ultrasoundAttachment: "ultrasound-report",
 };
 
 function getTrimmedValue(value) {
@@ -565,7 +659,7 @@ function addNumberValidation(errors, field, value, label, options = {}) {
   }
 }
 
-function validateVisitForm(form) {
+function validateVisitForm(form, { laboratoryFile = null, ultrasoundFile = null } = {}) {
   const errors = {};
   const requiredFields = [
     ["chiefComplaint", "Chief Complaints", form.chiefComplaint],
@@ -601,6 +695,26 @@ function validateVisitForm(form) {
   addNumberValidation(errors, "fetalHeartRate", form.fetalHeartRate, "Fetal Heart Rate", { positive: true });
   addNumberValidation(errors, "estimatedFetalWeight", form.estimatedFetalWeight, "Estimated Fetal Weight", { min: 0 });
 
+  const laboratoryFileError = validateReportFile(laboratoryFile, "Laboratory report");
+  if (laboratoryFileError) errors.laboratoryAttachment = laboratoryFileError;
+  if (
+    form.laboratoryReportAttached === "Yes" &&
+    !laboratoryFile &&
+    !hasStoredAttachment(form.laboratoryAttachment)
+  ) {
+    errors.laboratoryAttachment = "Select a Laboratory report PDF before saving.";
+  }
+
+  const ultrasoundFileError = validateReportFile(ultrasoundFile, "Ultrasound report");
+  if (ultrasoundFileError) errors.ultrasoundAttachment = ultrasoundFileError;
+  if (
+    form.ultrasoundReportAttached === "Yes" &&
+    !ultrasoundFile &&
+    !hasStoredAttachment(form.ultrasoundAttachment)
+  ) {
+    errors.ultrasoundAttachment = "Select an Ultrasound report PDF before saving.";
+  }
+
   return errors;
 }
 
@@ -629,6 +743,7 @@ function formatClinicalDate(value) {
 
 export default function AppointmentVisitForm({ appointmentId, requestedType, workspace }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const requestIdRef = useRef(0);
   const saveLockRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -652,6 +767,43 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   const [laboratoryFile, setLaboratoryFile] = useState(null);
   const [ultrasoundFile, setUltrasoundFile] = useState(null);
   const [prescriptionFile, setPrescriptionFile] = useState(null);
+
+  const medicalRecordReturnContext = useMemo(() => {
+    if (workspace !== "doctor") return null;
+
+    const params = new URLSearchParams(location.search || "");
+    if (params.get("source") !== "medical-record") return null;
+
+    const patientId = String(params.get("patientId") || "").trim();
+    const recordId = String(params.get("recordId") || "").trim();
+
+    return patientId && recordId ? { patientId, recordId } : null;
+  }, [location.search, workspace]);
+
+  const getVisitReturnPath = useCallback(
+    (savedRecordId = "") => {
+      if (!medicalRecordReturnContext) {
+        return `/${workspace}/appointments`;
+      }
+
+      const params = new URLSearchParams({
+        view: "patients",
+        tab: "medical-record",
+        patientId: medicalRecordReturnContext.patientId,
+        recordId: savedRecordId || medicalRecordReturnContext.recordId,
+      });
+
+      return `/doctor?${params.toString()}`;
+    },
+    [medicalRecordReturnContext, workspace]
+  );
+
+  const returnFromVisit = useCallback(
+    (savedRecordId = "", options = {}) => {
+      navigate(getVisitReturnPath(savedRecordId), options);
+    },
+    [getVisitReturnPath, navigate]
+  );
 
   const loadVisit = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
@@ -691,9 +843,13 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       const routeSegment = routeResult.visit_form_type === "initial"
         ? "initial-visit"
         : "follow-up";
-      navigate(`/${workspace}/appointments/${appointmentId}/${routeSegment}`, {
-        replace: true,
-      });
+      navigate(
+        {
+          pathname: `/${workspace}/appointments/${appointmentId}/${routeSegment}`,
+          search: location.search || "",
+        },
+        { replace: true }
+      );
       return;
     }
 
@@ -827,28 +983,57 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     const defaults = {
       ...previousVisitDefaults,
 
-      // Today's Staff measurements have priority for current-visit clinical
-      // values. Gestational age itself is system-progressed below so a stale
-      // saved Staff value cannot overwrite the calculated age.
+      // Today's completed Staff pre-consultation is the current-visit source
+      // of truth. Use it before patient/baseline values when a Doctor record
+      // for this appointment does not exist yet.
       ...staffIntakeDefaults,
 
       gestationalAge:
         requestedType === "follow_up"
           ? (
-              progressedGestationalAge ||
               staffIntakeDefaults.gestationalAge ||
+              progressedGestationalAge ||
               previousVisitDefaults.gestationalAge ||
               patientRow?.gestational_age ||
               ""
             )
-          : (patientRow?.gestational_age || ""),
+          : (
+              staffIntakeDefaults.gestationalAge ||
+              patientRow?.gestational_age ||
+              ""
+            ),
       expectedDeliveryDate:
-        currentExpectedDeliveryDate || previousVisitDefaults.expectedDeliveryDate || "",
+        staffIntakeDefaults.expectedDeliveryDate ||
+        currentExpectedDeliveryDate ||
+        previousVisitDefaults.expectedDeliveryDate ||
+        "",
       riskLevel:
+        staffIntakeDefaults.riskLevel ||
         patientRow?.risk_level ||
         previousVisitDefaults.riskLevel ||
         "",
     };
+
+    const nextForm = normalizeFormData(record, defaults);
+
+    // For a new Doctor visit record, explicitly preserve today's Staff intake
+    // after normalization. Existing Doctor records still win when Edit Record
+    // is opened because this override is skipped once record.id exists.
+    if (!record?.id) {
+      [
+        "gestationalAge",
+        "expectedDeliveryDate",
+        "riskLevel",
+        "bloodPressure",
+        "temperature",
+        "weight",
+        "fetalHeartRate",
+      ].forEach((field) => {
+        if (String(staffIntakeDefaults[field] || "").trim()) {
+          nextForm[field] = staffIntakeDefaults[field];
+        }
+      });
+    }
 
     setRouting(routeResult);
     setAppointment(schedule);
@@ -859,9 +1044,9 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       obstetricHistoryId: obstetricHistory?.id || "",
       expectedDeliveryDate: currentExpectedDeliveryDate,
     });
-    setForm(normalizeFormData(record, defaults));
+    setForm(nextForm);
     setLoading(false);
-  }, [appointmentId, navigate, requestedType, workspace]);
+  }, [appointmentId, location.search, navigate, requestedType, workspace]);
 
   useEffect(() => {
     const timer = window.setTimeout(loadVisit, 0);
@@ -929,6 +1114,52 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     setMessage("");
   };
 
+  const selectReportFile = (category, file) => {
+    const label = category === "laboratory" ? "Laboratory report" : "Ultrasound report";
+    const field = category === "laboratory" ? "laboratoryAttachment" : "ultrasoundAttachment";
+    const setFile = category === "laboratory" ? setLaboratoryFile : setUltrasoundFile;
+    const fileError = validateReportFile(file, label);
+
+    if (fileError) {
+      setFile(null);
+      setValidationErrors((current) => ({ ...current, [field]: fileError }));
+      setError(fileError);
+      setMessage("");
+      return;
+    }
+
+    setFile(file);
+    setValidationErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setError("");
+    setMessage("");
+  };
+
+  const updateReportAttached = (category, value) => {
+    const reportField = category === "laboratory"
+      ? "laboratoryReportAttached"
+      : "ultrasoundReportAttached";
+    const attachmentField = category === "laboratory"
+      ? "laboratoryAttachment"
+      : "ultrasoundAttachment";
+
+    updateForm(reportField, value);
+    if (value === "No") {
+      if (category === "laboratory") setLaboratoryFile(null);
+      else setUltrasoundFile(null);
+      setValidationErrors((current) => {
+        if (!current[attachmentField]) return current;
+        const next = { ...current };
+        delete next[attachmentField];
+        return next;
+      });
+    }
+  };
+
   const beginVaccination = (index = null) => {
     const row = index === null ? null : form.vaccinations[index];
     setVaccinationEditor({
@@ -992,7 +1223,10 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   const saveRecord = async ({ updateCurrentEdd = false } = {}) => {
     if (saveLockRef.current || saving || !canSave) return;
 
-    const nextValidationErrors = validateVisitForm(form);
+    const nextValidationErrors = validateVisitForm(form, {
+      laboratoryFile,
+      ultrasoundFile,
+    });
     if (Object.keys(nextValidationErrors).length) {
       setValidationErrors(nextValidationErrors);
       focusFirstValidationError(nextValidationErrors);
@@ -1001,6 +1235,23 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     }
 
     const nextExpectedDeliveryDate = String(form.expectedDeliveryDate || "").trim();
+    const nextCurrentPregnancyWeek = updateCurrentEdd
+      ? calculateCurrentPregnancyWeekFromEdd(nextExpectedDeliveryDate)
+      : null;
+    if (updateCurrentEdd && nextCurrentPregnancyWeek === null) {
+      const validationMessage =
+        "The selected Expected Delivery Date is inconsistent with the current pregnancy dating.";
+      const nextErrors = {
+        ...nextValidationErrors,
+        expectedDeliveryDate: validationMessage,
+      };
+      setValidationErrors(nextErrors);
+      focusFirstValidationError(nextErrors);
+      setError(validationMessage);
+      setMessage("");
+      return;
+    }
+
     if (
       nextExpectedDeliveryDate &&
       nextExpectedDeliveryDate !== currentPregnancy.expectedDeliveryDate &&
@@ -1022,12 +1273,52 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       const appointmentDate = getManilaDateKey(appointment?.start_time);
       const appointmentTime = getManilaTimeKey(appointment?.start_time);
       const visitRecordTitle = requestedType === "initial" ? "Initial Visit" : "Follow-Up Visit";
+      const patientId = appointment?.patient_id || existingRecord?.patient_id || null;
+      const canonicalFormData = buildCanonicalClinicalVisitFormData(form);
+      let laboratoryAttachment = form.laboratoryReportAttached === "Yes"
+        ? canonicalFormData.laboratoryAttachment
+        : null;
+      let ultrasoundAttachment = form.ultrasoundReportAttached === "Yes"
+        ? canonicalFormData.ultrasoundAttachment
+        : null;
+
+      if (form.laboratoryReportAttached === "Yes" && laboratoryFile) {
+        laboratoryAttachment = await uploadReportAttachment({
+          file: laboratoryFile,
+          patientId,
+          scheduleId: appointmentId,
+          category: "laboratory",
+        });
+      }
+
+      if (form.ultrasoundReportAttached === "Yes" && ultrasoundFile) {
+        ultrasoundAttachment = await uploadReportAttachment({
+          file: ultrasoundFile,
+          patientId,
+          scheduleId: appointmentId,
+          category: "ultrasound",
+        });
+      }
+
+      canonicalFormData.laboratoryAttachment = laboratoryAttachment;
+      canonicalFormData.laboratoryReview = {
+        ...canonicalFormData.laboratoryReview,
+        reportAttached: form.laboratoryReportAttached,
+        attachment: laboratoryAttachment,
+      };
+      canonicalFormData.ultrasoundAttachment = ultrasoundAttachment;
+      canonicalFormData.ultrasoundReview = {
+        ...canonicalFormData.ultrasoundReview,
+        reportAttached: form.ultrasoundReportAttached,
+        attachment: ultrasoundAttachment,
+      };
+
       const formDataForSave = {
-        ...buildCanonicalClinicalVisitFormData(form),
+        ...canonicalFormData,
         appointmentDate,
         appointmentTime,
         appointmentId,
-        patientId: appointment?.patient_id || existingRecord?.patient_id || null,
+        patientId,
         doctorId: appointment?.doctor_id || existingRecord?.doctor_id || null,
         visitFormType: requestedType,
         recordStatus: "completed",
@@ -1048,6 +1339,9 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
               : null,
             p_update_expected_delivery_date: updateCurrentEdd,
             p_obstetric_history_id: currentPregnancy.obstetricHistoryId || null,
+            p_current_gestational_week: updateCurrentEdd
+              ? nextCurrentPregnancyWeek
+              : null,
           }
         );
 
@@ -1116,10 +1410,12 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             : "Follow-Up Visit record updated successfully."
         );
 
-        // Doctor workflow: after a successful Initial or Follow-Up Visit
-        // save/update, return to the Appointments section.
+        // Doctor workflow:
+        // - A visit completed from Appointments returns to Appointments.
+        // - A record edited from the patient's Medical Record returns to that
+        //   same patient and the same saved medical record.
         if (workspace === "doctor") {
-          navigate("/doctor/appointments", { replace: true });
+          returnFromVisit(data.id, { replace: true });
           return;
         }
 
@@ -1157,8 +1453,9 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
 
       // Redirect only after Supabase has successfully saved the Doctor's
       // Initial or Follow-Up Visit and completed the appointment.
+      // Preserve the Medical Record origin when this form was opened by Edit Record.
       if (workspace === "doctor") {
-        navigate("/doctor/appointments", { replace: true });
+        returnFromVisit(data.id, { replace: true });
       }
     } catch (saveError) {
       logVisitError("unexpected save failure", saveError);
@@ -1178,8 +1475,8 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       <main className="appointment-visit-state" role="alert">
         <p>{error}</p>
         <button type="button" onClick={loadVisit}>Retry</button>
-        <button type="button" onClick={() => navigate(`/${workspace}/appointments`)}>
-          Back to Appointments
+        <button type="button" onClick={() => returnFromVisit(existingRecord?.id || "")}>
+          {medicalRecordReturnContext ? "Back to Medical Record" : "Back to Appointments"}
         </button>
       </main>
     );
@@ -1199,9 +1496,9 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   return (
     <main className="appointment-visit-page">
       <header className="appointment-visit-header">
-        <button className="appointment-visit-back" type="button" onClick={() => navigate(`/${workspace}/appointments`)}>
+        <button className="appointment-visit-back" type="button" onClick={() => returnFromVisit(existingRecord?.id || "")}>
           <ArrowLeft size={15} aria-hidden="true" />
-          Back to Appointments
+          {medicalRecordReturnContext ? "Back to Medical Record" : "Back to Appointments"}
         </button>
         <div className="appointment-visit-heading">
           <h1>{formTitle.toUpperCase()}</h1>
@@ -1373,15 +1670,15 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             <SelectField id="laboratory-test-type" label="Test Type" value={form.laboratoryTestType} options={["Complete Blood Count (CBC)", "Urinalysis", "Blood Glucose", "Blood Type and Rh", "Other"]} readOnly={isReadOnly} onChange={(value) => updateForm("laboratoryTestType", value)} />
             <TextAreaField id="laboratory-result" label="Result Summary" maxLength={500} size="compact" value={form.laboratoryResultSummary} placeholder="Enter result summary..." readOnly={isReadOnly} onChange={(value) => updateForm("laboratoryResultSummary", value)} />
             <TextAreaField id="laboratory-interpretation" label="Interpretation" maxLength={500} size="compact" value={form.laboratoryInterpretation} placeholder="Enter interpretation..." readOnly={isReadOnly} onChange={(value) => updateForm("laboratoryInterpretation", value)} />
-            <ChoiceGroup id="laboratory-attached" label="Laboratory Report Attached" value={form.laboratoryReportAttached} options={["Yes", "No"]} readOnly={isReadOnly} onChange={(value) => updateForm("laboratoryReportAttached", value)} />
-            {form.laboratoryReportAttached === "Yes" ? <AttachmentField id="laboratory-report" label="Laboratory report file" file={laboratoryFile} readOnly={isReadOnly} onChange={setLaboratoryFile} onClear={() => setLaboratoryFile(null)} /> : null}
+            <ChoiceGroup id="laboratory-attached" label="Laboratory Report Attached" value={form.laboratoryReportAttached} options={["Yes", "No"]} readOnly={isReadOnly} onChange={(value) => updateReportAttached("laboratory", value)} />
+            {form.laboratoryReportAttached === "Yes" ? <AttachmentField id="laboratory-report" label="Laboratory report file" file={laboratoryFile} existingFile={form.laboratoryAttachment} error={validationErrors.laboratoryAttachment} readOnly={isReadOnly} onChange={(file) => selectReportFile("laboratory", file)} onClear={() => selectReportFile("laboratory", null)} /> : null}
           </FormCard>
 
           <FormCard title="Ultrasound Review (if applicable)" className="appointment-visit-review-card">
             <TextField id="ultrasound-date" label="Date of Visit" type="date" value={form.ultrasoundVisitDate} readOnly={isReadOnly} onChange={(value) => updateForm("ultrasoundVisitDate", value)} />
             <TextAreaField id="ultrasound-findings" label="Findings" maxLength={500} size="medium" value={form.ultrasoundFindings} placeholder="Enter findings..." readOnly={isReadOnly} onChange={(value) => updateForm("ultrasoundFindings", value)} />
-            <ChoiceGroup id="ultrasound-attached" label="Ultrasound Report Attached" value={form.ultrasoundReportAttached} options={["Yes", "No"]} readOnly={isReadOnly} onChange={(value) => updateForm("ultrasoundReportAttached", value)} />
-            {form.ultrasoundReportAttached === "Yes" ? <AttachmentField id="ultrasound-report" label="Ultrasound report file" file={ultrasoundFile} readOnly={isReadOnly} onChange={setUltrasoundFile} onClear={() => setUltrasoundFile(null)} /> : null}
+            <ChoiceGroup id="ultrasound-attached" label="Ultrasound Report Attached" value={form.ultrasoundReportAttached} options={["Yes", "No"]} readOnly={isReadOnly} onChange={(value) => updateReportAttached("ultrasound", value)} />
+            {form.ultrasoundReportAttached === "Yes" ? <AttachmentField id="ultrasound-report" label="Ultrasound report file" file={ultrasoundFile} existingFile={form.ultrasoundAttachment} error={validationErrors.ultrasoundAttachment} readOnly={isReadOnly} onChange={(file) => selectReportFile("ultrasound", file)} onClear={() => selectReportFile("ultrasound", null)} /> : null}
           </FormCard>
         </div>
 
@@ -1458,8 +1755,12 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
               {saving ? "Saving Record..." : "Save Record"}
             </button>
           ) : null}
-          <button type="button" className="is-secondary" onClick={() => navigate(`/${workspace}/appointments`)}>
-            {isReadOnly ? "Back to Appointments" : "Cancel"}
+          <button type="button" className="is-secondary" onClick={() => returnFromVisit(existingRecord?.id || "")}>
+            {isReadOnly
+              ? medicalRecordReturnContext
+                ? "Back to Medical Record"
+                : "Back to Appointments"
+              : "Cancel"}
           </button>
         </footer>
       </form>

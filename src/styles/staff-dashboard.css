@@ -146,7 +146,7 @@ body {
 
 .staff-dashboard-shell .staff-dashboard-home .doctor-topbar {
   /* Match the Figma/reference spacing: keep the profile/header close to the hero. */
-  margin-bottom: 18px !important;
+  margin-bottom: 20px !important;
 }
 
 .staff-dashboard-shell .doctor-topbar h2,
@@ -218,19 +218,21 @@ body {
   margin: 0 !important;
   max-width: 500px !important;
   color: #ffffff !important;
+  font-family: "Poppins", sans-serif !important;
   font-size: clamp(34px, 3.2vw, 44px) !important;
-  font-weight: 900 !important;
-  line-height: 1.08 !important;
-  letter-spacing: -0.04em !important;
+  font-weight: 800 !important;
+  line-height: 1.12 !important;
+  letter-spacing: -0.045em !important;
 }
 
 .staff-dashboard-shell .doctor-hero-text p {
   max-width: 560px !important;
   margin: 28px 0 0 !important;
-  color: rgba(255, 255, 255, 0.96) !important;
+  color: rgba(255, 255, 255, 0.86) !important;
+  font-family: "Plus Jakarta Sans", sans-serif !important;
   font-size: 18px !important;
   font-weight: 500 !important;
-  line-height: 1.42 !important;
+  line-height: 1.45 !important;
 }
 
 .staff-dashboard-shell .doctor-hero-illustration,
@@ -818,7 +820,7 @@ body {
 .staff-dashboard-shell
   .staff-dashboard-home
   > .doctor-topbar.staff-section-header {
-  margin-bottom: 18px !important;
+  margin-bottom: 20px !important;
 }
 
 @media (max-width: 900px) {
@@ -965,7 +967,7 @@ body {
   .staff-dashboard-home
   > .doctor-topbar.staff-section-header {
   min-height: var(--doctor-top-profile-height) !important;
-  margin-bottom: 18px !important;
+  margin-bottom: 20px !important;
 }
 
 .staff-dashboard-shell .staff-dashboard-home .staff-hero-card {
@@ -992,5 +994,227 @@ body {
     .staff-dashboard-home
     > .doctor-topbar.staff-section-header {
     margin-bottom: 22px !important;
+  }
+}
+
+/* =========================================================
+   FINAL STAFF PROFILE PILL PARITY
+   Dashboard / Patients / Appointments / Profile / Settings
+   ---------------------------------------------------------
+   Uses the Staff Settings pill as the visual target.
+========================================================= */
+
+.staff-dashboard-shell {
+  --doctor-top-profile-width: 292px !important;
+  --doctor-top-profile-height: 66px !important;
+  --doctor-top-profile-avatar: 48px !important;
+}
+
+/* One wrapper size and anchor on all Staff page headers. */
+.staff-dashboard-shell .staff-profile-wrapper,
+.staff-dashboard-shell .doctor-profile-wrapper,
+.staff-dashboard-shell .staff-section-header .staff-profile-wrapper,
+.staff-dashboard-shell .doctor-topbar .staff-profile-wrapper,
+.staff-dashboard-shell .staff-patients-header .staff-profile-wrapper,
+.staff-dashboard-shell .staff-appointments-header .staff-profile-wrapper,
+.staff-dashboard-shell .doctor-profile-page-header .staff-profile-wrapper,
+.staff-dashboard-shell
+  .doctor-settings-page
+  > .doctor-dashboard-header
+  .staff-profile-wrapper {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  inset: auto !important;
+  z-index: 60 !important;
+
+  width: var(--doctor-top-profile-width) !important;
+  min-width: var(--doctor-top-profile-width) !important;
+  max-width: var(--doctor-top-profile-width) !important;
+  flex: 0 0 var(--doctor-top-profile-width) !important;
+  height: var(--doctor-top-profile-height) !important;
+  min-height: var(--doctor-top-profile-height) !important;
+
+  margin: 0 0 0 auto !important;
+  align-self: flex-start !important;
+  transform: none !important;
+  box-sizing: border-box !important;
+}
+
+/* Match the currently approved Staff Settings pill proportions. */
+.staff-dashboard-shell .staff-profile-card,
+.staff-dashboard-shell .doctor-profile-card {
+  width: var(--doctor-top-profile-width) !important;
+  min-width: var(--doctor-top-profile-width) !important;
+  max-width: var(--doctor-top-profile-width) !important;
+
+  height: var(--doctor-top-profile-height) !important;
+  min-height: var(--doctor-top-profile-height) !important;
+  max-height: var(--doctor-top-profile-height) !important;
+
+  display: flex !important;
+  align-items: center !important;
+  gap: 11px !important;
+
+  padding: 5px 13px 5px 18px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 30px rgba(21, 26, 38, 0.08) !important;
+  box-sizing: border-box !important;
+}
+
+/* Same avatar on every section. */
+.staff-dashboard-shell .doctor-profile-avatar {
+  width: var(--doctor-top-profile-avatar) !important;
+  height: var(--doctor-top-profile-avatar) !important;
+  min-width: var(--doctor-top-profile-avatar) !important;
+  max-width: var(--doctor-top-profile-avatar) !important;
+  flex: 0 0 var(--doctor-top-profile-avatar) !important;
+  border-radius: 50% !important;
+}
+
+/* Same Staff name and role typography. */
+.staff-dashboard-shell .doctor-profile-info {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+}
+
+.staff-dashboard-shell .doctor-profile-info strong {
+  max-width: 165px !important;
+  overflow: hidden !important;
+  color: #4d494a !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 15px !important;
+  line-height: 22px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.05em !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.staff-dashboard-shell .doctor-profile-info span {
+  margin-top: -3px !important;
+  color: #4d494a !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 9.5px !important;
+  line-height: 14px !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.05em !important;
+}
+
+/* Same arrow and dropdown anchor. */
+.staff-dashboard-shell .doctor-profile-arrow {
+  width: 24px !important;
+  height: 24px !important;
+  flex: 0 0 24px !important;
+  color: #ff6b8a !important;
+}
+
+.staff-dashboard-shell .doctor-profile-dropdown {
+  right: 0 !important;
+  left: auto !important;
+  top: calc(100% + 10px) !important;
+}
+
+/* Settings uses its inline pill; do not reserve a Doctor-only right slot. */
+.staff-dashboard-shell
+  .staff-settings-page
+  > .doctor-dashboard-header.staff-section-header {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  overflow: visible !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell .staff-profile-wrapper,
+  .staff-dashboard-shell .doctor-profile-wrapper,
+  .staff-dashboard-shell .staff-profile-card,
+  .staff-dashboard-shell .doctor-profile-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex-basis: auto !important;
+  }
+}
+
+
+/* =========================================================
+   FINAL DASHBOARD PROFILE PILL MICRO-MOVEMENT FIX
+   ---------------------------------------------------------
+   The outer pill is already aligned. On Dashboard only, an older
+   profile-card rule can still win after route remount and change
+   the internal padding from the unified Staff pill proportions.
+   This locks Dashboard to the exact same internal spacing used by
+   Patients / Appointments / Profile / Settings.
+========================================================= */
+
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  .staff-profile-card,
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  .doctor-profile-card {
+  width: var(--doctor-top-profile-width, 292px) !important;
+  min-width: var(--doctor-top-profile-width, 292px) !important;
+  max-width: var(--doctor-top-profile-width, 292px) !important;
+  height: var(--doctor-top-profile-height, 66px) !important;
+  min-height: var(--doctor-top-profile-height, 66px) !important;
+  max-height: var(--doctor-top-profile-height, 66px) !important;
+  padding: 5px 13px 5px 18px !important;
+  gap: 11px !important;
+  box-sizing: border-box !important;
+}
+
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  .doctor-profile-avatar {
+  width: var(--doctor-top-profile-avatar, 48px) !important;
+  height: var(--doctor-top-profile-avatar, 48px) !important;
+  min-width: var(--doctor-top-profile-avatar, 48px) !important;
+  max-width: var(--doctor-top-profile-avatar, 48px) !important;
+  flex: 0 0 var(--doctor-top-profile-avatar, 48px) !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  .doctor-profile-info {
+  margin: 0 !important;
+  transform: none !important;
+}
+
+.staff-dashboard-shell
+  .staff-dashboard-home
+  > .doctor-topbar.staff-section-header
+  .doctor-profile-arrow {
+  width: 24px !important;
+  height: 24px !important;
+  flex: 0 0 24px !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell
+    .staff-dashboard-home
+    > .doctor-topbar.staff-section-header
+    .staff-profile-card,
+  .staff-dashboard-shell
+    .staff-dashboard-home
+    > .doctor-topbar.staff-section-header
+    .doctor-profile-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
   }
 }

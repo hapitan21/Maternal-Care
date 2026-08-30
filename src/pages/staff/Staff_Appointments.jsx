@@ -1180,12 +1180,24 @@ function StaffAppointmentsContent({ headerAction }) {
   const location = useLocation();
   const navigate = useNavigate();
   const visitRoute = parseAppointmentVisitRoute(location.pathname, "staff");
+  const isVisitFormRoute = Boolean(visitRoute);
   const dashboardAppointmentTarget = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return String(params.get("appointmentId") || "").trim();
   }, [location.search]);
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [appointmentView, setAppointmentView] = useState("Main");
+  const dashboardCompletedHistoryTarget = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return (
+      String(params.get("status") || "").trim().toLowerCase() === "completed" &&
+      String(params.get("view") || "").trim().toLowerCase() === "history"
+    );
+  }, [location.search]);
+  const [activeFilter, setActiveFilter] = useState(() =>
+    dashboardCompletedHistoryTarget ? "Completed" : "All"
+  );
+  const [appointmentView, setAppointmentView] = useState(() =>
+    dashboardCompletedHistoryTarget ? "History" : "Main"
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [pageSize, setPageSize] = useState(10);
@@ -1219,6 +1231,36 @@ function StaffAppointmentsContent({ headerAction }) {
   const appointmentSaveLockRef = useRef(false);
   const appointmentStatusLockRef = useRef(new Set());
   const visitRoutingLockRef = useRef("");
+  const completedHistoryTargetAppliedRef = useRef(
+    dashboardCompletedHistoryTarget
+  );
+
+  useEffect(() => {
+    if (isVisitFormRoute || dashboardAppointmentTarget) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (dashboardCompletedHistoryTarget) {
+        setActiveFilter("Completed");
+        setAppointmentView("History");
+        completedHistoryTargetAppliedRef.current = true;
+        return;
+      }
+
+      if (completedHistoryTargetAppliedRef.current) {
+        setActiveFilter("All");
+        setAppointmentView("Main");
+        completedHistoryTargetAppliedRef.current = false;
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    dashboardAppointmentTarget,
+    dashboardCompletedHistoryTarget,
+    isVisitFormRoute,
+  ]);
 
   const loadAppointments = useCallback(async () => {
     const { data, error } = await supabase
@@ -2703,19 +2745,25 @@ function StaffAppointmentsContent({ headerAction }) {
       <AppointmentSummary summary={appointmentSummary} />
 
       <section className="staff-appointments-table-card appointment-ui-table-card">
-        <div className="staff-appointments-table-scroll appointment-ui-table-scroll">
-          <table className="staff-appointments-table">
-            <thead>
-              <tr>
-                <th>Appointment ID</th>
-                <th>Name</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+        <div className="staff-appointments-table-xscroll">
+          <div className="staff-appointments-table-inner">
+            <div className="staff-appointments-table-head-shell">
+              <table className="staff-appointments-table staff-appointments-table--header">
+                <thead>
+                  <tr>
+                    <th>Appointment ID</th>
+                    <th>Name</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
 
-            <tbody>
+            <div className="staff-appointments-table-scroll appointment-ui-table-scroll">
+              <table className="staff-appointments-table staff-appointments-table--body">
+                <tbody>
               {paginatedAppointments.map((appointment) => (
                 <tr key={appointment.id} onClick={() => openAppointmentDetails(appointment.id)}>
                   <td>{appointment.appointmentId}</td>
@@ -2782,8 +2830,10 @@ function StaffAppointmentsContent({ headerAction }) {
                   </td>
                 </tr>
               ) : null}
-            </tbody>
-          </table>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <AppointmentPagination

@@ -409,7 +409,28 @@ function parseScheduleDetails(description) {
 
 function getScheduleDescriptionText(schedule) {
   const details = parseScheduleDetails(schedule?.description);
-  return details.notes || schedule?.description || "NA";
+
+  const notes = String(
+    details.notes ||
+      details.message ||
+      details.description ||
+      ""
+  ).trim();
+
+  if (notes) return notes;
+
+  const cancellationReason = String(
+    details.cancellationReason ||
+      details.cancel_reason ||
+      details.reason ||
+      ""
+  ).trim();
+
+  if (cancellationReason) {
+    return `Cancellation reason: ${cancellationReason}`;
+  }
+
+  return "NA";
 }
 
 function getScheduleLocation(schedule) {
@@ -637,7 +658,10 @@ function StatusDropdown({
   onStatusSelect,
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState(null);
   const cellRef = useRef(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
   const statusLabel = getAppointmentStatusLabel(schedule.status);
   const isCheckedIn = isCheckedInAppointmentStatus(schedule.status);
   const isClosed = isClosedAppointmentStatus(schedule.status);
@@ -646,29 +670,38 @@ function StatusDropdown({
     ? [{ label: "Completed", value: appointmentStatuses.checkedIn }]
     : statusOptions.filter((option) => option.value !== appointmentStatuses.scheduled);
 
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuRect = menuRef.current?.getBoundingClientRect();
+    const menuWidth = menuRect?.width || 154;
+    const menuHeight = menuRect?.height || 56;
+    const viewportPadding = 12;
+    const menuGap = 6;
+    const maximumLeft = Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding);
+    const centeredLeft = triggerRect.left + (triggerRect.width - menuWidth) / 2;
+    const left = Math.min(Math.max(centeredLeft, viewportPadding), maximumLeft);
+    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+    const top = spaceBelow >= menuHeight + menuGap
+      ? triggerRect.bottom + menuGap
+      : Math.max(viewportPadding, triggerRect.top - menuHeight - menuGap);
+
+    setMenuPosition({
+      left: Math.round(left),
+      top: Math.round(top),
+    });
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return undefined;
 
     const cell = cellRef.current;
-    const tableScroll = cell?.closest?.(".doctor-appointments-table-scroll");
-    const tableCard = cell?.closest?.(".doctor-appointments-table-card");
-
-    const targets = [tableScroll, tableCard].filter(Boolean);
-    const previousOverflow = targets.map((node) => ({
-      node,
-      value: node.style.getPropertyValue("overflow"),
-      priority: node.style.getPropertyPriority("overflow"),
-    }));
-
-    // The table normally clips overflow for scrolling. While this small menu is
-    // open, temporarily allow it to extend below the status pill like a real
-    // dropdown. Everything is restored as soon as the menu closes.
-    targets.forEach((node) => {
-      node.style.setProperty("overflow", "visible", "important");
-    });
+    updateMenuPosition();
 
     const closeOnOutsidePointer = (event) => {
-      if (!cell?.contains(event.target)) {
+      if (!cell?.contains(event.target) && !menuRef.current?.contains(event.target)) {
         setIsOpen(false);
       }
     };
@@ -681,20 +714,16 @@ function StatusDropdown({
 
     document.addEventListener("mousedown", closeOnOutsidePointer);
     window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
 
     return () => {
       document.removeEventListener("mousedown", closeOnOutsidePointer);
       window.removeEventListener("keydown", closeOnEscape);
-
-      previousOverflow.forEach(({ node, value, priority }) => {
-        if (value) {
-          node.style.setProperty("overflow", value, priority);
-        } else {
-          node.style.removeProperty("overflow");
-        }
-      });
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
     };
-  }, [isOpen]);
+  }, [isOpen, updateMenuPosition]);
 
   const chooseOption = (option) => {
     setIsOpen(false);
@@ -715,6 +744,7 @@ function StatusDropdown({
       }}
     >
       <button
+        ref={triggerRef}
         className={`doctor-appointment-status appointment-ui-status doctor-appointment-status--${getAppointmentStatusClass(schedule.status)}`}
         type="button"
         disabled={updatingStatusId === schedule.id || isClosed}
@@ -722,7 +752,13 @@ function StatusDropdown({
         aria-expanded={isOpen}
         onClick={(event) => {
           event.stopPropagation();
-          setIsOpen((current) => !current);
+          if (isOpen) {
+            setIsOpen(false);
+            return;
+          }
+
+          updateMenuPosition();
+          setIsOpen(true);
         }}
         style={{
           position: "relative",
@@ -756,27 +792,16 @@ function StatusDropdown({
         ) : null}
       </button>
 
-      {isOpen && !isClosed ? (
-        <div
-          role="menu"
-          aria-label={`Actions for ${statusLabel} appointment`}
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 100000,
-            width: "132px",
-            padding: "7px",
-            border: "1px solid #e2e6ef",
-            borderRadius: "13px",
-            background: "#ffffff",
-            boxShadow: "0 14px 34px rgba(31, 41, 55, 0.16)",
-            display: "grid",
-            gap: "5px",
-          }}
-          onClick={(event) => event.stopPropagation()}
-        >
+      {isOpen && !isClosed && menuPosition && typeof document !== "undefined"
+        ? createPortal(
+          <div
+            ref={menuRef}
+            className="doctor-appointment-status-portal-menu"
+            role="menu"
+            aria-label={`Actions for ${statusLabel} appointment`}
+            style={{ left: `${menuPosition.left}px`, top: `${menuPosition.top}px` }}
+            onClick={(event) => event.stopPropagation()}
+          >
           {availableOptions.map((option) => {
             const isCompleteOption =
               isCheckedIn &&
@@ -818,8 +843,10 @@ function StatusDropdown({
               </button>
             );
           })}
-        </div>
-      ) : null}
+          </div>,
+          document.body
+        )
+        : null}
     </span>
   );
 }
@@ -1128,11 +1155,22 @@ export function DoctorAppointmentsContent({
     const params = new URLSearchParams(location.search);
     return String(params.get("appointmentId") || "").trim();
   }, [location.search]);
+  const dashboardCompletedHistoryTarget = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return (
+      String(params.get("status") || "").trim().toLowerCase() === "completed" &&
+      String(params.get("view") || "").trim().toLowerCase() === "history"
+    );
+  }, [location.search]);
   const [form, setForm] = useState(initialAppointmentForm);
   const [patients, setPatients] = useState([]);
   const [schedules, setSchedules] = useState([]);
-  const [activeTab, setActiveTab] = useState("All");
-  const [appointmentView, setAppointmentView] = useState("Main");
+  const [activeTab, setActiveTab] = useState(() =>
+    dashboardCompletedHistoryTarget ? "Completed" : "All"
+  );
+  const [appointmentView, setAppointmentView] = useState(() =>
+    dashboardCompletedHistoryTarget ? "History" : "Main"
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
   const [pageSize, setPageSize] = useState(10);
@@ -1165,6 +1203,36 @@ export function DoctorAppointmentsContent({
   const appointmentsRequestRef = useRef(null);
   const appointmentsMountedRef = useRef(true);
   const patientsRequestRef = useRef(null);
+  const completedHistoryTargetAppliedRef = useRef(
+    dashboardCompletedHistoryTarget
+  );
+
+  useEffect(() => {
+    if (isVisitFormRoute || dashboardAppointmentTarget) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (dashboardCompletedHistoryTarget) {
+        setActiveTab("Completed");
+        setAppointmentView("History");
+        completedHistoryTargetAppliedRef.current = true;
+        return;
+      }
+
+      if (completedHistoryTargetAppliedRef.current) {
+        setActiveTab("All");
+        setAppointmentView("Main");
+        completedHistoryTargetAppliedRef.current = false;
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    dashboardAppointmentTarget,
+    dashboardCompletedHistoryTarget,
+    isVisitFormRoute,
+  ]);
 
   const selectCalendarDate = useCallback((value) => {
     const nextDate = value instanceof Date ? new Date(value) : toCalendarDate(value);
@@ -1286,12 +1354,11 @@ export function DoctorAppointmentsContent({
     return visibleSchedules.slice(startIndex, startIndex + pageSize);
   }, [displayedPage, pageSize, visibleSchedules]);
 
-  const loadAppointments = useCallback((options = {}) => {
+  const loadAppointments = useCallback(() => {
     if (appointmentsRequestRef.current) {
       return appointmentsRequestRef.current;
     }
 
-    const preserveSelectedDate = options?.preserveSelectedDate === true;
     const request = (async () => {
       const { data, error } = await supabase
         .from(scheduleTableName)
@@ -1318,9 +1385,10 @@ export function DoctorAppointmentsContent({
             : current
         );
 
-        if (nextSchedules.length > 0 && !preserveSelectedDate) {
-          selectCalendarDate(toDateInputValue(nextSchedules[0].start_time));
-        }
+        // Keep the user's current calendar position. The initial selectedDate
+        // already uses today's Manila date, and explicit actions (deep links,
+        // creating/rescheduling appointments, mini-calendar/week navigation)
+        // move the calendar intentionally.
       }
       return { ok: true, count: nextSchedules.length };
     })();
@@ -1803,7 +1871,7 @@ export function DoctorAppointmentsContent({
         current?.id === schedule.id ? updatedSchedule : current
       );
 
-      const refreshResult = await loadAppointments({ preserveSelectedDate: true });
+      const refreshResult = await loadAppointments();
       logDoctorAppointmentDetailDebug("status update succeeded", {
         scheduleId: schedule.id,
         displayedAppointmentId: getVisibleAppointmentId(updatedSchedule),
@@ -2104,7 +2172,7 @@ export function DoctorAppointmentsContent({
       current?.id === rescheduleSchedule.id ? updatedSchedule : current
     );
     selectCalendarDate(toDateInputValue(startDate));
-    const refreshResult = await loadAppointments({ preserveSelectedDate: true });
+    const refreshResult = await loadAppointments();
     logDoctorAppointmentDetailDebug("edit saved", {
       scheduleId: rescheduleSchedule.id,
       displayedAppointmentId: getVisibleAppointmentId(updatedSchedule),
@@ -2243,37 +2311,41 @@ export function DoctorAppointmentsContent({
         className="doctor-appointments-table-card appointment-ui-table-card"
         aria-label="Appointments"
       >
-        <div
-          className="doctor-appointments-table-scroll appointment-ui-table-scroll"
-          ref={tableScrollRef}
-        >
-          <div className="doctor-appointments-table__head">
-            <span>Appointment ID</span>
-            <span>Name</span>
-            <span>Date</span>
-            <span>Time</span>
-            <span>Status</span>
-          </div>
+        <div className="doctor-appointments-table-x-scroll">
+          <div className="doctor-appointments-table-inner">
+            <div className="doctor-appointments-table__head">
+              <span>Appointment ID</span>
+              <span>Name</span>
+              <span>Date</span>
+              <span>Time</span>
+              <span>Status</span>
+            </div>
 
-          {paginatedSchedules.length > 0 ? (
-            paginatedSchedules.map((schedule) => (
-              <div className="doctor-appointments-row" key={schedule.id}>
-                <span>
-                  {schedule.maternal_appointment_id || "MA ID not assigned"}
-                </span>
-                <span>{schedule.patient_name || "-"}</span>
-                <span>{formatTableDate(schedule.start_time)}</span>
-                <span>{formatTime(schedule.start_time)}</span>
-                <StatusDropdown
-                  schedule={schedule}
-                  updatingStatusId={updatingStatusId}
-                  onStatusSelect={handleStatusSelect}
-                />
-              </div>
-            ))
-          ) : (
-            <div className="doctor-appointments-empty">No appointments found.</div>
-          )}
+            <div
+              className="doctor-appointments-table-scroll appointment-ui-table-scroll"
+              ref={tableScrollRef}
+            >
+              {paginatedSchedules.length > 0 ? (
+                paginatedSchedules.map((schedule) => (
+                  <div className="doctor-appointments-row" key={schedule.id}>
+                    <span>
+                      {schedule.maternal_appointment_id || "MA ID not assigned"}
+                    </span>
+                    <span>{schedule.patient_name || "-"}</span>
+                    <span>{formatTableDate(schedule.start_time)}</span>
+                    <span>{formatTime(schedule.start_time)}</span>
+                    <StatusDropdown
+                      schedule={schedule}
+                      updatingStatusId={updatingStatusId}
+                      onStatusSelect={handleStatusSelect}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div className="doctor-appointments-empty">No appointments found.</div>
+              )}
+            </div>
+          </div>
         </div>
 
         <AppointmentPagination

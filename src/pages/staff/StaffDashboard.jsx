@@ -12,6 +12,12 @@ import {
   loadCurrentProfilePicture,
   profilePictureUpdatedEvent,
 } from "../../lib/profilePicture";
+import {
+  appointmentStatuses,
+  classifyAppointment,
+  compareUpcomingAppointments,
+  normalizeAppointmentStatus,
+} from "../../lib/appointmentDate";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
@@ -77,6 +83,7 @@ const dashboardStatusCards = [
     tone: "blue",
     progressKey: "completionProgress",
     target: "appointments",
+    path: "/staff/appointments?status=completed&view=history",
   },
 ];
 
@@ -133,7 +140,37 @@ function formatDashboardTime(value) {
   });
 }
 
-function mapUpcomingSession(row) {
+async function fetchDashboardPatientAvatarMap(scheduleRows) {
+  const patientIds = Array.from(
+    new Set(
+      scheduleRows
+        .map((appointment) => appointment?.patient_id)
+        .filter(Boolean)
+    )
+  );
+
+  if (!patientIds.length) return new Map();
+
+  const { data, error } = await supabase.rpc("get_patient_avatar_urls", {
+    p_patient_ids: patientIds,
+  });
+
+  if (error) {
+    if (import.meta.env.DEV) {
+      console.warn("Load Staff dashboard patient profile pictures failed:", error);
+    }
+    return null;
+  }
+
+  return new Map(
+    (data || []).map((row) => [
+      String(row.patient_id || ""),
+      String(row.avatar_url || "").trim(),
+    ])
+  );
+}
+
+function mapUpcomingSession(row, avatarMap = null) {
   /*
    * Prefer the new Maternal Appointment ID.
    *
@@ -156,6 +193,8 @@ function mapUpcomingSession(row) {
     date: formatDashboardDate(row.start_time),
     time: formatDashboardTime(row.start_time),
     avatarClass: "avatar-pink",
+    avatarUrl:
+      avatarMap?.get(String(row.patient_id || "")) || "",
   };
 }
 
@@ -186,41 +225,23 @@ function StaffProfileDropdown({
   );
 }
 
-function StaffProfileCard({ onNavigate }) {
+function StaffProfileCard({
+  onNavigate,
+  profilePhoto,
+  settings,
+}) {
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
   const triggerRef = useRef(null);
   const openRef = useRef(false);
 
   const [isOpen, setIsOpen] = useState(false);
-  const [settings, setSettings] = useState(getStaffSettings);
-  const [profilePhoto, setProfilePhoto] = useState("");
 
   useEffect(() => {
     openRef.current = isOpen;
   }, [isOpen]);
 
   useEffect(() => {
-    let active = true;
-
-    loadCurrentProfilePicture()
-      .then((result) => {
-        if (active) setProfilePhoto(result.displayUrl);
-      })
-      .catch((error) => {
-        if (import.meta.env.DEV) {
-          console.warn("Unable to load Staff profile picture:", error);
-        }
-      });
-
-    const syncProfile = () => {
-      setSettings(getStaffSettings());
-    };
-
-    const syncProfilePicture = (event) => {
-      setProfilePhoto(event.detail?.displayUrl || "");
-    };
-
     const handleClickOutside = (event) => {
       if (
         dropdownRef.current &&
@@ -239,19 +260,10 @@ function StaffProfileCard({ onNavigate }) {
 
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
-    window.addEventListener(staffSettingsUpdatedEvent, syncProfile);
-    window.addEventListener("doctor-settings-updated", syncProfile);
-    window.addEventListener("storage", syncProfile);
-    window.addEventListener(profilePictureUpdatedEvent, syncProfilePicture);
 
     return () => {
-      active = false;
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
-      window.removeEventListener(staffSettingsUpdatedEvent, syncProfile);
-      window.removeEventListener("doctor-settings-updated", syncProfile);
-      window.removeEventListener("storage", syncProfile);
-      window.removeEventListener(profilePictureUpdatedEvent, syncProfilePicture);
     };
   }, []);
 
@@ -320,19 +332,6 @@ function StaffProfileCard({ onNavigate }) {
       ) : null}
     </div>
   );
-}
-
-function getTodayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-
-  return {
-    start: start.toISOString(),
-    end: end.toISOString(),
-  };
 }
 
 function DashboardHome({ onNavigate, headerAction }) {
@@ -419,9 +418,6 @@ function DashboardHome({ onNavigate, headerAction }) {
     let active = true;
 
     const loadDashboardStats = async () => {
-      const todayRange = getTodayRange();
-      const nowIso = new Date().toISOString();
-
       /*
        * IMPORTANT:
        * Staff Patients intentionally uses the secure
@@ -504,70 +500,74 @@ function DashboardHome({ onNavigate, headerAction }) {
           ? previousStats.totalPatients
           : patientRows.length;
 
-      const todaysAppointments =
+      const todayRows =
         scheduleRows === null
-          ? previousStats.todaysAppointments
-          : scheduleRows.filter((appointment) => {
-              const startTime = appointment?.start_time;
+          ? null
+          : scheduleRows.filter(
+              (appointment) => classifyAppointment(appointment).isToday
+            );
 
-              return (
-                startTime &&
-                startTime >= todayRange.start &&
-                startTime < todayRange.end
-              );
-            }).length;
+      const todaysAppointments =
+        todayRows === null
+          ? previousStats.todaysAppointments
+          : todayRows.length;
 
       const completedSessions =
         scheduleRows === null
           ? previousStats.completedSessions
-          : scheduleRows.filter((appointment) => {
-              const startTime = appointment?.start_time;
-              const status = String(
-                appointment?.status || ""
-              )
-                .trim()
-                .toLowerCase();
+          : scheduleRows.filter(
+              (appointment) =>
+                normalizeAppointmentStatus(appointment.status) ===
+                appointmentStatuses.completed
+            ).length;
 
-              return (
-                status === "completed" &&
-                startTime &&
-                startTime >= todayRange.start &&
-                startTime < todayRange.end
-              );
-            }).length;
+      const completedToday =
+        todayRows === null
+          ? 0
+          : todayRows.filter(
+              (appointment) =>
+                normalizeAppointmentStatus(appointment.status) ===
+                appointmentStatuses.completed
+            ).length;
 
       const nextStats = {
         totalPatients,
         todaysAppointments,
         completedSessions,
         completionProgress:
-          todaysAppointments > 0
+          scheduleRows === null
+            ? previousStats.completionProgress
+            : todaysAppointments > 0
             ? Math.min(
                 100,
                 Math.round(
-                  (completedSessions /
+                  (completedToday /
                     todaysAppointments) *
                     100
                 )
               )
-            : 0,
+              : 0,
       };
 
-      const nextUpcomingSessions =
-        scheduleRows === null
-          ? staffDashboardSnapshot.upcomingSessions || []
-          : scheduleRows
-              .filter((appointment) => {
-                const startTime =
-                  appointment?.start_time;
+      let nextUpcomingSessions =
+        staffDashboardSnapshot.upcomingSessions || [];
 
-                return (
-                  startTime &&
-                  startTime >= nowIso
-                );
-              })
-              .slice(0, 4)
-              .map(mapUpcomingSession);
+      if (scheduleRows !== null) {
+        const upcomingRows = scheduleRows
+          .filter((appointment) => classifyAppointment(appointment).isUpcoming)
+          .sort(compareUpcomingAppointments)
+          .slice(0, 4);
+
+        const avatarMap = await fetchDashboardPatientAvatarMap(upcomingRows);
+
+        if (!active) {
+          return;
+        }
+
+        nextUpcomingSessions = upcomingRows.map((appointment) =>
+          mapUpcomingSession(appointment, avatarMap)
+        );
+      }
 
       /*
        * Only replace the shared snapshot with a fully successful refresh.
@@ -594,6 +594,15 @@ function DashboardHome({ onNavigate, headerAction }) {
     };
 
     loadDashboardStats();
+
+    const handleWindowFocus = () => {
+      void loadDashboardStats();
+    };
+    const refreshTimer = window.setInterval(() => {
+      void loadDashboardStats();
+    }, 60_000);
+
+    window.addEventListener("focus", handleWindowFocus);
 
     const patientsChannel = supabase
       .channel("staff-dashboard-patients-count")
@@ -623,6 +632,8 @@ function DashboardHome({ onNavigate, headerAction }) {
 
     return () => {
       active = false;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener("focus", handleWindowFocus);
       supabase.removeChannel(patientsChannel);
       supabase.removeChannel(scheduleChannel);
     };
@@ -653,10 +664,17 @@ function DashboardHome({ onNavigate, headerAction }) {
             <span>{settings.displayName}!</span>
           </h1>
 
-          <p>
+          <p className="doctor-hero-support">
             <span>Here&apos;s what&apos;s happening with your practice today.</span>
             <span>
-              You have {dashboardStats.todaysAppointments} appointments scheduled today.
+              You have{" "}
+              <strong className="doctor-hero-highlight">
+                {dashboardStats.todaysAppointments}{" "}
+                {dashboardStats.todaysAppointments === 1
+                  ? "appointment"
+                  : "appointments"}{" "}
+                scheduled today.
+              </strong>
             </span>
           </p>
         </div>
@@ -674,7 +692,9 @@ function DashboardHome({ onNavigate, headerAction }) {
             className="doctor-status-card"
             key={card.label}
             type="button"
-            onClick={() => onNavigate(card.target)}
+            onClick={() =>
+              onNavigate(card.target, card.path ? { path: card.path } : undefined)
+            }
           >
             <div className="doctor-status-main">
               <div className={`doctor-status-icon ${card.tone}`}>
@@ -750,8 +770,37 @@ function DashboardHome({ onNavigate, headerAction }) {
                       <div className="doctor-patient-cell">
                         <span
                           className={`doctor-patient-avatar ${session.avatarClass}`}
+                          style={{
+                            width: "46px",
+                            height: "46px",
+                            minWidth: "46px",
+                            flex: "0 0 46px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: "50%",
+                            overflow: "hidden",
+                          }}
                         >
-                          {session.initials}
+                          {session.avatarUrl ? (
+                            <img
+                              src={session.avatarUrl}
+                              alt=""
+                              aria-hidden="true"
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                maxWidth: "100%",
+                                maxHeight: "100%",
+                                objectFit: "cover",
+                                objectPosition: "center",
+                                display: "block",
+                                borderRadius: "inherit",
+                              }}
+                            />
+                          ) : (
+                            session.initials
+                          )}
                         </span>
 
                         <span>{session.patient}</span>
@@ -951,6 +1000,76 @@ function StaffDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  /*
+   * Keep the Staff profile-pill data at the workspace-shell level.
+   *
+   * Individual Staff sections render/unmount their own headers. If the avatar
+   * state lives inside StaffProfileCard, every section change starts the card
+   * from an empty photo and briefly shows initials before Supabase finishes.
+   *
+   * StaffDashboard remains mounted while switching Staff sections, so keeping
+   * the last successfully loaded avatar here prevents that flash. Supabase is
+   * still the source of truth.
+   */
+  const [profileCardSettings, setProfileCardSettings] =
+    useState(getStaffSettings);
+  const [profilePhoto, setProfilePhoto] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    let profilePictureRevision = 0;
+
+    loadCurrentProfilePicture()
+      .then((result) => {
+        if (active && profilePictureRevision === 0) {
+          setProfilePhoto(result.displayUrl || "");
+        }
+      })
+      .catch((error) => {
+        if (import.meta.env.DEV) {
+          console.warn("Unable to load Staff profile picture:", error);
+        }
+      });
+
+    const syncProfile = () => {
+      setProfileCardSettings(getStaffSettings());
+    };
+
+    const syncProfilePicture = (event) => {
+      /*
+       * An explicit Change Photo / Remove Photo event wins over an older
+       * in-flight initial read. This keeps the pill immediately synchronized.
+       */
+      profilePictureRevision += 1;
+      setProfilePhoto(event.detail?.displayUrl || "");
+    };
+
+    window.addEventListener(staffSettingsUpdatedEvent, syncProfile);
+    window.addEventListener("doctor-settings-updated", syncProfile);
+    window.addEventListener("storage", syncProfile);
+    window.addEventListener(
+      profilePictureUpdatedEvent,
+      syncProfilePicture
+    );
+
+    return () => {
+      active = false;
+      window.removeEventListener(
+        staffSettingsUpdatedEvent,
+        syncProfile
+      );
+      window.removeEventListener(
+        "doctor-settings-updated",
+        syncProfile
+      );
+      window.removeEventListener("storage", syncProfile);
+      window.removeEventListener(
+        profilePictureUpdatedEvent,
+        syncProfilePicture
+      );
+    };
+  }, []);
+
   useEffect(() => {
     let active = true;
 
@@ -1141,7 +1260,11 @@ function StaffDashboard() {
   }, [navigate, navigateToPage]);
 
   const headerAction = (
-    <StaffProfileCard onNavigate={navigateToPage} />
+    <StaffProfileCard
+      onNavigate={navigateToPage}
+      profilePhoto={profilePhoto}
+      settings={profileCardSettings}
+    />
   );
 
   const renderContent = () => {
@@ -1158,7 +1281,10 @@ function StaffDashboard() {
 
       case "profile":
         return (
-          <StaffViewProfileContent headerAction={headerAction} />
+          <StaffViewProfileContent
+            headerAction={headerAction}
+            initialProfilePhoto={profilePhoto}
+          />
         );
 
       case "settings":

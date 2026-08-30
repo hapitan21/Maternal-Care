@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
+import { supabase } from "../../lib/supabaseClient";
+import {
+  classifyAppointment,
+  normalizeAppointmentStatus,
+} from "../../lib/appointmentDate";
 import {
   clinicAccountStatuses,
   normalizeClinicAccountStatus,
@@ -64,6 +70,84 @@ function getAccountStatusPresentation(value) {
   };
 }
 
+
+const emptyAppointmentSummary = {
+  cancelled: 0,
+  today: 0,
+  pending: 0,
+  completed: 0,
+};
+
+const appointmentSummaryCards = [
+  {
+    key: "cancelled",
+    label: "Cancelled",
+    icon: "solar:calendar-mark-linear",
+    path: "/doctor/appointments?status=cancelled&view=history",
+  },
+  {
+    key: "today",
+    label: "Today's",
+    icon: "solar:calendar-date-linear",
+    path: "/doctor/appointments",
+  },
+  {
+    key: "pending",
+    label: "Pending",
+    icon: "solar:clock-circle-linear",
+    path: "/doctor/appointments?status=pending&view=main",
+  },
+  {
+    key: "completed",
+    label: "Completed",
+    icon: "solar:check-circle-linear",
+    path: "/doctor/appointments?status=completed&view=history",
+  },
+];
+
+const appointmentSummaryPeriods = [
+  { value: "this-month", label: "This month" },
+  { value: "last-month", label: "Last month" },
+  { value: "all-time", label: "All time" },
+];
+
+function getAppointmentSummaryRange(period) {
+  if (period === "all-time") {
+    return null;
+  }
+
+  const now = new Date();
+  const monthOffset = period === "last-month" ? -1 : 0;
+  const start = new Date(
+    now.getFullYear(),
+    now.getMonth() + monthOffset,
+    1
+  );
+  const end = new Date(
+    now.getFullYear(),
+    now.getMonth() + monthOffset + 1,
+    1
+  );
+
+  return {
+    start: start.getTime(),
+    end: end.getTime(),
+  };
+}
+
+function isAppointmentInSummaryPeriod(appointment, period) {
+  const range = getAppointmentSummaryRange(period);
+  if (!range) return true;
+
+  const appointmentTime = new Date(appointment?.start_time || "").getTime();
+
+  return (
+    Number.isFinite(appointmentTime) &&
+    appointmentTime >= range.start &&
+    appointmentTime < range.end
+  );
+}
+
 function ProfileInfoRow({ item }) {
   return (
     <div className="doctor-profile-info-row">
@@ -89,11 +173,20 @@ function ProfileDetailRow({ item }) {
 }
 
 function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("personal");
   const [avatarOverride, setAvatarOverride] = useState(null);
+  const [appointmentSummaryPeriod, setAppointmentSummaryPeriod] =
+    useState("this-month");
+  const [appointmentSummary, setAppointmentSummary] = useState(
+    emptyAppointmentSummary
+  );
+  const [appointmentSummaryMessage, setAppointmentSummaryMessage] =
+    useState("");
   const personal = doctorIdentity?.personalInformation;
   const professional = doctorIdentity?.professionalInformation;
   const identityProfile = doctorIdentity?.profile;
+  const authenticatedDoctorId = identityProfile?.id || "";
   const accountStatus = getAccountStatusPresentation(
     identityProfile?.account_status
   );
@@ -115,7 +208,7 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
     },
     {
       icon: "solar:map-point-linear",
-      label: "Practice Location",
+      label: "Location",
       value: recordedValue(
         [professional?.clinic_hospital_name, professional?.clinic_address]
           .filter(Boolean)
@@ -131,7 +224,12 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
       value: recordedValue(doctorIdentity?.doctorDisplayName),
     },
     {
-      icon: "solar:woman-linear",
+      icon:
+        String(personal?.gender || "").trim().toLowerCase() === "male"
+          ? "mdi:gender-male"
+          : String(personal?.gender || "").trim().toLowerCase() === "female"
+            ? "mdi:gender-female"
+            : "mdi:gender-male-female",
       label: "Gender",
       value: recordedValue(personal?.gender),
     },
@@ -190,6 +288,113 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
     professionalInfo.slice(0, 3),
     professionalInfo.slice(3),
   ];
+
+  useEffect(() => {
+    if (!authenticatedDoctorId) {
+      return undefined;
+    }
+
+    let active = true;
+
+    const loadAppointmentSummary = async () => {
+      const { data, error } = await supabase
+        .from("schedule")
+        .select("id, start_time, status")
+        .eq("doctor_id", authenticatedDoctorId)
+        .order("start_time", { ascending: true });
+
+      if (!active) return;
+
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            "Unable to load Doctor appointment summary:",
+            error.message
+          );
+        }
+
+        setAppointmentSummaryMessage(
+          "Appointment summary could not be refreshed."
+        );
+        return;
+      }
+
+      setAppointmentSummaryMessage("");
+
+      const rows = data || [];
+      const nextSummary = rows.reduce(
+        (summary, appointment) => {
+          const status = normalizeAppointmentStatus(
+            appointment?.status
+          );
+          const isInSelectedPeriod = isAppointmentInSummaryPeriod(
+            appointment,
+            appointmentSummaryPeriod
+          );
+
+          /*
+           * "Today's" is intentionally always today's live count.
+           * The selected period controls Cancelled / Pending / Completed.
+           */
+          if (classifyAppointment(appointment).isToday) {
+            summary.today += 1;
+          }
+
+          if (!isInSelectedPeriod) {
+            return summary;
+          }
+
+          if (status === "cancelled" || status === "canceled") {
+            summary.cancelled += 1;
+          }
+
+          if (status === "pending" || status === "scheduled") {
+            summary.pending += 1;
+          }
+
+          if (status === "completed") {
+            summary.completed += 1;
+          }
+
+          return summary;
+        },
+        { ...emptyAppointmentSummary }
+      );
+
+      setAppointmentSummary(nextSummary);
+    };
+
+    const refresh = () => {
+      void loadAppointmentSummary();
+    };
+
+    refresh();
+
+    const scheduleChannel = supabase
+      .channel(
+        `doctor-profile-summary-${authenticatedDoctorId}-${appointmentSummaryPeriod}`
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "schedule",
+          filter: `doctor_id=eq.${authenticatedDoctorId}`,
+        },
+        refresh
+      )
+      .subscribe();
+
+    const handleWindowFocus = () => refresh();
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", handleWindowFocus);
+      supabase.removeChannel(scheduleChannel);
+    };
+  }, [authenticatedDoctorId, appointmentSummaryPeriod]);
 
   const initials = getDoctorInitials(profile.displayName);
   const avatarUrl = avatarOverride ?? doctorIdentity?.avatarUrl ?? "";
@@ -323,6 +528,69 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
               </div>
             ))
           )}
+        </div>
+      </section>
+
+      <section
+        className="doctor-profile-summary"
+        aria-labelledby="doctor-appointment-summary-title"
+      >
+        <div className="doctor-profile-summary-header">
+          <div>
+            <Icon icon="solar:chart-square-bold" aria-hidden="true" />
+            <h3 id="doctor-appointment-summary-title">
+              Appointment Summary
+            </h3>
+          </div>
+
+          <label className="doctor-profile-summary-period">
+            <span className="doctor-profile-summary-period-label">
+              Summary period
+            </span>
+
+            <select
+              value={appointmentSummaryPeriod}
+              onChange={(event) =>
+                setAppointmentSummaryPeriod(event.target.value)
+              }
+              aria-label="Appointment summary period"
+            >
+              {appointmentSummaryPeriods.map((period) => (
+                <option value={period.value} key={period.value}>
+                  {period.label}
+                </option>
+              ))}
+            </select>
+
+            <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
+          </label>
+        </div>
+
+        {appointmentSummaryMessage ? (
+          <p className="doctor-profile-summary-message" role="status">
+            {appointmentSummaryMessage}
+          </p>
+        ) : null}
+
+        <div className="doctor-profile-summary-grid">
+          {appointmentSummaryCards.map((card) => (
+            <button
+              className="doctor-profile-summary-card"
+              type="button"
+              key={card.key}
+              onClick={() => navigate(card.path)}
+              aria-label={`Open ${card.label} appointments`}
+            >
+              <div className="doctor-profile-summary-icon">
+                <Icon icon={card.icon} aria-hidden="true" />
+              </div>
+
+              <div>
+                <span>{card.label}</span>
+                <strong>{appointmentSummary[card.key]}</strong>
+              </div>
+            </button>
+          ))}
         </div>
       </section>
         </>

@@ -36,6 +36,12 @@ function StaffIcon({ name }) {
         <path d="m14.2 6.6 3.2 3.2" />
       </>
     ),
+    close: (
+      <>
+        <path d="M6 6l12 12" />
+        <path d="M18 6 6 18" />
+      </>
+    ),
     mail: (
       <>
         <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
@@ -1212,28 +1218,28 @@ function StaffSettingsContent({ headerAction }) {
     }
   };
 
-  const toggleProfileEdit = async (section) => {
-    if (editing[section]) {
-      try {
-        await persistProfileSettings(draftSettings);
+  const toggleProfileEdit = (section) => {
+    clearMessages();
 
-        setEditing((current) => ({
-          ...current,
-          [section]: false,
-        }));
-      } catch {
-        // Keep edit mode open when saving fails.
-      }
+    if (editing[section]) {
+      // Cancel editing and restore the most recently saved values.
+      setDraftSettings(settings);
+
+      setEditing((current) => ({
+        ...current,
+        [section]: false,
+      }));
 
       return;
     }
 
+    // Start from the latest saved values and edit only one section at a time.
     setDraftSettings(settings);
 
-    setEditing((current) => ({
-      ...current,
-      [section]: true,
-    }));
+    setEditing({
+      personal: section === "personal",
+      professional: section === "professional",
+    });
   };
 
   const saveAccountSettings = async (event) => {
@@ -1984,14 +1990,12 @@ function StaffSettingsContent({ headerAction }) {
                         isSavingSettings
                       }
                     >
-                      <StaffIcon name="pencil" />
+                      <StaffIcon
+                        name={editing.personal ? "close" : "pencil"}
+                      />
 
                       <span>
-                        {editing.personal
-                          ? isSavingSettings
-                            ? "Saving..."
-                            : "Save"
-                          : "Edit"}
+                        {editing.personal ? "Cancel" : "Edit"}
                       </span>
                     </button>
                   </header>
@@ -2039,13 +2043,17 @@ function StaffSettingsContent({ headerAction }) {
                         isSavingSettings
                       }
                     >
-                      <StaffIcon name="pencil" />
+                      <StaffIcon
+                        name={
+                          editing.professional
+                            ? "close"
+                            : "pencil"
+                        }
+                      />
 
                       <span>
                         {editing.professional
-                          ? isSavingSettings
-                            ? "Saving..."
-                            : "Save"
+                          ? "Cancel"
                           : "Edit"}
                       </span>
                     </button>

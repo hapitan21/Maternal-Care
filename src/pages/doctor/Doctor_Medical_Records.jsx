@@ -34,10 +34,11 @@ import {
   compareUpcomingAppointments,
   formatAppointmentDate,
   formatAppointmentTime,
+  getAppointmentStart,
   getManilaDateKey,
   toManilaISOString,
 } from "../../lib/appointmentDate";
-import { resolvePregnancyWeek } from "../../lib/pregnancyTracking";
+import { resolveCurrentPregnancyWeek } from "../../lib/pregnancyTracking";
 import {
   isCompletedClinicalVisitRecord,
   isMeaningfulClinicalValue,
@@ -58,6 +59,9 @@ const medicalRecordTabs = new Set([
   "Pregnancy Tracking",
 ]);
 const patientScheduleTabs = new Set(["Overview", "Appointments"]);
+const appointmentMetadataTabs = new Set([...patientScheduleTabs, "Medical Record"]);
+const MEDICAL_RECORDS_BUCKET = "medical-records";
+const MEDICAL_ATTACHMENT_URL_EXPIRY_SECONDS = 10 * 60;
 
 const EMPTY_PATIENT_VALUE = "Not provided";
 
@@ -214,7 +218,7 @@ function normalizeLabelText(value) {
 }
 
 function getPregnancyWeek(patient, obstetric, records = []) {
-  return resolvePregnancyWeek({
+  return resolveCurrentPregnancyWeek({
     expectedDeliveryDate:
       obstetric?.expected_delivery_date || patient?.expected_delivery_date,
     lastMenstrualPeriod: obstetric?.last_menstrual_period,
@@ -257,21 +261,121 @@ function normalizeRecordRows(rows, keys) {
     : [];
 }
 
+function formatAttachmentSize(size) {
+  const bytes = Number(size);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function normalizeRecordAttachment(attachment) {
-  const dataUrl =
-    attachment?.dataUrl ||
-    attachment?.url ||
-    attachment?.publicUrl ||
-    attachment?.storagePath ||
-    attachment?.path ||
-    "";
-  if ((!attachment?.name && !attachment?.fileName) || !dataUrl) return null;
+  const path = attachment?.path || attachment?.storagePath || "";
+  const dataUrl = attachment?.dataUrl || attachment?.url || attachment?.publicUrl || "";
+  if ((!attachment?.name && !attachment?.fileName) || (!path && !dataUrl)) return null;
   return {
     name: attachment.name || attachment.fileName,
     type: attachment.type || attachment.fileType || "File",
-    sizeLabel: attachment.sizeLabel || "",
+    size: Number.isFinite(Number(attachment.size)) ? Number(attachment.size) : 0,
+    sizeLabel: attachment.sizeLabel || formatAttachmentSize(attachment.size),
+    path,
     dataUrl,
   };
+}
+
+function getAttachmentDescription(attachment) {
+  const type = String(attachment?.type || "").toLowerCase();
+  return type === "application/pdf" || /\.pdf$/i.test(attachment?.name || "")
+    ? "PDF report"
+    : attachment?.type || "Medical attachment";
+}
+
+async function createMedicalAttachmentUrl(attachment, { download = false } = {}) {
+  if (attachment?.path) {
+    const options = download ? { download: attachment.name || true } : undefined;
+    const { data, error } = await supabase.storage
+      .from(MEDICAL_RECORDS_BUCKET)
+      .createSignedUrl(attachment.path, MEDICAL_ATTACHMENT_URL_EXPIRY_SECONDS, options);
+
+    if (error || !data?.signedUrl) {
+      throw error || new Error("A temporary attachment link could not be created.");
+    }
+    return data.signedUrl;
+  }
+
+  if (attachment?.dataUrl) return attachment.dataUrl;
+  throw new Error("This attachment does not have a usable storage path.");
+}
+
+function MedicalAttachmentControl({ attachment, compact = false }) {
+  const file = normalizeRecordAttachment(attachment);
+  const [action, setAction] = React.useState("");
+  const [error, setError] = React.useState("");
+
+  if (!file) return null;
+
+  const viewAttachment = async () => {
+    if (action) return;
+    const viewWindow = window.open("about:blank", "_blank");
+    if (viewWindow) viewWindow.opener = null;
+    setAction("view");
+    setError("");
+
+    try {
+      const url = await createMedicalAttachmentUrl(file);
+      if (viewWindow) viewWindow.location.replace(url);
+      else window.open(url, "_blank", "noopener,noreferrer");
+    } catch (viewError) {
+      viewWindow?.close();
+      setError(viewError?.message || "Unable to open the report.");
+    } finally {
+      setAction("");
+    }
+  };
+
+  const downloadAttachment = async () => {
+    if (action) return;
+    setAction("download");
+    setError("");
+
+    try {
+      const url = await createMedicalAttachmentUrl(file, { download: true });
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file.name;
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (downloadError) {
+      setError(downloadError?.message || "Unable to download the report.");
+    } finally {
+      setAction("");
+    }
+  };
+
+  return (
+    <div className={`mr-report-attachment${compact ? " is-compact" : ""}`}>
+      <div className="mr-report-attachment-file">
+        <Icon icon="akar-icons:file" />
+        <span>
+          <strong>{file.name}</strong>
+          <small>{[getAttachmentDescription(file), file.sizeLabel].filter(Boolean).join(" - ")}</small>
+        </span>
+      </div>
+      <div className="mr-report-attachment-actions">
+        <button type="button" disabled={Boolean(action)} onClick={viewAttachment}>
+          <Icon icon="solar:eye-linear" />
+          {action === "view" ? "Opening..." : "View"}
+        </button>
+        <button type="button" disabled={Boolean(action)} onClick={downloadAttachment}>
+          <Icon icon="material-symbols:download-rounded" />
+          {action === "download" ? "Downloading..." : "Download"}
+        </button>
+      </div>
+      {error ? <small className="mr-report-attachment-error" role="alert">{error}</small> : null}
+    </div>
+  );
 }
 
 function getRecordFormData(row) {
@@ -323,7 +427,29 @@ function getRecordTimestamp(row, formData) {
   return null;
 }
 
-function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) {
+function formatMedicalRecordTimestamp(value) {
+  const formattedDate = formatAppointmentDate(value);
+  const formattedTime = formatAppointmentTime(value);
+  return formattedDate === "-" || formattedTime === "-"
+    ? "Not recorded"
+    : `${formattedDate} at ${formattedTime}`;
+}
+
+function formatAppointmentWeekday(value) {
+  return formatAppointmentDate(value, {
+    weekday: "long",
+    month: undefined,
+    day: undefined,
+    year: undefined,
+  });
+}
+
+function mapSupabaseMedicalRecord(
+  row,
+  patient,
+  doctorProfilesById = new Map(),
+  schedulesById = new Map()
+) {
   const formData = getRecordFormData(row);
   const uploadedAt = row.uploaded_at ? new Date(row.uploaded_at) : null;
   const validUploadedAt = uploadedAt && !Number.isNaN(uploadedAt.getTime()) ? uploadedAt : null;
@@ -338,6 +464,18 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
     getFirstRecordValue(formData.pregnancyStatus, formData.pregnancy_status) || {};
   const visitInformation =
     getFirstRecordValue(formData.visitInformation, formData.visit_information) || {};
+  const linkedSchedule = row.schedule_id ? schedulesById.get(row.schedule_id) : null;
+  const linkedAppointmentStart = getAppointmentStart(linkedSchedule);
+  const existingMaternalAppointmentId = getFirstRecordValue(
+    formData.maternalAppointmentId,
+    formData.maternal_appointment_id,
+    formData.displayAppointmentId,
+    formData.display_appointment_id,
+    visitInformation.maternalAppointmentId,
+    visitInformation.maternal_appointment_id,
+    visitInformation.displayAppointmentId,
+    visitInformation.display_appointment_id
+  );
   const findings = Array.isArray(formData.findings)
     ? formData.findings.map((item) =>
         Array.isArray(item)
@@ -391,6 +529,7 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
 
   return {
     id: row.id,
+    patientId: row.patient_id,
     scheduleId:
       row.schedule_id ||
       getUuidLikeValue(
@@ -412,6 +551,15 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
     time: formData.visitTime || formData.visit_time || visitInformation.visitTime || visitInformation.visit_time || (validVisitDate
       ? validVisitDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
       : "Not recorded"),
+    detailAppointmentDate: linkedAppointmentStart
+      ? formatAppointmentDate(linkedAppointmentStart)
+      : "Not recorded",
+    detailAppointmentDay: linkedAppointmentStart
+      ? formatAppointmentWeekday(linkedAppointmentStart)
+      : "Not recorded",
+    detailAppointmentTime: linkedAppointmentStart
+      ? formatAppointmentTime(linkedAppointmentStart)
+      : "Not recorded",
     visitType,
     gestationalAge: visitGestationalAge || patient?.gestational_age || "Not recorded",
     riskLevel: formData.riskLevel || "Not recorded",
@@ -419,23 +567,16 @@ function mapSupabaseMedicalRecord(row, patient, doctorProfilesById = new Map()) 
     visitDateValue: validVisitDate ? validVisitDate.toISOString() : "",
     doctor: linkedDoctorName || formData.doctor || formData.attendingPhysician || formData.attending_physician || row.uploaded_by || "Doctor not recorded",
     appointmentReference:
-      formData.displayAppointmentId ||
-      formData.display_appointment_id ||
-      formData.appointmentId ||
-      formData.appointment_id ||
-      formData.maternalAppointmentId ||
-      formData.maternal_appointment_id ||
-      visitInformation.displayAppointmentId ||
-      visitInformation.display_appointment_id ||
-      visitInformation.appointmentId ||
-      visitInformation.appointment_id ||
-      visitInformation.maternalAppointmentId ||
-      visitInformation.maternal_appointment_id ||
+      linkedSchedule?.maternal_appointment_id ||
+      existingMaternalAppointmentId ||
+      row.schedule_id ||
       "No appointment reference",
     createdDate: validUploadedAt
-      ? validUploadedAt.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+      ? formatMedicalRecordTimestamp(validUploadedAt)
       : "Not recorded",
-    updatedDate: formData.updatedAt || "Not recorded",
+    updatedDate: formatMedicalRecordTimestamp(
+      getFirstRecordValue(formData.updatedAt, formData.updated_at)
+    ),
     recordStatus: formData.recordStatus || formData.status || "Not recorded",
     complaint: getFirstRecordValue(formData.chiefComplaint, formData.chief_complaint, formData.complaint, row.notes, row.title) || "Not recorded",
     symptoms: getFirstRecordValue(formData.symptoms, formData.patientConcerns, formData.patient_concerns) || "Not recorded",
@@ -1741,15 +1882,8 @@ function DiagnosticResultsPanel({ records }) {
               </span>
               <span role="cell">{result.orderedBy}</span>
               <span role="cell">
-                {result.file?.dataUrl ? (
-                  <a className="mr-laboratory-file" href={result.file.dataUrl} download={result.file.name}>
-                    <Icon icon="akar-icons:file" />
-                    <span>
-                      <strong>{result.file.name}</strong>
-                      <small>{[result.file.type, result.file.sizeLabel].filter(Boolean).join(" - ")}</small>
-                    </span>
-                    <Icon icon="material-symbols:download-rounded" />
-                  </a>
+                {result.file ? (
+                  <MedicalAttachmentControl attachment={result.file} compact />
                 ) : (
                   <span className="mr-unavailable-action">No file</span>
                 )}
@@ -2612,9 +2746,9 @@ function formatWithUnitFromRecord(records, labels, unit = "") {
   return value.toLowerCase().includes(unit.toLowerCase()) ? value : `${value} ${unit}`;
 }
 
-function buildTrackingDetails(patient, patientRelated, records) {
+function buildTrackingDetails(patient, patientRelated, records, pregnancyWeek) {
   const obstetric = patientRelated?.obstetric || {};
-  const week = getPregnancyWeek(patient, obstetric, records);
+  const week = pregnancyWeek;
   const progressPercent = week === null ? 0 : Math.round(Math.min(100, (week / 40) * 100));
   const currentWeight = parseNumericValue(getLatestRecordValue(records, ["Weight"]));
   const prePregnancyWeight = parseNumericValue(patientRelated?.initialAssessment?.weight_kg);
@@ -2649,10 +2783,10 @@ function buildTrackingDetails(patient, patientRelated, records) {
   };
 }
 
-function PregnancyTrackingPanel({ patient, patientRelated, records }) {
+function PregnancyTrackingPanel({ patient, patientRelated, records, pregnancyWeek }) {
   const tracking = React.useMemo(
-    () => buildTrackingDetails(patient, patientRelated, records),
-    [patient, patientRelated, records]
+    () => buildTrackingDetails(patient, patientRelated, records, pregnancyWeek),
+    [patient, patientRelated, pregnancyWeek, records]
   );
   const ringPercent = tracking.progressPercent;
   const expectedDeliveryDate = formatPatientDate(
@@ -2897,7 +3031,8 @@ function MedicalRecordDataTable({ columns, rows, emptyText = "Not recorded" }) {
 function MedicalReviewBlock({ title, review, fields }) {
   if (!review) return null;
 
-  const hasContent = fields.some(([key]) => cleanRecordValue(review[key])) || review.attachment;
+  const attachment = normalizeRecordAttachment(review.attachment);
+  const hasContent = fields.some(([key]) => cleanRecordValue(review[key])) || attachment;
   if (!hasContent) return null;
 
   return (
@@ -2911,15 +3046,7 @@ function MedicalReviewBlock({ title, review, fields }) {
           </div>
         ))}
       </dl>
-      {review.attachment ? (
-        <a className="mr-medical-file-card" href={review.attachment.dataUrl || undefined} download={review.attachment.name}>
-          <Icon icon="akar-icons:file" />
-          <span>
-            <strong>{review.attachment.name}</strong>
-            <small>{[review.attachment.type, review.attachment.sizeLabel].filter(Boolean).join(" - ")}</small>
-          </span>
-        </a>
-      ) : null}
+      {attachment ? <MedicalAttachmentControl attachment={attachment} /> : null}
     </section>
   );
 }
@@ -2948,8 +3075,8 @@ function MedicalRecordEntry({
             <Icon icon="mingcute:calendar-line" />
           </span>
           <div>
-            <h3>{record.date}</h3>
-            <p>{record.day}<span aria-hidden="true"> - </span>{record.time}</p>
+            <h3>{record.detailAppointmentDate}</h3>
+            <p>{record.detailAppointmentDay}<span aria-hidden="true"> - </span>{record.detailAppointmentTime}</p>
           </div>
         </header>
 
@@ -3324,9 +3451,10 @@ export default function Doctor_Medical_Records({
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = React.useState(initialActiveTab);
   const [shouldLoadAppointments, setShouldLoadAppointments] = React.useState(() =>
-    patientScheduleTabs.has(initialActiveTab)
+    appointmentMetadataTabs.has(initialActiveTab)
   );
   const [patient, setPatient] = React.useState(null);
+  const [patientAvatarUrl, setPatientAvatarUrl] = React.useState("");
   const [patientLoadError, setPatientLoadError] = React.useState("");
   const [patientRelated, setPatientRelated] = React.useState({
     personal: null,
@@ -3355,11 +3483,14 @@ export default function Doctor_Medical_Records({
     treatment: "",
   });
   const [focusedRecordId, setFocusedRecordId] = React.useState(initialFocusedRecordId);
+  const [stableEditRecordId, setStableEditRecordId] = React.useState(initialFocusedRecordId);
+  const [isOpeningEditRecord, setIsOpeningEditRecord] = React.useState(false);
   const [focusedAppointmentId, setFocusedAppointmentId] = React.useState("");
   const pageRef = React.useRef(null);
   const onRecordSelectRef = React.useRef(onRecordSelect);
   const medicalRecordRequestRef = React.useRef(0);
   const patientRequestRef = React.useRef(0);
+  const patientAvatarRequestRef = React.useRef(0);
   const prenatalRequestRef = React.useRef(0);
   const doctorProfileRequestRef = React.useRef(0);
   const doctorProfileCacheRef = React.useRef(new Map());
@@ -3368,18 +3499,6 @@ export default function Doctor_Medical_Records({
   });
   const initialPatientId = initialPatient?.id || "";
   const selectedInitialPatientRef = React.useRef(initialPatient);
-  const overviewPatient = React.useMemo(
-    () => ({
-      gestational_age: patient?.gestational_age || "",
-      expected_delivery_date: patient?.expected_delivery_date || "",
-      last_menstrual_period: patientRelated.obstetric?.last_menstrual_period || "",
-    }),
-    [
-      patient?.expected_delivery_date,
-      patient?.gestational_age,
-      patientRelated.obstetric?.last_menstrual_period,
-    ]
-  );
   const doctorIds = React.useMemo(
     () =>
       Array.from(
@@ -3466,12 +3585,20 @@ export default function Doctor_Medical_Records({
     () => medicalRecordRows.filter(isCompletedClinicalVisitRecord),
     [medicalRecordRows]
   );
+  const schedulesById = React.useMemo(
+    () => new Map(appointmentState.appointments.map((appointment) => [appointment.id, appointment])),
+    [appointmentState.appointments]
+  );
   const medicalRecords = React.useMemo(
     () =>
       completedMedicalRecordRows
-        .map((row) => mapSupabaseMedicalRecord(row, patient, doctorProfilesById))
+        .map((row) => mapSupabaseMedicalRecord(row, patient, doctorProfilesById, schedulesById))
         .sort((first, second) => second.sortTime - first.sortTime),
-    [completedMedicalRecordRows, doctorProfilesById, patient]
+    [completedMedicalRecordRows, doctorProfilesById, patient, schedulesById]
+  );
+  const currentPregnancyWeek = React.useMemo(
+    () => getPregnancyWeek(patient, patientRelated.obstetric || {}, medicalRecords),
+    [medicalRecords, patient, patientRelated.obstetric]
   );
   const resolvedAppointments = React.useMemo(
     () =>
@@ -3490,15 +3617,15 @@ export default function Doctor_Medical_Records({
   );
   const recordsRequired = medicalRecordTabs.has(activeTab);
   const visibleRecordsLoading = Boolean(patient?.id && recordsRequired) &&
-    (isLoadingRecords || loadedMedicalRecordsPatientId !== patient.id);
+    loadedMedicalRecordsPatientId !== patient.id;
   const visiblePrenatalDetailsLoading = Boolean(patient?.id && activeTab === "Prenatal History") &&
     (isLoadingPrenatalDetails || loadedPrenatalDetailsPatientId !== patient.id);
   const overviewState = usePatientMedicalOverview({
     patientId: patient?.id,
-    patient: overviewPatient,
     records: completedMedicalRecordRows,
     schedules: resolvedAppointments,
     doctorProfilesById,
+    pregnancyWeek: currentPregnancyWeek,
     recordsLoading: visibleRecordsLoading,
     schedulesLoading: appointmentState.loading,
     recordsError: medicalRecordsError,
@@ -3540,7 +3667,6 @@ export default function Doctor_Medical_Records({
     }
 
     if (error) {
-      setMedicalRecordRows([]);
       setMedicalRecordsError(error);
       setLoadedMedicalRecordsPatientId(selectedPatient.id);
       setRecordMessage(`Unable to load medical records: ${error.message}`);
@@ -3549,28 +3675,58 @@ export default function Doctor_Medical_Records({
     }
 
     const nextRows = data ?? [];
+    const completedRows = nextRows.filter(isCompletedClinicalVisitRecord);
     setMedicalRecordRows(nextRows);
     setLoadedMedicalRecordsPatientId(selectedPatient.id);
     const requestedRecordExists =
       initialFocusedRecordId &&
-      nextRows.some((record) => record.id === initialFocusedRecordId);
-    setFocusedRecordId((current) => {
+      completedRows.some((record) => record.id === initialFocusedRecordId && record.schedule_id);
+    const currentRecordExists =
+      focusedRecordId &&
+      completedRows.some((record) => record.id === focusedRecordId && record.schedule_id);
+    const nextFocusedRecordId = requestedRecordExists
+      ? initialFocusedRecordId
+      : currentRecordExists
+        ? focusedRecordId
+        : completedRows.find((record) => record.schedule_id)?.id || "";
+    setFocusedRecordId(nextFocusedRecordId);
+    setStableEditRecordId((current) => {
       const currentStillExists =
-        current && nextRows.some((record) => record.id === current);
-      const nextSelectedId = currentStillExists
-        ? current
-        : requestedRecordExists
-          ? initialFocusedRecordId
-          : nextRows[0]?.id || "";
-
-      return nextSelectedId;
+        current && completedRows.some((record) => record.id === current && record.schedule_id);
+      if (requestedRecordExists) return initialFocusedRecordId;
+      if (currentStillExists) return current;
+      return nextFocusedRecordId || completedRows.find((record) => record.schedule_id)?.id || "";
     });
-    if ((!initialFocusedRecordId || !requestedRecordExists) && nextRows[0]?.id) {
-      onRecordSelectRef.current?.(nextRows[0].id);
+    if ((!initialFocusedRecordId || !requestedRecordExists) && nextFocusedRecordId) {
+      onRecordSelectRef.current?.(nextFocusedRecordId);
     }
     setIsLoadingRecords(false);
     return nextRows;
-  }, [initialFocusedRecordId]);
+  }, [focusedRecordId, initialFocusedRecordId]);
+
+  const loadPatientAvatar = React.useCallback(async (selectedPatient) => {
+    const requestId = patientAvatarRequestRef.current + 1;
+    patientAvatarRequestRef.current = requestId;
+
+    if (!selectedPatient?.id) {
+      setPatientAvatarUrl("");
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("get_patient_avatar_url", {
+      p_patient_id: selectedPatient.id,
+    });
+
+    if (patientAvatarRequestRef.current !== requestId) return;
+
+    if (error) {
+      console.warn("Unable to load Patient profile picture:", error);
+      setPatientAvatarUrl("");
+      return;
+    }
+
+    setPatientAvatarUrl(cleanRecordValue(data));
+  }, []);
 
   React.useEffect(() => {
     const loadPatient = async () => {
@@ -3580,6 +3736,7 @@ export default function Doctor_Medical_Records({
 
       if (!selectedInitialPatient?.id) {
         setPatient(null);
+        setPatientAvatarUrl("");
         setPatientLoadError("No patient record was selected.");
         setMedicalRecordRows([]);
         setLoadedMedicalRecordsPatientId("");
@@ -3589,6 +3746,7 @@ export default function Doctor_Medical_Records({
 
       setIsLoadingPatient(true);
       setPatient(null);
+      setPatientAvatarUrl("");
       setPatientLoadError("");
       setMedicalRecordRows([]);
       setMedicalRecordsError(null);
@@ -3605,6 +3763,8 @@ export default function Doctor_Medical_Records({
       });
       setRecordMessage("");
       setFocusedRecordId(initialFocusedRecordId || "");
+      setStableEditRecordId(initialFocusedRecordId || "");
+      setIsOpeningEditRecord(false);
       setFocusedAppointmentId("");
       const { data, error } = await supabase
         .rpc("get_doctor_patient_directory")
@@ -3618,6 +3778,7 @@ export default function Doctor_Medical_Records({
 
       if (error || !data) {
         setPatient(null);
+        setPatientAvatarUrl("");
         setIsLoadingPatient(false);
         setPatientLoadError(
           error
@@ -3630,6 +3791,7 @@ export default function Doctor_Medical_Records({
       const selectedPatient = data;
       setPatient(selectedPatient);
       setIsLoadingPatient(false);
+      void loadPatientAvatar(selectedPatient);
 
       const [personalResult, obstetricResult] =
         await Promise.all([
@@ -3670,12 +3832,29 @@ export default function Doctor_Medical_Records({
     return () => {
       patientRequestRef.current += 1;
     };
-  }, [initialFocusedRecordId, initialPatientId]);
+  }, [initialFocusedRecordId, initialPatientId, loadPatientAvatar]);
+
+  React.useEffect(() => {
+    if (!patient?.id) return undefined;
+
+    const refreshAvatar = () => {
+      if (document.visibilityState === "visible") {
+        void loadPatientAvatar(patient);
+      }
+    };
+
+    window.addEventListener("focus", refreshAvatar);
+    document.addEventListener("visibilitychange", refreshAvatar);
+
+    return () => {
+      window.removeEventListener("focus", refreshAvatar);
+      document.removeEventListener("visibilitychange", refreshAvatar);
+    };
+  }, [loadPatientAvatar, patient]);
 
   React.useEffect(() => {
     if (
       !patient?.id ||
-      !recordsRequired ||
       isLoadingRecords ||
       loadedMedicalRecordsPatientId === patient.id
     ) {
@@ -3689,7 +3868,6 @@ export default function Doctor_Medical_Records({
     loadMedicalRecords,
     loadedMedicalRecordsPatientId,
     patient,
-    recordsRequired,
   ]);
 
   React.useEffect(() => {
@@ -3784,7 +3962,9 @@ export default function Doctor_Medical_Records({
   const openMedicalRecord = React.useCallback((recordId) => {
     if (!recordId) return;
     setFocusedRecordId(recordId);
+    setStableEditRecordId(recordId);
     onRecordSelectRef.current?.(recordId);
+    setShouldLoadAppointments(true);
     setActiveTab("Medical Record");
   }, []);
 
@@ -3797,7 +3977,7 @@ export default function Doctor_Medical_Records({
   }, []);
 
   const handleTabChange = React.useCallback((tab) => {
-    if (patientScheduleTabs.has(tab)) {
+    if (appointmentMetadataTabs.has(tab)) {
       setShouldLoadAppointments(true);
     }
     setActiveTab(tab);
@@ -3897,11 +4077,12 @@ export default function Doctor_Medical_Records({
 
   const personal = patientRelated.personal || {};
   const obstetric = patientRelated.obstetric || {};
-  const overviewWeeks = overviewState.pregnancyProgress?.weeks;
-  const headerPregnancyWeekLabel =
-    overviewWeeks === null || overviewWeeks === undefined
-      ? formatPregnancyWeek(patient, obstetric, medicalRecords)
-      : `${overviewWeeks} Weeks`;
+  const currentPregnancyEdd = obstetric.expected_delivery_date || patient?.expected_delivery_date;
+  const headerPregnancyWeekLabel = currentPregnancyWeek === null
+    ? currentPregnancyEdd
+      ? "Dating needs review"
+      : EMPTY_PATIENT_VALUE
+    : `${currentPregnancyWeek} Weeks`;
   const gravida = parseNumericValue(obstetric.gravida);
   const para = parseNumericValue(obstetric.para);
   const resolvedRiskLevel =
@@ -3935,37 +4116,70 @@ export default function Doctor_Medical_Records({
       window.history.back();
     }, 120);
   };
-  const currentRecordForAction = focusedRecordId
-    ? medicalRecords.find((record) => record.id === focusedRecordId) || null
-    : medicalRecords[0] || null;
+  const isEditablePatientRecord = (record) =>
+    Boolean(record?.scheduleId && record.patientId === patient?.id);
+  const routeRecordForAction = initialFocusedRecordId
+    ? medicalRecords.find(
+        (record) => record.id === initialFocusedRecordId && isEditablePatientRecord(record)
+      ) || null
+    : null;
+  const selectedRecordForAction = focusedRecordId
+    ? medicalRecords.find(
+        (record) => record.id === focusedRecordId && isEditablePatientRecord(record)
+      ) || null
+    : null;
+  const stableRecordForAction = stableEditRecordId
+    ? medicalRecords.find(
+        (record) => record.id === stableEditRecordId && isEditablePatientRecord(record)
+      ) || null
+    : null;
+  const currentRecordForAction =
+    routeRecordForAction ||
+    selectedRecordForAction ||
+    stableRecordForAction ||
+    medicalRecords.find(isEditablePatientRecord) ||
+    null;
   const editableRecordForAction = currentRecordForAction?.scheduleId ? currentRecordForAction : null;
+  const isResolvingEditRecord =
+    isLoadingPatient ||
+    isLoadingRecords ||
+    loadedMedicalRecordsPatientId !== patient?.id ||
+    !editableRecordForAction?.scheduleId;
   const handleEditLinkedRecord = React.useCallback(() => {
-    if (!editableRecordForAction?.scheduleId) return;
+    if (
+      isResolvingEditRecord ||
+      isOpeningEditRecord ||
+      !editableRecordForAction?.scheduleId ||
+      editableRecordForAction.patientId !== patient?.id
+    ) {
+      return;
+    }
 
+    setIsOpeningEditRecord(true);
     const routeSegment = getAppointmentVisitRouteSegment(editableRecordForAction);
-    navigate(`/doctor/appointments/${editableRecordForAction.scheduleId}/${routeSegment}`);
-  }, [editableRecordForAction, navigate]);
+    const params = new URLSearchParams({
+      source: "medical-record",
+      patientId: patient.id,
+      recordId: editableRecordForAction.id,
+    });
+
+    navigate(
+      `/doctor/appointments/${editableRecordForAction.scheduleId}/${routeSegment}?${params.toString()}`
+    );
+  }, [editableRecordForAction, isOpeningEditRecord, isResolvingEditRecord, navigate, patient?.id]);
 
   React.useEffect(() => {
     if (typeof onHeaderActionChange !== "function") {
       return undefined;
     }
 
-    if (!editableRecordForAction?.scheduleId) {
-      onHeaderActionChange(null);
-      return undefined;
-    }
-
     onHeaderActionChange({
       label: "Edit Record",
-      disabled: false,
+      disabled: isResolvingEditRecord || isOpeningEditRecord,
       onClick: handleEditLinkedRecord,
     });
-
-    return () => {
-      onHeaderActionChange(null);
-    };
-  }, [editableRecordForAction, handleEditLinkedRecord, onHeaderActionChange]);
+    return undefined;
+  }, [handleEditLinkedRecord, isOpeningEditRecord, isResolvingEditRecord, onHeaderActionChange]);
 
   return (
     <main className="medical-records-page medical-record-workspace" ref={pageRef}>
@@ -3989,19 +4203,17 @@ export default function Doctor_Medical_Records({
             </div>
           </div>
 
-          {headerActions || patient?.id ? (
+          {headerActions ? (
             <div className="doctor-patient-header-action-slot medical-record-ui-actions">
               {headerActions}
-              {patient?.id ? (
-                <SendPatientNotificationAction
-                  patientId={patient.id}
-                  patientName={patient.full_name}
-                  medicalRecordId={currentRecordForAction?.id || null}
-                  defaultType="medical_record_available"
-                  className="mr-header-notification-action"
-                  outline
-                />
-              ) : null}
+              <SendPatientNotificationAction
+                patientId={patient?.id || ""}
+                patientName={patient?.full_name || "Patient"}
+                medicalRecordId={currentRecordForAction?.id || null}
+                defaultType="medical_record_available"
+                className="mr-header-notification-action"
+                outline
+              />
             </div>
           ) : null}
         </header>
@@ -4017,7 +4229,25 @@ export default function Doctor_Medical_Records({
             <>
           <section className="mr-patient-card medical-record-ui-patient-card">
           <div className="mr-patient-main medical-record-ui-summary">
-            <div className="mr-avatar">{getPatientInitials(patient?.full_name)}</div>
+            <div className="mr-avatar">
+              {patientAvatarUrl ? (
+                <img
+                  src={patientAvatarUrl}
+                  alt={`${patient?.full_name || "Patient"} profile`}
+                  referrerPolicy="no-referrer"
+                  onError={() => setPatientAvatarUrl("")}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "block",
+                    objectFit: "cover",
+                    borderRadius: "inherit",
+                  }}
+                />
+              ) : (
+                getPatientInitials(patient?.full_name)
+              )}
+            </div>
 
             <div className="mr-patient-info">
               <div className="mr-name-row">
@@ -4154,6 +4384,7 @@ export default function Doctor_Medical_Records({
                 patient={patient}
                 patientRelated={patientRelated}
                 records={medicalRecords}
+                pregnancyWeek={currentPregnancyWeek}
               />
             )
           )}
@@ -4167,6 +4398,7 @@ export default function Doctor_Medical_Records({
               onRetry={() => loadMedicalRecords(patient)}
               onSelectRecord={(recordId) => {
                 setFocusedRecordId(recordId);
+                setStableEditRecordId(recordId);
                 onRecordSelectRef.current?.(recordId);
               }}
             />

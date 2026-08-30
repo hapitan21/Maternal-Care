@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
@@ -53,17 +54,89 @@ const staffProfessionalLegacySelect = `
   clinic_address
 `;
 
-function getTodayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+const staffAppointmentSummaryCards = [
+  {
+    key: "cancelled",
+    label: "Cancelled",
+    image: "/images/profile-ui/appointment-cancelled.png",
+    path: "/staff/appointments?status=cancelled&view=history",
+  },
+  {
+    key: "today",
+    label: "Today's",
+    image: "/images/profile-ui/appointment-today.png",
+    path: "/staff/appointments",
+  },
+  {
+    key: "pending",
+    label: "Pending",
+    image: "/images/profile-ui/appointment-pending.png",
+    path: "/staff/appointments?status=pending&view=main",
+  },
+  {
+    key: "completed",
+    label: "Completed",
+    image: "/images/profile-ui/appointment-completed.png",
+    path: "/staff/appointments?status=completed&view=history",
+  },
+];
 
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+const staffAppointmentSummaryPeriods = [
+  { value: "this-month", label: "This month" },
+  { value: "last-month", label: "Last month" },
+  { value: "all-time", label: "All time" },
+];
+
+const emptyStaffAppointmentSummary = {
+  cancelled: 0,
+  today: 0,
+  pending: 0,
+  completed: 0,
+};
+
+function getStaffSummaryRange(period) {
+  if (period === "all-time") return null;
+
+  const now = new Date();
+  const monthOffset = period === "last-month" ? -1 : 0;
+  const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 1);
 
   return {
-    start: start.toISOString(),
-    end: end.toISOString(),
+    start: start.getTime(),
+    end: end.getTime(),
   };
+}
+
+function isStaffAppointmentInSummaryPeriod(appointment, period) {
+  const range = getStaffSummaryRange(period);
+  if (!range) return true;
+
+  const appointmentTime = new Date(appointment?.start_time || "").getTime();
+
+  return (
+    Number.isFinite(appointmentTime) &&
+    appointmentTime >= range.start &&
+    appointmentTime < range.end
+  );
+}
+
+function isStaffAppointmentToday(appointment) {
+  const appointmentTime = new Date(appointment?.start_time || "");
+
+  if (Number.isNaN(appointmentTime.getTime())) return false;
+
+  const today = new Date();
+
+  return (
+    appointmentTime.getFullYear() === today.getFullYear() &&
+    appointmentTime.getMonth() === today.getMonth() &&
+    appointmentTime.getDate() === today.getDate()
+  );
+}
+
+function normalizeStaffAppointmentStatus(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function hasValue(value) {
@@ -253,35 +326,22 @@ function hasProfileSnapshot(profile) {
 }
 
 function getDefaultAppointmentStats() {
-  return [
-    {
-      icon: "solar:calendar-remove-linear",
-      label: "Canceled",
-      value: "0",
-    },
-    {
-      icon: "solar:calendar-mark-linear",
-      label: "Today's",
-      value: "0",
-    },
-    {
-      icon: "solar:clock-circle-linear",
-      label: "Pending",
-      value: "0",
-    },
-    {
-      icon: "solar:check-circle-linear",
-      label: "Completed",
-      value: "0",
-    },
-  ];
+  return { ...emptyStaffAppointmentSummary };
 }
 
 function ProfileInfoRow({ item }) {
   return (
     <div className="doctor-profile-info-row">
-      <div className="doctor-profile-row-icon">
-        <Icon icon={item.icon} />
+      <div
+        className={`doctor-profile-row-icon ${
+          item.image ? "has-reference-image" : ""
+        }`}
+      >
+        {item.image ? (
+          <img src={item.image} alt="" aria-hidden="true" />
+        ) : (
+          <Icon icon={item.icon} />
+        )}
       </div>
 
       <div className="doctor-profile-row-text">
@@ -301,11 +361,26 @@ function ProfileDetailRow({ item }) {
   );
 }
 
-function StaffViewProfileContent({ headerAction }) {
+function StaffViewProfileContent({
+  headerAction,
+  initialProfilePhoto = "",
+}) {
+  const navigate = useNavigate();
   const initialProfileSnapshot = getSharedProfileSnapshot();
 
   const [activeTab, setActiveTab] = useState("personal");
-  const [profilePhoto, setProfilePhoto] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState(
+    () => initialProfilePhoto || ""
+  );
+
+  /*
+   * StaffDashboard stays mounted while Staff moves between sections.
+   * Reuse its already-loaded avatar immediately so View Profile never
+   * falls back to initials/old artwork while Supabase refreshes.
+   */
+  useEffect(() => {
+    setProfilePhoto(initialProfilePhoto || "");
+  }, [initialProfilePhoto]);
 
   const [profile, setProfile] = useState(
     initialProfileSnapshot
@@ -317,15 +392,19 @@ function StaffViewProfileContent({ headerAction }) {
 
   const [profileError, setProfileError] = useState("");
 
+  const [appointmentSummaryPeriod, setAppointmentSummaryPeriod] =
+    useState("this-month");
+
   const [appointmentStats, setAppointmentStats] = useState(
     () =>
       cachedStaffProfile &&
       cachedStaffAppointmentStats
-        ? cachedStaffAppointmentStats.map((item) => ({
-            ...item,
-          }))
+        ? { ...cachedStaffAppointmentStats }
         : getDefaultAppointmentStats()
   );
+
+  const [appointmentSummaryMessage, setAppointmentSummaryMessage] =
+    useState("");
 
   const loadStaffProfile = useCallback(async () => {
     /*
@@ -404,7 +483,15 @@ function StaffViewProfileContent({ headerAction }) {
       const profileData = profileResult.data;
       const personalData = personalResult.data;
       const professionalData = professionalResult.data;
-      setProfilePhoto(avatarResult.displayUrl || "");
+      /*
+       * Do not replace a valid shell-provided avatar with an empty value
+       * when the background avatar refresh fails or returns no URL.
+       * Explicit Remove Photo is still handled by profilePictureUpdatedEvent
+       * and ProfilePictureActions.
+       */
+      if (avatarResult.displayUrl) {
+        setProfilePhoto(avatarResult.displayUrl);
+      }
 
       const loadedProfile = {
         displayName:
@@ -551,77 +638,86 @@ function StaffViewProfileContent({ headerAction }) {
     let active = true;
 
     const loadAppointmentSummary = async () => {
-      const todayRange = getTodayRange();
-
-      const [
-        cancelledResult,
-        todayResult,
-        pendingResult,
-        completedResult,
-      ] = await Promise.all([
-        supabase
-          .from("schedule")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["cancelled", "canceled"]),
-
-        supabase
-          .from("schedule")
-          .select("id", { count: "exact", head: true })
-          .gte("start_time", todayRange.start)
-          .lt("start_time", todayRange.end),
-
-        supabase
-          .from("schedule")
-          .select("id", { count: "exact", head: true })
-          .in("status", [
-            "scheduled",
-            "pending",
-            "accepted",
-          ]),
-
-        supabase
-          .from("schedule")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["completed"]),
-      ]);
+      const { data, error } = await supabase
+        .from("schedule")
+        .select("id, start_time, status")
+        .order("start_time", { ascending: true });
 
       if (!active) return;
 
-      const nextAppointmentStats = [
-        {
-          icon: "solar:calendar-remove-linear",
-          label: "Canceled",
-          value: String(cancelledResult.count ?? 0),
-        },
-        {
-          icon: "solar:calendar-mark-linear",
-          label: "Today's",
-          value: String(todayResult.count ?? 0),
-        },
-        {
-          icon: "solar:clock-circle-linear",
-          label: "Pending",
-          value: String(pendingResult.count ?? 0),
-        },
-        {
-          icon: "solar:check-circle-linear",
-          label: "Completed",
-          value: String(completedResult.count ?? 0),
-        },
-      ];
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            "Unable to load Staff appointment summary:",
+            error.message
+          );
+        }
 
-      cachedStaffAppointmentStats =
-        nextAppointmentStats.map((item) => ({
-          ...item,
-        }));
+        setAppointmentSummaryMessage(
+          "Appointment summary could not be refreshed."
+        );
+        return;
+      }
 
-      setAppointmentStats(nextAppointmentStats);
+      setAppointmentSummaryMessage("");
+
+      const nextSummary = (data || []).reduce(
+        (summary, appointment) => {
+          const status = normalizeStaffAppointmentStatus(
+            appointment?.status
+          );
+
+          if (isStaffAppointmentToday(appointment)) {
+            summary.today += 1;
+          }
+
+          if (
+            !isStaffAppointmentInSummaryPeriod(
+              appointment,
+              appointmentSummaryPeriod
+            )
+          ) {
+            return summary;
+          }
+
+          if (status === "cancelled" || status === "canceled") {
+            summary.cancelled += 1;
+          }
+
+          if (
+            status === "pending" ||
+            status === "scheduled" ||
+            status === "accepted"
+          ) {
+            summary.pending += 1;
+          }
+
+          if (status === "completed") {
+            summary.completed += 1;
+          }
+
+          return summary;
+        },
+        { ...emptyStaffAppointmentSummary }
+      );
+
+      cachedStaffAppointmentStats = {
+        ...nextSummary,
+      };
+
+      setAppointmentStats(nextSummary);
     };
 
-    loadAppointmentSummary();
+    const refresh = () => {
+      void loadAppointmentSummary();
+    };
+
+    refresh();
 
     const channel = supabase
-      .channel("staff-profile-appointment-summary")
+      .channel(
+        `staff-profile-appointment-summary-${appointmentSummaryPeriod}`
+      )
       .on(
         "postgres_changes",
         {
@@ -629,68 +725,96 @@ function StaffViewProfileContent({ headerAction }) {
           schema: "public",
           table: "schedule",
         },
-        loadAppointmentSummary
+        refresh
       )
       .subscribe();
 
+    const handleWindowFocus = () => refresh();
+    window.addEventListener("focus", handleWindowFocus);
+
     return () => {
       active = false;
+      window.removeEventListener("focus", handleWindowFocus);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [appointmentSummaryPeriod]);
 
   const contactDetails = [
     {
       icon: "solar:letter-linear",
+      image: "/images/profile-ui/profile-email.png",
       label: "Email Address",
       value: profile.email,
     },
     {
       icon: "solar:phone-linear",
+      image: "/images/profile-ui/profile-phone.png",
       label: "Phone Number",
       value: profile.contactNumber,
     },
     {
       icon: "solar:map-point-linear",
-      label: "Clinic Address",
-      value: profile.clinicAddress,
+      image: "/images/profile-ui/profile-location.png",
+      label: "Location",
+      value: [profile.clinicName, profile.clinicAddress]
+        .filter(Boolean)
+        .join(", "),
     },
   ];
 
   const personalInfo = [
     {
       icon: "solar:user-rounded-linear",
+      image: "/images/profile-ui/profile-full-name.png",
       label: "Full Name",
       value: profile.displayName,
     },
     {
-      icon: "solar:woman-linear",
+      icon:
+        String(profile.gender || "").trim().toLowerCase() === "male"
+          ? "mdi:gender-male"
+          : String(profile.gender || "").trim().toLowerCase() === "female"
+            ? "mdi:gender-female"
+            : "mdi:gender-male-female",
+      image:
+        String(profile.gender || "").trim().toLowerCase() === "male"
+          ? "/images/profile-ui/profile-gender-male.png"
+          : String(profile.gender || "").trim().toLowerCase() === "female"
+            ? "/images/profile-ui/profile-gender-female.png"
+            : "",
       label: "Gender",
       value: profile.gender,
     },
     {
       icon: "solar:calendar-linear",
+      image: "/images/profile-ui/profile-birthdate.png",
       label: "Birthdate",
       value: formatBirthdate(profile.birthdate),
     },
     {
       icon: "solar:flag-linear",
+      image: "/images/profile-ui/profile-nationality.png",
       label: "Nationality",
       value: profile.nationality,
     },
+  ];
+
+  const personalContactInfo = [
     {
       icon: "solar:heart-linear",
+      image: "/images/profile-ui/profile-civil-status.png",
       label: "Civil Status",
       value: profile.civilStatus,
     },
     {
       icon: "solar:map-point-linear",
+      image: "/images/profile-ui/profile-location.png",
       label: "Address",
       value: profile.address,
     },
   ];
 
-  const professionalInfo = [
+  const professionalLeftColumn = [
     {
       label: "Employee ID",
       value: profile.employeeId,
@@ -704,17 +828,16 @@ function StaffViewProfileContent({ headerAction }) {
       value: formatBirthdate(profile.dateHired),
     },
     {
-      label: "Employment Status",
-      value: profile.employmentStatus,
-    },
-    {
-      label: "Clinic/Hospital Name",
+      label: "Hospital Clinic",
       value: profile.clinicName,
     },
     {
       label: "Clinic Address",
       value: profile.clinicAddress,
     },
+  ];
+
+  const professionalRightColumn = [
     {
       label: "Email",
       value: profile.email,
@@ -723,10 +846,17 @@ function StaffViewProfileContent({ headerAction }) {
       label: "Contact Number",
       value: profile.contactNumber,
     },
+    {
+      label: "Employment Status",
+      value: profile.employmentStatus,
+    },
   ];
 
-  const personalColumns = [personalInfo.slice(0, 3), personalInfo.slice(3)];
-  const professionalColumns = [professionalInfo.slice(0, 4), professionalInfo.slice(4)];
+  const personalColumns = [personalInfo, personalContactInfo];
+  const professionalColumns = [
+    professionalLeftColumn,
+    professionalRightColumn,
+  ];
 
   const initials = getStaffInitials(
     profile.displayName || "Staff"
@@ -735,7 +865,11 @@ function StaffViewProfileContent({ headerAction }) {
   return (
     <section className="doctor-profile-page staff-profile-page">
       <header className="doctor-profile-page-header staff-section-header">
-        <h2>Profile</h2>
+        <div className="doctor-page-title-block">
+          <h2>Profile</h2>
+          <p>View staff account information and professional details.</p>
+        </div>
+
         {headerAction}
       </header>
 
@@ -786,8 +920,16 @@ function StaffViewProfileContent({ headerAction }) {
               className="doctor-profile-contact-item"
               key={item.label}
             >
-              <div className="doctor-profile-contact-icon">
-                <Icon icon={item.icon} />
+              <div
+                className={`doctor-profile-contact-icon ${
+                  item.image ? "has-reference-image" : ""
+                }`}
+              >
+                {item.image ? (
+                  <img src={item.image} alt="" aria-hidden="true" />
+                ) : (
+                  <Icon icon={item.icon} />
+                )}
               </div>
 
               <div>
@@ -902,27 +1044,61 @@ function StaffViewProfileContent({ headerAction }) {
             <h3>Appointment Summary</h3>
           </div>
 
-          <button type="button">
-            This month
-            <Icon icon="solar:alt-arrow-down-linear" />
-          </button>
+          <label className="doctor-profile-summary-period">
+            <span className="doctor-profile-summary-period-label">
+              Summary period
+            </span>
+
+            <select
+              value={appointmentSummaryPeriod}
+              onChange={(event) =>
+                setAppointmentSummaryPeriod(event.target.value)
+              }
+              aria-label="Appointment summary period"
+            >
+              {staffAppointmentSummaryPeriods.map((period) => (
+                <option value={period.value} key={period.value}>
+                  {period.label}
+                </option>
+              ))}
+            </select>
+
+            <Icon
+              icon="solar:alt-arrow-down-linear"
+              aria-hidden="true"
+            />
+          </label>
         </div>
 
+        {appointmentSummaryMessage ? (
+          <p className="doctor-profile-summary-message" role="status">
+            {appointmentSummaryMessage}
+          </p>
+        ) : null}
+
         <div className="doctor-profile-summary-grid">
-          {appointmentStats.map((stat) => (
-            <article
+          {staffAppointmentSummaryCards.map((card) => (
+            <button
               className="doctor-profile-summary-card"
-              key={stat.label}
+              type="button"
+              key={card.key}
+              onClick={() => navigate(card.path)}
+              aria-label={`Open ${card.label} appointments`}
             >
-              <div className="doctor-profile-summary-icon">
-                <Icon icon={stat.icon} />
+              <div className="doctor-profile-summary-icon has-reference-image">
+                <img
+                  src={card.image}
+                  alt=""
+                  aria-hidden="true"
+                  draggable="false"
+                />
               </div>
 
               <div>
-                <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
+                <span>{card.label}</span>
+                <strong>{appointmentStats[card.key]}</strong>
               </div>
-            </article>
+            </button>
           ))}
         </div>
       </section>

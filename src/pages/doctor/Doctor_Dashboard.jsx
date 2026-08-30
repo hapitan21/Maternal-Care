@@ -7,11 +7,12 @@ import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import {
+  appointmentStatuses,
   classifyAppointment,
   compareUpcomingAppointments,
   formatAppointmentDate,
   formatAppointmentTime,
-  getManilaDayRange,
+  normalizeAppointmentStatus,
 } from "../../lib/appointmentDate";
 import "../../styles/doctor-dashboard.css";
 
@@ -100,6 +101,7 @@ const dashboardStatusCards = [
     tone: "blue",
     progressKey: "completionProgress",
     target: "appointments",
+    path: "/doctor/appointments?status=completed&view=history",
   },
 ];
 
@@ -181,7 +183,37 @@ function getInitials(name) {
     .toUpperCase();
 }
 
-function mapUpcomingSession(row) {
+async function fetchDashboardPatientAvatarMap(scheduleRows) {
+  const patientIds = Array.from(
+    new Set(
+      scheduleRows
+        .map((appointment) => appointment?.patient_id)
+        .filter(Boolean)
+    )
+  );
+
+  if (!patientIds.length) return new Map();
+
+  const { data, error } = await supabase.rpc("get_patient_avatar_urls", {
+    p_patient_ids: patientIds,
+  });
+
+  if (error) {
+    if (import.meta.env.DEV) {
+      console.warn("Load Doctor dashboard patient profile pictures failed:", error);
+    }
+    return null;
+  }
+
+  return new Map(
+    (data || []).map((row) => [
+      String(row.patient_id || ""),
+      String(row.avatar_url || "").trim(),
+    ])
+  );
+}
+
+function mapUpcomingSession(row, avatarMap = null) {
   return {
     id: row.id,
     patientId: row.patient_id || "",
@@ -191,6 +223,8 @@ function mapUpcomingSession(row) {
     date: formatAppointmentDate(row.start_time, { month: "short", day: "2-digit" }),
     time: formatAppointmentTime(row.start_time),
     avatarClass: "avatar-pink",
+    avatarUrl:
+      avatarMap?.get(String(row.patient_id || "")) || "",
   };
 }
 
@@ -383,9 +417,18 @@ function DashboardHome({
 
         <div className="doctor-hero-text">
           <h1>Welcome back, {accountName}!</h1>
-          <p>
-            Here&apos;s what&apos;s happening with your practice today. You have
-            {` ${dashboardStats.todaysAppointments} appointments scheduled.`}
+          <p className="doctor-hero-support">
+            <span>Here&apos;s what&apos;s happening with your practice today.</span>
+            <span>
+              You have{" "}
+              <strong className="doctor-hero-highlight">
+                {dashboardStats.todaysAppointments}{" "}
+                {dashboardStats.todaysAppointments === 1
+                  ? "appointment"
+                  : "appointments"}{" "}
+                scheduled.
+              </strong>
+            </span>
           </p>
         </div>
 
@@ -406,7 +449,9 @@ function DashboardHome({
             className="doctor-status-card"
             key={card.label}
             type="button"
-            onClick={() => setActivePage(card.target)}
+            onClick={() =>
+              setActivePage(card.target, card.path ? { path: card.path } : undefined)
+            }
           >
             <div className="doctor-status-main">
               <div className={`doctor-status-icon ${card.tone}`}>
@@ -423,7 +468,7 @@ function DashboardHome({
               <span className="doctor-growth-badge">{card.badge}</span>
             )}
 
-            {card.progress && (
+            {card.progress > 0 && (
               <div className="doctor-progress-track">
                 <span style={{ width: `${card.progress}%` }} />
               </div>
@@ -464,8 +509,37 @@ function DashboardHome({
                       <div className="doctor-patient-cell">
                         <span
                           className={`doctor-patient-avatar ${session.avatarClass}`}
+                          style={{
+                            width: "46px",
+                            height: "46px",
+                            minWidth: "46px",
+                            flex: "0 0 46px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: "50%",
+                            overflow: "hidden",
+                          }}
                         >
-                          {session.initials}
+                          {session.avatarUrl ? (
+                            <img
+                              src={session.avatarUrl}
+                              alt=""
+                              aria-hidden="true"
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                maxWidth: "100%",
+                                maxHeight: "100%",
+                                objectFit: "cover",
+                                objectPosition: "center",
+                                display: "block",
+                                borderRadius: "inherit",
+                              }}
+                            />
+                          ) : (
+                            session.initials
+                          )}
                         </span>
 
                         <span>{session.patient}</span>
@@ -639,7 +713,6 @@ function Doctor_Dashboard() {
 
     const requestId = dashboardStatsRequestRef.current + 1;
     dashboardStatsRequestRef.current = requestId;
-    const todayRange = getManilaDayRange();
 
     const [patientsResult, scheduleResult] = await Promise.all([
       supabase
@@ -651,7 +724,7 @@ function Doctor_Dashboard() {
         .select(
           "id, maternal_appointment_id, patient_id, patient_name, start_time, end_time, status"
         )
-        .gte("start_time", todayRange.start.toISOString())
+        .eq("doctor_id", doctorId)
         .order("start_time", { ascending: true }),
     ]);
 
@@ -668,8 +741,13 @@ function Doctor_Dashboard() {
     const todaysAppointments = scheduleRows.filter(
       (appointment) => classifyAppointment(appointment).isToday
     );
-    const completedSessions = todaysAppointments.filter(
-      (appointment) => classifyAppointment(appointment).category === "completed"
+    const completedSessions = scheduleRows.filter(
+      (appointment) =>
+        normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
+    ).length;
+    const completedToday = todaysAppointments.filter(
+      (appointment) =>
+        normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
     ).length;
 
     setDashboardStats({
@@ -679,17 +757,24 @@ function Doctor_Dashboard() {
       completionProgress: todaysAppointments.length
         ? Math.min(
             100,
-            Math.round((completedSessions / todaysAppointments.length) * 100)
+            Math.round((completedToday / todaysAppointments.length) * 100)
           )
         : 0,
     });
 
+    const upcomingRows = scheduleRows
+      .filter((appointment) => classifyAppointment(appointment).isUpcoming)
+      .sort(compareUpcomingAppointments)
+      .slice(0, 4);
+
+    const avatarMap = await fetchDashboardPatientAvatarMap(upcomingRows);
+
+    if (dashboardStatsRequestRef.current !== requestId) return;
+
     setUpcomingSessions(
-      scheduleRows
-        .filter((appointment) => classifyAppointment(appointment).isUpcoming)
-        .sort(compareUpcomingAppointments)
-        .slice(0, 4)
-        .map(mapUpcomingSession)
+      upcomingRows.map((appointment) =>
+        mapUpcomingSession(appointment, avatarMap)
+      )
     );
   }, [authenticatedDoctorId]);
 
@@ -873,17 +958,16 @@ function Doctor_Dashboard() {
           profile={profile}
         />
 
-        {doctorPatientHeaderAction ? (
-          <button
-            className="doctor-edit-record-button"
-            type="button"
-            onClick={doctorPatientHeaderAction.onClick}
-            disabled={doctorPatientHeaderAction.disabled}
-          >
-            <Icon icon="solar:pen-new-square-linear" />
-            <span>{doctorPatientHeaderAction.label}</span>
-          </button>
-        ) : null}
+        <button
+          className="doctor-edit-record-button"
+          type="button"
+          onClick={doctorPatientHeaderAction?.onClick}
+          disabled={!doctorPatientHeaderAction || doctorPatientHeaderAction.disabled}
+          aria-busy={doctorPatientHeaderAction?.disabled || undefined}
+        >
+          <Icon icon="solar:pen-new-square-linear" />
+          <span>{doctorPatientHeaderAction?.label || "Edit Record"}</span>
+        </button>
       </div>
     );
 

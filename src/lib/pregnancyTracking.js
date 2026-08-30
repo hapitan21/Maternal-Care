@@ -42,6 +42,11 @@ export function calculateWeeksFromEdd(value, now = Date.now()) {
   return weeks >= 0 && weeks <= 42 ? weeks : null;
 }
 
+export function calculateCurrentPregnancyWeekFromEdd(value, now = Date.now()) {
+  const week = calculateWeeksFromEdd(value, now);
+  return week !== null && week >= 0 && week <= 40 ? week : null;
+}
+
 export function resolvePregnancyWeek({
   expectedDeliveryDate,
   lastMenstrualPeriod,
@@ -55,6 +60,26 @@ export function resolvePregnancyWeek({
     parsePregnancyWeek(clinicalGestationalAge) ??
     parsePregnancyWeek(storedGestationalAge)
   );
+}
+
+export function resolveCurrentPregnancyWeek({
+  expectedDeliveryDate,
+  lastMenstrualPeriod,
+  clinicalGestationalAge,
+  storedGestationalAge,
+  now = Date.now(),
+}) {
+  if (String(expectedDeliveryDate || "").trim()) {
+    return calculateCurrentPregnancyWeekFromEdd(expectedDeliveryDate, now);
+  }
+
+  return resolvePregnancyWeek({
+    expectedDeliveryDate: "",
+    lastMenstrualPeriod,
+    clinicalGestationalAge,
+    storedGestationalAge,
+    now,
+  });
 }
 
 export function getPregnancyTrimester(week) {

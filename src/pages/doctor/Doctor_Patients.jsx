@@ -9,14 +9,12 @@ const patientSelectColumns =
 
 function isActivePatientRow(row) {
   const status = String(row?.status || "").trim().toLowerCase();
-
   return !["inactive", "deleted", "archived"].includes(status);
 }
 
 function getPatientInitials(name) {
   const parts = String(name || "Patient").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "PT";
-
   return parts
     .slice(0, 2)
     .map((part) => part[0])
@@ -28,7 +26,6 @@ function formatPatientDate(value, fallback = "-") {
   if (!value) return fallback;
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-
   return date.toLocaleDateString("en-US", {
     month: "long",
     day: "2-digit",
@@ -40,7 +37,6 @@ function deriveAgeFromBirthdate(value) {
   if (!value) return null;
   const birthdate = new Date(`${value}T00:00:00`);
   if (Number.isNaN(birthdate.getTime()) || birthdate.getTime() > Date.now()) return null;
-
   const today = new Date();
   let age = today.getFullYear() - birthdate.getFullYear();
   const birthdayThisYear = new Date(
@@ -48,9 +44,7 @@ function deriveAgeFromBirthdate(value) {
     birthdate.getMonth(),
     birthdate.getDate()
   );
-
   if (today < birthdayThisYear) age -= 1;
-
   return age >= 0 && age <= 130 ? age : null;
 }
 
@@ -60,13 +54,11 @@ function formatAgeLabel(row) {
   const age =
     derivedAge ??
     (Number.isFinite(storedAge) && storedAge > 0 ? storedAge : null);
-
   return age === null ? "Patient" : `Patient - ${age} years old`;
 }
 
 function mapSupabasePatient(row) {
   const visibleId = row.patient_id || "Not provided";
-
   return {
     recordId: row.id,
     initials: getPatientInitials(row.full_name),
@@ -79,11 +71,60 @@ function mapSupabasePatient(row) {
   };
 }
 
+async function fetchPatientAvatarMap(patientRows) {
+  const patientIds = Array.from(
+    new Set(patientRows.map((patient) => patient?.recordId).filter(Boolean))
+  );
+
+  if (!patientIds.length) return new Map();
+
+  const { data, error } = await supabase.rpc("get_patient_avatar_urls", {
+    p_patient_ids: patientIds,
+  });
+
+  if (error) {
+    console.warn("Load Doctor patient profile pictures failed:", error);
+    return null;
+  }
+
+  return new Map(
+    (data || []).map((row) => [
+      String(row.patient_id || ""),
+      String(row.avatar_url || "").trim(),
+    ])
+  );
+}
+
+function mergePatientAvatarMap(patientRows, avatarMap) {
+  if (!avatarMap) return patientRows;
+
+  let changed = false;
+  const nextRows = patientRows.map((patient) => {
+    const nextPhoto = avatarMap.get(String(patient.recordId || "")) || "";
+    if (nextPhoto === (patient.photo || "")) return patient;
+    changed = true;
+    return { ...patient, photo: nextPhoto };
+  });
+
+  return changed ? nextRows : patientRows;
+}
+
 function PatientAvatar({ patient }) {
   return (
     <span className={`doctor-patient-avatar ${patient.avatarClass}`}>
       {patient.photo ? (
-        <img src={patient.photo} alt={patient.name} />
+        <img
+          src={patient.photo}
+          alt={`${patient.name} profile`}
+          referrerPolicy="no-referrer"
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "block",
+            objectFit: "cover",
+            borderRadius: "inherit",
+          }}
+        />
       ) : (
         patient.initials
       )}
@@ -102,7 +143,6 @@ function PatientListPage({
   const filteredPatients = useMemo(() => {
     const value = searchTerm.trim().toLowerCase();
     if (!value) return patients;
-
     return patients.filter((patient) =>
       [patient.name, patient.patientId, patient.sexAge, patient.dateOfBirth]
         .join(" ")
@@ -205,7 +245,6 @@ function DoctorPatientsContent({ headerAction = null }) {
     const match = location.pathname.match(
       /^\/doctor\/patients\/([^/?#]+)\/?$/i
     );
-
     if (!match?.[1]) return "";
 
     try {
@@ -235,10 +274,17 @@ function DoctorPatientsContent({ headerAction = null }) {
         return;
       }
 
-      setPatients(
-        (data || []).filter(isActivePatientRow).map(mapSupabasePatient)
-      );
+      const mappedPatients = (data || [])
+        .filter(isActivePatientRow)
+        .map(mapSupabasePatient);
+
+      setPatients(mappedPatients);
       setStatusMessage("");
+
+      const avatarMap = await fetchPatientAvatarMap(mappedPatients);
+      if (!active || !avatarMap) return;
+
+      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
     };
 
     loadPatients();
@@ -258,14 +304,36 @@ function DoctorPatientsContent({ headerAction = null }) {
     };
   }, []);
 
-  /*
-   * Dashboard "View Patient" deep link.
-   *
-   * The Dashboard routes to /doctor/patients/:patientRecordId. Resolve that
-   * UUID against the loaded Doctor directory, then put the public Patient ID
-   * into the existing search field so only the exact patient row is shown,
-   * matching the working Staff Dashboard behavior.
-   */
+  useEffect(() => {
+    if (!patients.length) return undefined;
+
+    let active = true;
+
+    const refreshPatientAvatars = async () => {
+      if (document.visibilityState !== "visible") return;
+
+      const avatarMap = await fetchPatientAvatarMap(patients);
+      if (!active || !avatarMap) return;
+
+      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPatientAvatars();
+      }
+    };
+
+    window.addEventListener("focus", refreshPatientAvatars);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshPatientAvatars);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [patients]);
+
   useEffect(() => {
     if (!dashboardPatientTarget) {
       if (dashboardPatientTargetRef.current) {
@@ -275,9 +343,7 @@ function DoctorPatientsContent({ headerAction = null }) {
       return;
     }
 
-    if (patients.length === 0) {
-      return;
-    }
+    if (patients.length === 0) return;
 
     const target = patients.find(
       (patient) =>

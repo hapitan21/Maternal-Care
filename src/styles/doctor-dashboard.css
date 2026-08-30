@@ -1202,10 +1202,10 @@ body:has(.doctor-dashboard) {
   margin: 0 auto;
 }
 
-.doctor-dashboard-home .doctor-topbar {
-  min-height: 64px;
-  align-items: flex-start;
-  margin-bottom: 18px;
+.doctor-dashboard .doctor-content .doctor-dashboard-home > .doctor-topbar {
+  min-height: var(--doctor-unified-profile-height, 60px) !important;
+  align-items: flex-start !important;
+  margin-bottom: 20px !important;
 }
 
 .doctor-dashboard-home .doctor-topbar h2 {
@@ -1959,12 +1959,26 @@ body:has(.doctor-dashboard) {
    The main "Dashboard" page title is intentionally not changed.
 ========================================================= */
 
+.doctor-dashboard .doctor-dashboard-home .doctor-hero-eyebrow {
+  display: block;
+  margin: 0 0 6px;
+  color: rgba(255, 255, 255, 0.78);
+  font-family: "Poppins", sans-serif;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 850;
+  letter-spacing: 0.095em;
+  text-transform: uppercase;
+}
+
 .doctor-dashboard .doctor-dashboard-home .doctor-hero-text h1 {
   width: 390px !important;
   max-width: 100% !important;
+  color: #ffffff !important;
+  font-family: "Poppins", sans-serif !important;
   font-size: 32px !important;
-  line-height: 1.22 !important;
-  font-weight: 700 !important;
+  line-height: 1.12 !important;
+  font-weight: 800 !important;
   letter-spacing: -0.045em !important;
 }
 
@@ -1972,9 +1986,22 @@ body:has(.doctor-dashboard) {
   width: 455px !important;
   max-width: 100% !important;
   margin-top: 16px !important;
+  color: rgba(255, 255, 255, 0.86) !important;
+  font-family: "Plus Jakarta Sans", sans-serif !important;
   font-size: 15px !important;
   line-height: 1.45 !important;
-  font-weight: 400 !important;
+  font-weight: 500 !important;
+}
+
+.doctor-dashboard .doctor-dashboard-home .doctor-hero-support > span {
+  display: block;
+}
+
+.doctor-dashboard .doctor-dashboard-home .doctor-hero-highlight {
+  color: #ffe94f;
+  font-family: "Poppins", sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .doctor-dashboard .doctor-dashboard-home .doctor-status-copy p {

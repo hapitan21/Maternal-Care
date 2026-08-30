@@ -26,7 +26,6 @@ import {
   PatientDirectoryHeader,
   PatientDirectorySearch,
   PatientDirectoryToolbar,
-  PatientTableShell,
 } from "../../components/patients/PatientDirectoryUi";
 import "../../styles/staff-patients.css";
 
@@ -780,6 +779,7 @@ function mapSupabasePatient(row) {
     patientId: visibleId,
     controlNumber: row.control_number || "",
     initials: getInitials(row.full_name || "Patient"),
+    photo: "",
     name: row.full_name || "Unnamed Patient",
     gender: "Female",
     age: computeAgeLabel(row.age, row.date_of_birth),
@@ -792,6 +792,44 @@ function mapSupabasePatient(row) {
     archivedAt: row.archived_at || null,
     archivedBy: row.archived_by || null,
   };
+}
+
+async function fetchPatientAvatarMap(patientRows) {
+  const patientIds = Array.from(
+    new Set(patientRows.map((patient) => patient?.recordId).filter(Boolean))
+  );
+
+  if (!patientIds.length) return new Map();
+
+  const { data, error } = await supabase.rpc("get_patient_avatar_urls", {
+    p_patient_ids: patientIds,
+  });
+
+  if (error) {
+    console.warn("Load Staff patient profile pictures failed:", error);
+    return null;
+  }
+
+  return new Map(
+    (data || []).map((row) => [
+      String(row.patient_id || ""),
+      String(row.avatar_url || "").trim(),
+    ])
+  );
+}
+
+function mergePatientAvatarMap(patientRows, avatarMap) {
+  if (!avatarMap) return patientRows;
+
+  let changed = false;
+  const nextRows = patientRows.map((patient) => {
+    const nextPhoto = avatarMap.get(String(patient.recordId || "")) || "";
+    if (nextPhoto === (patient.photo || "")) return patient;
+    changed = true;
+    return { ...patient, photo: nextPhoto };
+  });
+
+  return changed ? nextRows : patientRows;
 }
 
 function createPatientPersonalInfoPayload(form, savedPatient, credentials) {
@@ -1498,6 +1536,11 @@ function StaffPatientsContent({ headerAction }) {
 
       setPatients(mappedPatients);
       setCredentialPool(nextCredentialPool);
+
+      const avatarMap = await fetchPatientAvatarMap(mappedPatients);
+      if (!active || !avatarMap) return;
+
+      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
     };
 
     loadPatients();
@@ -1506,6 +1549,36 @@ function StaffPatientsContent({ headerAction }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (screen !== "list" || !patients.length) return undefined;
+
+    let active = true;
+
+    const refreshPatientAvatars = async () => {
+      if (document.visibilityState !== "visible") return;
+
+      const avatarMap = await fetchPatientAvatarMap(patients);
+      if (!active || !avatarMap) return;
+
+      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPatientAvatars();
+      }
+    };
+
+    window.addEventListener("focus", refreshPatientAvatars);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshPatientAvatars);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [patients, screen]);
 
   /*
    * Dashboard "View Patient" deep link.
@@ -4250,39 +4323,42 @@ function StaffPatientsContent({ headerAction }) {
         </p>
       ) : null}
 
-      <PatientTableShell
-        className="staff-patients-card"
-        scrollClassName="staff-patients-table-scroll"
-        aria-label="Patients table"
-      >
-          <table className="staff-patients-table">
-            <thead>
-              <tr>
-                <th>
-                  <button type="button" onClick={() => requestSort("name")}>
-                    Name
-                    <Icon icon="solar:sort-vertical-linear" aria-hidden="true" />
-                  </button>
-                </th>
-                <th>
-                  <button type="button" onClick={() => requestSort("id")}>
-                    Patient ID
-                    <Icon icon="solar:sort-vertical-linear" aria-hidden="true" />
-                  </button>
-                </th>
-                <th>
-                  <button type="button" onClick={() => requestSort("birthdate")}>
-                    Date of Birth
-                    <Icon icon="solar:sort-vertical-linear" aria-hidden="true" />
-                  </button>
-                </th>
-                <th>Status</th>
-                <th>Medical Records</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+      <section className="staff-patients-card" aria-label="Patients table">
+        <div className="staff-patients-table-xscroll">
+          <div className="staff-patients-table-inner">
+            <div className="staff-patients-table-head-shell">
+              <table className="staff-patients-table staff-patients-table--header">
+                <thead>
+                  <tr>
+                    <th>
+                      <button type="button" onClick={() => requestSort("name")}>
+                        Name
+                        <Icon icon="solar:sort-vertical-linear" aria-hidden="true" />
+                      </button>
+                    </th>
+                    <th>
+                      <button type="button" onClick={() => requestSort("id")}>
+                        Patient ID
+                        <Icon icon="solar:sort-vertical-linear" aria-hidden="true" />
+                      </button>
+                    </th>
+                    <th>
+                      <button type="button" onClick={() => requestSort("birthdate")}>
+                        Date of Birth
+                        <Icon icon="solar:sort-vertical-linear" aria-hidden="true" />
+                      </button>
+                    </th>
+                    <th>Status</th>
+                    <th>Medical Records</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
 
-            <tbody>
+            <div className="staff-patients-table-scroll">
+              <table className="staff-patients-table staff-patients-table--body">
+                <tbody>
               {filteredPatients.map((patient) => (
                 <tr
                   key={patient.id}
@@ -4297,7 +4373,22 @@ function StaffPatientsContent({ headerAction }) {
                   <td>
                     <div className="staff-patient-info-cell">
                       <span className={`staff-patient-avatar avatar-${patient.tone}`}>
-                        {patient.initials}
+                        {patient.photo ? (
+                          <img
+                            src={patient.photo}
+                            alt={`${patient.name} profile`}
+                            referrerPolicy="no-referrer"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              display: "block",
+                              objectFit: "cover",
+                              borderRadius: "inherit",
+                            }}
+                          />
+                        ) : (
+                          patient.initials
+                        )}
                       </span>
 
                       <span className="staff-patient-name-wrap">
@@ -4371,7 +4462,7 @@ function StaffPatientsContent({ headerAction }) {
                         }
                         onClick={(event) => togglePatientActionMenu(event, patient)}
                       >
-                        <span aria-hidden="true">•••</span>
+                        <Icon icon="solar:menu-dots-bold" aria-hidden="true" />
                       </button>
                     </div>
                   </td>
@@ -4387,9 +4478,12 @@ function StaffPatientsContent({ headerAction }) {
                   </td>
                 </tr>
               ) : null}
-            </tbody>
-          </table>
-      </PatientTableShell>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {patientActionMenu && activeActionPatient ? (
         <div

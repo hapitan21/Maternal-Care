@@ -5346,3 +5346,418 @@ body:has(.appointment-modal-overlay) {
     grid-column: 1 / -1;
   }
 }
+
+/* =========================================================
+   DOCTOR APPOINTMENTS — STAFF PARITY FINAL FIX
+   ---------------------------------------------------------
+   1. Stops Main / History movement
+   2. Stops Rows pagination movement
+   3. Makes History compact like Staff
+   4. Keeps existing Doctor appointment logic untouched
+========================================================= */
+
+
+/* =========================================================
+   1. MAIN / HISTORY — FIXED POSITION
+========================================================= */
+
+.doctor-appointments-page .doctor-appointments-view-group {
+  width: 180px !important;
+  min-width: 180px !important;
+  max-width: 180px !important;
+}
+
+.doctor-appointments-page .doctor-appointments-view-switch {
+  width: 180px !important;
+  min-width: 180px !important;
+  max-width: 180px !important;
+
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+
+  align-items: stretch !important;
+  gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 4px !important;
+
+  box-sizing: border-box !important;
+}
+
+.doctor-appointments-page .doctor-appointments-view-switch button {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  min-height: 42px !important;
+  padding: 0 8px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  box-sizing: border-box !important;
+
+  transform: none !important;
+
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease !important;
+}
+
+.doctor-appointments-page .doctor-appointments-view-switch button:hover,
+.doctor-appointments-page .doctor-appointments-view-switch button:focus,
+.doctor-appointments-page .doctor-appointments-view-switch button:active,
+.doctor-appointments-page .doctor-appointments-view-switch button.is-active {
+  width: 100% !important;
+  min-width: 0 !important;
+
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+
+  transform: none !important;
+}
+
+
+/* Keep first toolbar column fixed */
+@media (min-width: 1181px) {
+  .doctor-appointments-page
+    .doctor-appointments-toolbar.doctor-appointments-toolbar-labeled {
+    grid-template-columns:
+      180px
+      minmax(280px, 1fr)
+      210px
+      210px !important;
+  }
+}
+
+
+/* =========================================================
+   2. COMPACT APPOINTMENT HISTORY LIKE STAFF
+========================================================= */
+
+.doctor-appointments-page .doctor-appointments-table-scroll {
+  width: 100% !important;
+
+  /* Staff uses approximately this height */
+  max-height: 282px !important;
+
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+
+  scrollbar-gutter: stable !important;
+
+  scrollbar-width: thin !important;
+  scrollbar-color:
+    rgba(255, 47, 125, 0.55)
+    transparent !important;
+}
+
+.doctor-appointments-page
+  .doctor-appointments-table-scroll::-webkit-scrollbar {
+  width: 7px !important;
+  height: 7px !important;
+}
+
+.doctor-appointments-page
+  .doctor-appointments-table-scroll::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.doctor-appointments-page
+  .doctor-appointments-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(255, 47, 125, 0.55) !important;
+}
+
+
+/* Keep header visible while History scrolls */
+.doctor-appointments-page .doctor-appointments-table__head {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 6 !important;
+
+  background: var(--doctor-appointments-pink) !important;
+}
+
+
+/* Doctor rows are already staff-sized, keep them locked */
+.doctor-appointments-page .doctor-appointments-row {
+  min-height: 67px !important;
+  height: 67px !important;
+}
+
+
+/* =========================================================
+   3. ROWS / PAGINATION — NO MOVEMENT
+========================================================= */
+
+.doctor-appointments-page .doctor-appointments-pagination {
+  width: 100% !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    110px
+    minmax(0, 1fr) !important;
+
+  align-items: center !important;
+
+  gap: 14px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* Showing 1-x of x */
+.doctor-appointments-page
+  .doctor-appointments-pagination
+  > :first-child {
+  justify-self: start !important;
+
+  min-width: 0 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* Rows 10 — always centered */
+.doctor-appointments-page
+  .doctor-appointments-pagination
+  > label {
+  width: 110px !important;
+  min-width: 110px !important;
+  max-width: 110px !important;
+
+  justify-self: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* Previous / page / Next */
+.doctor-appointments-page
+  .doctor-appointments-pagination
+  > :last-child {
+  justify-self: end !important;
+
+  min-width: max-content !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* Keep Rows dropdown exact size */
+.doctor-appointments-page
+  .doctor-appointments-pagination
+  label
+  select {
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
+
+  height: 32px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* Prevent interaction movement */
+.doctor-appointments-page
+  .doctor-appointments-pagination
+  label,
+.doctor-appointments-page
+  .doctor-appointments-pagination
+  label:hover,
+.doctor-appointments-page
+  .doctor-appointments-pagination
+  label:focus-within {
+  transform: none !important;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 900px) {
+  .doctor-appointments-page .doctor-appointments-table-scroll {
+    max-height: 270px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .doctor-appointments-page .doctor-appointments-view-group,
+  .doctor-appointments-page .doctor-appointments-view-switch {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .doctor-appointments-page .doctor-appointments-table-scroll {
+    max-height: 250px !important;
+  }
+
+  .doctor-appointments-page .doctor-appointments-pagination {
+    grid-template-columns: 1fr !important;
+    justify-items: center !important;
+    gap: 10px !important;
+  }
+
+  .doctor-appointments-page
+    .doctor-appointments-pagination
+    > :first-child,
+  .doctor-appointments-page
+    .doctor-appointments-pagination
+    > label,
+  .doctor-appointments-page
+    .doctor-appointments-pagination
+    > :last-child {
+    justify-self: center !important;
+  }
+}
+
+/* Paint the reserved vertical-scrollbar gutter behind the sticky header. */
+.doctor-appointments-page .doctor-appointments-table-scroll {
+  background-color: #ffffff !important;
+  background-image: linear-gradient(
+    to bottom,
+    var(--doctor-appointments-pink) 0,
+    var(--doctor-appointments-pink) 50px,
+    #ffffff 50px,
+    #ffffff 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+}
+
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar,
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-track,
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+.doctor-appointments-page
+  .doctor-appointments-table-scroll::-webkit-scrollbar-track:vertical {
+  background: linear-gradient(
+    to bottom,
+    var(--doctor-appointments-pink) 0,
+    var(--doctor-appointments-pink) 50px,
+    #ffffff 50px,
+    #ffffff 100%
+  ) !important;
+}
+
+/* =========================================================
+   FINAL TABLE HEADER GUTTER PAINT FIX
+   The status menu remains portalled; this only paints the
+   reserved scrollbar gutter behind the 50px sticky header.
+   ========================================================= */
+.doctor-appointments-page .doctor-appointments-table-card {
+  background-image: linear-gradient(
+    to bottom,
+    var(--doctor-appointments-pink) 0,
+    var(--doctor-appointments-pink) 50px,
+    #ffffff 50px,
+    #ffffff 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+}
+
+.doctor-appointments-page .doctor-appointments-table-scroll {
+  background: transparent !important;
+}
+
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-track,
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-track-piece,
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-corner,
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-button {
+  background: transparent !important;
+}
+
+
+
+/* =========================================================
+   STRUCTURAL TABLE HEADER / SCROLLBAR SEAM FIX
+   Header is now OUTSIDE the vertical scrolling viewport.
+   This removes the native Chromium scrollbar track from the
+   pink header area instead of trying to paint over it.
+   ========================================================= */
+.doctor-appointments-page .doctor-appointments-table-card {
+  overflow: hidden !important;
+  background: #ffffff !important;
+  background-image: none !important;
+}
+
+/* One horizontal viewport keeps header and rows aligned on narrow screens. */
+.doctor-appointments-page .doctor-appointments-table-x-scroll {
+  width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  background: #ffffff !important;
+}
+
+.doctor-appointments-page .doctor-appointments-table-inner {
+  width: 100% !important;
+  min-width: 850px !important;
+  background: #ffffff !important;
+}
+
+/* Full-width pink header. No vertical scrollbar exists in this element. */
+.doctor-appointments-page .doctor-appointments-table__head {
+  position: relative !important;
+  top: auto !important;
+  z-index: 7 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 50px !important;
+  min-height: 50px !important;
+  box-sizing: border-box !important;
+  padding: 0 31px 0 24px !important;
+  background: var(--doctor-appointments-pink) !important;
+  background-image: none !important;
+}
+
+/* Only the rows scroll vertically. The 50px header is not part of this box. */
+.doctor-appointments-page .doctor-appointments-table-scroll {
+  width: 100% !important;
+  max-height: 232px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-gutter: stable !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+}
+
+.doctor-appointments-page .doctor-appointments-row,
+.doctor-appointments-page .doctor-appointments-empty {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* The scrollbar now begins BELOW the pink header, so a white track is correct. */
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar {
+  width: 7px !important;
+  height: 7px !important;
+  background: #ffffff !important;
+}
+
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-track,
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-track-piece,
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-corner,
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-button {
+  background: #ffffff !important;
+}
+
+.doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(255, 47, 125, 0.55) !important;
+}

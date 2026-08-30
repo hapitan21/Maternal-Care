@@ -3883,3 +3883,340 @@
   cursor: not-allowed !important;
   opacity: 0.62 !important;
 }
+
+/* Reserve the scrollbar width and paint only its header-height track pink. */
+.staff-patients-page .staff-patients-table-scroll {
+  scrollbar-gutter: stable !important;
+  background-color: #ffffff !important;
+  background-image: linear-gradient(
+    to bottom,
+    var(--clinical-primary) 0,
+    var(--clinical-primary) 60px,
+    #ffffff 60px,
+    #ffffff 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+}
+
+@media (max-width: 900px) {
+  .staff-patients-page .staff-patients-table-scroll {
+    background-image: linear-gradient(
+      to bottom,
+      var(--clinical-primary) 0,
+      var(--clinical-primary) 54px,
+      #ffffff 54px,
+      #ffffff 100%
+    ) !important;
+  }
+}
+
+.staff-patients-page .staff-patients-table-scroll {
+  scrollbar-color: rgba(255, 47, 125, 0.45) transparent !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-track,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+.staff-patients-page
+  .staff-patients-table-scroll::-webkit-scrollbar-track:vertical {
+  background: linear-gradient(
+    to bottom,
+    var(--clinical-primary) 0,
+    var(--clinical-primary) 60px,
+    #ffffff 60px,
+    #ffffff 100%
+  ) !important;
+}
+
+@media (max-width: 900px) {
+  .staff-patients-page
+    .staff-patients-table-scroll::-webkit-scrollbar-track:vertical {
+    background: linear-gradient(
+      to bottom,
+      var(--clinical-primary) 0,
+      var(--clinical-primary) 54px,
+      #ffffff 54px,
+      #ffffff 100%
+    ) !important;
+  }
+}
+
+/* =========================================================
+   FINAL TABLE HEADER GUTTER PAINT FIX
+   The scrolling viewport reserves a stable right-side gutter.
+   Paint the parent card's 60px header band with the local
+   Patients pink so the gutter cannot expose the white card.
+   ========================================================= */
+.staff-patients-page .staff-patients-card {
+  background-image: linear-gradient(
+    to bottom,
+    var(--patients-pink) 0,
+    var(--patients-pink) 60px,
+    #ffffff 60px,
+    #ffffff 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll {
+  background: transparent !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-track,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-track-piece,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-corner,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-button {
+  background: transparent !important;
+}
+
+/* =========================================================
+   FINAL CHROMIUM SCROLLBAR HEADER-SEAM FIX
+   The Patients table header is 60px high. Let the WebKit rules
+   own scrollbar painting, then paint the vertical scrollbar box
+   with the same pink/white split as the table itself.
+   ========================================================= */
+.staff-patients-page .staff-patients-table-scroll {
+  scrollbar-color: auto !important;
+  scrollbar-width: auto !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar {
+  width: 7px !important;
+  height: 7px !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar:vertical {
+  background: linear-gradient(
+    to bottom,
+    var(--patients-pink) 0,
+    var(--patients-pink) 60px,
+    #ffffff 60px,
+    #ffffff 100%
+  ) !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar:horizontal {
+  background: #ffffff !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-track,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-track-piece,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-corner,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-button {
+  background: transparent !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(255, 47, 125, 0.45) !important;
+}
+
+
+
+/* =========================================================
+   STRUCTURAL HEADER-SEAM FIX — STAFF PATIENTS
+   Keep the 60px pink table header outside the vertical row scroller.
+   The shared outer x-scroll wrapper preserves responsive horizontal
+   scrolling, while only patient rows own the vertical scrollbar.
+   ========================================================= */
+.staff-patients-page .staff-patients-card {
+  overflow: hidden !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.staff-patients-page .staff-patients-table-xscroll {
+  width: 100% !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  background: #ffffff !important;
+}
+
+.staff-patients-page .staff-patients-table-inner {
+  width: 100% !important;
+  min-width: 850px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.staff-patients-page .staff-patients-table-head-shell {
+  width: 100% !important;
+  height: 60px !important;
+  flex: 0 0 60px !important;
+  box-sizing: border-box !important;
+  padding-right: 7px !important;
+  overflow: hidden !important;
+  background: var(--patients-pink) !important;
+}
+
+.staff-patients-page .staff-patients-table--header,
+.staff-patients-page .staff-patients-table--body {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+.staff-patients-page .staff-patients-table--header thead,
+.staff-patients-page .staff-patients-table--header thead tr,
+.staff-patients-page .staff-patients-table--header thead th {
+  background: var(--patients-pink) !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll {
+  width: 100% !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-gutter: auto !important;
+  background: #ffffff !important;
+  background-image: none !important;
+}
+
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar:vertical,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-track,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-track-piece,
+.staff-patients-page .staff-patients-table-scroll::-webkit-scrollbar-corner {
+  background: #ffffff !important;
+}
+
+.staff-patients-page .staff-patients-table-xscroll::-webkit-scrollbar {
+  height: 7px !important;
+}
+
+.staff-patients-page .staff-patients-table-xscroll::-webkit-scrollbar-track {
+  background: #ffffff !important;
+}
+
+.staff-patients-page .staff-patients-table-xscroll::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(255, 47, 125, 0.45) !important;
+}
+
+@media (max-width: 900px) {
+  .staff-patients-page .staff-patients-table-inner {
+    min-width: 720px !important;
+  }
+
+  .staff-patients-page .staff-patients-table-head-shell {
+    height: 54px !important;
+    flex-basis: 54px !important;
+  }
+}
+
+/* =========================================================
+   FINAL STAFF PATIENTS — SIX-COLUMN STRUCTURAL TABLE FIX
+   The structural header is intentionally outside the vertical
+   row scroller. These widths keep the separate header/body
+   tables perfectly aligned and supersede the old four-column
+   width rules left in this stylesheet.
+   Columns:
+   1 Name
+   2 Patient ID
+   3 Date of Birth
+   4 Status
+   5 Medical Records
+   6 Actions
+   ========================================================= */
+
+.staff-patients-page .staff-patients-table--header th,
+.staff-patients-page .staff-patients-table--body td {
+  box-sizing: border-box !important;
+}
+
+/* Name */
+.staff-patients-page .staff-patients-table--header th:nth-child(1),
+.staff-patients-page .staff-patients-table--body td:nth-child(1) {
+  width: 27% !important;
+  text-align: left !important;
+}
+
+/* Patient ID */
+.staff-patients-page .staff-patients-table--header th:nth-child(2),
+.staff-patients-page .staff-patients-table--body td:nth-child(2) {
+  width: 17% !important;
+  text-align: left !important;
+}
+
+/* Date of Birth */
+.staff-patients-page .staff-patients-table--header th:nth-child(3),
+.staff-patients-page .staff-patients-table--body td:nth-child(3) {
+  width: 19% !important;
+  text-align: left !important;
+}
+
+/* Status */
+.staff-patients-page .staff-patients-table--header th:nth-child(4),
+.staff-patients-page .staff-patients-table--body td:nth-child(4) {
+  width: 13% !important;
+  text-align: left !important;
+  padding-left: 22px !important;
+  padding-right: 22px !important;
+}
+
+/* Medical Records */
+.staff-patients-page .staff-patients-table--header th:nth-child(5),
+.staff-patients-page .staff-patients-table--body td:nth-child(5) {
+  width: 14% !important;
+  text-align: left !important;
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+}
+
+/* Actions */
+.staff-patients-page .staff-patients-table--header th:nth-child(6),
+.staff-patients-page .staff-patients-table--body td:nth-child(6) {
+  width: 10% !important;
+  min-width: 0 !important;
+  text-align: center !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+/* Undo the legacy "Medical Records is column 4" alignment. */
+.staff-patients-page .staff-patients-table--header th:nth-child(4),
+.staff-patients-page .staff-patients-table--body td:nth-child(4) {
+  margin-left: 0 !important;
+}
+
+/* Keep the Doctor Only badge inside its actual column. */
+.staff-patients-page .staff-patients-table--body td:nth-child(5) .staff-patient-medical-access {
+  margin-left: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Keep the action trigger centered without forcing an 88px table column. */
+.staff-patients-page .staff-patients-table--header th:last-child,
+.staff-patients-page .staff-patients-table--body td:last-child {
+  width: 10% !important;
+  min-width: 0 !important;
+}
+
+/* Preserve comfortable sizing before horizontal scrolling is needed. */
+.staff-patients-page .staff-patients-table-inner {
+  min-width: 980px !important;
+}
+
+@media (max-width: 900px) {
+  .staff-patients-page .staff-patients-table-inner {
+    min-width: 930px !important;
+  }
+
+  .staff-patients-page .staff-patients-table--header th:nth-child(4),
+  .staff-patients-page .staff-patients-table--body td:nth-child(4),
+  .staff-patients-page .staff-patients-table--header th:nth-child(5),
+  .staff-patients-page .staff-patients-table--body td:nth-child(5) {
+    text-align: left !important;
+  }
+}
+

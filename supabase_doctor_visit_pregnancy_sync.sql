@@ -4,12 +4,15 @@
 
 begin;
 
+drop function if exists public.sync_doctor_visit_pregnancy_state(uuid, text, date, boolean, uuid);
+
 create or replace function public.sync_doctor_visit_pregnancy_state(
   p_appointment_id uuid,
   p_risk_level text default null,
   p_expected_delivery_date date default null,
   p_update_expected_delivery_date boolean default false,
-  p_obstetric_history_id uuid default null
+  p_obstetric_history_id uuid default null,
+  p_current_gestational_week integer default null
 )
 returns table (
   patient_id uuid,
@@ -86,6 +89,13 @@ begin
         using errcode = '23502';
     end if;
 
+    if p_current_gestational_week is null or
+       p_current_gestational_week < 0 or
+       p_current_gestational_week > 40 then
+      raise exception 'The selected Expected Delivery Date is inconsistent with the current pregnancy dating.'
+        using errcode = '22023';
+    end if;
+
     v_obstetric_history_id := p_obstetric_history_id;
     if v_obstetric_history_id is null then
       select history.id
@@ -113,6 +123,7 @@ begin
     -- obstetric EDD. No duplicate obstetric row is inserted when one is absent.
     update public.patients as patient
     set expected_delivery_date = p_expected_delivery_date,
+        gestational_age = pg_catalog.format('%s Weeks', p_current_gestational_week),
         updated_at = pg_catalog.now()
     where patient.id = v_patient_id;
   end if;
@@ -139,9 +150,9 @@ begin
 end;
 $function$;
 
-revoke all on function public.sync_doctor_visit_pregnancy_state(uuid, text, date, boolean, uuid)
+revoke all on function public.sync_doctor_visit_pregnancy_state(uuid, text, date, boolean, uuid, integer)
   from public, anon, authenticated, service_role;
-grant execute on function public.sync_doctor_visit_pregnancy_state(uuid, text, date, boolean, uuid)
+grant execute on function public.sync_doctor_visit_pregnancy_state(uuid, text, date, boolean, uuid, integer)
   to authenticated, service_role;
 
 notify pgrst, 'reload schema';
