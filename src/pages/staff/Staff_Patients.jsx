@@ -3357,16 +3357,18 @@ function StaffPatientsContent({ headerAction }) {
                 placeholder="Enter number"
               />
               <InputField
-              label="Last Menstrual Period (LMP)"
-              type="date"
-              value={form.lmp}
+                label="Last Menstrual Period (LMP)"
+                type="date"
+                value={form.lmp}
                 onChange={updateLmp}
+                icon="solar:calendar-linear"
               />
               <InputField
                 label="Estimated Due Date (EDD)"
                 type="date"
                 value={form.edd}
                 onChange={(value) => updateForm("edd", value)}
+                icon="solar:calendar-linear"
               />
             </div>
           </div>

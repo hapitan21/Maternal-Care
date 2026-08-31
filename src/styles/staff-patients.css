@@ -4220,3 +4220,50 @@
   }
 }
 
+/* =========================================================
+   FINAL REGISTER BIRTHDATE CALENDAR ICON FIX
+   Keeps the native date picker clickable while displaying the
+   existing Iconify calendar icon in the same visual style as
+   the registration form.
+   ========================================================= */
+.staff-register-page
+  .staff-register-input-wrap:has(input[type="date"] + svg) {
+  position: relative;
+}
+
+.staff-register-page
+  .staff-register-input-wrap:has(input[type="date"] + svg)
+  input[type="date"] {
+  position: relative;
+  padding-right: 52px;
+  cursor: pointer;
+}
+
+/* Hide only the browser's duplicate calendar glyph.
+   The invisible native hit area remains clickable. */
+.staff-register-page
+  .staff-register-input-wrap:has(input[type="date"] + svg)
+  input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Show one clean, centered calendar icon. */
+.staff-register-page
+  .staff-register-input-wrap:has(input[type="date"] + svg)
+  > svg {
+  right: 17px;
+  width: 18px;
+  height: 18px;
+  color: var(--patients-pink);
+  pointer-events: none;
+  z-index: 1;
+}
+
