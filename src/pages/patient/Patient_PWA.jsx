@@ -27,6 +27,7 @@ const PatientPWAViewProfile = lazy(() => import("./Patient_PWA_ViewProfile"));
 const PatientPWASettings = lazy(() => import("./Patient_PWA_Settings"));
 const PatientPWAMedicalRecords = lazy(() => import("./Patient_PWA_MedicalRecords"));
 const PatientPWAAppointments = lazy(() => import("./Patient_PWA_Appointments"));
+const PatientBookAppointment = lazy(() => import("../../components/patient/PatientBookAppointment"));
 const PatientPWAReminder = lazy(() => import("./Patient_PWA_Reminder"));
 
 const defaultPatientProfile = {
@@ -75,6 +76,7 @@ const pageRoutes = {
   settings: "/patient/settings",
   "medical-record": "/patient/medical-record",
   appointments: "/patient/appointments",
+  "book-appointment": "/patient/appointments/book",
   reminders: "/patient/reminders",
 };
 
@@ -640,6 +642,9 @@ export default function PatientPWA() {
       case "appointments":
         return <PatientPWAAppointments profile={profile} />;
 
+      case "book-appointment":
+        return <PatientBookAppointment profile={profile} />;
+
       case "reminders":
         return <PatientPWAReminder profile={profile} />;
 
@@ -681,13 +686,19 @@ export default function PatientPWA() {
               key={item.key}
               type="button"
               className={`pwa-nav-item ${
-                activePage === item.key
+                activePage === item.key ||
+                (item.key === "appointments" && activePage === "book-appointment")
                   ? "is-active"
                   : ""
               }`}
               onClick={() => handleNavigate(item.key)}
               aria-label={item.label}
-              aria-current={activePage === item.key ? "page" : undefined}
+              aria-current={
+                activePage === item.key ||
+                (item.key === "appointments" && activePage === "book-appointment")
+                  ? "page"
+                  : undefined
+              }
               data-mobile-label={item.mobileLabel}
               title={item.label}
             >

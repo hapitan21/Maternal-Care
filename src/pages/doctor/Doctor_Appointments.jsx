@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
 import AppointmentVisitForm from "../appointments/AppointmentVisitForm";
+import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
 import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
 import "../../styles/appointment-ui-system.css";
 import {
@@ -42,11 +43,12 @@ import "../../styles/doctor-appointments.css";
 
 const scheduleTableName = "schedule";
 const patientColumns =
-  "id, full_name, patient_id, user_id, age, contact_number, address, expected_delivery_date, gestational_age, risk_level";
+  "id, full_name, patient_id, user_id, age, contact_number, email, address, expected_delivery_date, gestational_age, risk_level";
 const scheduleColumns =
-  "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, description, start_time, end_time, status";
+  "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, description, start_time, end_time, status, created_at";
 const appointmentTabs = [
   "All",
+  "Requests",
   "Pending",
   "Checked-in",
   "Completed",
@@ -328,6 +330,8 @@ function getVisibleAppointmentId(schedule) {
 function statusMatches(schedule, activeTab) {
   const normalized = normalizeAppointmentStatus(schedule.status);
 
+  if (activeTab === "Requests") return isPatientBookingRequest(schedule);
+  if (isPatientBookingRequest(schedule)) return false;
   if (activeTab === "All") return true;
   if (activeTab === "Pending") return normalized === appointmentStatuses.scheduled;
   if (activeTab === "Checked-in") return normalized === appointmentStatuses.checkedIn;
@@ -405,6 +409,41 @@ function parseScheduleDetails(description) {
   } catch {
     return { notes: String(description) };
   }
+}
+
+function isPatientBookingRequest(schedule) {
+  const details = parseScheduleDetails(schedule?.description);
+  const requestStatus = String(details.requestStatus || "").trim().toLowerCase();
+
+  return (
+    (details.source === "patient-booking-request" || details.requestedByPatient === true) &&
+    !["accepted", "declined", "rejected"].includes(requestStatus) &&
+    normalizeAppointmentStatus(schedule?.status) === appointmentStatuses.scheduled
+  );
+}
+
+function getRequestId(schedule, index = 0) {
+  if (schedule?.maternal_appointment_id) {
+    return String(schedule.maternal_appointment_id).replace(/^MA/i, "REQ");
+  }
+
+  const requestDate = toDate(schedule?.created_at) || toDate(schedule?.start_time) || new Date();
+  const year = String(requestDate.getFullYear()).slice(-2);
+  const source = String(schedule?.id || index + 1).replace(/[^a-z0-9]/gi, "");
+  const suffix = source.slice(-4).toUpperCase().padStart(4, "0");
+  return `REQ-${year}-${suffix}`;
+}
+
+function formatRequestDate(value) {
+  const date = toDate(value);
+  if (!date) return "Not recorded";
+
+  return date.toLocaleDateString("en-US", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function getScheduleDescriptionText(schedule) {
@@ -857,6 +896,7 @@ function DoctorAppointmentDetailsModal({
   isUpdating,
   onClose,
   onEdit,
+  onAcceptRequest,
   onCheckIn,
   onComplete,
   onCancel,
@@ -864,8 +904,9 @@ function DoctorAppointmentDetailsModal({
   if (!schedule) return null;
 
   const statusLabel = getAppointmentStatusLabel(schedule.status);
-  const canEdit = isPendingAppointmentStatus(schedule.status);
-  const canCheckIn = isPendingAppointmentStatus(schedule.status);
+  const isRequest = isPatientBookingRequest(schedule);
+  const canEdit = !isRequest && isPendingAppointmentStatus(schedule.status);
+  const canCheckIn = !isRequest && isPendingAppointmentStatus(schedule.status);
   const canComplete = isCheckedInAppointmentStatus(schedule.status);
   const canCancel =
     !isClosedAppointmentStatus(schedule.status) &&
@@ -874,11 +915,12 @@ function DoctorAppointmentDetailsModal({
   const detailTime = formatTime(schedule.start_time);
   const details = [
     ["Patient Name", schedule.patient_name || "NA"],
-    ["Appointment ID", getVisibleAppointmentId(schedule)],
+    [isRequest ? "Request ID" : "Appointment ID", isRequest ? getRequestId(schedule) : getVisibleAppointmentId(schedule)],
     ["Appointment Type", schedule.title || "NA"],
     ["Doctor", schedule.doctor_name || "NA"],
     ["Date and Time", detailDate && detailTime !== "-" ? `${detailDate} at ${detailTime}` : "NA"],
     ["Status", statusLabel],
+    ...(isRequest ? [["Date Requested", formatRequestDate(schedule.created_at)]] : []),
     ["Description", getScheduleDescriptionText(schedule)],
     ["Location", getScheduleLocation(schedule)],
   ];
@@ -930,8 +972,19 @@ function DoctorAppointmentDetailsModal({
           ))}
         </dl>
 
-        {(canEdit || canCheckIn || canComplete || canCancel) ? (
+        {(isRequest || canEdit || canCheckIn || canComplete || canCancel) ? (
           <footer>
+            {isRequest ? (
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => onAcceptRequest(schedule)}
+                disabled={isUpdating}
+              >
+                {isUpdating ? "Accepting..." : "Accept Request"}
+              </button>
+            ) : null}
+
             {canEdit ? (
               <button
                 type="button"
@@ -972,7 +1025,7 @@ function DoctorAppointmentDetailsModal({
                 onClick={() => onCancel(schedule)}
                 disabled={isUpdating}
               >
-                {isUpdating ? "Cancelling..." : "Cancel"}
+                {isUpdating ? "Cancelling..." : isRequest ? "Decline Request" : "Cancel"}
               </button>
             ) : null}
           </footer>
@@ -1141,6 +1194,327 @@ function DoctorAppointmentSummary({ summary }) {
   );
 }
 
+function DoctorAppointmentRequests({
+  requests,
+  totalRequests,
+  currentPage,
+  totalPages,
+  searchTerm,
+  sortOrder,
+  patients,
+  miniMonthDate,
+  miniMonthDays,
+  todaySchedules,
+  onSearchChange,
+  onSortChange,
+  onPageChange,
+  onMonthChange,
+  onSelectDate,
+  onViewRequest,
+  onViewSchedule,
+}) {
+  const patientById = useMemo(
+    () => new Map(patients.map((patient) => [String(patient.id), patient])),
+    [patients]
+  );
+
+  return (
+    <section className="doctor-request-workspace" aria-label="Patient appointment requests">
+      <div className="doctor-request-main">
+        <div className="doctor-request-tools">
+          <label className="doctor-request-search">
+            <InlineIcon name="search" />
+            <input
+              type="search"
+              value={searchTerm}
+              placeholder="Search patient name or request ID..."
+              onChange={(event) => onSearchChange(event.target.value)}
+            />
+          </label>
+
+          <label className="doctor-request-sort">
+            <select value={sortOrder} onChange={(event) => onSortChange(event.target.value)}>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="appointment">Appointment Date</option>
+            </select>
+            <InlineIcon name="chevronDown" />
+          </label>
+        </div>
+
+        <div className="doctor-request-table-wrap">
+          <div className="doctor-request-table">
+            <div className="doctor-request-table-head">
+              <span>Request ID</span>
+              <span>Patient</span>
+              <span>Appointment Type</span>
+              <span>Prefer Date &amp; Time</span>
+              <span>Date Requested</span>
+              <span>Action</span>
+            </div>
+
+            <div className="doctor-request-table-body">
+              {requests.length ? requests.map((schedule, index) => {
+                const patient = patientById.get(String(schedule.patient_id)) || null;
+                const requestId = getRequestId(schedule, index);
+                const gestation = patient?.gestational_age
+                  ? `${patient.gestational_age} weeks pregnant`
+                  : patient?.risk_level || "Patient request";
+
+                return (
+                  <article className="doctor-request-row" key={schedule.id}>
+                    <strong className="doctor-request-id">{requestId}</strong>
+                    <div className="doctor-request-patient">
+                      <span>{String(schedule.patient_name || "P").charAt(0).toUpperCase()}</span>
+                      <div>
+                        <strong>{schedule.patient_name || "Patient"}</strong>
+                        <small>{patient?.patient_id || "Patient ID pending"}</small>
+                        <small>{gestation}</small>
+                      </div>
+                    </div>
+                    <div className="doctor-request-type">
+                      <Icon icon={
+                        getScheduleCategory(schedule) === "laboratory"
+                          ? "solar:test-tube-linear"
+                          : getScheduleCategory(schedule) === "ultrasound"
+                            ? "solar:monitor-camera-linear"
+                            : getScheduleCategory(schedule) === "prenatal"
+                              ? "solar:medical-kit-linear"
+                              : "solar:heart-pulse-linear"
+                      } />
+                      <span>{schedule.title || "Appointment"}</span>
+                    </div>
+                    <div className="doctor-request-preferred">
+                      <span><Icon icon="solar:calendar-linear" /> {formatRequestDate(schedule.start_time)}</span>
+                      <span><Icon icon="solar:clock-circle-linear" /> {formatTime(schedule.start_time)}</span>
+                    </div>
+                    <div className="doctor-request-created">
+                      <span>{formatRequestDate(schedule.created_at)}</span>
+                      <small>{schedule.created_at ? formatTime(schedule.created_at) : "Not recorded"}</small>
+                    </div>
+                    <button type="button" className="doctor-request-view" onClick={() => onViewRequest(schedule)}>
+                      View
+                    </button>
+                  </article>
+                );
+              }) : (
+                <div className="doctor-request-empty">
+                  <Icon icon="solar:inbox-linear" />
+                  <strong>No appointment requests found</strong>
+                  <span>New requests from patients will appear here.</span>
+                </div>
+              )}
+            </div>
+
+            <footer className="doctor-request-pagination">
+              <span>
+                {totalRequests
+                  ? `Showing ${(currentPage - 1) * 5 + 1}-${Math.min(currentPage * 5, totalRequests)} of ${totalRequests} requests`
+                  : "Showing 0 requests"}
+              </span>
+              <div>
+                <button type="button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} aria-label="Previous request page">
+                  <InlineIcon name="chevronLeft" />
+                </button>
+                <strong>{currentPage}</strong>
+                <button type="button" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)} aria-label="Next request page">
+                  <InlineIcon name="chevronRight" />
+                </button>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </div>
+
+      <aside className="doctor-request-sidebar">
+        <section className="doctor-request-calendar">
+          <header>
+            <h2>Calendar</h2>
+            <span>Today</span>
+          </header>
+          <div className="doctor-request-calendar-month">
+            <button type="button" aria-label="Previous month" onClick={() => onMonthChange(-1)}>
+              <InlineIcon name="chevronLeft" />
+            </button>
+            <strong>{formatMonthTitle(miniMonthDate)}</strong>
+            <button type="button" aria-label="Next month" onClick={() => onMonthChange(1)}>
+              <InlineIcon name="chevronRight" />
+            </button>
+          </div>
+          <div className="doctor-request-calendar-weekdays">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}
+          </div>
+          <div className="doctor-request-calendar-days">
+            {miniMonthDays.map((day, index) => (
+              <button
+                key={`${day.value}-${index}`}
+                type="button"
+                className={`${day.disabled ? "is-muted" : ""} ${day.hasEvent ? "has-event" : ""} ${day.active ? "is-active" : ""}`}
+                onClick={() => onSelectDate(day.date)}
+              >
+                {day.value}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="doctor-request-today">
+          <header>
+            <h2>Today's Schedule</h2>
+            <span>{new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
+          </header>
+          <div>
+            {todaySchedules.length ? todaySchedules.slice(0, 5).map((schedule) => (
+              <button type="button" key={schedule.id} onClick={() => onViewSchedule(schedule)}>
+                <time>{formatTime(schedule.start_time)}</time>
+                <span className={`is-${getScheduleCategory(schedule)}`}>
+                  <strong>{schedule.patient_name || "Patient"}</strong>
+                  <small>{schedule.title || "Appointment"}</small>
+                </span>
+              </button>
+            )) : (
+              <p>No appointments scheduled for today.</p>
+            )}
+          </div>
+        </section>
+      </aside>
+    </section>
+  );
+}
+
+function DoctorAppointmentRequestDetails({
+  schedule,
+  patient,
+  isUpdating,
+  actionError,
+  onBack,
+  onApprove,
+  onDecline,
+}) {
+  const details = parseScheduleDetails(schedule?.description);
+  const gestationValue = String(patient?.gestational_age || "").trim();
+  const gestationLabel = gestationValue
+    ? `${gestationValue}${/week/i.test(gestationValue) ? "" : " weeks"} pregnant`
+    : patient?.risk_level || "Pregnancy information unavailable";
+  const requestNotes = String(
+    details.notes || details.message || details.reason || "No additional notes were provided."
+  ).trim();
+  const requestedAt = schedule?.created_at
+    ? `${formatRequestDate(schedule.created_at)} at ${formatTime(schedule.created_at)}`
+    : "Not recorded";
+
+  return (
+    <section className="doctor-request-details-page">
+      <nav className="doctor-request-breadcrumbs" aria-label="Breadcrumb">
+        <button type="button" onClick={onBack}>Appointments</button>
+        <InlineIcon name="chevronRight" />
+        <button type="button" onClick={onBack}>Patient Requests</button>
+        <InlineIcon name="chevronRight" />
+        <strong>Appointment Details</strong>
+      </nav>
+
+      <header className="doctor-request-details-heading">
+        <div>
+          <h1>Appointment Details</h1>
+          <p>Review the patient's appointment request and take action.</p>
+        </div>
+        <span className="doctor-request-pending-badge">
+          <Icon icon="solar:clock-circle-linear" /> Pending
+        </span>
+      </header>
+
+      <section className="doctor-request-patient-card">
+        <div className="doctor-request-detail-avatar">
+          {String(schedule?.patient_name || "P").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+        </div>
+        <div className="doctor-request-patient-identity">
+          <h2>{schedule?.patient_name || patient?.full_name || "Patient"}</h2>
+          <p>Patient ID: {patient?.patient_id || "Not assigned"}</p>
+          <span>{gestationLabel}</span>
+        </div>
+        <div className="doctor-request-patient-contact">
+          <span><Icon icon="solar:user-rounded-linear" /> Age: {patient?.age || "Not provided"}</span>
+          <span><Icon icon="solar:phone-linear" /> {patient?.contact_number || "Not provided"}</span>
+          <span><Icon icon="solar:letter-linear" /> {patient?.email || "Not provided"}</span>
+        </div>
+      </section>
+
+      <section className="doctor-request-information-card">
+        <header>
+          <Icon icon="solar:calendar-linear" />
+          <h2>Appointment Information</h2>
+        </header>
+        <dl>
+          <div>
+            <dt>Appointment Type</dt>
+            <dd><Icon icon="solar:heart-pulse-linear" /> {schedule?.title || "Appointment"}</dd>
+          </div>
+          <div>
+            <dt>Preferred Date</dt>
+            <dd><Icon icon="solar:calendar-linear" /> {formatRequestDate(schedule?.start_time)}</dd>
+          </div>
+          <div>
+            <dt>Preferred Time</dt>
+            <dd><Icon icon="solar:clock-circle-linear" /> {formatTime(schedule?.start_time)}</dd>
+          </div>
+          <div>
+            <dt>Date Requested</dt>
+            <dd><Icon icon="solar:calendar-linear" /> {requestedAt}</dd>
+          </div>
+          <div className="is-notes">
+            <dt>Reason / Notes</dt>
+            <dd><Icon icon="solar:document-text-linear" /> <span>{requestNotes}</span></dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="doctor-request-status-card">
+        <header>
+          <Icon icon="solar:danger-triangle-linear" />
+          <h2>Request Status</h2>
+        </header>
+        <div className="doctor-request-current-status">
+          <strong>Current Status</strong>
+          <span className="doctor-request-pending-badge"><Icon icon="solar:clock-circle-linear" /> Pending</span>
+          <small><Icon icon="solar:info-circle-linear" /> Waiting for your approval.</small>
+        </div>
+
+        {actionError ? <p className="doctor-request-detail-error" role="alert">{actionError}</p> : null}
+
+        <footer>
+          <div>
+            <button type="button" className="doctor-request-back-button" onClick={onBack}>
+              <InlineIcon name="chevronLeft" /> Back
+            </button>
+            <SendPatientNotificationAction
+              patientId={schedule?.patient_id || ""}
+              patientName={schedule?.patient_name || "Patient"}
+              appointmentId={schedule?.id || null}
+              defaultType="general"
+              defaultTitle="Appointment request update"
+              defaultMessage="We are reviewing your appointment request."
+              lockedTargetPath="/patient/appointments"
+              contextLabel={`Appointment request ${getRequestId(schedule)}`}
+              triggerLabel="Message Patient"
+              className="doctor-request-message-button"
+              outline
+            />
+          </div>
+          <div>
+            <button type="button" className="doctor-request-decline-button" onClick={() => onDecline(schedule)} disabled={isUpdating}>
+              {isUpdating ? "Updating..." : "Decline"}
+            </button>
+            <button type="button" className="doctor-request-approve-button" onClick={() => onApprove(schedule)} disabled={isUpdating}>
+              <Icon icon="solar:check-read-linear" />
+              {isUpdating ? "Approving..." : "Approve & Schedule"}
+            </button>
+          </div>
+        </footer>
+      </section>
+    </section>
+  );
+}
+
 export function DoctorAppointmentsContent({
   embedded = false,
   headerAction = null,
@@ -1173,6 +1547,7 @@ export function DoctorAppointmentsContent({
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
+  const [requestSort, setRequestSort] = useState("newest");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState(() => getManilaDateKey());
@@ -1194,6 +1569,7 @@ export function DoctorAppointmentsContent({
   const [isResolvingAppointmentDoctor, setIsResolvingAppointmentDoctor] = useState(false);
   const [appointmentDoctorError, setAppointmentDoctorError] = useState(null);
   const [selectedCalendarSchedule, setSelectedCalendarSchedule] = useState(null);
+  const [selectedRequestSchedule, setSelectedRequestSchedule] = useState(null);
   const [detailActionError, setDetailActionError] = useState("");
   const tableScrollRef = useRef(null);
   const appointmentSaveLockRef = useRef(false);
@@ -1347,12 +1723,65 @@ export function DoctorAppointmentsContent({
     ]
   );
 
+  const requestSchedules = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
+    const matching = schedules
+      .filter(isPatientBookingRequest)
+      .filter(
+        (schedule) =>
+          !schedule.doctor_id ||
+          !authenticatedDoctorId ||
+          String(schedule.doctor_id) === String(authenticatedDoctorId)
+      )
+      .filter((schedule, index) => {
+        if (!keyword) return true;
+
+        return [
+          getRequestId(schedule, index),
+          schedule.patient_name,
+          schedule.title,
+          schedule.patient_id,
+        ].some((value) => String(value || "").toLowerCase().includes(keyword));
+      });
+
+    return matching.sort((first, second) => {
+      if (requestSort === "appointment") {
+        return (toDate(first.start_time)?.getTime() || 0) - (toDate(second.start_time)?.getTime() || 0);
+      }
+
+      const firstTime = toDate(first.created_at)?.getTime() || toDate(first.start_time)?.getTime() || 0;
+      const secondTime = toDate(second.created_at)?.getTime() || toDate(second.start_time)?.getTime() || 0;
+      return requestSort === "oldest" ? firstTime - secondTime : secondTime - firstTime;
+    });
+  }, [authenticatedDoctorId, requestSort, schedules, searchTerm]);
+
+  const requestTotalPages = Math.max(1, Math.ceil(requestSchedules.length / 5));
+  const requestDisplayedPage = Math.min(currentPage, requestTotalPages);
+  const paginatedRequests = useMemo(() => {
+    const startIndex = (requestDisplayedPage - 1) * 5;
+    return requestSchedules.slice(startIndex, startIndex + 5);
+  }, [requestDisplayedPage, requestSchedules]);
+  const todaySchedules = useMemo(() => {
+    const todayKey = getManilaDateKey();
+    return schedules
+      .filter((schedule) => getManilaDateKey(schedule.start_time) === todayKey)
+      .filter((schedule) => !isClosedAppointmentStatus(schedule.status))
+      .sort(compareUpcomingAppointments);
+  }, [schedules]);
+
   const totalPages = Math.max(1, Math.ceil(visibleSchedules.length / pageSize));
   const displayedPage = Math.min(currentPage, totalPages);
   const paginatedSchedules = useMemo(() => {
     const startIndex = (displayedPage - 1) * pageSize;
     return visibleSchedules.slice(startIndex, startIndex + pageSize);
   }, [displayedPage, pageSize, visibleSchedules]);
+
+  const handleTabChange = (nextTab) => {
+    setActiveTab(nextTab);
+    setCurrentPage(1);
+    setSearchTerm("");
+    setMonthFilter("");
+  };
 
   const loadAppointments = useCallback(() => {
     if (appointmentsRequestRef.current) {
@@ -1380,6 +1809,11 @@ export function DoctorAppointmentsContent({
       if (appointmentsMountedRef.current) {
         setSchedules(nextSchedules);
         setSelectedCalendarSchedule((current) =>
+          current?.id
+            ? nextSchedules.find((schedule) => schedule.id === current.id) || current
+            : current
+        );
+        setSelectedRequestSchedule((current) =>
           current?.id
             ? nextSchedules.find((schedule) => schedule.id === current.id) || current
             : current
@@ -1921,6 +2355,64 @@ export function DoctorAppointmentsContent({
     updateScheduleStatus(schedule, nextStatus);
   };
 
+  const acceptPatientRequest = async (schedule) => {
+    if (!schedule?.id || updatingStatusId === schedule.id) return;
+
+    const details = parseScheduleDetails(schedule.description);
+    setUpdatingStatusId(schedule.id);
+    setDetailActionError("");
+
+    const { data, error } = await supabase
+      .from(scheduleTableName)
+      .update({
+        description: JSON.stringify({
+          ...details,
+          requestStatus: "accepted",
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: authenticatedDoctorId || null,
+        }),
+      })
+      .eq("id", schedule.id)
+      .select(scheduleColumns)
+      .single();
+
+    setUpdatingStatusId("");
+
+    if (error) {
+      console.error("Patient appointment request acceptance failed:", error);
+      setDetailActionError(`Unable to accept this request: ${getReadableScheduleError(error)}`);
+      return;
+    }
+
+    setSchedules((current) =>
+      current.map((item) => (item.id === schedule.id ? data : item))
+    );
+    setSelectedCalendarSchedule(null);
+    setSelectedRequestSchedule(null);
+    setStatusMessage("Appointment request accepted and moved to Pending appointments.");
+    await loadAppointments();
+  };
+
+  const declinePatientRequest = async (schedule) => {
+    if (!schedule?.id || updatingStatusId === schedule.id) return;
+
+    const saved = await updateScheduleStatus(schedule, appointmentStatuses.cancelled, {
+      actionLabel: "decline request",
+      silentAlert: true,
+      notificationType: "appointment_cancelled",
+    });
+
+    if (!saved) return;
+
+    setSelectedRequestSchedule(null);
+    setSelectedCalendarSchedule(null);
+    setStatusMessage(
+      saved.notificationResult?.ok
+        ? "Appointment request declined and Patient notified."
+        : "Appointment request declined. The Patient notification could not be sent."
+    );
+  };
+
 
   const startEditAppointment = (schedule) => {
     if (!schedule?.id || isClosedAppointmentStatus(schedule.status)) return;
@@ -2202,16 +2694,43 @@ export function DoctorAppointmentsContent({
     );
   }
 
+  if (selectedRequestSchedule) {
+    const requestPatient = patients.find(
+      (patient) => String(patient.id) === String(selectedRequestSchedule.patient_id)
+    ) || null;
+
+    return (
+      <main
+        className={`doctor-appointments-page doctor-request-details-shell appointment-workspace appointment-workspace--doctor${embedded ? " doctor-appointments-page--embedded" : ""}`}
+      >
+        <DoctorAppointmentRequestDetails
+          schedule={selectedRequestSchedule}
+          patient={requestPatient}
+          isUpdating={updatingStatusId === selectedRequestSchedule.id}
+          actionError={detailActionError}
+          onBack={() => {
+            setDetailActionError("");
+            setSelectedRequestSchedule(null);
+            setActiveTab("Requests");
+          }}
+          onApprove={acceptPatientRequest}
+          onDecline={declinePatientRequest}
+        />
+      </main>
+    );
+  }
+
   return (
     <main
       className={`doctor-appointments-page appointment-workspace appointment-workspace--doctor${embedded ? " doctor-appointments-page--embedded" : ""}`}
+      style={{ "--doctor-request-count": `"${requestSchedules.length}"` }}
     >
       <AppointmentPageHeader
         title="Appointments"
         subtitle="Manage scheduling, arrivals, and appointment status."
         tabs={appointmentTabs}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         action={headerAction || <DefaultProfileCard doctorIdentity={doctorIdentity} />}
         className="doctor-appointments-header"
         titleBlockClassName="doctor-appointments-title-block"
@@ -2224,6 +2743,37 @@ export function DoctorAppointmentsContent({
         </p>
       ) : null}
 
+      {activeTab === "Requests" ? (
+        <DoctorAppointmentRequests
+          requests={paginatedRequests}
+          totalRequests={requestSchedules.length}
+          currentPage={requestDisplayedPage}
+          totalPages={requestTotalPages}
+          searchTerm={searchTerm}
+          sortOrder={requestSort}
+          patients={patients}
+          miniMonthDate={miniMonthDate}
+          miniMonthDays={miniMonthDays}
+          todaySchedules={todaySchedules}
+          onSearchChange={(value) => {
+            setSearchTerm(value);
+            setCurrentPage(1);
+          }}
+          onSortChange={(value) => {
+            setRequestSort(value);
+            setCurrentPage(1);
+          }}
+          onPageChange={setCurrentPage}
+          onMonthChange={(amount) => setMiniMonthDate((current) => addMonths(current, amount))}
+          onSelectDate={selectCalendarDate}
+          onViewRequest={(schedule) => {
+            setDetailActionError("");
+            setSelectedRequestSchedule(schedule);
+          }}
+          onViewSchedule={openCalendarAppointmentDetails}
+        />
+      ) : (
+        <>
       <AppointmentToolbar className="doctor-appointments-action-row doctor-appointments-toolbar doctor-appointments-toolbar-labeled">
         <AppointmentControlGroup
           label="View"
@@ -2438,6 +2988,8 @@ export function DoctorAppointmentsContent({
           </section>
         </aside>
       </section>
+        </>
+      )}
 
       {isAdding
         ? createPortal(
@@ -2604,6 +3156,7 @@ export function DoctorAppointmentsContent({
           isUpdating={updatingStatusId === selectedCalendarSchedule.id}
           onClose={closeCalendarAppointmentDetails}
           onEdit={startEditAppointment}
+          onAcceptRequest={acceptPatientRequest}
           onCheckIn={checkInAppointment}
           onComplete={openVisitForm}
           onCancel={cancelDetailAppointment}

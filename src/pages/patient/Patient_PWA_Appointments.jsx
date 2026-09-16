@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import {
   classifyAppointment,
@@ -8,6 +9,7 @@ import {
 } from "../../lib/appointmentDate";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
 import "../../styles/patient-PWA-appointments.css";
+import "../../styles/patientbookappointment.css";
 
 const scheduleColumns =
   "id, patient_id, patient_name, doctor_name, title, description, start_time, end_time, status";
@@ -316,6 +318,7 @@ async function fetchPatientAppointmentReminderRows(patient) {
 }
 
 export default function PatientPWAAppointments({ profile }) {
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeView, setActiveView] = useState("upcoming");
@@ -477,11 +480,14 @@ export default function PatientPWAAppointments({ profile }) {
         className="pwa-appointments-title"
         actionPlacement="profile-secondary"
         action={(
-          <span className="pwa-appointment-total" aria-live="polite">
-            <Icon icon="solar:calendar-mark-bold-duotone" />
-            <strong>{upcomingAppointments.length}</strong>
-            <span>upcoming</span>
-          </span>
+          <button
+            type="button"
+            className="patient-book-appointment-button"
+            onClick={() => navigate("/patient/appointments/book")}
+          >
+            <Icon icon="solar:calendar-add-bold" />
+            Book Appointment
+          </button>
         )}
       />
 

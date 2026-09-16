@@ -209,6 +209,1065 @@
   background: var(--doctor-appointments-pink-dark);
 }
 
+.doctor-appointments-tabs button:nth-child(2) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doctor-appointments-tabs button:nth-child(2)::before {
+  content: var(--doctor-request-count, "0");
+  order: 2;
+  min-width: 23px;
+  height: 23px;
+  border-radius: 999px;
+  background: var(--doctor-appointments-pink);
+  color: #fff;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+/* PATIENT APPOINTMENT REQUESTS */
+
+.doctor-request-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 312px;
+  gap: 28px;
+  align-items: start;
+}
+
+.doctor-request-main,
+.doctor-request-sidebar {
+  min-width: 0;
+}
+
+.doctor-request-tools {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.doctor-request-search {
+  width: min(470px, 100%);
+  height: 44px;
+  border: 1px solid #dce4ef;
+  border-radius: 11px;
+  background: #fff;
+  color: #94a4ba;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+}
+
+.doctor-request-search:focus-within {
+  border-color: #ff7099;
+  box-shadow: 0 0 0 4px rgba(250, 47, 122, 0.08);
+}
+
+.doctor-request-search .doctor-appt-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.doctor-request-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #344057;
+  font: inherit;
+  font-size: 12px;
+}
+
+.doctor-request-search input::placeholder {
+  color: #a0aec0;
+}
+
+.doctor-request-sort {
+  width: 144px;
+  height: 40px;
+  position: relative;
+  flex: 0 0 144px;
+  border: 1px solid #dce4ef;
+  border-radius: 11px;
+  background: #fff;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+}
+
+.doctor-request-sort select {
+  width: 100%;
+  height: 100%;
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #475569;
+  padding: 0 36px 0 14px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.doctor-request-sort .doctor-appt-icon {
+  position: absolute;
+  right: 11px;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.doctor-request-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #f2dfe5;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 13px 34px rgba(31, 41, 55, 0.035);
+}
+
+.doctor-request-table {
+  min-width: 980px;
+}
+
+.doctor-request-table-head,
+.doctor-request-row {
+  display: grid;
+  grid-template-columns: 0.8fr 1.35fr 1.45fr 1.15fr 1fr 76px;
+  align-items: center;
+  gap: 18px;
+  padding: 0 28px;
+}
+
+.doctor-request-table-head {
+  min-height: 52px;
+  border-bottom: 1px solid #f2e4e8;
+  background: #fff9fa;
+  color: #728099;
+  font-size: 10px;
+  line-height: 1.3;
+  font-weight: 850;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.doctor-request-row {
+  min-height: 116px;
+  border-bottom: 1px solid #edf1f6;
+  color: #334155;
+}
+
+.doctor-request-row:hover {
+  background: #fffafb;
+}
+
+.doctor-request-id {
+  color: #243147;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.doctor-request-patient {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.doctor-request-patient > span {
+  width: 36px;
+  height: 36px;
+  border: 2px solid #ffd4e1;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #f7b4ca, #fff1f6);
+  color: #b5185f;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.doctor-request-patient strong,
+.doctor-request-patient small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doctor-request-patient strong {
+  color: #243147;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 800;
+}
+
+.doctor-request-patient small {
+  color: #8291a8;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.doctor-request-type {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #344057;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 650;
+}
+
+.doctor-request-type svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: var(--doctor-appointments-pink);
+}
+
+.doctor-request-preferred,
+.doctor-request-created {
+  display: grid;
+  gap: 4px;
+  color: #52627a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.doctor-request-preferred span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.doctor-request-preferred svg {
+  width: 15px;
+  height: 15px;
+  color: #91a3bb;
+}
+
+.doctor-request-created small {
+  color: #91a3bb;
+  font-size: 10px;
+}
+
+.doctor-request-view {
+  min-width: 62px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ff4c78, #fa2f65);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 7px 14px rgba(250, 47, 101, 0.17);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.doctor-request-view:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 19px rgba(250, 47, 101, 0.24);
+}
+
+.doctor-request-empty {
+  min-height: 350px;
+  color: #91a0b5;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.doctor-request-empty svg {
+  width: 42px;
+  height: 42px;
+  color: #eaa3ba;
+}
+
+.doctor-request-empty strong {
+  color: #475569;
+  font-size: 14px;
+}
+
+.doctor-request-empty span {
+  font-size: 12px;
+}
+
+.doctor-request-pagination {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  color: #8190a7;
+  font-size: 11px;
+}
+
+.doctor-request-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.doctor-request-pagination button,
+.doctor-request-pagination strong {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+}
+
+.doctor-request-pagination button {
+  border: 1px solid #dce4ef;
+  background: #fff;
+  color: #8da0b9;
+  cursor: pointer;
+}
+
+.doctor-request-pagination button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.doctor-request-pagination button .doctor-appt-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.doctor-request-pagination strong {
+  background: var(--doctor-appointments-pink);
+  color: #fff;
+  font-size: 12px;
+}
+
+.doctor-request-sidebar {
+  display: grid;
+  gap: 24px;
+  padding-top: 70px;
+}
+
+.doctor-request-calendar,
+.doctor-request-today {
+  border: 1px solid #f2dfe5;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 13px 34px rgba(31, 41, 55, 0.035);
+  padding: 22px;
+}
+
+.doctor-request-calendar > header,
+.doctor-request-today > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.doctor-request-calendar h2,
+.doctor-request-today h2 {
+  margin: 0;
+  color: #222d40;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.doctor-request-calendar > header > span {
+  border-radius: 8px;
+  background: #fff0f4;
+  color: #fa2f65;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.doctor-request-calendar-month {
+  display: grid;
+  grid-template-columns: 30px 1fr 30px;
+  align-items: center;
+  margin: 18px 0 10px;
+  text-align: center;
+}
+
+.doctor-request-calendar-month strong {
+  color: #28354b;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.doctor-request-calendar-month button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #8da0b9;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.doctor-request-calendar-month button:hover {
+  background: #fff2f6;
+  color: var(--doctor-appointments-pink);
+}
+
+.doctor-request-calendar-month .doctor-appt-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.doctor-request-calendar-weekdays,
+.doctor-request-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+}
+
+.doctor-request-calendar-weekdays {
+  color: #93a2b8;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.doctor-request-calendar-weekdays span {
+  padding: 6px 0;
+}
+
+.doctor-request-calendar-days {
+  gap: 4px 2px;
+  margin-top: 4px;
+}
+
+.doctor-request-calendar-days button {
+  width: 30px;
+  height: 30px;
+  justify-self: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #52627a;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.doctor-request-calendar-days button.is-muted {
+  color: #d3dbe6;
+}
+
+.doctor-request-calendar-days button.has-event:not(.is-active) {
+  background: #ffe8ef;
+  color: var(--doctor-appointments-pink);
+}
+
+.doctor-request-calendar-days button.is-active {
+  background: var(--doctor-appointments-pink);
+  color: #fff;
+  box-shadow: 0 6px 13px rgba(250, 47, 122, 0.22);
+}
+
+.doctor-request-today > header {
+  border-bottom: 1px solid #edf1f6;
+  padding-bottom: 14px;
+}
+
+.doctor-request-today > header span {
+  color: #91a0b5;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.doctor-request-today > div {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.doctor-request-today > div > button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doctor-request-today time {
+  color: #8999b1;
+  padding-top: 10px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.doctor-request-today button > span {
+  min-height: 52px;
+  border-left: 4px solid #ff3b7d;
+  border-radius: 0 11px 11px 0;
+  background: #fff0f5;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 8px 10px;
+}
+
+.doctor-request-today button > span.is-ultrasound {
+  border-left-color: #6a6df4;
+  background: #f0f1ff;
+}
+
+.doctor-request-today button > span.is-laboratory {
+  border-left-color: #19b77c;
+  background: #ecfbf5;
+}
+
+.doctor-request-today button > span.is-vaccination,
+.doctor-request-today button > span.is-fallback {
+  border-left-color: #f3a11f;
+  background: #fff8e8;
+}
+
+.doctor-request-today strong,
+.doctor-request-today small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doctor-request-today strong {
+  color: #df2c70;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.doctor-request-today small {
+  color: #76869d;
+  font-size: 10px;
+}
+
+.doctor-request-today p {
+  margin: 0;
+  color: #91a0b5;
+  padding: 18px 8px;
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .doctor-request-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-request-sidebar {
+    grid-template-columns: minmax(280px, 360px) minmax(300px, 1fr);
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .doctor-request-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .doctor-request-search,
+  .doctor-request-sort {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .doctor-request-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-request-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* REQUEST DETAILS */
+
+.doctor-request-details-page {
+  width: min(1160px, 100%);
+  margin: 0 auto;
+  color: #263249;
+}
+
+.doctor-request-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 30px;
+  color: #9aa9bf;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.doctor-request-breadcrumbs button {
+  border: 0;
+  background: transparent;
+  color: #91a0b7;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.doctor-request-breadcrumbs button:hover {
+  color: var(--doctor-appointments-pink);
+}
+
+.doctor-request-breadcrumbs .doctor-appt-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.doctor-request-breadcrumbs strong {
+  color: #364157;
+  font-weight: 800;
+}
+
+.doctor-request-details-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.doctor-request-details-heading h1 {
+  margin: 0;
+  color: #192338;
+  font-size: clamp(27px, 2.6vw, 36px);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.doctor-request-details-heading p {
+  margin: 6px 0 0;
+  color: #7888a0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.doctor-request-pending-badge {
+  min-height: 32px;
+  border: 1px solid #ffd67f;
+  border-radius: 999px;
+  background: #fffaf0;
+  color: #c66a00;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 5px 15px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.doctor-request-pending-badge svg {
+  width: 16px;
+  height: 16px;
+}
+
+.doctor-request-patient-card,
+.doctor-request-information-card,
+.doctor-request-status-card {
+  border: 1px solid #eef1f6;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 35px rgba(30, 42, 65, 0.045);
+}
+
+.doctor-request-patient-card {
+  min-height: 150px;
+  display: grid;
+  grid-template-columns: 86px minmax(260px, 1fr) minmax(340px, 0.8fr);
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 28px;
+  padding: 28px 34px;
+}
+
+.doctor-request-detail-avatar {
+  width: 82px;
+  height: 82px;
+  border: 4px solid #ffe1e9;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #f5b2c8, #fff0f5);
+  color: #bd1d62;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 850;
+}
+
+.doctor-request-patient-identity h2 {
+  margin: 0;
+  color: #202b40;
+  font-size: 23px;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.doctor-request-patient-identity p {
+  margin: 5px 0 8px;
+  color: #6f8099;
+  font-size: 13px;
+}
+
+.doctor-request-patient-identity > span {
+  display: inline-flex;
+  border-radius: 7px;
+  background: #fff0f4;
+  color: #ff386d;
+  padding: 5px 11px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 750;
+}
+
+.doctor-request-patient-contact {
+  min-height: 58px;
+  border-left: 1px solid #edf1f6;
+  display: grid;
+  grid-template-columns: 0.7fr 1fr;
+  align-content: center;
+  gap: 12px 20px;
+  padding-left: 34px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.doctor-request-patient-contact span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.doctor-request-patient-contact span:last-child {
+  grid-column: 1 / -1;
+}
+
+.doctor-request-patient-contact svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: #94a5bc;
+}
+
+.doctor-request-information-card {
+  margin-bottom: 28px;
+  padding: 28px 34px 32px;
+}
+
+.doctor-request-information-card > header,
+.doctor-request-status-card > header {
+  min-height: 44px;
+  border-bottom: 1px solid #edf1f6;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.doctor-request-information-card > header > svg,
+.doctor-request-status-card > header > svg {
+  width: 23px;
+  height: 23px;
+  color: var(--doctor-appointments-pink);
+}
+
+.doctor-request-information-card h2,
+.doctor-request-status-card h2 {
+  margin: 1px 0 0;
+  color: #243047;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 800;
+}
+
+.doctor-request-information-card dl {
+  margin: 0;
+}
+
+.doctor-request-information-card dl > div {
+  min-height: 52px;
+  border-bottom: 1px solid #edf1f6;
+  display: grid;
+  grid-template-columns: minmax(210px, 0.55fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 28px;
+}
+
+.doctor-request-information-card dl > div:last-child {
+  border-bottom: 0;
+}
+
+.doctor-request-information-card dt {
+  color: #71819a;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.doctor-request-information-card dd {
+  min-width: 0;
+  margin: 0;
+  color: #344057;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.doctor-request-information-card dd > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: #91a2b9;
+}
+
+.doctor-request-information-card dl > div:first-child dd > svg {
+  color: var(--doctor-appointments-pink);
+}
+
+.doctor-request-information-card .is-notes {
+  min-height: 76px;
+}
+
+.doctor-request-information-card .is-notes dd span {
+  width: 100%;
+  border: 1px solid #edf1f6;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #52627a;
+  padding: 14px 16px;
+  font-weight: 500;
+}
+
+.doctor-request-status-card {
+  padding: 28px 34px 24px;
+}
+
+.doctor-request-current-status {
+  min-height: 112px;
+  display: grid;
+  grid-template-columns: 120px auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
+}
+
+.doctor-request-current-status > strong {
+  color: #54647c;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.doctor-request-current-status > small {
+  grid-column: 1 / -1;
+  color: #8595ad;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.doctor-request-current-status > small svg {
+  width: 17px;
+  height: 17px;
+}
+
+.doctor-request-detail-error {
+  margin: 0 0 14px;
+  border: 1px solid #fecdd3;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #be123c;
+  padding: 11px 13px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.doctor-request-status-card > footer {
+  border-top: 1px solid #edf1f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 20px;
+}
+
+.doctor-request-status-card > footer > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doctor-request-status-card > footer button,
+.doctor-request-status-card .doctor-request-message-button.send-patient-notification-trigger {
+  min-height: 44px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.doctor-request-back-button,
+.doctor-request-status-card .doctor-request-message-button.send-patient-notification-trigger {
+  border: 1px solid #d9e1ec !important;
+  background: #fff !important;
+  color: #52627a !important;
+  box-shadow: none !important;
+}
+
+.doctor-request-status-card .doctor-request-message-button.send-patient-notification-trigger svg {
+  color: #6f8099 !important;
+}
+
+.doctor-request-decline-button {
+  min-width: 110px;
+  border: 1px solid #ff5d80;
+  background: #fff;
+  color: #f22e5d;
+}
+
+.doctor-request-approve-button {
+  min-width: 210px;
+  border: 1px solid var(--doctor-appointments-pink);
+  background: linear-gradient(135deg, #ff4778, #fa2f68);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(250, 47, 104, 0.19);
+}
+
+.doctor-request-status-card > footer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@media (max-width: 900px) {
+  .doctor-request-patient-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .doctor-request-detail-avatar {
+    width: 72px;
+    height: 72px;
+  }
+
+  .doctor-request-patient-contact {
+    grid-column: 1 / -1;
+    border-top: 1px solid #edf1f6;
+    border-left: 0;
+    padding: 20px 0 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .doctor-request-breadcrumbs {
+    overflow-x: auto;
+    margin-bottom: 20px;
+    white-space: nowrap;
+  }
+
+  .doctor-request-details-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .doctor-request-patient-card,
+  .doctor-request-information-card,
+  .doctor-request-status-card {
+    padding: 22px 18px;
+  }
+
+  .doctor-request-patient-card {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .doctor-request-detail-avatar {
+    width: 58px;
+    height: 58px;
+    font-size: 16px;
+  }
+
+  .doctor-request-patient-identity h2 {
+    font-size: 19px;
+  }
+
+  .doctor-request-patient-contact {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-request-patient-contact span:last-child {
+    grid-column: auto;
+  }
+
+  .doctor-request-information-card dl > div {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    padding: 12px 0;
+  }
+
+  .doctor-request-current-status {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .doctor-request-current-status > small {
+    grid-column: auto;
+  }
+
+  .doctor-request-status-card > footer,
+  .doctor-request-status-card > footer > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .doctor-request-status-card > footer > div,
+  .doctor-request-status-card > footer button,
+  .doctor-request-status-card .doctor-request-message-button.send-patient-notification-trigger {
+    width: 100%;
+  }
+}
+
 .doctor-appointments-view-switch {
   width: max-content;
   display: inline-flex;
