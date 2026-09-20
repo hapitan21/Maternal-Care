@@ -330,7 +330,7 @@
 
 .doctor-request-table-wrap {
   width: 100%;
-  overflow-x: auto;
+  overflow: hidden;
   border: 1px solid #f2dfe5;
   border-radius: 16px;
   background: #fff;
@@ -338,16 +338,23 @@
 }
 
 .doctor-request-table {
-  min-width: 980px;
+  width: 100%;
+  min-width: 0;
 }
 
 .doctor-request-table-head,
 .doctor-request-row {
   display: grid;
-  grid-template-columns: 0.8fr 1.35fr 1.45fr 1.15fr 1fr 76px;
+  grid-template-columns:
+    minmax(0, 0.8fr)
+    minmax(0, 1.35fr)
+    minmax(0, 1.45fr)
+    minmax(0, 1.15fr)
+    minmax(0, 1fr)
+    64px;
   align-items: center;
-  gap: 18px;
-  padding: 0 28px;
+  column-gap: 14px;
+  padding: 0 20px;
 }
 
 .doctor-request-table-head {
@@ -360,6 +367,15 @@
   font-weight: 850;
   letter-spacing: 0.035em;
   text-transform: uppercase;
+}
+
+.doctor-request-table-head > span,
+.doctor-request-row > * {
+  min-width: 0;
+}
+
+.doctor-request-table-head > span:last-child {
+  text-align: center;
 }
 
 .doctor-request-row {
@@ -465,7 +481,8 @@
 }
 
 .doctor-request-view {
-  min-width: 62px;
+  width: 64px;
+  min-width: 0;
   min-height: 34px;
   border: 0;
   border-radius: 8px;
@@ -807,6 +824,16 @@
   .doctor-request-pagination {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 900px) {
+  .doctor-request-table-wrap {
+    overflow-x: auto;
+  }
+
+  .doctor-request-table {
+    min-width: 840px;
   }
 }
 

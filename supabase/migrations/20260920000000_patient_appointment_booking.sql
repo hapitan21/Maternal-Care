@@ -1,5 +1,5 @@
--- Maternal Care - secure Patient appointment booking
--- Run this migration in the Supabase SQL Editor before enabling Patient booking.
+-- Install secure Patient appointment booking and publish schedule changes so
+-- the assigned Doctor sees new requests immediately.
 
 begin;
 
@@ -182,8 +182,6 @@ revoke all on function public.create_patient_appointment_request(uuid, text, tex
 grant execute on function public.create_patient_appointment_request(uuid, text, text, text, timestamptz)
   to authenticated;
 
--- Doctor appointment screens subscribe to schedule changes so a new Patient
--- request appears without requiring a page refresh.
 do $$
 begin
   if not exists (

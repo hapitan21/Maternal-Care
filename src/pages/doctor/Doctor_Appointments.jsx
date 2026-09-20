@@ -1860,9 +1860,17 @@ export function DoctorAppointmentsContent({
       )
       .subscribe();
 
+    // Realtime is the fast path. Polling and focus refreshes keep production
+    // reliable if a browser sleeps, reconnects, or briefly loses its websocket.
+    const refreshInterval = window.setInterval(loadAppointments, 15000);
+    const refreshOnFocus = () => loadAppointments();
+    window.addEventListener("focus", refreshOnFocus);
+
     return () => {
       appointmentsMountedRef.current = false;
       window.clearTimeout(loadTimer);
+      window.clearInterval(refreshInterval);
+      window.removeEventListener("focus", refreshOnFocus);
       supabase.removeChannel(channel);
     };
   }, [authenticatedDoctorId, doctorIdentity?.loading, isVisitFormRoute, loadAppointments]);
