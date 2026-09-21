@@ -6,7 +6,10 @@ import { supabase } from "../../lib/supabaseClient";
 import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
 import StaffPreConsultationForm from "../appointments/StaffPreConsultationForm";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
+import AppointmentNoShowDialog from "../../components/appointments/AppointmentNoShowDialog";
+import AppointmentStatusPopover from "../../components/appointments/AppointmentStatusPopover";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
+import { getAppointmentStatusPopoverPosition } from "../../lib/appointmentStatusPopover";
 import "../../styles/doctor-appointments.css";
 import "../../styles/appointment-ui-system.css";
 import {
@@ -26,12 +29,14 @@ import {
 } from "../../lib/appointmentTypes";
 import {
   classifyAppointment,
+  appointmentStoredStatuses,
   compareHistoryAppointments,
   compareUpcomingAppointments,
   formatAppointmentDate,
   formatAppointmentTime,
   getManilaDateKey,
   getManilaTimeKey,
+  isAppointmentNoShowEligible,
 } from "../../lib/appointmentDate";
 import "../../styles/staff-appointments.css";
 
@@ -41,15 +46,39 @@ const scheduleColumns =
 const patientLookupColumns =
   "id, full_name, patient_id, age, contact_number, address, status";
 
-const filters = ["All", "Pending", "Checked in", "Completed", "Cancelled"];
+const filters = ["All", "Pending", "Checked in", "Completed", "Cancelled", "Missed"];
 const appointmentViews = ["Main", "History"];
 const appointmentPageSizes = [10, 15];
 
-const statusOptions = [
-  { value: "Pending", label: "Pending", className: "is-pending" },
-  { value: "Checked in", label: "Check in / Open Form", className: "is-checked" },
-  { value: "Cancelled", label: "Cancelled", className: "is-cancel" },
-  { value: "No show", label: "No show", className: "is-no-show" },
+const pendingStatusActions = [
+  {
+    value: "Checked in",
+    label: "Check in",
+    tone: "check-in",
+    icon: "solar:login-2-linear",
+  },
+  {
+    value: "Cancelled",
+    label: "Cancelled",
+    tone: "cancelled",
+    icon: "solar:close-circle-linear",
+  },
+  {
+    value: "No show",
+    label: "No Show",
+    tone: "no-show",
+    icon: "solar:clock-circle-linear",
+  },
+];
+
+const checkedInActions = [
+  {
+    value: "open_form",
+    label: "Open Visit Form",
+    tone: "open-form",
+    icon: "solar:document-medicine-linear",
+    trailingIcon: "solar:arrow-right-linear",
+  },
 ];
 
 function getStatusClass(status) {
@@ -173,10 +202,17 @@ function createBlankAppointmentForm(doctor = null) {
   };
 }
 
+const initialStaffRescheduleForm = {
+  date: "",
+  time: "",
+  message: "",
+};
+
 function formatStatusValue(value) {
   if (value === "Completed") return "Completed";
   if (value === "Checked in") return "Checked in";
-  if (value === "Cancel" || value === "Cancelled" || value === "No show") return "Cancelled";
+  if (value === "No show") return "Missed";
+  if (value === "Cancel" || value === "Cancelled") return "Cancelled";
   return "Pending";
 }
 
@@ -192,7 +228,7 @@ function getDisplayStatus(status) {
 function getDatabaseStatus(status) {
   if (status === "Checked in") return "checked_in";
   if (status === "Completed") return "completed";
-  if (status === "No show") return "no_show";
+  if (status === "No show") return appointmentStoredStatuses.noShow;
   if (status === "Cancel" || status === "Cancelled") return "cancelled";
   return "scheduled";
 }
@@ -246,8 +282,8 @@ function isClosedStatus(status) {
   return ["Cancel", "Cancelled", "No show", "Completed"].includes(status);
 }
 
-function isCancelledOrNoShowStatus(status) {
-  return ["Cancel", "Cancelled", "No show"].includes(status);
+function isCancelledStatus(status) {
+  return ["Cancel", "Cancelled"].includes(status);
 }
 
 function appointmentViewMatches(appointment, appointmentView) {
@@ -313,6 +349,68 @@ function stringifyScheduleDescription(description, updates = {}) {
     ...parseScheduleDescription(description),
     ...updates,
   });
+}
+
+function getScheduleHumanMessage(description) {
+  const details = parseScheduleDescription(description);
+
+  return String(
+    details.notes ||
+      details.message ||
+      details.description ||
+      ""
+  ).trim();
+}
+
+function buildStaffScheduleDescription(
+  description,
+  { message, cancellationReason, remindersDisabled } = {}
+) {
+  const details = { ...parseScheduleDescription(description) };
+
+  if (message !== undefined) {
+    delete details.notes;
+    delete details.message;
+    delete details.description;
+
+    const nextMessage = String(message || "").trim();
+    if (nextMessage) details.notes = nextMessage;
+  }
+
+  if (cancellationReason !== undefined) {
+    delete details.cancellationReason;
+    delete details.cancel_reason;
+    delete details.reason;
+
+    const nextReason = String(cancellationReason || "").trim();
+    if (nextReason) details.cancellationReason = nextReason;
+  }
+
+  if (remindersDisabled !== undefined) {
+    if (remindersDisabled) {
+      details.remindersDisabled = true;
+    } else {
+      delete details.remindersDisabled;
+    }
+  }
+
+  return JSON.stringify(details);
+}
+
+function getAutomaticNotificationStatusMessage(
+  notificationResult,
+  { sentMessage, skippedMessage, failedMessage }
+) {
+  if (notificationResult?.ok) return sentMessage;
+
+  if (
+    notificationResult?.skipped &&
+    notificationResult?.reason === "patient_not_linked"
+  ) {
+    return skippedMessage;
+  }
+
+  return failedMessage;
 }
 
 function mapScheduleToAppointment(schedule) {
@@ -1029,6 +1127,7 @@ function AppointmentDetailsModal({
 
   const isCheckedIn = isCheckedInStatus(appointment.status);
   const isClosed = isClosedStatus(appointment.status);
+  const isPending = appointment.status === "Pending";
 
   const details = [
     ["Patient name", appointment.name],
@@ -1119,12 +1218,243 @@ function AppointmentDetailsModal({
             type="button"
             className="is-danger"
             onClick={() => onCancel(appointment)}
-            disabled={isClosed}
+            disabled={!isPending}
           >
             <Icon icon="solar:close-circle-bold" aria-hidden="true" />
             Cancel
           </button>
         </footer>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
+function StaffCancelAppointmentDialog({
+  appointment,
+  reason,
+  error,
+  busy,
+  onReasonChange,
+  onClose,
+  onConfirm,
+  onReschedule,
+}) {
+  if (!appointment) return null;
+
+  return createPortal(
+    <div
+      className="staff-cancel-appointment-overlay"
+      role="presentation"
+      onClick={() => {
+        if (!busy) onClose();
+      }}
+    >
+      <section
+        className="staff-cancel-appointment-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="staff-cancel-appointment-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          className="staff-cancel-appointment-close"
+          type="button"
+          aria-label="Close cancel appointment dialog"
+          onClick={onClose}
+          disabled={busy}
+        >
+          <Icon icon="solar:close-circle-linear" />
+        </button>
+
+        <div className="staff-cancel-appointment-heading">
+          <span className="staff-cancel-appointment-icon" aria-hidden="true">
+            <Icon icon="solar:close-circle-bold" />
+          </span>
+          <div>
+            <h2 id="staff-cancel-appointment-title">Cancel Appointment</h2>
+            <p>Are you sure you want to cancel this appointment?</p>
+          </div>
+        </div>
+
+        <div
+          className="staff-cancel-appointment-summary"
+          aria-label="Appointment summary"
+        >
+          <strong>{appointment.appointmentId || "Appointment"}</strong>
+          <span>{appointment.name || "Patient"}</span>
+          <small>
+            {formatLongDate(appointment.startTime)} • {appointment.time}
+          </small>
+        </div>
+
+        <label className="staff-cancel-reason-field">
+          <span>Cancellation Reason *</span>
+          <textarea
+            rows="4"
+            value={reason}
+            placeholder="Enter reason for cancellation..."
+            onChange={(event) => onReasonChange(event.target.value)}
+            disabled={busy}
+            autoFocus
+          />
+        </label>
+
+        {error ? (
+          <p className="staff-appointment-modal-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <button
+          className="staff-cancel-reschedule-link"
+          type="button"
+          onClick={onReschedule}
+          disabled={busy}
+        >
+          Reschedule instead
+          <Icon icon="solar:arrow-right-linear" />
+        </button>
+
+        <div className="staff-cancel-appointment-actions">
+          <button
+            className="staff-cancel-keep-button"
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+          >
+            Keep Appointment
+          </button>
+
+          <button
+            className="staff-cancel-confirm-button"
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? "Cancelling..." : "Cancel Appointment"}
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
+function StaffRescheduleAppointmentDialog({
+  appointment,
+  form,
+  error,
+  busy,
+  onChange,
+  onClose,
+  onSave,
+}) {
+  if (!appointment) return null;
+
+  return createPortal(
+    <div
+      className="staff-reschedule-appointment-overlay"
+      role="presentation"
+      onClick={() => {
+        if (!busy) onClose();
+      }}
+    >
+      <section
+        className="staff-reschedule-appointment-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="staff-reschedule-appointment-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          className="staff-reschedule-appointment-close"
+          type="button"
+          aria-label="Close reschedule appointment dialog"
+          onClick={onClose}
+          disabled={busy}
+        >
+          <Icon icon="solar:close-circle-linear" />
+        </button>
+
+        <div className="staff-reschedule-appointment-heading">
+          <span className="staff-reschedule-appointment-icon" aria-hidden="true">
+            <Icon icon="solar:calendar-mark-bold" />
+          </span>
+          <div>
+            <h2 id="staff-reschedule-appointment-title">
+              Reschedule Appointment
+            </h2>
+            <p>Choose a new date and time for this appointment.</p>
+          </div>
+        </div>
+
+        <div className="staff-reschedule-current-schedule">
+          <span>Current Schedule</span>
+          <strong>
+            {formatLongDate(appointment.startTime)} • {appointment.time}
+          </strong>
+        </div>
+
+        <form onSubmit={onSave}>
+          <label className="staff-reschedule-field">
+            <span>Select Date:</span>
+            <input
+              type="date"
+              value={form.date}
+              onChange={(event) => onChange("date", event.target.value)}
+              required
+              disabled={busy}
+            />
+          </label>
+
+          <div className="staff-reschedule-field">
+            <span id="staff-reschedule-time-label">Select Time:</span>
+            <AppointmentTimePicker
+              id="staff-reschedule-time"
+              labelId="staff-reschedule-time-label"
+              value={form.time}
+              onChange={(value) => onChange("time", value)}
+              required
+            />
+          </div>
+
+          <label className="staff-reschedule-field is-full">
+            <span>Reason / Message</span>
+            <textarea
+              rows="3"
+              placeholder="Optional reason for rescheduling..."
+              value={form.message}
+              onChange={(event) => onChange("message", event.target.value)}
+              disabled={busy}
+            />
+          </label>
+
+          {error ? (
+            <p className="staff-appointment-modal-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="staff-reschedule-appointment-actions">
+            <button
+              className="staff-reschedule-save-button"
+              type="submit"
+              disabled={busy}
+            >
+              {busy ? "Saving..." : "Save New Schedule"}
+            </button>
+
+            <button
+              className="staff-reschedule-back-button"
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+            >
+              Back
+            </button>
+          </div>
+        </form>
       </section>
     </div>,
     document.body
@@ -1224,16 +1554,48 @@ function StaffAppointmentsContent({ headerAction }) {
   const [openStatusMenu, setOpenStatusMenu] = useState(null);
   const [statusMenuPosition, setStatusMenuPosition] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [noShowConfirmationAppointment, setNoShowConfirmationAppointment] = useState(null);
+  const [isMarkingNoShow, setIsMarkingNoShow] = useState(false);
+  const [cancelConfirmationAppointment, setCancelConfirmationAppointment] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReasonError, setCancelReasonError] = useState("");
+  const [isCancellingAppointment, setIsCancellingAppointment] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState(null);
+  const [rescheduleForm, setRescheduleForm] = useState(initialStaffRescheduleForm);
+  const [rescheduleError, setRescheduleError] = useState("");
+  const [isReschedulingAppointment, setIsReschedulingAppointment] = useState(false);
   const [failedReminderAppointmentId, setFailedReminderAppointmentId] = useState("");
   const [isRetryingReminder, setIsRetryingReminder] = useState(false);
   const [visitRoutingAppointmentId, setVisitRoutingAppointmentId] = useState("");
   const statusButtonRefs = useRef({});
+  const statusMenuRef = useRef(null);
   const appointmentSaveLockRef = useRef(false);
   const appointmentStatusLockRef = useRef(new Set());
+  const rescheduleSaveLockRef = useRef(false);
   const visitRoutingLockRef = useRef("");
   const completedHistoryTargetAppliedRef = useRef(
     dashboardCompletedHistoryTarget
   );
+
+  useEffect(() => {
+    if (
+      typeof document === "undefined" ||
+      (!cancelConfirmationAppointment && !rescheduleAppointment)
+    ) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [cancelConfirmationAppointment, rescheduleAppointment]);
 
   useEffect(() => {
     if (isVisitFormRoute || dashboardAppointmentTarget) {
@@ -1387,23 +1749,15 @@ function StaffAppointmentsContent({ headerAction }) {
     }
 
     const rect = trigger.getBoundingClientRect();
-    const menuWidth = 122;
-    const estimatedMenuHeight = 132;
-    const viewportGap = 10;
-
-    let left = rect.right - menuWidth;
-    left = Math.max(viewportGap, left);
-    left = Math.min(left, window.innerWidth - menuWidth - viewportGap);
-
-    let top = rect.bottom + 8;
-
-    if (top + estimatedMenuHeight > window.innerHeight - viewportGap) {
-      top = rect.top - estimatedMenuHeight - 8;
-    }
-
-    top = Math.max(viewportGap, top);
-
-    setStatusMenuPosition({ top, left });
+    const renderedMenuRect = statusMenuRef.current?.getBoundingClientRect();
+    setStatusMenuPosition(
+      getAppointmentStatusPopoverPosition({
+        triggerRect: rect,
+        menuRect: renderedMenuRect,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      })
+    );
   }, []);
 
   useEffect(() => {
@@ -1642,7 +1996,7 @@ function StaffAppointmentsContent({ headerAction }) {
     const closeStatusMenu = (event) => {
       if (
         event.target.closest?.(".staff-status-dropdown") ||
-        event.target.closest?.(".staff-status-portal-menu")
+        event.target.closest?.(".appointment-status-popover")
       ) {
         return;
       }
@@ -1776,7 +2130,7 @@ function StaffAppointmentsContent({ headerAction }) {
           summary.checkedIn += 1;
         }
 
-        if (isCancelledOrNoShowStatus(appointment.status)) {
+        if (isCancelledStatus(appointment.status)) {
           summary.cancelled += 1;
         }
 
@@ -1801,6 +2155,24 @@ function StaffAppointmentsContent({ headerAction }) {
 
     return appointments.find((appointment) => appointment.id === openStatusMenu) || null;
   }, [appointments, openStatusMenu]);
+
+  const activeStatusActions = useMemo(() => {
+    if (!activeStatusAppointment) return [];
+
+    if (activeStatusAppointment.status === "Pending") {
+      return pendingStatusActions.filter(
+        (action) =>
+          action.value !== "No show" ||
+          isAppointmentNoShowEligible(activeStatusAppointment)
+      );
+    }
+
+    if (isCheckedInStatus(activeStatusAppointment.status)) {
+      return checkedInActions;
+    }
+
+    return [];
+  }, [activeStatusAppointment]);
 
   const fullCalendarEvents = useMemo(() => {
     return scheduleEvents.map((event) => ({
@@ -1973,6 +2345,12 @@ function StaffAppointmentsContent({ headerAction }) {
 
         await loadAppointments();
         return { savedSchedule: data, notificationResult };
+      } catch (error) {
+        console.error("Staff appointment status update failed unexpectedly:", error);
+        setStatusMessage(
+          `Unable to update status: ${error?.message || "Please try again."}`
+        );
+        return false;
       } finally {
         appointmentStatusLockRef.current.delete(mutationKey);
       }
@@ -1980,20 +2358,61 @@ function StaffAppointmentsContent({ headerAction }) {
     [loadAppointments]
   );
 
-  const cancelAppointment = useCallback(
-    async (appointment) => {
-      const reason = window.prompt("Enter the cancellation reason:");
-      const trimmedReason = reason?.trim();
+  const cancelAppointment = useCallback((appointment) => {
+    if (!appointment?.id) return;
 
-      if (!trimmedReason) {
-        setOpenStatusMenu(null);
-        return;
-      }
+    if (appointment.status !== "Pending") {
+      setOpenStatusMenu(null);
+      setStatusMessage("Only pending appointments can be cancelled.");
+      return;
+    }
 
-      const description = stringifyScheduleDescription(appointment.description, {
-        cancellationReason: trimmedReason,
-        remindersDisabled: true,
-      });
+    setOpenStatusMenu(null);
+    setDetailAppointment(null);
+    setStatusMessage("");
+    setCancelReason("");
+    setCancelReasonError("");
+    setCancelConfirmationAppointment(appointment);
+  }, []);
+
+  const closeCancelAppointment = useCallback(() => {
+    if (isCancellingAppointment) return;
+
+    setCancelConfirmationAppointment(null);
+    setCancelReason("");
+    setCancelReasonError("");
+  }, [isCancellingAppointment]);
+
+  const confirmCancelAppointment = useCallback(async () => {
+    const appointment = cancelConfirmationAppointment;
+    if (!appointment || isCancellingAppointment) return;
+
+    if (appointment.status !== "Pending") {
+      setCancelConfirmationAppointment(null);
+      setCancelReason("");
+      setCancelReasonError("");
+      setStatusMessage("Only pending appointments can be cancelled.");
+      return;
+    }
+
+    const trimmedReason = cancelReason.trim();
+
+    if (!trimmedReason) {
+      setCancelReasonError("Please provide a cancellation reason.");
+      return;
+    }
+
+    setCancelReasonError("");
+    setIsCancellingAppointment(true);
+
+    try {
+      const description = buildStaffScheduleDescription(
+        appointment.description,
+        {
+          cancellationReason: trimmedReason,
+          remindersDisabled: true,
+        }
+      );
 
       const saved = await updateAppointmentStatus(
         appointment,
@@ -2002,22 +2421,219 @@ function StaffAppointmentsContent({ headerAction }) {
         { notificationType: "appointment_cancelled" }
       );
 
-      if (saved) {
-        await disableAppointmentReminders(appointment.id);
-        setDetailAppointment(null);
-        setStatusMessage(
-          saved.notificationResult?.ok
-            ? "Appointment cancelled and Patient notified."
-            : "Appointment was saved, but the Patient notification could not be sent."
+      if (!saved) {
+        setCancelReasonError(
+          "Unable to cancel the appointment. Please try again."
         );
+        return;
       }
 
-      setOpenStatusMenu(null);
+      await disableAppointmentReminders(appointment.id);
+
+      setCancelConfirmationAppointment(null);
+      setCancelReason("");
+      setCancelReasonError("");
+      setDetailAppointment(null);
+      setCurrentPage(1);
+      setStatusMessage(
+        getAutomaticNotificationStatusMessage(saved.notificationResult, {
+          sentMessage: "Appointment cancelled and Patient notified.",
+          skippedMessage:
+            "Appointment cancelled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
+          failedMessage:
+            "Appointment cancelled successfully, but the Patient notification could not be sent.",
+        })
+      );
+    } finally {
+      setIsCancellingAppointment(false);
+    }
+  }, [
+    cancelConfirmationAppointment,
+    cancelReason,
+    disableAppointmentReminders,
+    isCancellingAppointment,
+    updateAppointmentStatus,
+  ]);
+
+  const startRescheduleAppointment = useCallback(() => {
+    const appointment = cancelConfirmationAppointment;
+    if (!appointment || isCancellingAppointment) return;
+
+    setRescheduleAppointment(appointment);
+    setRescheduleForm({
+      date: formatInputDate(appointment.startTime),
+      time: formatInputTime(appointment.startTime),
+      message: getScheduleHumanMessage(appointment.description),
+    });
+    setRescheduleError("");
+    setCancelConfirmationAppointment(null);
+    setCancelReason("");
+    setCancelReasonError("");
+  }, [cancelConfirmationAppointment, isCancellingAppointment]);
+
+  const closeRescheduleAppointment = useCallback(() => {
+    if (isReschedulingAppointment) return;
+
+    setRescheduleAppointment(null);
+    setRescheduleForm(initialStaffRescheduleForm);
+    setRescheduleError("");
+  }, [isReschedulingAppointment]);
+
+  const updateRescheduleForm = useCallback((field, value) => {
+    setRescheduleForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setRescheduleError("");
+  }, []);
+
+  const saveRescheduleAppointment = useCallback(
+    async (event) => {
+      event.preventDefault();
+
+      const appointment = rescheduleAppointment;
+      if (
+        !appointment ||
+        isReschedulingAppointment ||
+        rescheduleSaveLockRef.current
+      ) {
+        return;
+      }
+
+      if (appointment.status !== "Pending") {
+        setRescheduleAppointment(null);
+        setRescheduleForm(initialStaffRescheduleForm);
+        setRescheduleError("");
+        setStatusMessage("Only pending appointments can be rescheduled.");
+        return;
+      }
+
+      const appointmentRange = buildThirtyMinuteAppointmentRange(
+        rescheduleForm.date,
+        rescheduleForm.time
+      );
+
+      if (!appointmentRange) {
+        setRescheduleError("Choose a valid reschedule date and time.");
+        return;
+      }
+
+      const { startDate, endDate } = appointmentRange;
+
+      if (startDate < new Date()) {
+        setRescheduleError(
+          "Rescheduled appointments cannot start in the past."
+        );
+        return;
+      }
+
+      const startTime = startDate.toISOString();
+      const endTime = endDate.toISOString();
+
+      if (
+        hasAppointmentConflict(appointments, {
+          id: appointment.id,
+          start: startTime,
+          end: endTime,
+        })
+      ) {
+        setRescheduleError(
+          "This appointment conflicts with another active appointment."
+        );
+        return;
+      }
+
+      const description = buildStaffScheduleDescription(
+        appointment.description,
+        {
+          message: rescheduleForm.message,
+          cancellationReason: "",
+          remindersDisabled: false,
+        }
+      );
+
+      rescheduleSaveLockRef.current = true;
+      setIsReschedulingAppointment(true);
+      setRescheduleError("");
+
+      try {
+        const { data: savedSchedule, error } = await supabase
+          .from(scheduleTableName)
+          .update({
+            start_time: startTime,
+            end_time: endTime,
+            description,
+            status: "scheduled",
+          })
+          .eq("id", appointment.id)
+          .select(scheduleColumns)
+          .single();
+
+        if (error) {
+          console.error("Staff appointment reschedule failed:", error);
+          setRescheduleError(
+            `Unable to reschedule appointment: ${error.message}`
+          );
+          return;
+        }
+
+        const notificationResult =
+          await sendAutomaticAppointmentNotification({
+            patientId: savedSchedule.patient_id,
+            scheduleId: savedSchedule.id,
+            notificationType: "appointment_rescheduled",
+          });
+
+        const reminderResult = await saveAppointmentReminder(savedSchedule);
+
+        const notificationMessage =
+          getAutomaticNotificationStatusMessage(notificationResult, {
+            sentMessage: "Appointment rescheduled and Patient notified.",
+            skippedMessage:
+              "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
+            failedMessage:
+              "Appointment rescheduled successfully, but the Patient notification could not be sent.",
+          });
+
+        const nextDate = new Date(startTime);
+        setCalendarDate(nextDate);
+        setMiniMonthDate(
+          new Date(nextDate.getFullYear(), nextDate.getMonth(), 1)
+        );
+        await loadAppointments();
+
+        setRescheduleAppointment(null);
+        setRescheduleForm(initialStaffRescheduleForm);
+        setRescheduleError("");
+        setFailedReminderAppointmentId(
+          reminderResult.ok ? "" : savedSchedule.id
+        );
+
+        setStatusMessage(
+          reminderResult.ok
+            ? notificationMessage
+            : `${notificationMessage} Patient reminder could not be created. ${getAppointmentReminderErrorMessage(
+                reminderResult.error
+              )}`
+        );
+      } finally {
+        rescheduleSaveLockRef.current = false;
+        setIsReschedulingAppointment(false);
+      }
     },
-    [disableAppointmentReminders, updateAppointmentStatus]
+    [
+      appointments,
+      isReschedulingAppointment,
+      loadAppointments,
+      rescheduleAppointment,
+      rescheduleForm.date,
+      rescheduleForm.message,
+      rescheduleForm.time,
+      saveAppointmentReminder,
+    ]
   );
 
-  const checkInAndOpenVisitForm = useCallback(
+  const openVisitForm = useCallback(
     async (appointment) => {
       if (!appointment?.id || visitRoutingLockRef.current) return;
 
@@ -2028,13 +2644,6 @@ function StaffAppointmentsContent({ headerAction }) {
       setStatusMessage("");
 
       try {
-        const isAlreadyCheckedIn = isCheckedInStatus(appointment.status);
-        const saved = isAlreadyCheckedIn
-          ? true
-          : await updateAppointmentStatus(appointment, "Checked in");
-
-        if (!saved) return;
-
         const { data, error } = await supabase.rpc(
           "get_appointment_visit_form_type",
           { p_appointment_id: appointment.id }
@@ -2043,7 +2652,7 @@ function StaffAppointmentsContent({ headerAction }) {
         if (error) {
           logAppointmentReminderError("visit-routing RPC failed", error);
           setStatusMessage(
-            `Appointment checked in, but the visit form could not be opened. ${getAppointmentReminderErrorMessage(error)}`
+            `The visit form could not be opened. ${getAppointmentReminderErrorMessage(error)}`
           );
           return;
         }
@@ -2051,7 +2660,7 @@ function StaffAppointmentsContent({ headerAction }) {
         const routeResult = Array.isArray(data) ? data[0] : data;
         if (!routeResult?.visit_form_type) {
           setStatusMessage(
-            "Appointment checked in, but the visit-routing RPC returned no form type. Retry Check in."
+            "The visit-routing RPC returned no form type. Retry Open Visit Form."
           );
           return;
         }
@@ -2065,8 +2674,58 @@ function StaffAppointmentsContent({ headerAction }) {
         setVisitRoutingAppointmentId("");
       }
     },
-    [navigate, updateAppointmentStatus]
+    [navigate]
   );
+
+  const checkInAndOpenVisitForm = useCallback(
+    async (appointment) => {
+      if (!appointment?.id) return;
+
+      if (isCheckedInStatus(appointment.status)) {
+        await openVisitForm(appointment);
+        return;
+      }
+
+      const saved = await updateAppointmentStatus(appointment, "Checked in");
+      if (saved) {
+        await openVisitForm({ ...appointment, status: "Checked in" });
+      }
+    },
+    [openVisitForm, updateAppointmentStatus]
+  );
+
+  const confirmNoShow = async () => {
+    const appointment = noShowConfirmationAppointment;
+    if (!appointment || isMarkingNoShow) return;
+
+    if (appointment.status !== "Pending") {
+      setNoShowConfirmationAppointment(null);
+      setStatusMessage("Only pending appointments can be marked as No Show.");
+      return;
+    }
+
+    if (!isAppointmentNoShowEligible(appointment)) {
+      setNoShowConfirmationAppointment(null);
+      setStatusMessage(
+        "This appointment cannot be marked as No Show before its scheduled time."
+      );
+      return;
+    }
+
+    setIsMarkingNoShow(true);
+
+    try {
+      const saved = await updateAppointmentStatus(appointment, "No show");
+
+      if (saved) {
+        setNoShowConfirmationAppointment(null);
+        setCurrentPage(1);
+        setStatusMessage("Appointment marked as No Show.");
+      }
+    } finally {
+      setIsMarkingNoShow(false);
+    }
+  };
 
   const handleStatusChange = async (appointmentId, newStatus) => {
     const currentAppointment = appointments.find(
@@ -2080,7 +2739,15 @@ function StaffAppointmentsContent({ headerAction }) {
 
     if (isClosedStatus(currentAppointment.status)) {
       setOpenStatusMenu(null);
-      setStatusMessage("Completed or cancelled appointments cannot be changed.");
+      setStatusMessage("Completed, cancelled, or No Show appointments cannot be changed.");
+      return;
+    }
+
+    if (currentAppointment.status !== "Pending") {
+      setOpenStatusMenu(null);
+      setStatusMessage(
+        "Checked-in appointments can only open their visit form from this menu."
+      );
       return;
     }
 
@@ -2094,8 +2761,23 @@ function StaffAppointmentsContent({ headerAction }) {
       return;
     }
 
-    if (newStatus === "Completed") {
-      await checkInAndOpenVisitForm(currentAppointment);
+    if (newStatus === "No show") {
+      setOpenStatusMenu(null);
+
+      if (currentAppointment.status !== "Pending") {
+        setStatusMessage("Only pending appointments can be marked as No Show.");
+        return;
+      }
+
+      if (!isAppointmentNoShowEligible(currentAppointment)) {
+        setStatusMessage(
+          "This appointment cannot be marked as No Show before its scheduled time."
+        );
+        return;
+      }
+
+      setStatusMessage("");
+      setNoShowConfirmationAppointment(currentAppointment);
       return;
     }
 
@@ -2346,28 +3028,32 @@ function StaffAppointmentsContent({ headerAction }) {
     setEditingAppointmentId("");
     setAddAppointmentForm(createBlankAppointmentForm(doctors[0] || null));
     await loadAppointments();
-    if (!notificationResult.ok) {
-      setFailedReminderAppointmentId(reminderResult.ok ? "" : savedSchedule?.id || "");
-      setStatusMessage(
-        "Appointment was saved, but the Patient notification could not be sent."
-      );
-    } else if (reminderResult.ok) {
-      setFailedReminderAppointmentId("");
-      setStatusMessage(
-        wasEditing
+
+    const notificationMessage = getAutomaticNotificationStatusMessage(
+      notificationResult,
+      {
+        sentMessage: wasEditing
           ? "Appointment rescheduled and Patient notified."
-          : "Appointment created and Patient notified."
-      );
-    } else {
-      setFailedReminderAppointmentId(savedSchedule?.id || "");
-      setStatusMessage(
-        `${
-          wasEditing
-            ? "Appointment rescheduled and Patient notified"
-            : "Appointment created and Patient notified"
-        }, but the Patient reminder could not be created. ${getAppointmentReminderErrorMessage(reminderResult.error)}`
-      );
-    }
+          : "Appointment created and Patient notified.",
+        skippedMessage: wasEditing
+          ? "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent."
+          : "Appointment created successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
+        failedMessage: wasEditing
+          ? "Appointment rescheduled successfully, but the Patient notification could not be sent."
+          : "Appointment was saved, but the Patient notification could not be sent.",
+      }
+    );
+
+    setFailedReminderAppointmentId(
+      reminderResult.ok ? "" : savedSchedule?.id || ""
+    );
+    setStatusMessage(
+      reminderResult.ok
+        ? notificationMessage
+        : `${notificationMessage} Patient reminder could not be created. ${getAppointmentReminderErrorMessage(
+            reminderResult.error
+          )}`
+    );
     } finally {
       appointmentSaveLockRef.current = false;
       setIsSavingAppointment(false);
@@ -2789,12 +3475,13 @@ function StaffAppointmentsContent({ headerAction }) {
                           "appointment-ui-status",
                           getStatusClass(appointment.status),
                         ].join(" ")}
+                        disabled={isClosedStatus(appointment.status)}
                         onClick={(event) => {
                           event.stopPropagation();
 
                           if (isClosedStatus(appointment.status)) {
                             setStatusMessage(
-                              "Completed or cancelled appointments cannot be changed."
+                              "Completed, cancelled, or No Show appointments cannot be changed."
                             );
                             return;
                           }
@@ -2812,11 +3499,18 @@ function StaffAppointmentsContent({ headerAction }) {
                             return nextStatusMenu;
                           });
                         }}
-                        aria-haspopup="listbox"
+                        aria-haspopup="menu"
                         aria-expanded={openStatusMenu === appointment.id}
                       >
                         <span>{classifyAppointment(appointment).displayStatus}</span>
-                        <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
+                        <Icon
+                          icon={
+                            isClosedStatus(appointment.status)
+                              ? "solar:check-circle-bold"
+                              : "solar:alt-arrow-down-linear"
+                          }
+                          aria-hidden="true"
+                        />
                       </button>
                     </div>
                   </td>
@@ -2955,35 +3649,27 @@ function StaffAppointmentsContent({ headerAction }) {
       {openStatusMenu && activeStatusAppointment && statusMenuPosition &&
       typeof document !== "undefined"
         ? createPortal(
-            <div
-              className="staff-status-portal-menu"
-              role="listbox"
-              style={{
-                top: `${statusMenuPosition.top}px`,
-                left: `${statusMenuPosition.left}px`,
+            <AppointmentStatusPopover
+              ariaLabel={`Actions for ${activeStatusAppointment.status} appointment`}
+              actions={activeStatusActions}
+              busy={
+                visitRoutingAppointmentId === activeStatusAppointment.id ||
+                isMarkingNoShow
+              }
+              currentLabel={activeStatusAppointment.status}
+              currentTone={getStatusClass(activeStatusAppointment.status).replace("is-", "")}
+              menuRef={statusMenuRef}
+              position={statusMenuPosition}
+              onAction={(action) => {
+                if (action.value === "open_form") {
+                  setOpenStatusMenu(null);
+                  openVisitForm(activeStatusAppointment);
+                  return;
+                }
+
+                handleStatusChange(activeStatusAppointment.id, action.value);
               }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {statusOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="option"
-                  aria-selected={activeStatusAppointment.status === option.value}
-                  className={[
-                    "staff-status-option",
-                    option.className,
-                    activeStatusAppointment.status === option.value ? "is-selected" : "",
-                  ].join(" ")}
-                  onClick={() =>
-                    handleStatusChange(activeStatusAppointment.id, option.value)
-                  }
-                  disabled={visitRoutingAppointmentId === activeStatusAppointment.id}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>,
+            />,
             document.body
           )
         : null}
@@ -3018,6 +3704,37 @@ function StaffAppointmentsContent({ headerAction }) {
           onComplete={checkInAndOpenVisitForm}
         />
       ) : null}
+
+      <StaffCancelAppointmentDialog
+        appointment={cancelConfirmationAppointment}
+        reason={cancelReason}
+        error={cancelReasonError}
+        busy={isCancellingAppointment}
+        onReasonChange={(value) => {
+          setCancelReason(value);
+          if (cancelReasonError) setCancelReasonError("");
+        }}
+        onClose={closeCancelAppointment}
+        onConfirm={confirmCancelAppointment}
+        onReschedule={startRescheduleAppointment}
+      />
+
+      <StaffRescheduleAppointmentDialog
+        appointment={rescheduleAppointment}
+        form={rescheduleForm}
+        error={rescheduleError}
+        busy={isReschedulingAppointment}
+        onChange={updateRescheduleForm}
+        onClose={closeRescheduleAppointment}
+        onSave={saveRescheduleAppointment}
+      />
+
+      <AppointmentNoShowDialog
+        open={Boolean(noShowConfirmationAppointment)}
+        busy={isMarkingNoShow}
+        onCancel={() => setNoShowConfirmationAppointment(null)}
+        onConfirm={confirmNoShow}
+      />
     </section>
   );
 }

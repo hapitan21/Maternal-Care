@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
-import { QRCodeCanvas } from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { buildPatientAccessUrl } from "../../lib/patientAccessUrl";
 import {
@@ -1220,11 +1220,12 @@ function CredentialsPanel({ credentials }) {
         <small>QR Code</small>
         {accessUrl ? (
           <div>
-            <QRCodeCanvas
+            <QRCodeSVG
               value={accessUrl}
               size={188}
               level="H"
               includeMargin
+              title={`Patient activation QR code for ${credentials.patientId}`}
             />
           </div>
         ) : (
@@ -2277,14 +2278,9 @@ function StaffPatientsContent({ headerAction }) {
 
     if (error) {
       console.warn("Patient login credential reservation failed:", error);
-
-      if (!isPatientLoginPolicyError(error)) {
-        setStatusMessage(
-          `QR credential is not yet saved in patient_login: ${error.message}`
-        );
-      }
-
-      return credentials;
+      throw new Error(
+        `Patient activation credential could not be reserved: ${error.message}`
+      );
     }
 
     const savedCredentials = toCredentialEntry(data || credentials);
@@ -2737,6 +2733,14 @@ function StaffPatientsContent({ headerAction }) {
         );
       }
 
+      workingCredentials = toCredentialEntry(savedPatient);
+
+      if (!workingCredentials.patientId || !workingCredentials.controlNumber) {
+        throw new Error(
+          "The saved Patient record did not return activation credentials."
+        );
+      }
+
       setAccessCredentials(workingCredentials);
 
       const {
@@ -2880,6 +2884,11 @@ function StaffPatientsContent({ headerAction }) {
         message = "Birthdate cannot be in the future.";
       } else if (!form.contactNumber.trim()) {
         message = "Patient contact number is required.";
+      } else if (
+        form.email.trim() &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+      ) {
+        message = "Enter a valid Patient email address.";
       }
     }
 
@@ -3268,6 +3277,7 @@ function StaffPatientsContent({ headerAction }) {
             />
             <InputField
               label="Email Address"
+              type="email"
               value={form.email}
               onChange={(value) => updateForm("email", value)}
               className="is-half"
@@ -3788,6 +3798,7 @@ function StaffPatientsContent({ headerAction }) {
             <div><dt>Birthdate</dt><dd>{form.birthdate}</dd></div>
             <div><dt>Age</dt><dd>{form.age}</dd></div>
             <div><dt>Contact</dt><dd>{form.contactNumber}</dd></div>
+            <div><dt>Email</dt><dd>{form.email || "Not provided"}</dd></div>
             <div><dt>Address</dt><dd>{form.address}</dd></div>
           </dl>
           <button type="button" onClick={() => moveToRegistrationStep(1)}>Edit Basic Information</button>
@@ -3842,7 +3853,19 @@ function StaffPatientsContent({ headerAction }) {
 
         <div className="staff-access-confirmation-layout">
           <div className="staff-access-confirmation-qr">
-            <QRCodeCanvas value={accessUrl} size={224} level="H" includeMargin />
+            {accessUrl ? (
+              <QRCodeSVG
+                value={accessUrl}
+                size={256}
+                level="H"
+                includeMargin
+                title={`Patient activation QR code for ${accessCredentials.patientId}`}
+              />
+            ) : (
+              <p className="staff-qr-error" role="alert">
+                QR code unavailable. Ask the system administrator to configure a mobile-accessible Patient app URL.
+              </p>
+            )}
             <strong>{form.name}</strong>
             <span>{accessCredentials.patientId}</span>
           </div>
@@ -3863,12 +3886,12 @@ function StaffPatientsContent({ headerAction }) {
             </section>
             <section className="is-link">
               <span>Patient Access Link</span>
-              <a href={accessUrl} target="_blank" rel="noreferrer">{accessUrl}</a>
-              <button type="button" onClick={() => copyRegistrationValue("Access link", accessUrl)}>
+              {accessUrl ? <a href={accessUrl} target="_blank" rel="noreferrer">{accessUrl}</a> : <em>Mobile access URL is not configured.</em>}
+              <button type="button" disabled={!accessUrl} onClick={() => copyRegistrationValue("Access link", accessUrl)}>
                 <Icon icon="solar:copy-linear" aria-hidden="true" /> Copy Access Link
               </button>
             </section>
-            <button type="button" className="staff-print-access-btn" onClick={() => window.print()}>
+            <button type="button" className="staff-print-access-btn" onClick={() => window.print()} disabled={!accessUrl}>
               <Icon icon="solar:printer-linear" aria-hidden="true" /> Print Access Slip
             </button>
             {copyMessage ? <p className="staff-access-copy-message" role="status">{copyMessage}</p> : null}
@@ -3881,7 +3904,7 @@ function StaffPatientsContent({ headerAction }) {
         </div>
 
         <label className="staff-access-receipt-check">
-          <input type="checkbox" checked={qrReceiptConfirmed} onChange={(event) => setQrReceiptConfirmed(event.target.checked)} />
+          <input type="checkbox" checked={qrReceiptConfirmed} disabled={!accessUrl} onChange={(event) => setQrReceiptConfirmed(event.target.checked)} />
           <span>I confirm that the Patient received or scanned the QR code and received the one-time control number.</span>
         </label>
 

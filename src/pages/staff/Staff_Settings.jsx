@@ -1,8 +1,15 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import PasswordSecurityFeedback from "../../components/common/PasswordSecurityFeedback";
 import "../../styles/doctor-settings.css";
 import "../../styles/staff-settings.css";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  getPasswordValidationMessage,
+  PASSWORD_MIN_LENGTH,
+  passwordsMatch,
+  validatePassword,
+} from "../../lib/passwordSecurity";
 import {
   cacheStaffSettings,
   getStaffSettings,
@@ -229,17 +236,6 @@ function normalizeEmail(value) {
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
-}
-
-function isStrongPassword(value) {
-  const password = String(value ?? "");
-
-  return (
-    password.length >= 8 &&
-    /[A-Za-z]/.test(password) &&
-    /\d/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
-  );
 }
 
 function normalizeOtp(value) {
@@ -711,6 +707,8 @@ function StaffSettingsContent({ headerAction }) {
     newPassword: false,
     confirmPassword: false,
   });
+  const [confirmPasswordInteracted, setConfirmPasswordInteracted] =
+    React.useState(false);
 
   const [isLoadingSettings, setIsLoadingSettings] =
     React.useState(
@@ -725,6 +723,16 @@ function StaffSettingsContent({ headerAction }) {
 
   const [settingsError, setSettingsError] =
     React.useState("");
+
+  const passwordResult = validatePassword(passwordForm.newPassword);
+  const passwordMatch = passwordsMatch(
+    passwordForm.newPassword,
+    passwordForm.confirmPassword
+  );
+  const passwordFormValid =
+    Boolean(passwordForm.currentPassword) &&
+    passwordResult.valid &&
+    passwordMatch;
 
   const [changeEmail, setChangeEmail] =
     React.useState(CHANGE_EMAIL_INITIAL_STATE);
@@ -1589,8 +1597,6 @@ function StaffSettingsContent({ headerAction }) {
       const currentPassword =
         passwordForm.currentPassword;
       const newPassword = passwordForm.newPassword;
-      const confirmPassword =
-        passwordForm.confirmPassword;
 
       if (!currentPassword) {
         throw new Error("Enter your current password.");
@@ -1606,13 +1612,11 @@ function StaffSettingsContent({ headerAction }) {
         throw new Error("Enter a new password.");
       }
 
-      if (!isStrongPassword(newPassword)) {
-        throw new Error(
-          "Password must be at least 8 characters and include letters, numbers, and symbols."
-        );
+      if (!passwordResult.valid) {
+        throw new Error(getPasswordValidationMessage(newPassword));
       }
 
-      if (newPassword !== confirmPassword) {
+      if (!passwordMatch) {
         throw new Error(
           "The new password and confirmation do not match."
         );
@@ -1760,9 +1764,9 @@ function StaffSettingsContent({ headerAction }) {
         );
       }
 
-      if (!isStrongPassword(changePasswordOtp.pendingNewPassword)) {
+      if (!validatePassword(changePasswordOtp.pendingNewPassword).valid) {
         throw new Error(
-          "Password must be at least 8 characters and include letters, numbers, and symbols."
+          getPasswordValidationMessage(changePasswordOtp.pendingNewPassword)
         );
       }
 
@@ -1802,6 +1806,7 @@ function StaffSettingsContent({ headerAction }) {
         newPassword: "",
         confirmPassword: "",
       });
+      setConfirmPasswordInteracted(false);
 
       setChangePasswordOtp((current) => ({
         ...current,
@@ -2357,15 +2362,29 @@ function StaffSettingsContent({ headerAction }) {
                           }
                           value={passwordForm[field]}
                           placeholder={placeholder}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            if (field === "confirmPassword") {
+                              setConfirmPasswordInteracted(true);
+                            }
                             setPasswordForm(
                               (current) => ({
                                 ...current,
-                                [field]:
-                                  event.target.value,
+                                [field]: event.target.value,
                               })
-                            )
+                            );
+                          }}
+                          onBlur={() => {
+                            if (field === "confirmPassword") {
+                              setConfirmPasswordInteracted(true);
+                            }
+                          }}
+                          autoComplete={field === "currentPassword" ? "current-password" : "new-password"}
+                          minLength={
+                            field === "currentPassword"
+                              ? undefined
+                              : PASSWORD_MIN_LENGTH
                           }
+                          required
                           disabled={
                             isSavingSettings ||
                             changePasswordOtp.isOpen
@@ -2374,7 +2393,8 @@ function StaffSettingsContent({ headerAction }) {
 
                         <button
                           type="button"
-                          aria-label={`Toggle ${label.toLowerCase()} visibility`}
+                          aria-label={`${passwordVisible[field] ? "Hide" : "Show"} ${label.toLowerCase()}`}
+                          aria-pressed={passwordVisible[field]}
                           onClick={() =>
                             setPasswordVisible(
                               (current) => ({
@@ -2397,15 +2417,11 @@ function StaffSettingsContent({ headerAction }) {
                     )
                   )}
 
-                  <p className="doctor-settings-password-note">
-                    <StaffIcon name="info" />
-
-                    <span>
-                      Password must be at least 8
-                      characters with a combination of
-                      letters, numbers and symbols.
-                    </span>
-                  </p>
+                  <PasswordSecurityFeedback
+                    password={passwordForm.newPassword}
+                    confirmPassword={passwordForm.confirmPassword}
+                    confirmInteracted={confirmPasswordInteracted}
+                  />
 
                   {settingsError && (
                     <p className="staff-patients-status-message">
@@ -2423,6 +2439,7 @@ function StaffSettingsContent({ headerAction }) {
                     className="doctor-settings-save-password"
                     type="submit"
                     disabled={
+                      !passwordFormValid ||
                       isSavingSettings ||
                       changePasswordOtp.isOpen
                     }

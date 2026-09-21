@@ -4,38 +4,11 @@ function normalize(value) {
   return String(value || "").trim();
 }
 
-function readStoredDetails() {
-  if (typeof window === "undefined") return { patientId: "", controlNumber: "" };
-
-  try {
-    const stored = JSON.parse(
-      window.sessionStorage.getItem(patientPendingLinkStorageKey) || "{}"
-    );
-
-    return {
-      patientId: normalize(stored.patientId),
-      controlNumber: normalize(stored.controlNumber),
-    };
-  } catch {
-    return { patientId: "", controlNumber: "" };
-  }
-}
-
 export function resolvePatientPendingLink(searchParams) {
-  const stored = readStoredDetails();
-  const patientId = normalize(searchParams?.get("patientId")) || stored.patientId;
-  const controlNumber =
-    normalize(searchParams?.get("control")) || stored.controlNumber;
-  const details = { patientId, controlNumber };
+  const patientId = normalize(searchParams?.get("patientId"));
+  const controlNumber = normalize(searchParams?.get("control"));
 
-  if (patientId || controlNumber) {
-    window.sessionStorage.setItem(
-      patientPendingLinkStorageKey,
-      JSON.stringify(details)
-    );
-  }
-
-  return details;
+  return { patientId, controlNumber };
 }
 
 export function buildPatientPendingLinkSearch(details) {

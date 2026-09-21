@@ -1279,7 +1279,8 @@
   padding: 10px;
 }
 
-.staff-qr-block canvas {
+.staff-qr-block canvas,
+.staff-qr-block svg {
   width: 148px !important;
   height: 148px !important;
   border-radius: 8px;
@@ -2698,7 +2699,8 @@
   height: 212px;
 }
 
-.staff-register-credential-card .staff-qr-block canvas {
+.staff-register-credential-card .staff-qr-block canvas,
+.staff-register-credential-card .staff-qr-block svg {
   width: 188px !important;
   height: 188px !important;
 }
@@ -2794,9 +2796,11 @@
   background: #fff9fb;
 }
 
-.staff-access-confirmation-qr canvas {
+.staff-access-confirmation-qr canvas,
+.staff-access-confirmation-qr svg {
   max-width: 100%;
   height: auto !important;
+  shape-rendering: crispEdges;
 }
 
 .staff-access-confirmation-qr strong {

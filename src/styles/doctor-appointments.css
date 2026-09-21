@@ -1689,6 +1689,12 @@
   transform: translateY(-1px);
 }
 
+.doctor-appointment-status:disabled {
+  cursor: default;
+  opacity: 1;
+  transform: none;
+}
+
 .doctor-appointment-status-option {
   min-height: 34px;
   border: 0;
@@ -5012,24 +5018,6 @@ body:has(.appointment-modal-overlay) {
   background: var(--doctor-appointments-pink) !important;
 }
 
-.doctor-appointment-status-portal-menu {
-  position: fixed !important;
-  z-index: 50000 !important;
-  width: 132px !important;
-  display: grid !important;
-  gap: 7px !important;
-  padding: 10px !important;
-  border: 1px solid #d7dbe8 !important;
-  border-radius: 14px !important;
-  background: #ffffff !important;
-  box-shadow: 0 14px 26px rgba(21, 26, 42, 0.18) !important;
-  font-family: "Poppins", sans-serif !important;
-}
-
-.doctor-appointment-status-portal-menu .doctor-appointment-status-option {
-  width: 100% !important;
-}
-
 @media (max-width: 900px) {
   .doctor-appointments-page .doctor-appointments-table-scroll {
     max-height: 500px !important;
@@ -6846,4 +6834,843 @@ body:has(.appointment-modal-overlay) {
 .doctor-appointments-page .doctor-appointments-table-scroll::-webkit-scrollbar-thumb {
   border-radius: 999px !important;
   background: rgba(255, 47, 125, 0.55) !important;
+}
+
+/* ============================================================
+   DOCTOR CANCEL / RESCHEDULE MODALS — FINAL UX FIX
+   ============================================================ */
+
+.doctor-cancel-appointment-card,
+.doctor-appointment-reschedule-card {
+  position: relative !important;
+}
+
+.doctor-appointment-modal-close {
+  position: absolute !important;
+  top: 18px !important;
+  right: 18px !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #f7f8fb !important;
+  color: #7b8493 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease !important;
+}
+
+.doctor-appointment-modal-close:hover:not(:disabled) {
+  background: #fff0f6 !important;
+  color: #fa2f7a !important;
+  transform: translateY(-1px) !important;
+}
+
+.doctor-appointment-modal-close:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.55 !important;
+}
+
+.doctor-appointment-modal-close .doctor-appt-icon {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* Cancel Appointment */
+
+.doctor-cancel-appointment-card {
+  width: min(520px, calc(100vw - 36px)) !important;
+  max-height: calc(100vh - 40px) !important;
+  overflow-y: auto !important;
+  align-items: stretch !important;
+  padding: 38px 38px 32px !important;
+  text-align: left !important;
+}
+
+.doctor-cancel-appointment-card h2 {
+  padding-right: 42px !important;
+  text-align: left !important;
+  font-size: 29px !important;
+}
+
+.doctor-cancel-appointment-card > p {
+  max-width: none !important;
+  margin: 10px 0 20px !important;
+  text-align: left !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+
+.doctor-cancel-appointment-summary {
+  display: grid !important;
+  gap: 3px !important;
+  border: 1px solid #f3dbe5 !important;
+  border-radius: 14px !important;
+  background: #fff8fb !important;
+  margin-bottom: 20px !important;
+  padding: 14px 16px !important;
+}
+
+.doctor-cancel-appointment-summary strong {
+  color: #c21570 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.02em !important;
+}
+
+.doctor-cancel-appointment-summary span {
+  color: #273244 !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
+.doctor-cancel-appointment-summary small {
+  color: #7d8797 !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
+.doctor-cancel-reason-field {
+  display: grid !important;
+  gap: 8px !important;
+  width: 100% !important;
+  color: #273244 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.doctor-cancel-reason-field textarea,
+.doctor-appointment-reschedule-card textarea {
+  width: 100% !important;
+  min-height: 92px !important;
+  resize: vertical !important;
+  border: 1px solid #d5d9e3 !important;
+  border-radius: 11px !important;
+  outline: 0 !important;
+  background: #ffffff !important;
+  color: #293244 !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  padding: 12px 14px !important;
+  box-sizing: border-box !important;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease !important;
+}
+
+.doctor-cancel-reason-field textarea::placeholder,
+.doctor-appointment-reschedule-card textarea::placeholder {
+  color: #a1a7b2 !important;
+}
+
+.doctor-cancel-reason-field textarea:focus,
+.doctor-appointment-reschedule-card textarea:focus {
+  border-color: #fa2f7a !important;
+  box-shadow: 0 0 0 3px rgba(250, 47, 122, 0.10) !important;
+}
+
+.doctor-appointment-modal-error {
+  margin: 8px 0 0 !important;
+  color: #d92d5f !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  font-weight: 650 !important;
+  text-align: left !important;
+}
+
+.doctor-cancel-reschedule-link {
+  width: fit-content !important;
+  min-width: 0 !important;
+  min-height: 36px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #fa2f7a !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin: 12px 0 18px !important;
+  padding: 6px 4px !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 750 !important;
+}
+
+.doctor-cancel-reschedule-link:hover:not(:disabled) {
+  color: #c21570 !important;
+}
+
+.doctor-cancel-reschedule-link:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.55 !important;
+}
+
+.doctor-cancel-reschedule-link svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 12px !important;
+  margin-top: 0 !important;
+}
+
+.doctor-cancel-appointment-actions .doctor-cancel-keep-button,
+.doctor-cancel-appointment-actions .doctor-cancel-confirm-button {
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  border-radius: 10px !important;
+  font-family: "Poppins", sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  padding: 0 14px !important;
+  cursor: pointer !important;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease !important;
+}
+
+.doctor-cancel-appointment-actions .doctor-cancel-keep-button {
+  border: 1px solid #d8dce6 !important;
+  background: #ffffff !important;
+  color: #566173 !important;
+  box-shadow: none !important;
+}
+
+.doctor-cancel-appointment-actions .doctor-cancel-keep-button:hover:not(:disabled) {
+  border-color: #f1b4cb !important;
+  background: #fff8fb !important;
+  color: #c21570 !important;
+}
+
+.doctor-cancel-appointment-actions .doctor-cancel-confirm-button {
+  border: 0 !important;
+  background: #fa2f7a !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 20px rgba(250, 47, 122, 0.18) !important;
+}
+
+.doctor-cancel-appointment-actions .doctor-cancel-confirm-button:hover:not(:disabled) {
+  background: #e92770 !important;
+  transform: translateY(-1px) !important;
+}
+
+.doctor-cancel-appointment-actions button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.58 !important;
+  transform: none !important;
+}
+
+/* Reschedule Appointment */
+
+.doctor-reschedule-current-schedule {
+  display: grid !important;
+  gap: 4px !important;
+  border: 1px solid #f3dbe5 !important;
+  border-radius: 13px !important;
+  background: #fff8fb !important;
+  margin: -10px 0 22px !important;
+  padding: 12px 14px !important;
+}
+
+.doctor-reschedule-current-schedule span {
+  color: #9a6578 !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+}
+
+.doctor-reschedule-current-schedule strong {
+  color: #273244 !important;
+  font-size: 13px !important;
+  font-weight: 750 !important;
+}
+
+.doctor-appointment-reschedule-card > .doctor-appointment-modal-close {
+  top: 18px !important;
+  right: 18px !important;
+}
+
+.doctor-appointment-reschedule-card h2 {
+  padding-right: 42px !important;
+}
+
+.doctor-appointment-reschedule-card textarea {
+  min-height: 82px !important;
+}
+
+.doctor-appointment-reschedule-actions .doctor-appointment-reschedule-save {
+  width: auto !important;
+  min-width: 166px !important;
+}
+
+@media (max-width: 640px) {
+  .doctor-cancel-appointment-card {
+    width: 100% !important;
+    max-height: calc(100vh - 28px) !important;
+    border-radius: 20px !important;
+    padding: 30px 22px 24px !important;
+  }
+
+  .doctor-cancel-appointment-card h2 {
+    font-size: 24px !important;
+  }
+
+  .doctor-cancel-appointment-card > p {
+    font-size: 13px !important;
+  }
+
+  .doctor-appointment-confirm-actions.doctor-cancel-appointment-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-cancel-appointment-actions .doctor-cancel-confirm-button {
+    order: 1 !important;
+  }
+
+  .doctor-cancel-appointment-actions .doctor-cancel-keep-button {
+    order: 2 !important;
+  }
+
+  .doctor-appointment-modal-close {
+    top: 14px !important;
+    right: 14px !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+  }
+
+  .doctor-reschedule-current-schedule {
+    margin-top: -8px !important;
+  }
+
+  .doctor-appointment-reschedule-card textarea {
+    min-height: 76px !important;
+  }
+
+  .doctor-appointment-reschedule-actions .doctor-appointment-reschedule-save {
+    min-width: 150px !important;
+  }
+}
+
+
+/* ============================================================
+   DOCTOR CANCEL MODAL — BUTTON STATE / HOVER CORRECTION
+   Explicitly overrides older generic :first-child / :nth-child
+   confirmation-button rules so the two actions never swap styles.
+   ============================================================ */
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > .doctor-cancel-keep-button {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  align-self: stretch !important;
+  border: 1px solid #d8dce6 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #566173 !important;
+  box-shadow: none !important;
+  padding: 0 14px !important;
+  transform: none !important;
+  text-decoration: none !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > .doctor-cancel-keep-button:hover:not(:disabled),
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > .doctor-cancel-keep-button:focus-visible:not(:disabled) {
+  border-color: #f1b4cb !important;
+  background: #fff8fb !important;
+  color: #c21570 !important;
+  box-shadow: 0 0 0 3px rgba(250, 47, 122, 0.08) !important;
+  transform: none !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > .doctor-cancel-confirm-button {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  align-self: stretch !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #fa2f7a !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 20px rgba(250, 47, 122, 0.18) !important;
+  padding: 0 14px !important;
+  transform: none !important;
+  text-decoration: none !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > .doctor-cancel-confirm-button:hover:not(:disabled),
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > .doctor-cancel-confirm-button:focus-visible:not(:disabled) {
+  background: #e92770 !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 24px rgba(250, 47, 122, 0.24) !important;
+  transform: none !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.56 !important;
+  transform: none !important;
+}
+
+/* A saved cancellation with a failed notification is a warning,
+   not a failed cancellation. */
+.doctor-appointments-page .doctor-appointments-status-message.is-warning {
+  border-color: #f3d59a !important;
+  background: #fff9ec !important;
+  color: #8a5a00 !important;
+}
+
+/* ============================================================
+   DOCTOR CANCEL / RESCHEDULE — MATCH STAFF MODAL DESIGN
+   Mirrors Staff modal sizing, icon treatment, spacing, controls,
+   and action placement while keeping Doctor-specific class names.
+   ============================================================ */
+
+.doctor-appointment-confirm-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 5200 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 24px !important;
+  background: rgba(22, 26, 36, 0.34) !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+}
+
+.doctor-appointment-confirm-card.doctor-cancel-appointment-card,
+.doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card {
+  position: relative !important;
+  width: min(100%, 480px) !important;
+  max-width: 480px !important;
+  max-height: min(90vh, 760px) !important;
+  overflow-y: auto !important;
+  padding: 26px !important;
+  border: 1px solid #eceef4 !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  color: #202432 !important;
+  font-family: "Poppins", sans-serif !important;
+  box-shadow: 0 26px 70px rgba(30, 33, 44, 0.2) !important;
+}
+
+.doctor-appointment-modal-close.doctor-staff-match-close {
+  position: absolute !important;
+  top: 18px !important;
+  right: 18px !important;
+  width: 34px !important;
+  min-width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #f7f8fb !important;
+  color: #73798a !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: background-color 160ms ease, color 160ms ease !important;
+}
+
+.doctor-appointment-modal-close.doctor-staff-match-close:hover:not(:disabled),
+.doctor-appointment-modal-close.doctor-staff-match-close:focus-visible:not(:disabled) {
+  outline: 0 !important;
+  background: #fff0f6 !important;
+  color: #fa2f7a !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.doctor-appointment-modal-close.doctor-staff-match-close:disabled {
+  cursor: wait !important;
+  opacity: 0.55 !important;
+}
+
+.doctor-appointment-modal-close.doctor-staff-match-close svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.doctor-cancel-appointment-heading,
+.doctor-reschedule-appointment-heading {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 13px !important;
+  padding-right: 42px !important;
+  margin: 0 0 18px !important;
+}
+
+.doctor-cancel-appointment-icon,
+.doctor-reschedule-appointment-icon {
+  width: 42px !important;
+  height: 42px !important;
+  flex: 0 0 42px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 13px !important;
+}
+
+.doctor-cancel-appointment-icon {
+  background: #ffe8ec !important;
+  color: #df3d52 !important;
+}
+
+.doctor-reschedule-appointment-icon {
+  background: #fff0f6 !important;
+  color: #fa2f7a !important;
+}
+
+.doctor-cancel-appointment-icon svg,
+.doctor-reschedule-appointment-icon svg {
+  width: 21px !important;
+  height: 21px !important;
+}
+
+.doctor-cancel-appointment-heading h2,
+.doctor-reschedule-appointment-heading h2,
+.doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card h2 {
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #1f2330 !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.doctor-cancel-appointment-heading p,
+.doctor-reschedule-appointment-heading p {
+  margin: 5px 0 0 !important;
+  color: #747b8b !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+}
+
+.doctor-cancel-appointment-summary,
+.doctor-reschedule-current-schedule {
+  display: grid !important;
+  gap: 4px !important;
+  margin: 0 0 18px !important;
+  padding: 14px 15px !important;
+  border: 1px solid #ebeef5 !important;
+  border-radius: 13px !important;
+  background: #fafbfe !important;
+  box-shadow: none !important;
+}
+
+.doctor-cancel-appointment-summary strong,
+.doctor-reschedule-current-schedule strong {
+  color: #232836 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.doctor-cancel-appointment-summary span {
+  color: #414858 !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+}
+
+.doctor-cancel-appointment-summary small,
+.doctor-reschedule-current-schedule span {
+  color: #7b8292 !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.doctor-cancel-reason-field,
+.doctor-reschedule-field {
+  display: grid !important;
+  gap: 8px !important;
+  margin: 0 0 16px !important;
+  color: inherit !important;
+}
+
+.doctor-cancel-reason-field > span,
+.doctor-reschedule-field > span {
+  color: #4a5060 !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+}
+
+.doctor-cancel-reason-field textarea,
+.doctor-reschedule-field textarea,
+.doctor-reschedule-field input {
+  width: 100% !important;
+  border: 1px solid #d9dde7 !important;
+  border-radius: 11px !important;
+  background: #ffffff !important;
+  color: #242936 !important;
+  font: inherit !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  box-shadow: none !important;
+  transition: border-color 160ms ease, box-shadow 160ms ease !important;
+}
+
+.doctor-cancel-reason-field textarea,
+.doctor-reschedule-field textarea {
+  min-height: 96px !important;
+  padding: 11px 12px !important;
+  resize: vertical !important;
+}
+
+.doctor-reschedule-field input {
+  height: 43px !important;
+  min-height: 43px !important;
+  padding: 0 12px !important;
+}
+
+.doctor-cancel-reason-field textarea:focus,
+.doctor-reschedule-field textarea:focus,
+.doctor-reschedule-field input:focus {
+  outline: 0 !important;
+  border-color: rgba(250, 47, 122, 0.72) !important;
+  box-shadow: 0 0 0 4px rgba(250, 47, 122, 0.08) !important;
+}
+
+.doctor-cancel-reason-field textarea:disabled,
+.doctor-reschedule-field textarea:disabled,
+.doctor-reschedule-field input:disabled {
+  cursor: wait !important;
+  opacity: 0.65 !important;
+}
+
+.doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card form {
+  display: grid !important;
+  gap: 0 !important;
+}
+
+.doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card .appointment-time-picker {
+  width: 100% !important;
+}
+
+.doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card .appointment-time-picker button,
+.doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card .appointment-time-picker input,
+.doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card .appointment-time-picker select {
+  font-family: "Poppins", sans-serif !important;
+}
+
+.doctor-appointment-modal-error {
+  margin: -4px 0 14px !important;
+  padding: 9px 11px !important;
+  border: 1px solid #f2c9d1 !important;
+  border-radius: 9px !important;
+  background: #fff4f6 !important;
+  color: #b92d43 !important;
+  font-size: 11.5px !important;
+  font-weight: 650 !important;
+  line-height: 1.45 !important;
+}
+
+.doctor-cancel-reschedule-link {
+  width: max-content !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  margin: 0 0 18px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #fa2f7a !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  transform: none !important;
+}
+
+.doctor-cancel-reschedule-link:hover:not(:disabled),
+.doctor-cancel-reschedule-link:focus-visible:not(:disabled) {
+  outline: 0 !important;
+  background: transparent !important;
+  color: #fa2f7a !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  transform: none !important;
+}
+
+.doctor-cancel-reschedule-link svg {
+  width: 15px !important;
+  height: 15px !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions,
+.doctor-appointment-reschedule-actions.doctor-reschedule-appointment-actions {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions > button,
+.doctor-appointment-reschedule-actions.doctor-reschedule-appointment-actions > button {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 0 14px !important;
+  border-radius: 11px !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  transform: none !important;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions > .doctor-cancel-keep-button,
+.doctor-reschedule-appointment-actions > .doctor-reschedule-back-button {
+  border: 1px solid #d9dde7 !important;
+  background: #ffffff !important;
+  color: #4b5262 !important;
+  box-shadow: none !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions > .doctor-cancel-keep-button:hover:not(:disabled),
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions > .doctor-cancel-keep-button:focus-visible:not(:disabled),
+.doctor-reschedule-appointment-actions > .doctor-reschedule-back-button:hover:not(:disabled),
+.doctor-reschedule-appointment-actions > .doctor-reschedule-back-button:focus-visible:not(:disabled) {
+  outline: 0 !important;
+  border-color: rgba(250, 47, 122, 0.5) !important;
+  background: #fff8fb !important;
+  color: #fa2f7a !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions > .doctor-cancel-confirm-button,
+.doctor-reschedule-appointment-actions > .doctor-reschedule-save-button {
+  border: 1px solid #fa2f7a !important;
+  background: #fa2f7a !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(250, 47, 122, 0.18) !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions > .doctor-cancel-confirm-button:hover:not(:disabled),
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions > .doctor-cancel-confirm-button:focus-visible:not(:disabled),
+.doctor-reschedule-appointment-actions > .doctor-reschedule-save-button:hover:not(:disabled),
+.doctor-reschedule-appointment-actions > .doctor-reschedule-save-button:focus-visible:not(:disabled) {
+  outline: 0 !important;
+  border-color: #e92770 !important;
+  background: #e92770 !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 24px rgba(250, 47, 122, 0.22) !important;
+  transform: none !important;
+}
+
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions > button:disabled,
+.doctor-reschedule-appointment-actions.doctor-reschedule-appointment-actions > button:disabled {
+  cursor: wait !important;
+  opacity: 0.58 !important;
+  transform: none !important;
+}
+
+@media (max-width: 640px) {
+  .doctor-appointment-confirm-overlay {
+    padding: 14px !important;
+  }
+
+  .doctor-appointment-confirm-card.doctor-cancel-appointment-card,
+  .doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 22px 18px 18px !important;
+    border-radius: 17px !important;
+  }
+
+  .doctor-appointment-confirm-actions.doctor-cancel-appointment-actions,
+  .doctor-appointment-reschedule-actions.doctor-reschedule-appointment-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-cancel-confirm-button,
+  .doctor-reschedule-save-button {
+    order: -1 !important;
+  }
+}
+
+
+/* ============================================================
+   DOCTOR MODAL SECONDARY BUTTON — VISIBLE HOVER STATE
+   Keeps the Staff-matched design, but makes the light-pink
+   hover/focus surface clearly visible on Doctor modals.
+   ============================================================ */
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > .doctor-cancel-keep-button:hover:not(:disabled),
+.doctor-appointment-confirm-actions.doctor-cancel-appointment-actions
+  > .doctor-cancel-keep-button:focus-visible:not(:disabled),
+.doctor-reschedule-appointment-actions
+  > .doctor-reschedule-back-button:hover:not(:disabled),
+.doctor-reschedule-appointment-actions
+  > .doctor-reschedule-back-button:focus-visible:not(:disabled) {
+  outline: 0 !important;
+  border-color: #ff9fbe !important;
+  background: #fff0f6 !important;
+  color: #fa2f7a !important;
+  box-shadow: 0 0 0 3px rgba(250, 47, 122, 0.06) !important;
+  transform: none !important;
+}
+
+
+/* ============================================================
+   DOCTOR APPOINTMENT TABS — PREVENT CANCELLED / MISSED CLIPPING
+   On desktop, let the title/tabs area use all space beside the
+   profile card instead of shrinking to the shared header width.
+   ============================================================ */
+@media (min-width: 1100px) {
+  .doctor-appointments-page .doctor-appointments-title-block {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .doctor-appointments-page .doctor-appointments-tabs {
+    width: 100% !important;
+    max-width: none !important;
+    overflow-x: visible !important;
+    gap: 28px !important;
+  }
+
+  .doctor-appointments-page .doctor-appointments-tabs button {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
 }

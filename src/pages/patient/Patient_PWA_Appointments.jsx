@@ -13,6 +13,8 @@ import "../../styles/patientbookappointment.css";
 
 const scheduleColumns =
   "id, patient_id, patient_name, doctor_name, title, description, start_time, end_time, status";
+const appointmentRequestColumns =
+  "id, patient_id, doctor_name, title, start_time, end_time, status, created_at";
 
 const TIME_ROWS = Array.from({ length: 11 }, (_, index) => {
   const hour = index + 7;
@@ -183,6 +185,19 @@ function sortAppointmentsDescending(first, second) {
   return getAppointmentSortTime(second) - getAppointmentSortTime(first);
 }
 
+function isLegacyPendingBookingSchedule(row) {
+  try {
+    const details = JSON.parse(row?.description || "{}");
+    const requestStatus = String(details.requestStatus || "pending").trim().toLowerCase();
+    return (
+      (details.source === "patient-booking-request" || details.requestedByPatient === true) &&
+      requestStatus === "pending"
+    );
+  } catch {
+    return false;
+  }
+}
+
 function mapScheduleToAppointment(row) {
   const classification = classifyAppointment(row);
   return {
@@ -205,6 +220,10 @@ function getRelatedRecord(value) {
 
 function mapReminderToAppointment(row) {
   const schedule = getRelatedRecord(row.schedule);
+
+  if (isLegacyPendingBookingSchedule(schedule)) {
+    return null;
+  }
 
   if (schedule?.id && schedule?.start_time) {
     return mapScheduleToAppointment(schedule);
@@ -285,6 +304,27 @@ async function fetchPatientScheduleRows(patient) {
   return data || [];
 }
 
+async function fetchPatientBookingRequestRows(patient) {
+  if (!patient?.id) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("create_patient_appointment_request")
+    .select(appointmentRequestColumns)
+    .eq("patient_id", patient.id)
+    .in("status", ["pending", "declined"])
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  if (error) {
+    console.error("[Patient Appointment Flow] booking request fetch error:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
 async function fetchPatientAppointmentReminderRows(patient) {
   if (!patient?.id) {
     return [];
@@ -320,6 +360,7 @@ async function fetchPatientAppointmentReminderRows(patient) {
 export default function PatientPWAAppointments({ profile }) {
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
+  const [bookingRequests, setBookingRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeView, setActiveView] = useState("upcoming");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -335,16 +376,20 @@ export default function PatientPWAAppointments({ profile }) {
       setIsLoading(true);
 
       const patient = await loadAuthenticatedPatientRow();
-      const [scheduleRows, reminderRows] = await Promise.all([
+      const [scheduleRows, reminderRows, requestRows] = await Promise.all([
         fetchPatientScheduleRows(patient),
         fetchPatientAppointmentReminderRows(patient),
+        fetchPatientBookingRequestRows(patient),
       ]);
 
       if (!active) return;
 
       setIsLoading(false);
+      setBookingRequests(requestRows);
 
-      const scheduleAppointments = scheduleRows.map(mapScheduleToAppointment);
+      const scheduleAppointments = scheduleRows
+        .filter((row) => !isLegacyPendingBookingSchedule(row))
+        .map(mapScheduleToAppointment);
       const reminderAppointments = reminderRows
         .filter((row) => Boolean(patient?.id && row.patient_id === patient.id))
         .map(mapReminderToAppointment)
@@ -391,6 +436,11 @@ export default function PatientPWAAppointments({ profile }) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "reminders" },
+        loadAppointments
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "create_patient_appointment_request" },
         loadAppointments
       )
       .subscribe();
@@ -490,6 +540,49 @@ export default function PatientPWAAppointments({ profile }) {
           </button>
         )}
       />
+
+      {bookingRequests.length ? (
+        <section className="pwa-booking-requests" aria-labelledby="patient-booking-requests-title">
+          <header>
+            <div>
+              <span>Booking requests</span>
+              <h2 id="patient-booking-requests-title">Awaiting clinic review</h2>
+            </div>
+            <small>Pending requests are not confirmed appointments yet.</small>
+          </header>
+          <div className="pwa-booking-request-list">
+            {bookingRequests.map((request) => {
+              const requestStatus = String(request.status || "pending").toLowerCase();
+              const start = toDate(request.start_time);
+              const dateLabel = Number.isNaN(start.getTime())
+                ? "Date unavailable"
+                : start.toLocaleDateString("en-US", {
+                    timeZone: "Asia/Manila",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  });
+
+              return (
+                <article key={request.id} className={`pwa-booking-request is-${requestStatus}`}>
+                  <span className="pwa-booking-request-icon">
+                    <Icon icon={requestStatus === "declined" ? "solar:close-circle-linear" : "solar:hourglass-linear"} />
+                  </span>
+                  <div>
+                    <strong>{request.title || "Appointment request"}</strong>
+                    <small>
+                      {dateLabel}
+                      {!Number.isNaN(start.getTime()) ? ` at ${formatTime(start)}` : ""}
+                      {request.doctor_name ? ` · ${request.doctor_name}` : ""}
+                    </small>
+                  </div>
+                  <b>{requestStatus === "declined" ? "Declined" : "Pending review"}</b>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <div className="pwa-appointments-top-grid">
         <section

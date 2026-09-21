@@ -1313,30 +1313,63 @@ function buildConditionItems(medicalHistory, patient) {
 }
 
 function normalizeFamilyHistoryRows(value, otherValue) {
-  const rows = [];
-  const source = Array.isArray(value) ? value : [];
+  const conditions = new Map();
 
-  source.forEach((entry) => {
-    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-      const condition = cleanRecordValue(entry.condition || entry.label || entry.name || entry.value);
-      if (!condition) return;
-      rows.push([
-        condition,
-        formatBooleanPatientValue(entry.mother),
-        formatBooleanPatientValue(entry.father),
-      ]);
+  const isSelected = (entryValue) => {
+    if (entryValue === true) return true;
+    return ["yes", "true", "1"].includes(cleanRecordValue(entryValue).toLowerCase());
+  };
+
+  const addCondition = (conditionValue, mother = false, father = false) => {
+    const condition = cleanRecordValue(conditionValue);
+    if (!condition) return;
+
+    const key = normalizeLabelText(condition);
+    const existing = conditions.get(key) || { condition, mother: false, father: false };
+    existing.mother = existing.mother || mother;
+    existing.father = existing.father || father;
+    conditions.set(key, existing);
+  };
+
+  const addStringEntry = (entryValue) => {
+    const entry = cleanRecordValue(entryValue);
+    if (!entry) return;
+
+    const relationshipMatch = entry.match(/^(mother|father)\s*:\s*(.+)$/i);
+    if (!relationshipMatch) {
+      addCondition(entry);
       return;
     }
 
-    const condition = cleanRecordValue(entry);
-    if (condition) rows.push([condition, EMPTY_PATIENT_VALUE, EMPTY_PATIENT_VALUE]);
+    const relationship = relationshipMatch[1].toLowerCase();
+    addCondition(
+      relationshipMatch[2],
+      relationship === "mother",
+      relationship === "father"
+    );
+  };
+
+  const source = Array.isArray(value) ? value : normalizeRecordList(value);
+  source.forEach((entry) => {
+    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+      addCondition(
+        entry.condition || entry.label || entry.name || entry.value,
+        isSelected(entry.mother),
+        isSelected(entry.father)
+      );
+      return;
+    }
+
+    normalizeRecordList(entry).forEach(addStringEntry);
   });
 
-  normalizeRecordList(otherValue).forEach((condition) => {
-    rows.push([condition, EMPTY_PATIENT_VALUE, EMPTY_PATIENT_VALUE]);
-  });
+  normalizeRecordList(otherValue).forEach(addStringEntry);
 
-  return rows;
+  return Array.from(conditions.values()).map(({ condition, mother, father }) => [
+    condition,
+    mother ? "Yes" : "—",
+    father ? "Yes" : "—",
+  ]);
 }
 
 function formatRecordMeasurement(records, fields, unit) {

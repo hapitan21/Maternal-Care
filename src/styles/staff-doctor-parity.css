@@ -278,12 +278,6 @@
   font-weight: 700 !important;
 }
 
-.staff-status-portal-menu .staff-status-option {
-  min-height: 28px !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-}
-
 /* Settings: preserve Staff data structure while using Doctor text roles */
 .staff-dashboard-shell .staff-settings-page .doctor-settings-sidebar button {
   min-height: 46px !important;

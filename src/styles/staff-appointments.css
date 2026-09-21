@@ -2334,92 +2334,6 @@
   z-index: 2 !important;
 }
 
-/* New status menu rendered through React portal */
-.staff-status-portal-menu {
-  position: fixed !important;
-  width: 122px !important;
-  display: grid !important;
-  gap: 6px !important;
-  padding: 8px !important;
-  border: 1.5px solid #111318 !important;
-  border-radius: 14px !important;
-  background: #ffffff !important;
-  box-shadow:
-    0 22px 42px rgba(0, 0, 0, 0.22),
-    0 7px 14px rgba(0, 0, 0, 0.10) !important;
-  overflow: visible !important;
-  z-index: 50000 !important;
-  font-family: "Poppins", sans-serif !important;
-  animation: staffStatusPortalMenuIn 140ms ease both !important;
-}
-
-.staff-status-portal-menu .staff-status-option {
-  width: 100% !important;
-  height: 25px !important;
-  min-height: 25px !important;
-  padding: 0 8px !important;
-  border: 0 !important;
-  border-radius: 999px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-family: "Poppins", sans-serif !important;
-  font-size: 9.4px !important;
-  font-weight: 800 !important;
-  line-height: 1 !important;
-  white-space: nowrap !important;
-  cursor: pointer !important;
-  box-shadow: none !important;
-  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease !important;
-}
-
-.staff-status-portal-menu .staff-status-option:hover,
-.staff-status-portal-menu .staff-status-option.is-selected {
-  filter: brightness(0.98) !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22) !important;
-}
-
-.staff-status-portal-menu .staff-status-option:active {
-  transform: scale(0.98) !important;
-}
-
-.staff-status-portal-menu .staff-status-option.is-pending {
-  background: #f8b2d3 !important;
-  color: #ff2f7d !important;
-}
-
-.staff-status-portal-menu .staff-status-option.is-checked {
-  background: #e8e9ff !important;
-  color: #5b54e8 !important;
-}
-
-.staff-status-portal-menu .staff-status-option.is-completed {
-  background: #dff7ea !important;
-  color: #159a56 !important;
-}
-
-.staff-status-portal-menu .staff-status-option.is-cancel {
-  background: #ffa7aa !important;
-  color: #f04444 !important;
-}
-
-.staff-status-portal-menu .staff-status-option.is-no-show {
-  background: #fff0d5 !important;
-  color: #dc8b00 !important;
-}
-
-@keyframes staffStatusPortalMenuIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 /* Profile dropdown must stay higher than the table and must not move content. */
 .staff-dashboard-shell .staff-appointments-header,
 .staff-dashboard-shell .staff-section-header,
@@ -2492,16 +2406,6 @@
     max-height: 250px !important;
   }
 
-  .staff-status-portal-menu {
-    width: 116px !important;
-    padding: 7px !important;
-  }
-
-  .staff-status-portal-menu .staff-status-option {
-    height: 24px !important;
-    min-height: 24px !important;
-    font-size: 9px !important;
-  }
 }
 
 .staff-add-appointment-backdrop {
@@ -4395,4 +4299,398 @@
 .staff-appointments-page .staff-appointments-table-xscroll::-webkit-scrollbar-thumb {
   border-radius: 999px !important;
   background: rgba(255, 47, 125, 0.45) !important;
+}
+
+.staff-appointments-page .staff-status-trigger:disabled {
+  cursor: default !important;
+  filter: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* =========================================================
+   Staff Cancel / Reschedule Appointment Modals
+   ========================================================= */
+
+.staff-cancel-appointment-overlay,
+.staff-reschedule-appointment-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 700000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: hidden;
+  background: rgba(22, 26, 36, 0.34);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.staff-cancel-appointment-card,
+.staff-reschedule-appointment-card {
+  position: relative;
+  width: min(100%, 480px);
+  max-height: none;
+  overflow: visible;
+  padding: 26px;
+  border: 1px solid #eceef4;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #202432;
+  font-family: "Poppins", sans-serif;
+  box-shadow: 0 26px 70px rgba(30, 33, 44, 0.2);
+}
+
+.staff-cancel-appointment-close,
+.staff-reschedule-appointment-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: #f7f8fb;
+  color: #73798a;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.staff-cancel-appointment-close:hover:not(:disabled),
+.staff-cancel-appointment-close:focus-visible:not(:disabled),
+.staff-reschedule-appointment-close:hover:not(:disabled),
+.staff-reschedule-appointment-close:focus-visible:not(:disabled) {
+  outline: 0;
+  background: #fff0f6;
+  color: var(--staff-appointments-pink, #ff2f7d);
+}
+
+.staff-cancel-appointment-close:disabled,
+.staff-reschedule-appointment-close:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.staff-cancel-appointment-close svg,
+.staff-reschedule-appointment-close svg {
+  width: 20px;
+  height: 20px;
+}
+
+.staff-cancel-appointment-heading,
+.staff-reschedule-appointment-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding-right: 42px;
+  margin-bottom: 18px;
+}
+
+.staff-cancel-appointment-icon,
+.staff-reschedule-appointment-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+}
+
+.staff-cancel-appointment-icon {
+  background: #ffe8ec;
+  color: #df3d52;
+}
+
+.staff-reschedule-appointment-icon {
+  background: #fff0f6;
+  color: var(--staff-appointments-pink, #ff2f7d);
+}
+
+.staff-cancel-appointment-icon svg,
+.staff-reschedule-appointment-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.staff-cancel-appointment-heading h2,
+.staff-reschedule-appointment-heading h2 {
+  margin: 0;
+  color: #1f2330;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.staff-cancel-appointment-heading p,
+.staff-reschedule-appointment-heading p {
+  margin: 5px 0 0;
+  color: #747b8b;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.staff-cancel-appointment-summary,
+.staff-reschedule-current-schedule {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 14px 15px;
+  border: 1px solid #ebeef5;
+  border-radius: 13px;
+  background: #fafbfe;
+}
+
+.staff-cancel-appointment-summary strong,
+.staff-reschedule-current-schedule strong {
+  color: #232836;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.staff-cancel-appointment-summary span {
+  color: #414858;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.staff-cancel-appointment-summary small,
+.staff-reschedule-current-schedule span {
+  color: #7b8292;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.staff-cancel-reason-field,
+.staff-reschedule-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.staff-cancel-reason-field > span,
+.staff-reschedule-field > span {
+  color: #4a5060;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.staff-cancel-reason-field textarea,
+.staff-reschedule-field textarea,
+.staff-reschedule-field input {
+  width: 100%;
+  border: 1px solid #d9dde7;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #242936;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.staff-cancel-reason-field textarea,
+.staff-reschedule-field textarea {
+  min-height: 96px;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
+.staff-reschedule-field input {
+  height: 43px;
+  padding: 0 12px;
+}
+
+.staff-cancel-reason-field textarea:focus,
+.staff-reschedule-field textarea:focus,
+.staff-reschedule-field input:focus {
+  outline: 0;
+  border-color: rgba(255, 47, 125, 0.72);
+  box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-cancel-reason-field textarea:disabled,
+.staff-reschedule-field textarea:disabled,
+.staff-reschedule-field input:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.staff-reschedule-appointment-card form {
+  display: grid;
+}
+
+.staff-reschedule-appointment-card .appointment-time-picker {
+  width: 100%;
+}
+
+.staff-appointment-modal-error {
+  margin: -4px 0 14px;
+  padding: 9px 11px;
+  border: 1px solid #f2c9d1;
+  border-radius: 9px;
+  background: #fff4f6;
+  color: #b92d43;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.staff-cancel-reschedule-link {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--staff-appointments-pink, #ff2f7d);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.staff-cancel-reschedule-link:hover:not(:disabled),
+.staff-cancel-reschedule-link:focus-visible:not(:disabled) {
+  outline: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.staff-cancel-reschedule-link:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.staff-cancel-reschedule-link svg {
+  width: 15px;
+  height: 15px;
+}
+
+.staff-cancel-appointment-actions,
+.staff-reschedule-appointment-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.staff-cancel-appointment-actions > button,
+.staff-reschedule-appointment-actions > button {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.staff-cancel-keep-button,
+.staff-reschedule-back-button {
+  border: 1px solid #d9dde7;
+  background: #ffffff;
+  color: #4b5262;
+}
+
+.staff-cancel-keep-button:hover:not(:disabled),
+.staff-cancel-keep-button:focus-visible:not(:disabled),
+.staff-reschedule-back-button:hover:not(:disabled),
+.staff-reschedule-back-button:focus-visible:not(:disabled) {
+  outline: 0;
+  border-color: rgba(255, 47, 125, 0.5);
+  background: #fff8fb;
+  color: var(--staff-appointments-pink, #ff2f7d);
+}
+
+.staff-cancel-confirm-button,
+.staff-reschedule-save-button {
+  border: 1px solid var(--staff-appointments-pink, #ff2f7d);
+  background: var(--staff-appointments-pink, #ff2f7d);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(255, 47, 125, 0.18);
+}
+
+.staff-cancel-confirm-button:hover:not(:disabled),
+.staff-cancel-confirm-button:focus-visible:not(:disabled),
+.staff-reschedule-save-button:hover:not(:disabled),
+.staff-reschedule-save-button:focus-visible:not(:disabled) {
+  outline: 0;
+  border-color: var(--staff-appointments-pink-dark, #ee1768);
+  background: var(--staff-appointments-pink-dark, #ee1768);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(255, 47, 125, 0.22);
+}
+
+.staff-cancel-appointment-actions > button:disabled,
+.staff-reschedule-appointment-actions > button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+@media (max-width: 640px) {
+  .staff-cancel-appointment-overlay,
+  .staff-reschedule-appointment-overlay {
+    padding: 14px;
+  }
+
+  .staff-cancel-appointment-card,
+  .staff-reschedule-appointment-card {
+    width: 100%;
+    padding: 22px 18px 18px;
+    border-radius: 17px;
+  }
+
+  .staff-cancel-appointment-actions,
+  .staff-reschedule-appointment-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-cancel-confirm-button,
+  .staff-reschedule-save-button {
+    order: -1;
+  }
+}
+
+
+
+/* =========================================================
+   STAFF APPOINTMENT TABS — KEEP MISSED VISIBLE
+   ========================================================= */
+@media (min-width: 901px) {
+  .staff-dashboard-shell .staff-appointments-tabs,
+  .staff-appointments-page .staff-appointments-tabs {
+    width: max-content !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow: visible !important;
+  }
+
+  .staff-dashboard-shell .staff-appointments-tabs button,
+  .staff-appointments-page .staff-appointments-tabs button {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+}
+
+
+@media (max-width: 640px) {
+  .staff-cancel-appointment-card,
+  .staff-reschedule-appointment-card {
+    max-height: calc(100dvh - 28px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }

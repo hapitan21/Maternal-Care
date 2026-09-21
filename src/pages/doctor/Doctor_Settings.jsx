@@ -1,8 +1,15 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
+import PasswordSecurityFeedback from "../../components/common/PasswordSecurityFeedback";
 import { supabase } from "../../lib/supabaseClient";
 import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
+import {
+  getPasswordValidationMessage,
+  PASSWORD_MIN_LENGTH,
+  passwordsMatch,
+  validatePassword,
+} from "../../lib/passwordSecurity";
 import {
   availabilityDayNames,
   getAvailabilityDayIndex,
@@ -698,17 +705,6 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
 }
 
-function isStrongPassword(value) {
-  const password = String(value ?? "");
-
-  return (
-    password.length >= 8 &&
-    /[A-Za-z]/.test(password) &&
-    /\d/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
-  );
-}
-
 function normalizeOtp(value) {
   return String(value ?? "").replace(/\D/g, "").slice(0, 6);
 }
@@ -933,6 +929,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     newPassword: false,
     confirmPassword: false,
   });
+  const [confirmPasswordInteracted, setConfirmPasswordInteracted] =
+    React.useState(false);
   const [scheduleDraft, setScheduleDraft] = React.useState(null);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -946,6 +944,15 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const identityUnavailable = Boolean(
     doctorIdentity?.loading || doctorIdentity?.error
   );
+  const passwordResult = validatePassword(passwordForm.newPassword);
+  const passwordMatch = passwordsMatch(
+    passwordForm.newPassword,
+    passwordForm.confirmPassword
+  );
+  const passwordFormValid =
+    Boolean(passwordForm.currentPassword) &&
+    passwordResult.valid &&
+    passwordMatch;
 
   const notifyDoctorProfileUpdated = React.useCallback(() => {
     if (typeof window !== "undefined") {
@@ -1620,15 +1627,12 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       return;
     }
 
-    if (!isStrongPassword(passwordForm.newPassword)) {
-      setMessage("Password must be at least 8 characters and include letters, numbers, and symbols.");
+    if (!passwordResult.valid) {
+      setMessage(getPasswordValidationMessage(passwordForm.newPassword));
       return;
     }
 
-    if (
-      passwordForm.newPassword !==
-      passwordForm.confirmPassword
-    ) {
+    if (!passwordMatch) {
       setMessage(
         "New password and confirmation do not match."
       );
@@ -1789,8 +1793,10 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         throw new Error("The current account does not have an email address.");
       }
 
-      if (!isStrongPassword(changePasswordOtp.pendingNewPassword)) {
-        throw new Error("Password must be at least 8 characters and include letters, numbers, and symbols.");
+      if (!validatePassword(changePasswordOtp.pendingNewPassword).valid) {
+        throw new Error(
+          getPasswordValidationMessage(changePasswordOtp.pendingNewPassword)
+        );
       }
 
       const { error: verifyOtpError } = await withAuthTimeout(
@@ -1828,6 +1834,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         newPassword: "",
         confirmPassword: "",
       });
+      setConfirmPasswordInteracted(false);
 
       setChangePasswordOtp((current) => ({
         ...current,
@@ -2295,14 +2302,36 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                               : "Confirm new password"
                         }
                         value={passwordForm[field]}
-                        onChange={(event) =>
-                          setPasswordForm((current) => ({ ...current, [field]: event.target.value }))
+                        onChange={(event) => {
+                          if (field === "confirmPassword") {
+                            setConfirmPasswordInteracted(true);
+                          }
+                          setPasswordForm((current) => ({ ...current, [field]: event.target.value }));
+                        }}
+                        onBlur={() => {
+                          if (field === "confirmPassword") {
+                            setConfirmPasswordInteracted(true);
+                          }
+                        }}
+                        autoComplete={field === "currentPassword" ? "current-password" : "new-password"}
+                        minLength={
+                          field === "currentPassword"
+                            ? undefined
+                            : PASSWORD_MIN_LENGTH
                         }
+                        required
                         disabled={isSaving || changePasswordOtp.isOpen}
                       />
                       <button
                         type="button"
-                        aria-label="Toggle password visibility"
+                        aria-label={`${passwordVisible[field] ? "Hide" : "Show"} ${
+                          field === "currentPassword"
+                            ? "current password"
+                            : field === "newPassword"
+                              ? "new password"
+                              : "password confirmation"
+                        }`}
+                        aria-pressed={passwordVisible[field]}
                         onClick={() =>
                           setPasswordVisible((current) => ({ ...current, [field]: !current[field] }))
                         }
@@ -2311,11 +2340,12 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                       </button>
                     </label>
                   ))}
-                  <p className="doctor-settings-password-note">
-                    <DoctorIcon name="info" />
-                    <span>Password must be at least 8 characters with a combination of letters, numbers and symbols.</span>
-                  </p>
-                  <button className="doctor-settings-save-password" type="submit" disabled={isSaving || isLoading || identityUnavailable || changePasswordOtp.isOpen}>
+                  <PasswordSecurityFeedback
+                    password={passwordForm.newPassword}
+                    confirmPassword={passwordForm.confirmPassword}
+                    confirmInteracted={confirmPasswordInteracted}
+                  />
+                  <button className="doctor-settings-save-password" type="submit" disabled={!passwordFormValid || isSaving || isLoading || identityUnavailable || changePasswordOtp.isOpen}>
                     {isSaving ? "Verifying..." : "Save Changes"}
                   </button>
                 </section>

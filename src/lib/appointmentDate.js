@@ -8,6 +8,10 @@ export const appointmentStatuses = {
   missed: "missed",
 };
 
+export const appointmentStoredStatuses = {
+  noShow: "no_show",
+};
+
 const COMPLETED_STATUSES = new Set([appointmentStatuses.completed]);
 const CANCELLED_STATUSES = new Set([appointmentStatuses.cancelled]);
 const MISSED_STATUSES = new Set([appointmentStatuses.missed]);
@@ -230,6 +234,13 @@ export function classifyAppointment(appointment, nowValue = new Date()) {
     storedStatus,
     displayStatus: category === "overdue" ? "Overdue" : storedStatus,
   };
+}
+
+export function isAppointmentNoShowEligible(appointment, nowValue = new Date()) {
+  const classification = classifyAppointment(appointment, nowValue);
+  return Boolean(
+    classification.start && classification.category !== "upcoming"
+  );
 }
 
 export function compareUpcomingAppointments(first, second) {

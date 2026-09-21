@@ -2,6 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { Link, useNavigate } from "react-router-dom";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
+import PasswordSecurityFeedback from "../../components/common/PasswordSecurityFeedback";
+import {
+  getPasswordValidationMessage,
+  PASSWORD_MIN_LENGTH,
+  passwordsMatch,
+  validatePassword,
+} from "../../lib/passwordSecurity";
 import { supabase } from "../../lib/supabaseClient";
 import "../../styles/forgot-password.css";
 
@@ -102,6 +109,7 @@ function PasswordField({
           placeholder={`Enter ${label.toLowerCase()}`}
           onChange={onChange}
           disabled={disabled}
+          minLength={PASSWORD_MIN_LENGTH}
           required
         />
         <button
@@ -128,6 +136,7 @@ function ForgotPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [newPasswordVisible, setNewPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
+  const [confirmInteracted, setConfirmInteracted] = useState(false);
   const [step, setStep] = useState("request");
   const [cooldown, setCooldown] = useState(0);
   const [processing, setProcessing] = useState(false);
@@ -147,24 +156,8 @@ function ForgotPassword() {
     return new URL("/forgot-password", window.location.origin).toString();
   }, []);
 
-  const passwordChecks = useMemo(
-    () => [
-      { label: "At least 8 characters", valid: newPassword.length >= 8 },
-      {
-        label: "Uppercase and lowercase letter",
-        valid: /[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword),
-      },
-      { label: "At least one number", valid: /\d/.test(newPassword) },
-      {
-        label: "At least one special character",
-        valid: /[^A-Za-z0-9]/.test(newPassword),
-      },
-    ],
-    [newPassword]
-  );
-
-  const passwordValid = passwordChecks.every((requirement) => requirement.valid);
-  const passwordsMatch = Boolean(confirmPassword) && newPassword === confirmPassword;
+  const passwordResult = validatePassword(newPassword);
+  const passwordMatch = passwordsMatch(newPassword, confirmPassword);
   const activeStepIndex = step === "success"
     ? recoverySteps.length
     : Math.max(0, recoverySteps.findIndex((item) => item.key === step));
@@ -378,12 +371,12 @@ function ForgotPassword() {
   const handleUpdatePassword = async (event) => {
     event.preventDefault();
 
-    if (!passwordValid) {
-      setFeedback({ tone: "error", message: "Choose a password that meets all requirements." });
+    if (!passwordResult.valid) {
+      setFeedback({ tone: "error", message: getPasswordValidationMessage(newPassword) });
       return;
     }
 
-    if (!passwordsMatch) {
+    if (!passwordMatch) {
       setFeedback({ tone: "error", message: "Passwords do not match." });
       return;
     }
@@ -397,6 +390,7 @@ function ForgotPassword() {
       await supabase.auth.signOut();
       setNewPassword("");
       setConfirmPassword("");
+      setConfirmInteracted(false);
       setStep("success");
     } catch (error) {
       setFeedback({ tone: "error", message: getRecoveryErrorMessage(error) });
@@ -599,6 +593,7 @@ function ForgotPassword() {
                   visible={confirmPasswordVisible}
                   onChange={(event) => {
                     setConfirmPassword(event.target.value);
+                    setConfirmInteracted(true);
                     setFeedback({ tone: "", message: "" });
                   }}
                   onToggle={() => setConfirmPasswordVisible((visible) => !visible)}
@@ -606,28 +601,16 @@ function ForgotPassword() {
                   disabled={processing}
                 />
 
-                {confirmPassword && !passwordsMatch ? (
-                  <p className="forgot-password-match-error" role="alert">
-                    Passwords do not match.
-                  </p>
-                ) : null}
-
-                <ul className="forgot-password-requirements" aria-label="Password requirements">
-                  {passwordChecks.map((requirement) => (
-                    <li className={requirement.valid ? "is-valid" : ""} key={requirement.label}>
-                      <Icon
-                        icon={requirement.valid ? "solar:check-circle-bold" : "solar:circle-linear"}
-                        aria-hidden="true"
-                      />
-                      {requirement.label}
-                    </li>
-                  ))}
-                </ul>
+                <PasswordSecurityFeedback
+                  password={newPassword}
+                  confirmPassword={confirmPassword}
+                  confirmInteracted={confirmInteracted}
+                />
 
                 <button
                   type="submit"
                   className="forgot-password-primary"
-                  disabled={processing || !passwordValid || !passwordsMatch}
+                  disabled={processing || !passwordResult.valid || !passwordMatch}
                 >
                   {processing ? (
                     <><Icon className="is-spinning" icon="solar:refresh-circle-linear" /> Updating...</>

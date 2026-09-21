@@ -20,6 +20,13 @@ function logAutomaticNotificationError(notificationType, error) {
   });
 }
 
+function isPatientNotLinkedNotificationError(error) {
+  return (
+    error?.code === "P0002" &&
+    /active and linked to a Patient account/i.test(String(error?.message || ""))
+  );
+}
+
 export async function sendAutomaticAppointmentNotification({
   patientId,
   scheduleId,
@@ -28,7 +35,7 @@ export async function sendAutomaticAppointmentNotification({
   if (!automaticAppointmentTypes.has(notificationType)) {
     const error = new Error("Unsupported automatic appointment notification type.");
     logAutomaticNotificationError(notificationType, error);
-    return { ok: false, error };
+    return { ok: false, skipped: false, error };
   }
 
   if (!isUuid(patientId) || !isUuid(scheduleId)) {
@@ -36,7 +43,7 @@ export async function sendAutomaticAppointmentNotification({
       "The saved appointment did not return valid Patient and schedule identifiers."
     );
     logAutomaticNotificationError(notificationType, error);
-    return { ok: false, error };
+    return { ok: false, skipped: false, error };
   }
 
   const notification = getPatientNotificationType(notificationType);
@@ -55,13 +62,22 @@ export async function sendAutomaticAppointmentNotification({
     });
 
     if (error) {
+      if (isPatientNotLinkedNotificationError(error)) {
+        return {
+          ok: false,
+          skipped: true,
+          reason: "patient_not_linked",
+          error,
+        };
+      }
+
       logAutomaticNotificationError(notificationType, error);
-      return { ok: false, error };
+      return { ok: false, skipped: false, error };
     }
 
-    return { ok: true, notification: data };
+    return { ok: true, skipped: false, notification: data };
   } catch (error) {
     logAutomaticNotificationError(notificationType, error);
-    return { ok: false, error };
+    return { ok: false, skipped: false, error };
   }
 }

@@ -232,16 +232,41 @@
   position: relative;
 }
 
+.staff-preconsult-date input[type="date"] {
+  position: relative;
+  padding-right: 48px;
+}
+
+.staff-preconsult-date input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .staff-preconsult-date svg,
 .staff-preconsult-select svg {
   position: absolute;
-  right: 12px;
   top: 50%;
   width: 16px;
   height: 16px;
   color: var(--preconsult-pink);
   pointer-events: none;
   transform: translateY(-50%);
+}
+
+.staff-preconsult-date svg {
+  right: 15px;
+  z-index: 1;
+}
+
+.staff-preconsult-select svg {
+  right: 12px;
 }
 
 .staff-preconsult-select select {

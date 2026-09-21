@@ -23,6 +23,20 @@ function warnIfLocalhostPatientAccessUrl(accessUrl) {
   }
 }
 
+function isMobileReachableHttpUrl(value) {
+  try {
+    const parsedUrl = new URL(value);
+    return (
+      (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") &&
+      parsedUrl.hostname !== "localhost" &&
+      parsedUrl.hostname !== "127.0.0.1" &&
+      parsedUrl.hostname !== "0.0.0.0"
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function getPublicAppOrigin() {
   /*
    * Canonical environment variable:
@@ -67,6 +81,10 @@ export function buildPatientAccessUrl({ patientId, controlNumber } = {}) {
 
     const finalUrl = accessUrl.toString();
     warnIfLocalhostPatientAccessUrl(finalUrl);
+
+    if (!isMobileReachableHttpUrl(finalUrl)) {
+      return "";
+    }
 
     return finalUrl;
   } catch (error) {

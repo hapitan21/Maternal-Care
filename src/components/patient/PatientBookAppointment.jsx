@@ -334,16 +334,15 @@ export default function PatientBookAppointment({ profile }) {
           ? null
           : selectedDoctorKey || null);
 
-      // This calls the Supabase PostgreSQL function:
-      // public.create_patient_appointment_request(...)
-      // The SQL function then inserts the request into the table:
-      // public.create_patient_appointment_request
+      // This calls the Supabase PostgreSQL function. The function resolves the
+      // authenticated Patient record and stores a pending row in the
+      // same-named public.create_patient_appointment_request table.
       const { data, error } = await supabase.rpc(
         "create_patient_appointment_request",
         {
           p_doctor_id: doctorId,
           p_doctor_name: selectedDoctor.name,
-          p_title: selectedService.title,
+          p_title: selectedService.databaseTitle,
           p_category: selectedService.id,
           p_start_time: startDate.toISOString(),
         }

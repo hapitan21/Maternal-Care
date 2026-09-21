@@ -12,7 +12,10 @@ import {
   normalizePatientAccessValue,
 } from "../../lib/patientAuthLinking";
 
-import { patientAccountStatuses } from "../../lib/patientAccountStatus";
+import {
+  normalizePatientAccountStatus,
+  patientAccountStatuses,
+} from "../../lib/patientAccountStatus";
 
 import {
   buildPatientPendingLinkSearch,
@@ -41,6 +44,8 @@ function PatientLogin() {
   ).toLowerCase();
 
   const accountCreated = searchParams.get("accountCreated") === "true";
+  const confirmationRequired =
+    searchParams.get("confirmationRequired") === "true";
 
   const hasDetails = Boolean(
     details.patientId && details.controlNumber
@@ -52,11 +57,15 @@ function PatientLogin() {
   });
 
   const [message, setMessage] = useState(
-    accountCreated
-      ? "Patient account created successfully. Your account is pending Admin activation."
+    confirmationRequired
+      ? "Patient account created. Confirm your email, then log in here to finish securely linking your Patient record."
+      : accountCreated
+      ? "Patient account created successfully. Log in to open your Patient dashboard."
       : ""
   );
-  const [messageTone, setMessageTone] = useState(accountCreated ? "notice" : "error");
+  const [messageTone, setMessageTone] = useState(
+    accountCreated || confirmationRequired ? "notice" : "error"
+  );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -212,8 +221,16 @@ function PatientLogin() {
 
       clearPatientPendingLink();
 
-      // Newly-created / linked Patient account still requires
-      // Admin activation before Patient dashboard access.
+      if (
+        normalizePatientAccountStatus(linkedPatient.account_status) ===
+        patientAccountStatuses.active
+      ) {
+        navigate("/patient/dashboard", {
+          replace: true,
+        });
+        return;
+      }
+
       await supabase.auth.signOut();
 
       setMessage(

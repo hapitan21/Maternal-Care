@@ -86,12 +86,28 @@ export function getPatientLinkingErrorMessage(error) {
     return "The Patient ID or one-time control number is incorrect.";
   }
 
+  if (message.includes("patient id and access code do not match")) {
+    return "The Patient ID and access code do not match.";
+  }
+
+  if (message.includes("authentication email does not match")) {
+    return "Use the Patient email registered by the clinic for this account.";
+  }
+
   if (
     message.includes(
       "control number has already been used"
     )
   ) {
-    return "This one-time control number has already been used.";
+    return "This patient account has already been activated.";
+  }
+
+  if (message.includes("patient account has already been activated")) {
+    return "This patient account has already been activated.";
+  }
+
+  if (message.includes("activation qr code has expired")) {
+    return "This activation QR code has expired. Please ask the clinic for a new one.";
   }
 
   if (

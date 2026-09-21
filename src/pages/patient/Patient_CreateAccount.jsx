@@ -12,9 +12,99 @@ import {
   clearPatientPendingLink,
   resolvePatientPendingLink,
 } from "../../lib/patientPendingLink";
+import { validatePatientActivation } from "../../lib/patientActivation";
 import { supabase } from "../../lib/supabaseClient";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
+import {
+  PASSWORD_MIN_LENGTH,
+  passwordsMatch,
+} from "../../lib/passwordSecurity";
 import "../../styles/patient-access.css";
+
+const CREATE_ACCOUNT_PASSWORD_REQUIREMENTS = [
+  { key: "minLength", label: "At least 12 characters" },
+  { key: "uppercase", label: "At least 1 uppercase letter (A–Z)" },
+  { key: "number", label: "At least 1 number (0–9)" },
+  { key: "special", label: "At least 1 special character" },
+];
+
+function getCreateAccountPasswordRequirements(value) {
+  const password = String(value || "");
+
+  return {
+    minLength: password.length >= PASSWORD_MIN_LENGTH,
+    uppercase: /[A-Z]/.test(password),
+    number: /\d/.test(password),
+    special: /[^A-Za-z0-9\s]/.test(password),
+  };
+}
+
+function CreateAccountPasswordGuide({ password }) {
+  const requirements = getCreateAccountPasswordRequirements(password);
+  const completedCount = CREATE_ACCOUNT_PASSWORD_REQUIREMENTS.filter(
+    ({ key }) => requirements[key]
+  ).length;
+  const strengthLabels = ["Weak", "Weak", "Fair", "Good", "Strong"];
+  const strength = strengthLabels[completedCount];
+  const strengthToken = strength.toLowerCase();
+
+  return (
+    <section
+      className="patient-create-password-guide"
+      aria-labelledby="patient-create-password-guide-title"
+    >
+      <h3 id="patient-create-password-guide-title">
+        Create a strong password
+      </h3>
+
+      <div className="patient-create-password-strength-row">
+        <div
+          className="patient-create-password-strength-meter"
+          role="progressbar"
+          aria-label="Password strength"
+          aria-valuemin="0"
+          aria-valuemax="4"
+          aria-valuenow={completedCount}
+          aria-valuetext={strength}
+        >
+          {[1, 2, 3, 4].map((level) => (
+            <span
+              className={
+                level <= completedCount ? `is-active is-${strengthToken}` : ""
+              }
+              key={level}
+            />
+          ))}
+        </div>
+        <strong className={`is-${strengthToken}`}>{strength}</strong>
+      </div>
+
+      <p>
+        Use 12 or more characters with a mix of letters, numbers, and symbols.
+      </p>
+
+      <ul aria-label="Password requirements">
+        {CREATE_ACCOUNT_PASSWORD_REQUIREMENTS.map(({ key, label }) => {
+          const complete = requirements[key];
+
+          return (
+            <li className={complete ? "is-complete" : ""} key={key}>
+              <Icon
+                icon={
+                  complete
+                    ? "solar:check-circle-bold"
+                    : "solar:circle-linear"
+                }
+                aria-hidden="true"
+              />
+              <span>{label}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 const LEGAL_MODAL_CONTENT = {
   terms: {
@@ -46,14 +136,51 @@ function PatientCreateAccount() {
     confirmPassword: "",
   });
   const [message, setMessage] = useState("");
+  const [registeredEmail, setRegisteredEmail] = useState("");
   const [created, setCreated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState({
     password: false,
     confirm: false,
   });
+  const [confirmInteracted, setConfirmInteracted] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState(null);
+  const [activation, setActivation] = useState({
+    status: "checking",
+    message: "Validating Patient access details...",
+  });
+
+  useEffect(() => {
+    let active = true;
+
+    const validateAccessDetails = async () => {
+      const result = await validatePatientActivation(details);
+      if (!active) return;
+
+      if (result.valid && result.patientId === details.patientId) {
+        const verifiedEmail = normalizePatientAccessValue(result.email).toLowerCase();
+        setRegisteredEmail(verifiedEmail);
+        setForm((current) => ({ ...current, email: verifiedEmail }));
+        setActivation({ status: "valid", message: result.message });
+        return;
+      }
+
+      setRegisteredEmail("");
+      setForm((current) => ({ ...current, email: "" }));
+      clearPatientPendingLink();
+      setActivation({
+        status: result.state || "unknown",
+        message: result.message,
+      });
+    };
+
+    validateAccessDetails();
+
+    return () => {
+      active = false;
+    };
+  }, [details]);
 
   useEffect(() => {
     if (!legalModal) return undefined;
@@ -80,6 +207,29 @@ function PatientCreateAccount() {
     setLegalModal(null);
   };
 
+  const createAccountPasswordRequirements =
+    getCreateAccountPasswordRequirements(form.password);
+  const createAccountPasswordValid = Object.values(
+    createAccountPasswordRequirements
+  ).every(Boolean);
+  const passwordMatch = passwordsMatch(form.password, form.confirmPassword);
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    normalizePatientAccessValue(form.email)
+  );
+  const patientAccessValid = Boolean(
+    details.patientId &&
+      details.controlNumber &&
+      activation.status === "valid"
+  );
+  const canSubmit =
+    patientAccessValid &&
+    emailValid &&
+    createAccountPasswordValid &&
+    passwordMatch &&
+    termsAccepted &&
+    !isSubmitting &&
+    !created;
+
   const submit = async (event) => {
     event.preventDefault();
     if (isSubmitting || created) return;
@@ -93,7 +243,17 @@ function PatientCreateAccount() {
       return;
     }
 
-    if (form.password !== form.confirmPassword) {
+    if (!emailValid) {
+      setMessage("Enter a valid email address.");
+      return;
+    }
+
+    if (!createAccountPasswordValid) {
+      setMessage("Choose a password that meets all four requirements.");
+      return;
+    }
+
+    if (!passwordMatch) {
       setMessage("Passwords do not match.");
       return;
     }
@@ -109,6 +269,33 @@ function PatientCreateAccount() {
     const email = normalizePatientAccessValue(form.email).toLowerCase();
 
     try {
+      const activationCheck = await validatePatientActivation(details);
+      if (
+        !activationCheck.valid ||
+        activationCheck.patientId !== details.patientId
+      ) {
+        clearPatientPendingLink();
+        setActivation({
+          status: activationCheck.state || "unknown",
+          message: activationCheck.message,
+        });
+        setMessage(activationCheck.message);
+        return;
+      }
+
+      const verifiedEmail = normalizePatientAccessValue(
+        activationCheck.email
+      ).toLowerCase();
+
+      if (verifiedEmail && email !== verifiedEmail) {
+        setRegisteredEmail(verifiedEmail);
+        setForm((current) => ({ ...current, email: verifiedEmail }));
+        setMessage(
+          "The clinic-registered Patient email was refreshed. Review it, then create the account again."
+        );
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: form.password,
@@ -123,9 +310,17 @@ function PatientCreateAccount() {
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (!data.session && !sessionData?.session) {
-        throw new Error(
-          "Patient account created, but email confirmation is required before secure Patient linking. Confirm the email, then log in from Patient Login."
-        );
+        const loginParams = new URLSearchParams({
+          patientId: details.patientId,
+          control: details.controlNumber,
+          confirmationRequired: "true",
+          email,
+        });
+
+        navigate(`/patient/login?${loginParams.toString()}`, {
+          replace: true,
+        });
+        return;
       }
 
       await ensurePatientProfile(data.user, details.patientId);
@@ -151,7 +346,7 @@ function PatientCreateAccount() {
 
       setCreated(true);
       setMessage(
-        "Patient account created successfully. Your account is pending Admin activation."
+        "Patient account created and linked successfully. You can now log in."
       );
 
       const loginParams = new URLSearchParams({
@@ -206,17 +401,39 @@ function PatientCreateAccount() {
                   readOnly
                 />
               </div>
+              <p
+                className={`patient-activation-validation is-${activation.status}`}
+                role={activation.status === "valid" || activation.status === "checking" ? "status" : "alert"}
+                aria-live="polite"
+              >
+                <Icon
+                  icon={
+                    activation.status === "valid"
+                      ? "solar:shield-check-bold-duotone"
+                      : activation.status === "checking"
+                        ? "solar:refresh-circle-linear"
+                        : "solar:danger-circle-bold-duotone"
+                  }
+                  aria-hidden="true"
+                />
+                {activation.message}
+              </p>
             </div>
 
             <div className="patient-access-field">
               <label htmlFor="patient-create-email">Email address</label>
-              <div className="patient-access-input-wrap">
+              <div
+                className={`patient-access-input-wrap ${
+                  registeredEmail ? "is-readonly" : ""
+                }`}
+              >
                 <Icon icon="solar:letter-linear" aria-hidden="true" />
                 <input
                   id="patient-create-email"
                   type="email"
                   value={form.email}
                   onChange={(event) => updateForm("email", event.target.value)}
+                  readOnly={Boolean(registeredEmail)}
                   autoComplete="email"
                   placeholder="you@example.com"
                   required
@@ -235,9 +452,9 @@ function PatientCreateAccount() {
                   onChange={(event) =>
                     updateForm("password", event.target.value)
                   }
-                  minLength={6}
+                  minLength={PASSWORD_MIN_LENGTH}
                   autoComplete="new-password"
-                  placeholder="At least 6 characters"
+                  placeholder="Create a secure password"
                   required
                 />
                 <button
@@ -265,6 +482,8 @@ function PatientCreateAccount() {
               </div>
             </div>
 
+            <CreateAccountPasswordGuide password={form.password} />
+
             <div className="patient-access-field">
               <label htmlFor="patient-create-confirm">Confirm password</label>
               <div className="patient-access-input-wrap">
@@ -273,10 +492,12 @@ function PatientCreateAccount() {
                   id="patient-create-confirm"
                   type={passwordVisible.confirm ? "text" : "password"}
                   value={form.confirmPassword}
-                  onChange={(event) =>
-                    updateForm("confirmPassword", event.target.value)
-                  }
-                  minLength={6}
+                  onChange={(event) => {
+                    setConfirmInteracted(true);
+                    updateForm("confirmPassword", event.target.value);
+                  }}
+                  onBlur={() => setConfirmInteracted(true)}
+                  minLength={PASSWORD_MIN_LENGTH}
                   autoComplete="new-password"
                   placeholder="Re-enter your password"
                   required
@@ -306,6 +527,27 @@ function PatientCreateAccount() {
                   />
                 </button>
               </div>
+              {confirmInteracted && form.confirmPassword ? (
+                <p
+                  className={`patient-create-password-match ${
+                    passwordMatch ? "is-match" : "is-mismatch"
+                  }`}
+                  role={passwordMatch ? "status" : "alert"}
+                  aria-live="polite"
+                >
+                  <Icon
+                    icon={
+                      passwordMatch
+                        ? "solar:check-circle-bold"
+                        : "solar:danger-circle-bold"
+                    }
+                    aria-hidden="true"
+                  />
+                  {passwordMatch
+                    ? "Passwords match"
+                    : "Passwords do not match"}
+                </p>
+              ) : null}
             </div>
 
             <div className="patient-legal-section">
@@ -369,16 +611,23 @@ function PatientCreateAccount() {
 
             <p className="patient-access-form-note">
               <Icon icon="solar:shield-check-bold-duotone" aria-hidden="true" />
-              Your account needs clinic activation before dashboard access.
+              Your verified one-time QR code securely links this account to your
+              existing Patient record.
             </p>
 
             <button
               type="submit"
-              disabled={isSubmitting || created || !termsAccepted}
-              aria-disabled={isSubmitting || created || !termsAccepted}
+              disabled={!canSubmit}
+              aria-disabled={!canSubmit}
               title={
                 !termsAccepted
                   ? "Agree to the Terms of Service and Privacy Policy to continue."
+                  : !patientAccessValid
+                    ? "Valid Patient access details are required."
+                  : !emailValid
+                    ? "Enter a valid email address."
+                  : !createAccountPasswordValid || !passwordMatch
+                    ? "Choose a password that meets every requirement and confirm it."
                   : undefined
               }
             >

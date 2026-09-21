@@ -423,3 +423,232 @@
     justify-content: space-between;
   }
 }
+
+/* Shared Staff/Doctor appointment status popover. */
+.appointment-status-popover {
+  position: fixed;
+  z-index: 900;
+  box-sizing: border-box;
+  width: 176px;
+  display: grid;
+  padding: 6px;
+  border: 1px solid #e3e5eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 14px 32px rgba(31, 35, 48, 0.15),
+    0 3px 9px rgba(31, 35, 48, 0.08);
+  overflow: hidden;
+  font-family: "Poppins", sans-serif;
+  animation: appointment-status-popover-in 140ms ease both;
+}
+
+.appointment-status-popover-current {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 7px 9px;
+}
+
+.appointment-status-popover-current svg,
+.appointment-status-popover-action > svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+
+.appointment-status-popover-current.is-pending {
+  background: #fff1f7;
+  color: #cf1260;
+}
+
+.appointment-status-popover-current.is-checked,
+.appointment-status-popover-current.is-checked-in {
+  background: #f0efff;
+  color: #5b54e8;
+}
+
+.appointment-status-popover-current.is-completed {
+  background: #eaf8f0;
+  color: #16875f;
+}
+
+.appointment-status-popover-current.is-cancel,
+.appointment-status-popover-current.is-cancelled {
+  background: #fff0f2;
+  color: #d83f4b;
+}
+
+.appointment-status-popover-current.is-no-show,
+.appointment-status-popover-current.is-missed {
+  background: #fff5e5;
+  color: #c87900;
+}
+
+.appointment-status-popover-divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: #eceef3;
+}
+
+.appointment-status-popover-actions {
+  display: grid;
+  gap: 2px;
+}
+
+.appointment-status-popover-action {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #424958;
+  cursor: pointer;
+  font: 700 11px/1.2 "Poppins", sans-serif;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.appointment-status-popover-action > span {
+  flex: 1;
+}
+
+.appointment-status-popover-action:hover {
+  background: #fff3f8;
+}
+
+.appointment-status-popover-action:focus-visible {
+  outline: 2px solid rgba(255, 47, 125, 0.35);
+  outline-offset: -2px;
+}
+
+.appointment-status-popover-action.is-check-in,
+.appointment-status-popover-action.is-open-form {
+  color: #5b54e8;
+}
+
+.appointment-status-popover-action.is-completed {
+  color: #16875f;
+}
+
+.appointment-status-popover-action.is-cancel,
+.appointment-status-popover-action.is-cancelled {
+  color: #d83f4b;
+}
+
+.appointment-status-popover-action.is-no-show,
+.appointment-status-popover-action.is-missed {
+  color: #c87900;
+}
+
+.appointment-status-popover-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@keyframes appointment-status-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Shared compact No Show confirmation. */
+.appointment-no-show-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(25, 28, 36, 0.42);
+  backdrop-filter: blur(8px);
+}
+
+.appointment-no-show-dialog {
+  box-sizing: border-box;
+  width: min(430px, calc(100vw - 32px));
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+  padding: 30px;
+  font-family: "Poppins", sans-serif;
+  animation: appointment-status-popover-in 180ms ease both;
+}
+
+.appointment-no-show-dialog h2 {
+  margin: 0;
+  color: #242631;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.appointment-no-show-dialog p {
+  margin: 12px 0 24px;
+  color: #5a5c68;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.appointment-no-show-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.appointment-no-show-actions button {
+  min-height: 42px;
+  border: 1px solid #ff2f7d;
+  border-radius: 10px;
+  cursor: pointer;
+  font: 800 14px/1 "Poppins", sans-serif;
+  padding: 10px 16px;
+}
+
+.appointment-no-show-actions .is-cancel {
+  background: #ffffff;
+  color: #ff2f7d;
+}
+
+.appointment-no-show-actions .is-confirm {
+  background: #ff2f7d;
+  color: #ffffff;
+}
+
+.appointment-no-show-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+@media (max-width: 520px) {
+  .appointment-status-popover {
+    width: min(176px, calc(100vw - 20px));
+  }
+
+  .appointment-no-show-dialog {
+    padding: 24px 20px;
+  }
+
+  .appointment-no-show-actions {
+    flex-direction: column-reverse;
+  }
+
+  .appointment-no-show-actions button {
+    width: 100%;
+  }
+}

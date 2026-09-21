@@ -3,6 +3,13 @@ import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import PatientPushNotificationSettings from "../../components/patient/PatientPushNotificationSettings";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import PasswordSecurityFeedback from "../../components/common/PasswordSecurityFeedback";
+import {
+  getPasswordValidationMessage,
+  PASSWORD_MIN_LENGTH,
+  passwordsMatch,
+  validatePassword,
+} from "../../lib/passwordSecurity";
 import { supabase } from "../../lib/supabaseClient";
 import "../../styles/patient_PWA_settings.css";
 
@@ -193,6 +200,12 @@ function PasswordSettings({ profile }) {
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [confirmInteracted, setConfirmInteracted] = useState(false);
+
+  const passwordResult = validatePassword(form.next);
+  const passwordMatch = passwordsMatch(form.next, form.confirm);
+  const canSubmit =
+    Boolean(form.current) && passwordResult.valid && passwordMatch && !isSaving;
 
   const toggleField = (field) => setShow((prev) => ({ ...prev, [field]: !prev[field] }));
   const updateField = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
@@ -201,13 +214,13 @@ function PasswordSettings({ profile }) {
     event.preventDefault();
     setMessage("");
 
-    if (form.next !== form.confirm) {
-      setMessage("Confirm New Password must match New Password.");
+    if (!passwordResult.valid) {
+      setMessage(getPasswordValidationMessage(form.next));
       return;
     }
 
-    if (form.next.length < 8) {
-      setMessage("New Password must be at least 8 characters.");
+    if (!passwordMatch) {
+      setMessage("Confirm New Password must match New Password.");
       return;
     }
 
@@ -233,6 +246,7 @@ function PasswordSettings({ profile }) {
       if (updateError) throw updateError;
 
       setForm({ current: "", next: "", confirm: "" });
+      setConfirmInteracted(false);
       setMessage("Password updated successfully.");
     } catch (error) {
       setMessage(error?.message || "Unable to update password.");
@@ -257,6 +271,7 @@ function PasswordSettings({ profile }) {
           onChange={(value) => updateField("current", value)}
           onToggle={() => toggleField("current")}
           autoComplete="current-password"
+          disabled={isSaving}
         />
         <PasswordInput
           label="New Password"
@@ -266,23 +281,33 @@ function PasswordSettings({ profile }) {
           onChange={(value) => updateField("next", value)}
           onToggle={() => toggleField("next")}
           autoComplete="new-password"
+          minLength={PASSWORD_MIN_LENGTH}
+          disabled={isSaving}
         />
         <PasswordInput
           label="Confirm New Password"
           placeholder="Confirm new password"
           visible={show.confirm}
           value={form.confirm}
-          onChange={(value) => updateField("confirm", value)}
+          onChange={(value) => {
+            setConfirmInteracted(true);
+            updateField("confirm", value);
+          }}
+          onBlur={() => setConfirmInteracted(true)}
           onToggle={() => toggleField("confirm")}
           autoComplete="new-password"
+          minLength={PASSWORD_MIN_LENGTH}
+          disabled={isSaving}
         />
 
-        <p className="pwa-password-help">
-          <Icon icon="solar:info-circle-bold" /> Use at least 8 characters. A mix of letters, numbers, and symbols creates a stronger password.
-        </p>
+        <PasswordSecurityFeedback
+          password={form.next}
+          confirmPassword={form.confirm}
+          confirmInteracted={confirmInteracted}
+        />
 
         {message ? <p className="pwa-settings-form-message" role="status">{message}</p> : null}
-        <button type="submit" className="pwa-full-save" disabled={isSaving}>
+        <button type="submit" className="pwa-full-save" disabled={!canSubmit}>
           {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </section>
@@ -348,7 +373,7 @@ function StatusRow({ icon, title, description, badge, purple }) {
   );
 }
 
-function PasswordInput({ label, placeholder, visible, value, onChange, onToggle, autoComplete }) {
+function PasswordInput({ label, placeholder, visible, value, onChange, onBlur, onToggle, autoComplete, minLength, disabled }) {
   return (
     <label className="pwa-password-field">
       <span>{label}</span>
@@ -358,10 +383,19 @@ function PasswordInput({ label, placeholder, visible, value, onChange, onToggle,
           placeholder={placeholder}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           autoComplete={autoComplete}
+          minLength={minLength}
+          disabled={disabled}
           required
         />
-        <button type="button" onClick={onToggle} aria-label={`Toggle ${label}`}>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`}
+          aria-pressed={visible}
+          disabled={disabled}
+        >
           <Icon icon={visible ? "solar:eye-linear" : "solar:eye-closed-linear"} />
         </button>
       </div>
