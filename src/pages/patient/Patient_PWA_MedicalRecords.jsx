@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import {
@@ -10,6 +10,10 @@ import {
   normalizeClinicalVisitFormData,
 } from "../../lib/clinicalVisitData";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import {
+  getPatientPwaSessionCache,
+  setPatientPwaSessionCache,
+} from "../../lib/patientPwaSessionCache";
 import "../../styles/patient-PWA-medicalrecords.css";
 
 const medicalRecordColumns =
@@ -621,17 +625,28 @@ async function loadPatientDetailRow(table, patientId) {
 }
 
 export default function PatientPWAMedicalRecords({ profile }) {
+  const patientId = profile?.recordId || "";
+  const [initialCache] = useState(() =>
+    getPatientPwaSessionCache(patientId, "medical-records")
+  );
+  const initialCacheRef = useRef(initialCache);
   const [query, setQuery] = useState("");
-  const [patientRecords, setPatientRecords] = useState([]);
-  const [selectedRecordId, setSelectedRecordId] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [patientRecords, setPatientRecords] = useState(
+    () => initialCache?.patientRecords || []
+  );
+  const [selectedRecordId, setSelectedRecordId] = useState(
+    () => initialCache?.selectedRecordId || ""
+  );
+  const [isLoading, setIsLoading] = useState(() => !initialCache);
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
 
     const loadRecords = async () => {
-      setIsLoading(true);
+      if (!initialCacheRef.current) {
+        setIsLoading(true);
+      }
       setLoadError("");
 
       const patient = await loadPatientRow();
@@ -687,6 +702,7 @@ export default function PatientPWAMedicalRecords({ profile }) {
       if (error) {
         console.error("Patient medical records load failed:", error);
         setLoadError(`Formal medical records could not be loaded: ${error.message}`);
+        if (initialCacheRef.current) return;
       }
 
       const baselineHeight = getLatestInitialVisitHeight(formalRecords);
@@ -729,35 +745,65 @@ export default function PatientPWAMedicalRecords({ profile }) {
     loadRecords();
 
     const channel = supabase
-      .channel("patient-pwa-medical-records")
+      .channel(`patient-pwa-medical-records-${patientId || "unresolved"}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "medical_records" },
+        {
+          event: "*",
+          schema: "public",
+          table: "medical_records",
+          ...(patientId ? { filter: `patient_id=eq.${patientId}` } : {}),
+        },
         loadRecords
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "schedule" },
+        {
+          event: "*",
+          schema: "public",
+          table: "schedule",
+          ...(patientId ? { filter: `patient_id=eq.${patientId}` } : {}),
+        },
         loadRecords
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "patients" },
+        {
+          event: "*",
+          schema: "public",
+          table: "patients",
+          ...(patientId ? { filter: `id=eq.${patientId}` } : {}),
+        },
         loadRecords
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "patient_obstetric_history" },
+        {
+          event: "*",
+          schema: "public",
+          table: "patient_obstetric_history",
+          ...(patientId ? { filter: `patient_id=eq.${patientId}` } : {}),
+        },
         loadRecords
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "patient_medical_history" },
+        {
+          event: "*",
+          schema: "public",
+          table: "patient_medical_history",
+          ...(patientId ? { filter: `patient_id=eq.${patientId}` } : {}),
+        },
         loadRecords
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "patient_initial_assessment" },
+        {
+          event: "*",
+          schema: "public",
+          table: "patient_initial_assessment",
+          ...(patientId ? { filter: `patient_id=eq.${patientId}` } : {}),
+        },
         loadRecords
       )
       .subscribe();
@@ -766,7 +812,15 @@ export default function PatientPWAMedicalRecords({ profile }) {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [profile]);
+  }, [patientId]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const snapshot = { patientRecords, selectedRecordId };
+    initialCacheRef.current = snapshot;
+    setPatientPwaSessionCache(patientId, "medical-records", snapshot);
+  }, [isLoading, patientId, patientRecords, selectedRecordId]);
 
   const filteredRecords = useMemo(() => {
     const value = query.trim().toLowerCase();

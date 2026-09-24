@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import PatientPushNotificationSettings from "../../components/patient/PatientPushNotificationSettings";
@@ -11,6 +11,7 @@ import {
   validatePassword,
 } from "../../lib/passwordSecurity";
 import { supabase } from "../../lib/supabaseClient";
+import { formatPatientDate, formatPregnancyWeek } from "../../lib/patientProfile";
 import "../../styles/patient_PWA_settings.css";
 
 const settingsTabs = [
@@ -23,8 +24,32 @@ const settingsTabs = [
 export default function PatientPWASettings({ profile }) {
   const [activeTab, setActiveTab] = useState("profile");
   const navigate = useNavigate();
+  const tabListRef = useRef(null);
+  const tabRefs = useRef(new Map());
 
   const current = settingsTabs.find((item) => item.key === activeTab) || settingsTabs[0];
+
+  useEffect(() => {
+    const tabList = tabListRef.current;
+    const activeTabElement = tabRefs.current.get(activeTab);
+
+    if (
+      !tabList ||
+      !activeTabElement ||
+      tabList.scrollWidth <= tabList.clientWidth
+    ) {
+      return;
+    }
+
+    const targetLeft =
+      activeTabElement.offsetLeft -
+      (tabList.clientWidth - activeTabElement.offsetWidth) / 2;
+
+    tabList.scrollTo({
+      left: Math.max(0, targetLeft),
+      behavior: "smooth",
+    });
+  }, [activeTab]);
 
   return (
     <main className="pwa-page pwa-settings-page">
@@ -35,7 +60,12 @@ export default function PatientPWASettings({ profile }) {
       />
 
       <div className="pwa-settings-layout">
-        <aside className="pwa-settings-tabs" aria-label="Settings sections" role="tablist">
+        <aside
+          className="pwa-settings-tabs"
+          aria-label="Settings sections"
+          ref={tabListRef}
+          role="tablist"
+        >
           {settingsTabs.map((item) => (
             <button
               key={item.key}
@@ -46,6 +76,13 @@ export default function PatientPWASettings({ profile }) {
               aria-controls={`settings-panel-${item.key}`}
               className={activeTab === item.key ? "is-active" : ""}
               onClick={() => setActiveTab(item.key)}
+              ref={(element) => {
+                if (element) {
+                  tabRefs.current.set(item.key, element);
+                } else {
+                  tabRefs.current.delete(item.key);
+                }
+              }}
             >
               <Icon icon={item.icon} />
               <span>{item.label}</span>
@@ -74,7 +111,7 @@ export default function PatientPWASettings({ profile }) {
           {activeTab === "account" ? (
             <AccountSettings profile={profile} onManageProfile={() => navigate("/patient/profile")} />
           ) : null}
-          {activeTab === "password" ? <PasswordSettings profile={profile} /> : null}
+          {activeTab === "password" ? <PasswordSettings /> : null}
           {activeTab === "notifications" ? <PatientPushNotificationSettings /> : null}
         </section>
       </div>
@@ -106,8 +143,8 @@ function ProfileSettings({ profile, onManageProfile }) {
         onAction={onManageProfile}
       >
         <SettingsInfo label="Full Name" value={profile.displayName} icon="solar:user-linear" />
-        <SettingsInfo label="Gender" value={profile.gender} icon="solar:users-group-rounded-linear" />
-        <SettingsInfo label="Date of Birth" value={profile.birthdate} icon="solar:calendar-linear" />
+        <SettingsInfo label="Sex at Birth" value={profile.sexAtBirth} icon="solar:users-group-rounded-linear" />
+        <SettingsInfo label="Date of Birth" value={formatPatientDate(profile.birthdate)} icon="solar:calendar-linear" />
         <SettingsInfo label="Civil Status" value={profile.civilStatus} icon="solar:heart-linear" />
         <SettingsInfo label="Nationality" value={profile.nationality} icon="solar:globus-linear" />
         <SettingsInfo label="Blood Type" value={profile.bloodType} icon="solar:test-tube-linear" />
@@ -116,9 +153,9 @@ function ProfileSettings({ profile, onManageProfile }) {
       <SettingsCard title="Pregnancy Information" tone="violet" badge="Provider managed">
         <SettingsInfo label="Pregnancy Status" value={profile.pregnancyStatus} icon="solar:user-linear" />
         <SettingsInfo label="Gravida (G)" value={profile.gravida} icon="solar:users-group-rounded-linear" />
-        <SettingsInfo label="Current Pregnancy Week" value={`${profile.pregnancyWeek} Weeks`} icon="solar:clock-circle-linear" />
+        <SettingsInfo label="Current Pregnancy Week" value={formatPregnancyWeek(profile.pregnancyWeek)} icon="solar:clock-circle-linear" />
         <SettingsInfo label="Para (P)" value={profile.para} icon="solar:users-group-rounded-linear" />
-        <SettingsInfo label="Estimated Due Date" value={profile.dueDate} icon="solar:calendar-linear" />
+        <SettingsInfo label="Estimated Due Date" value={formatPatientDate(profile.dueDate)} icon="solar:calendar-linear" />
         <SettingsInfo label="Attending Physician" value={profile.physician} icon="solar:user-id-linear" />
         <SettingsInfo label="Clinic" value={profile.clinic} icon="solar:buildings-3-linear" wide />
         <p className="pwa-settings-note">
@@ -132,7 +169,11 @@ function ProfileSettings({ profile, onManageProfile }) {
 }
 
 function AccountSettings({ profile, onManageProfile }) {
-  const emailStatus = profile.emailVerified === true ? "Verified" : "Unavailable";
+  const emailStatus = profile.emailVerified === true
+    ? "Verified"
+    : profile.emailVerified === false
+      ? "Not verified"
+      : "Unavailable";
   const accountStatus = profile.accountStatus || "Not provided";
   const lastLogin = formatLastLogin(profile.lastLoginAt);
 
@@ -144,6 +185,10 @@ function AccountSettings({ profile, onManageProfile }) {
         </header>
 
         <div className="pwa-account-form">
+          <label>
+            <span>Patient ID</span>
+            <input type="text" value={profile.patientId || ""} readOnly />
+          </label>
           <label>
             <span>Email Address</span>
             <input type="email" value={profile.email || ""} readOnly />
@@ -157,7 +202,7 @@ function AccountSettings({ profile, onManageProfile }) {
         <div className="pwa-account-guidance">
           <Icon icon="solar:info-circle-bold-duotone" aria-hidden="true" />
           <p>
-            Contact details are managed from your Profile. Email changes may require clinic verification.
+            Contact details are managed from your Profile. Login email changes are not available in the Patient PWA; contact the clinic for help.
           </p>
           <button type="button" className="is-outline" onClick={onManageProfile}>
             Open Profile
@@ -174,7 +219,13 @@ function AccountSettings({ profile, onManageProfile }) {
         <StatusRow
           icon="solar:letter-bold"
           title="Email Verification"
-          description={profile.emailVerified === true ? "Your email address is verified." : "Verification status is not available."}
+          description={
+            profile.emailVerified === true
+              ? "Your email address is verified."
+              : profile.emailVerified === false
+                ? "Your email address is not verified."
+                : "Verification status is not available."
+          }
           badge={emailStatus}
         />
         <StatusRow
@@ -195,12 +246,13 @@ function AccountSettings({ profile, onManageProfile }) {
   );
 }
 
-function PasswordSettings({ profile }) {
+function PasswordSettings() {
   const [show, setShow] = useState({ current: false, next: false, confirm: false });
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
-  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState({ message: "", tone: "error" });
   const [isSaving, setIsSaving] = useState(false);
   const [confirmInteracted, setConfirmInteracted] = useState(false);
+  const successTimerRef = useRef(null);
 
   const passwordResult = validatePassword(form.next);
   const passwordMatch = passwordsMatch(form.next, form.confirm);
@@ -210,34 +262,62 @@ function PasswordSettings({ profile }) {
   const toggleField = (field) => setShow((prev) => ({ ...prev, [field]: !prev[field] }));
   const updateField = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
+  useEffect(() => () => window.clearTimeout(successTimerRef.current), []);
+
+  const showFeedback = (message, tone = "error", autoHide = false) => {
+    window.clearTimeout(successTimerRef.current);
+    setFeedback({ message, tone });
+    if (autoHide) {
+      successTimerRef.current = window.setTimeout(
+        () => setFeedback({ message: "", tone: "error" }),
+        4000
+      );
+    }
+  };
+
   const savePassword = async (event) => {
     event.preventDefault();
-    setMessage("");
+    showFeedback("");
 
     if (!passwordResult.valid) {
-      setMessage(getPasswordValidationMessage(form.next));
+      showFeedback(getPasswordValidationMessage(form.next));
       return;
     }
 
     if (!passwordMatch) {
-      setMessage("Confirm New Password must match New Password.");
+      showFeedback("Confirm New Password must match New Password.");
+      return;
+    }
+
+    if (form.current === form.next) {
+      showFeedback("New Password must be different from Current Password.");
       return;
     }
 
     setIsSaving(true);
 
     try {
-      const email = profile.email && profile.email !== "Not provided" ? profile.email : "";
-      if (!email) {
-        throw new Error("Your account email could not be resolved.");
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        throw new Error("Your login session has expired. Please sign in again.");
       }
+
+      const email = userData.user.email;
+      if (!email) throw new Error("Your authenticated account email could not be resolved.");
 
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password: form.current,
       });
 
-      if (signInError) throw signInError;
+      if (signInError) {
+        if (/invalid.*credentials|invalid login/i.test(String(signInError.message || ""))) {
+          const error = new Error("Current Password is incorrect.");
+          error.cause = signInError;
+          throw error;
+        }
+        throw signInError;
+      }
 
       const { error: updateError } = await supabase.auth.updateUser({
         password: form.next,
@@ -247,9 +327,14 @@ function PasswordSettings({ profile }) {
 
       setForm({ current: "", next: "", confirm: "" });
       setConfirmInteracted(false);
-      setMessage("Password updated successfully.");
+      showFeedback("Password updated successfully.", "success", true);
     } catch (error) {
-      setMessage(error?.message || "Unable to update password.");
+      const message = String(error?.message || "");
+      showFeedback(
+        /fetch|network/i.test(message)
+          ? "Unable to update the password because of a network error. Please try again."
+          : message || "Unable to update password."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -306,7 +391,14 @@ function PasswordSettings({ profile }) {
           confirmInteracted={confirmInteracted}
         />
 
-        {message ? <p className="pwa-settings-form-message" role="status">{message}</p> : null}
+        {feedback.message ? (
+          <p
+            className={`pwa-settings-form-message ${feedback.tone === "success" ? "is-success" : "is-error"}`}
+            role={feedback.tone === "success" ? "status" : "alert"}
+          >
+            {feedback.message}
+          </p>
+        ) : null}
         <button type="submit" className="pwa-full-save" disabled={!canSubmit}>
           {isSaving ? "Saving..." : "Save Changes"}
         </button>

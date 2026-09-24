@@ -1,12 +1,18 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import {
+  appointmentStatuses,
   classifyAppointment,
   getManilaDateKey,
   getManilaTimeKey,
+  normalizeAppointmentStatus,
 } from "../../lib/appointmentDate";
+import {
+  getPatientPwaSessionCache,
+  setPatientPwaSessionCache,
+} from "../../lib/patientPwaSessionCache";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
 import "../../styles/patient-PWA-appointments.css";
 import "../../styles/patientbookappointment.css";
@@ -16,16 +22,15 @@ const scheduleColumns =
 const appointmentRequestColumns =
   "id, patient_id, doctor_name, title, start_time, end_time, status, created_at";
 
-const TIME_ROWS = Array.from({ length: 11 }, (_, index) => {
-  const hour = index + 7;
+function getTimeRow(hour) {
   const suffix = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour > 12 ? hour - 12 : hour;
+  const displayHour = hour % 12 || 12;
 
   return {
     label: `${String(displayHour).padStart(2, "0")} ${suffix}`,
     hour,
   };
-});
+}
 
 const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTH_NAMES = [
@@ -152,14 +157,21 @@ function getEventsForCell(day, hour, appointments) {
   });
 }
 
-function isCancelledOrCompleted(appointment) {
-  const normalized = String(appointment?.status || appointment?.displayStatus || "").toLowerCase();
-  return normalized.includes("cancel") || normalized.includes("complete");
+function isUpcomingAppointment(appointment) {
+  const status = normalizeAppointmentStatus(appointment?.status);
+  const classification = classifyAppointment(appointment);
+  return (
+    [appointmentStatuses.scheduled, appointmentStatuses.checkedIn].includes(status) &&
+    classification.category === "upcoming"
+  );
 }
 
-function isUpcomingAppointment(appointment) {
-  if (isCancelledOrCompleted(appointment)) return false;
-  return classifyAppointment(appointment).isUpcoming;
+function isHistoryAppointment(appointment) {
+  return [
+    appointmentStatuses.completed,
+    appointmentStatuses.cancelled,
+    appointmentStatuses.missed,
+  ].includes(normalizeAppointmentStatus(appointment?.status));
 }
 
 function getAppointmentSortTime(appointment) {
@@ -297,7 +309,7 @@ async function fetchPatientScheduleRows(patient) {
 
   if (error) {
     console.error("[Patient Appointment Flow] appointment fetch error:", error);
-    return [];
+    return null;
   }
 
   console.info("[Patient Appointment Flow] returned appointment count:", data?.length || 0);
@@ -319,7 +331,7 @@ async function fetchPatientBookingRequestRows(patient) {
 
   if (error) {
     console.error("[Patient Appointment Flow] booking request fetch error:", error);
-    return [];
+    return null;
   }
 
   return data || [];
@@ -351,7 +363,7 @@ async function fetchPatientAppointmentReminderRows(patient) {
 
   if (error) {
     console.error("[Patient Appointment Flow] appointment reminder fetch error:", error);
-    return [];
+    return null;
   }
 
   return data || [];
@@ -359,23 +371,46 @@ async function fetchPatientAppointmentReminderRows(patient) {
 
 export default function PatientPWAAppointments({ profile }) {
   const navigate = useNavigate();
-  const [appointments, setAppointments] = useState([]);
-  const [bookingRequests, setBookingRequests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeView, setActiveView] = useState("upcoming");
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const patientId = profile?.recordId || "";
+  const [initialCache] = useState(() =>
+    getPatientPwaSessionCache(patientId, "appointments")
+  );
+  const initialCacheRef = useRef(initialCache);
+  const [appointments, setAppointments] = useState(
+    () => initialCache?.appointments || []
+  );
+  const [bookingRequests, setBookingRequests] = useState(
+    () => initialCache?.bookingRequests || []
+  );
+  const [isLoading, setIsLoading] = useState(() => !initialCache);
+  const [activeView, setActiveView] = useState(
+    () => initialCache?.activeView || "upcoming"
+  );
+  const [selectedDate, setSelectedDate] = useState(() =>
+    initialCache?.selectedDate
+      ? new Date(initialCache.selectedDate)
+      : new Date()
+  );
   const [calendarMonth, setCalendarMonth] = useState(() => {
-    const today = new Date();
-    return new Date(today.getFullYear(), today.getMonth(), 1);
+    const initialDate = initialCache?.calendarMonth
+      ? new Date(initialCache.calendarMonth)
+      : new Date();
+    return new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
   });
 
   useEffect(() => {
     let active = true;
+    let refreshInFlight = false;
+    let refreshQueued = false;
 
-    const loadAppointments = async () => {
-      setIsLoading(true);
+    const fetchAppointments = async () => {
+      if (!initialCacheRef.current) {
+        setIsLoading(true);
+      }
 
-      const patient = await loadAuthenticatedPatientRow();
+      const patient = patientId
+        ? { id: patientId }
+        : await loadAuthenticatedPatientRow();
       const [scheduleRows, reminderRows, requestRows] = await Promise.all([
         fetchPatientScheduleRows(patient),
         fetchPatientAppointmentReminderRows(patient),
@@ -385,6 +420,8 @@ export default function PatientPWAAppointments({ profile }) {
       if (!active) return;
 
       setIsLoading(false);
+      if (!scheduleRows || !reminderRows || !requestRows) return;
+
       setBookingRequests(requestRows);
 
       const scheduleAppointments = scheduleRows
@@ -404,13 +441,27 @@ export default function PatientPWAAppointments({ profile }) {
         )
         .sort(sortAppointmentsAscending);
       setAppointments(mapped);
+      initialCacheRef.current = {
+        ...(initialCacheRef.current || {}),
+        appointments: mapped,
+        bookingRequests: requestRows,
+      };
+    };
 
-      const firstVisibleAppointment = mapped.find(isUpcomingAppointment) || null;
+    const loadAppointments = async () => {
+      if (refreshInFlight) {
+        refreshQueued = true;
+        return;
+      }
 
-      if (firstVisibleAppointment?.start) {
-        const appointmentDate = toManilaCalendarDate(firstVisibleAppointment.start);
-        setSelectedDate(appointmentDate);
-        setCalendarMonth(new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), 1));
+      refreshInFlight = true;
+      try {
+        do {
+          refreshQueued = false;
+          await fetchAppointments();
+        } while (active && refreshQueued);
+      } finally {
+        refreshInFlight = false;
       }
     };
 
@@ -427,44 +478,74 @@ export default function PatientPWAAppointments({ profile }) {
     };
 
     const channel = supabase
-      .channel("patient-pwa-appointments")
+      .channel(`patient-pwa-appointments-${patientId || "unresolved"}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "schedule" },
+        {
+          event: "*",
+          schema: "public",
+          table: "schedule",
+          ...(patientId ? { filter: `patient_id=eq.${patientId}` } : {}),
+        },
         loadAppointments
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "reminders" },
+        {
+          event: "*",
+          schema: "public",
+          table: "reminders",
+          ...(patientId ? { filter: `patient_id=eq.${patientId}` } : {}),
+        },
         loadAppointments
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "create_patient_appointment_request" },
+        {
+          event: "*",
+          schema: "public",
+          table: "create_patient_appointment_request",
+          ...(patientId ? { filter: `patient_id=eq.${patientId}` } : {}),
+        },
         loadAppointments
       )
-      .subscribe();
-
-    const refreshTimer = window.setInterval(loadAppointments, 10000);
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          loadAppointments();
+        }
+      });
 
     window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       active = false;
-      window.clearInterval(refreshTimer);
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };
-  }, [profile]);
+  }, [patientId]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const snapshot = {
+      appointments,
+      bookingRequests,
+      activeView,
+      selectedDate: selectedDate.toISOString(),
+      calendarMonth: calendarMonth.toISOString(),
+    };
+    initialCacheRef.current = snapshot;
+    setPatientPwaSessionCache(patientId, "appointments", snapshot);
+  }, [activeView, appointments, bookingRequests, calendarMonth, isLoading, patientId, selectedDate]);
 
   const upcomingAppointments = useMemo(
     () => appointments.filter(isUpcomingAppointment).sort(sortAppointmentsAscending),
     [appointments]
   );
   const historyAppointments = useMemo(
-    () => appointments.filter((appointment) => !isUpcomingAppointment(appointment)).sort(sortAppointmentsDescending),
+    () => appointments.filter(isHistoryAppointment).sort(sortAppointmentsDescending),
     [appointments]
   );
   const visibleAppointments = activeView === "history"
@@ -492,6 +573,26 @@ export default function PatientPWAAppointments({ profile }) {
         .sort(activeView === "history" ? sortAppointmentsDescending : sortAppointmentsAscending),
     [activeView, selectedDate, visibleAppointments]
   );
+  const weekAppointments = useMemo(
+    () =>
+      visibleAppointments.filter((appointment) => {
+        const appointmentDate = toManilaCalendarDate(appointment.start);
+        return appointmentDate >= weekStart && appointmentDate <= weekEnd;
+      }),
+    [visibleAppointments, weekEnd, weekStart]
+  );
+  const timelineRows = useMemo(
+    () =>
+      [...new Set(
+        weekAppointments.map((appointment) =>
+          Number(getManilaTimeKey(appointment.start).split(":")[0])
+        )
+      )]
+        .filter(Number.isFinite)
+        .sort((first, second) => first - second)
+        .map(getTimeRow),
+    [weekAppointments]
+  );
 
   const handleSelectDate = (date) => {
     setSelectedDate(cloneDate(date));
@@ -510,16 +611,6 @@ export default function PatientPWAAppointments({ profile }) {
 
   const handleViewChange = (nextView) => {
     setActiveView(nextView);
-
-    const firstAppointment = nextView === "history"
-      ? historyAppointments[0]
-      : upcomingAppointments[0];
-
-    if (!firstAppointment?.start) return;
-
-    const appointmentDate = toManilaCalendarDate(firstAppointment.start);
-    setSelectedDate(appointmentDate);
-    setCalendarMonth(new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), 1));
   };
 
   return (
@@ -757,11 +848,16 @@ export default function PatientPWAAppointments({ profile }) {
                 </article>
               ))
             ) : (
-              <p className="pwa-mobile-agenda-empty">No appointments for this day.</p>
+              <p className="pwa-mobile-agenda-empty">
+                {activeView === "history" && !historyAppointments.length
+                  ? "No appointment history yet."
+                  : "No appointments scheduled for this date."}
+              </p>
             )}
           </div>
         </div>
 
+        {timelineRows.length ? (
         <div className="pwa-weekly-scroll">
           <div className="pwa-week-header">
             <span />
@@ -779,11 +875,11 @@ export default function PatientPWAAppointments({ profile }) {
           </div>
 
           <div className="pwa-schedule-grid">
-            {TIME_ROWS.map((time) => (
+            {timelineRows.map((time) => (
               <Fragment key={time.label}>
                 <div className="pwa-time-label">{time.label}</div>
                 {weekDays.map((day) => {
-                  const cellAppointments = getEventsForCell(day, time.hour, appointments);
+                  const cellAppointments = getEventsForCell(day, time.hour, visibleAppointments);
                   return (
                     <div
                       key={`${time.label}-${day.toISOString()}`}
@@ -792,12 +888,14 @@ export default function PatientPWAAppointments({ profile }) {
                       {cellAppointments.map((appointment) => (
                         <button
                           type="button"
-                          className="pwa-schedule-event"
+                          className={`pwa-schedule-event ${getStatusClass(appointment.displayStatus)}`}
                           key={`${appointment.id}-${appointment.start}`}
                           onClick={() => handleSelectDate(toManilaCalendarDate(appointment.start))}
                         >
                           <strong>{appointment.title}</strong>
                           <small>{formatTime(toDate(appointment.start))}</small>
+                          <span>{appointment.doctor}</span>
+                          <em>{appointment.displayStatus}</em>
                         </button>
                       ))}
                     </div>
@@ -807,6 +905,17 @@ export default function PatientPWAAppointments({ profile }) {
             ))}
           </div>
         </div>
+        ) : (
+          <div className="pwa-weekly-empty" role="status">
+            <Icon icon="solar:calendar-minimalistic-linear" aria-hidden="true" />
+            <strong>
+              {activeView === "history" && !historyAppointments.length
+                ? "No appointment history yet."
+                : "No appointments scheduled for the selected week."}
+            </strong>
+            <span>Select another date or switch appointment views.</span>
+          </div>
+        )}
       </section>
     </section>
   );

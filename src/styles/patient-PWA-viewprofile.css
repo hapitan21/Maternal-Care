@@ -324,7 +324,8 @@
   font-size: 13px;
   line-height: 18px;
   font-weight: 800;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .pwa-profile-info-grid article:not(:has(> span)) {
@@ -528,6 +529,59 @@
   }
 }
 
+/* Emergency contact fields need wider, equal columns than the general info grid. */
+.pwa-emergency-contact-card .pwa-profile-info-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 24px;
+}
+
+.pwa-emergency-contact-card .pwa-profile-info-grid article,
+.pwa-emergency-contact-card .pwa-profile-info-grid article:not(:has(> span)) {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.pwa-emergency-contact-card .pwa-profile-info-grid strong {
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.pwa-emergency-contact-card .pwa-profile-info-grid article > div {
+  width: 100%;
+  min-width: 0;
+}
+
+.pwa-emergency-contact-card .pwa-profile-info-grid article:nth-child(2) strong,
+.pwa-emergency-contact-card .pwa-profile-info-grid article:nth-child(2) input {
+  white-space: nowrap;
+}
+
+.pwa-emergency-contact-card .pwa-edit-field,
+.pwa-emergency-contact-card .pwa-edit-field input {
+  width: 100%;
+  min-width: 0;
+}
+
+.pwa-emergency-contact-card .pwa-edit-field input {
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+
+@media (max-width: 960px) {
+  .pwa-emergency-contact-card .pwa-profile-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .pwa-emergency-contact-card .pwa-profile-info-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* =========================================================
    PROFILE REFINEMENT
    Align the profile with the shared Patient PWA hierarchy.
@@ -564,6 +618,12 @@
   border-color: #fecdd3;
   background: #fff1f2;
   color: #b42338;
+}
+
+.pwa-profile-feedback.is-success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
 }
 
 .pwa-profile-hero {

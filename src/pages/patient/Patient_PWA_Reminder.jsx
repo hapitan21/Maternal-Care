@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
@@ -16,6 +17,10 @@ import {
   getManilaTimeKey,
   toManilaISOString,
 } from "../../lib/appointmentDate";
+import {
+  getPatientPwaSessionCache,
+  setPatientPwaSessionCache,
+} from "../../lib/patientPwaSessionCache";
 import "../../styles/patient-PWA-reminder.css";
 
 const reminderTabs = ["Today", "Tomorrow", "Upcoming"];
@@ -747,23 +752,66 @@ function formatAppointmentTime(timeValue) {
 export default function PatientPWAReminder({ profile }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState("Today");
-  const [tipIndex, setTipIndex] = useState(0);
-  const [viewAllSection, setViewAllSection] = useState("");
+  const profilePatientId = profile?.recordId || "";
+  const profileDisplayName = profile?.displayName || "Patient";
+  const profileIdentity = useMemo(
+    () => ({
+      recordId: profilePatientId,
+      patientId: profile?.patientId || "",
+      displayName: profileDisplayName,
+      email: profile?.email || "",
+      phone: profile?.phone || "",
+    }),
+    [
+      profile?.email,
+      profile?.patientId,
+      profile?.phone,
+      profileDisplayName,
+      profilePatientId,
+    ]
+  );
+  const [initialCache] = useState(() =>
+    getPatientPwaSessionCache(profilePatientId, "reminders")
+  );
+  const initialCacheRef = useRef(initialCache);
+  const [activeTab, setActiveTab] = useState(
+    () => initialCache?.activeTab || "Today"
+  );
+  const [tipIndex, setTipIndex] = useState(
+    () => initialCache?.tipIndex || 0
+  );
+  const [viewAllSection, setViewAllSection] = useState(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return searchParams.get("section") === "health-tips" &&
+      searchParams.get("view") === "all"
+      ? "healthTips"
+      : "";
+  });
   const [skipTarget, setSkipTarget] = useState(null);
   const [medicationActionSuccess, setMedicationActionSuccess] = useState("");
   const [patientRecordId, setPatientRecordId] = useState(
-    profile?.recordId || ""
+    initialCache?.patientRecordId || profilePatientId
   );
-  const [appointmentReminders, setAppointmentReminders] = useState([]);
-  const [medicationReminders, setMedicationReminders] = useState([]);
-  const [medicationOccurrences, setMedicationOccurrences] = useState([]);
-  const [scheduleReminders, setScheduleReminders] = useState([]);
-  const [healthTips, setHealthTips] = useState([]);
-  const [isLoadingAppointmentReminders, setIsLoadingAppointmentReminders] = useState(true);
-  const [isLoadingScheduleReminders, setIsLoadingScheduleReminders] = useState(true);
-  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(true);
-  const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] = useState(true);
+  const [appointmentReminders, setAppointmentReminders] = useState(
+    () => initialCache?.appointmentReminders || []
+  );
+  const [medicationReminders, setMedicationReminders] = useState(
+    () => initialCache?.medicationReminders || []
+  );
+  const [medicationOccurrences, setMedicationOccurrences] = useState(
+    () => initialCache?.medicationOccurrences || []
+  );
+  const [scheduleReminders, setScheduleReminders] = useState(
+    () => initialCache?.scheduleReminders || []
+  );
+  const [healthTips, setHealthTips] = useState(
+    () => initialCache?.healthTips || []
+  );
+  const [isLoadingAppointmentReminders, setIsLoadingAppointmentReminders] = useState(() => !initialCache);
+  const [isLoadingScheduleReminders, setIsLoadingScheduleReminders] = useState(() => !initialCache);
+  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(() => !initialCache);
+  const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] = useState(() => !initialCache);
+  const [healthTipsError, setHealthTipsError] = useState("");
   const [medicationReminderError, setMedicationReminderError] = useState("");
   const [medicationActionState, setMedicationActionState] = useState({
     key: "",
@@ -774,11 +822,16 @@ export default function PatientPWAReminder({ profile }) {
     message: "",
   });
   const notifiedReminderKeys = useRef(new Set());
+  const healthTipsSectionRef = useRef(null);
+  const healthTipSwipeRef = useRef(null);
+  const handledHealthTipsIntentRef = useRef(false);
+  const viewAllModalRef = useRef(null);
+  const viewAllReturnFocusRef = useRef(null);
   const loadedStateRef = useRef({
-    appointments: false,
-    schedule: false,
-    healthTips: false,
-    medication: false,
+    appointments: Boolean(initialCache),
+    schedule: Boolean(initialCache),
+    healthTips: Boolean(initialCache),
+    medication: Boolean(initialCache),
   });
   const reminderRefreshRef = useRef(null);
   const medicationOccurrenceRequestRef = useRef({
@@ -875,7 +928,57 @@ export default function PatientPWAReminder({ profile }) {
     location.pathname.replace(/\/$/, "") === "/patient/reminders/medications";
 
   const closeViewAllModal = () => {
+    if (!viewAllReturnFocusRef.current) {
+      viewAllReturnFocusRef.current = healthTipsSectionRef.current;
+    }
     setViewAllSection("");
+  };
+
+  const openHealthTipsModal = () => {
+    viewAllReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : healthTipsSectionRef.current;
+    setViewAllSection("healthTips");
+  };
+
+  const handleHealthTipTouchStart = (event) => {
+    if (healthTips.length < 2 || event.touches.length !== 1) {
+      healthTipSwipeRef.current = null;
+      return;
+    }
+
+    const touch = event.touches[0];
+    healthTipSwipeRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+  };
+
+  const handleHealthTipTouchEnd = (event) => {
+    const swipeStart = healthTipSwipeRef.current;
+    const touch = event.changedTouches[0];
+    healthTipSwipeRef.current = null;
+
+    if (!swipeStart || !touch || healthTips.length < 2) return;
+
+    const deltaX = touch.clientX - swipeStart.x;
+    const deltaY = touch.clientY - swipeStart.y;
+
+    if (Math.abs(deltaX) < 44 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+      return;
+    }
+
+    setTipIndex((currentIndex) => {
+      const normalizedIndex = Math.min(
+        Math.max(currentIndex, 0),
+        healthTips.length - 1
+      );
+
+      return deltaX < 0
+        ? Math.min(normalizedIndex + 1, healthTips.length - 1)
+        : Math.max(normalizedIndex - 1, 0);
+    });
   };
 
   const loadMedicationOccurrenceRows = useCallback(async (patientId) => {
@@ -1013,18 +1116,123 @@ export default function PatientPWAReminder({ profile }) {
       return undefined;
     }
 
+    const focusableSelector = [
+      "button:not([disabled])",
+      "a[href]",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(",");
+    const activeElement = document.activeElement;
+    const returnFocusTarget =
+      viewAllReturnFocusRef.current ||
+      (activeElement instanceof HTMLElement &&
+      !viewAllModalRef.current?.contains(activeElement)
+        ? activeElement
+        : null);
+
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
+        if (!viewAllReturnFocusRef.current) {
+          viewAllReturnFocusRef.current = healthTipsSectionRef.current;
+        }
         setViewAllSection("");
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusableElements = Array.from(
+        viewAllModalRef.current?.querySelectorAll(focusableSelector) || []
+      );
+
+      if (!focusableElements.length) {
+        event.preventDefault();
+        viewAllModalRef.current?.focus();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!viewAllModalRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus();
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (
+        !event.shiftKey &&
+        document.activeElement === lastElement
+      ) {
+        event.preventDefault();
+        firstElement.focus();
       }
     };
 
+    const previousOverflow = document.body.style.overflow;
+    const focusTimer = window.setTimeout(() => {
+      const firstFocusable = viewAllModalRef.current?.querySelector(
+        focusableSelector
+      );
+      (firstFocusable || viewAllModalRef.current)?.focus({
+        preventScroll: true,
+      });
+    }, 0);
+    document.body.style.overflow = "hidden";
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
+      const focusTarget =
+        viewAllReturnFocusRef.current || returnFocusTarget;
+      viewAllReturnFocusRef.current = null;
+      if (focusTarget?.isConnected) {
+        focusTarget.focus({ preventScroll: true });
+      }
     };
   }, [isViewAllOpen]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const shouldFocusHealthTips =
+      searchParams.get("section") === "health-tips";
+    const shouldOpenAllTips =
+      shouldFocusHealthTips && searchParams.get("view") === "all";
+
+    if (!shouldFocusHealthTips || handledHealthTipsIntentRef.current) return;
+    handledHealthTipsIntentRef.current = true;
+
+    if (shouldOpenAllTips) {
+      searchParams.delete("view");
+      navigate(
+        {
+          pathname: location.pathname,
+          search: searchParams.toString()
+            ? `?${searchParams.toString()}`
+            : "",
+        },
+        { replace: true }
+      );
+      return;
+    }
+
+    const focusTimer = window.setTimeout(() => {
+      healthTipsSectionRef.current?.focus({ preventScroll: true });
+      healthTipsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+
+    return () => window.clearTimeout(focusTimer);
+  }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
     let active = true;
@@ -1042,8 +1250,10 @@ export default function PatientPWAReminder({ profile }) {
         setIsLoadingMedicationReminders(true);
       }
       setMedicationReminderError("");
-      const patient = await loadAuthenticatedPatientRow();
-      setPatientRecordId(patient?.id || profile?.recordId || "");
+      const patient = profilePatientId
+        ? { id: profilePatientId, full_name: profileDisplayName }
+        : await loadAuthenticatedPatientRow();
+      setPatientRecordId(patient?.id || profilePatientId);
       let appointmentQuery = supabase
         .from("reminders")
         .select(`
@@ -1128,6 +1338,9 @@ export default function PatientPWAReminder({ profile }) {
           if (!loadedStateRef.current.healthTips) {
             setHealthTips([]);
           }
+          setHealthTipsError(
+            "Unable to load health tips. Please try again."
+          );
         } else {
           setHealthTips(
             dedupeHealthTips(
@@ -1137,6 +1350,7 @@ export default function PatientPWAReminder({ profile }) {
               ].filter(Boolean)
             )
           );
+          setHealthTipsError("");
         }
         loadedStateRef.current.healthTips = true;
         setIsLoadingHealthTips(false);
@@ -1231,12 +1445,15 @@ export default function PatientPWAReminder({ profile }) {
         if (!loadedStateRef.current.healthTips) {
           setHealthTips([]);
         }
+        setHealthTipsError(
+          "Unable to load health tips. Please try again."
+        );
       } else {
         const databaseTips = (healthTipsResult.data || [])
           .filter(
             (row) =>
               !row.patient_id ||
-              patientMatchesValue(profile, row.patient_id) ||
+              patientMatchesValue(profileIdentity, row.patient_id) ||
               Boolean(patient?.id && row.patient_id === patient.id)
           )
           .map(mapHealthTipDatabaseRow)
@@ -1244,6 +1461,7 @@ export default function PatientPWAReminder({ profile }) {
 
         setHealthTips(dedupeHealthTips(databaseTips));
         setTipIndex(0);
+        setHealthTipsError("");
       }
       loadedStateRef.current.healthTips = true;
       setIsLoadingHealthTips(false);
@@ -1329,7 +1547,12 @@ export default function PatientPWAReminder({ profile }) {
       supabase.removeChannel(medicationReminderChannel);
       supabase.removeChannel(healthTipsChannel);
     };
-  }, [loadMedicationOccurrenceRows, profile]);
+  }, [
+    loadMedicationOccurrenceRows,
+    profileDisplayName,
+    profileIdentity,
+    profilePatientId,
+  ]);
 
   useEffect(() => {
     if (!patientRecordId) {
@@ -1362,7 +1585,9 @@ export default function PatientPWAReminder({ profile }) {
       if (!loadedStateRef.current.schedule) {
         setIsLoadingScheduleReminders(true);
       }
-      const patient = await loadAuthenticatedPatientRow();
+      const patient = profilePatientId
+        ? { id: profilePatientId }
+        : await loadAuthenticatedPatientRow();
       const scheduleRows = await fetchPatientScheduleRows(patient);
 
       if (!active) return;
@@ -1408,7 +1633,45 @@ export default function PatientPWAReminder({ profile }) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };
-  }, [profile]);
+  }, [profilePatientId]);
+
+  useEffect(() => {
+    if (
+      isLoadingAppointmentReminders ||
+      isLoadingScheduleReminders ||
+      isLoadingHealthTips ||
+      isLoadingMedicationReminders
+    ) {
+      return;
+    }
+
+    const snapshot = {
+      activeTab,
+      tipIndex,
+      patientRecordId,
+      appointmentReminders,
+      medicationReminders,
+      medicationOccurrences,
+      scheduleReminders,
+      healthTips,
+    };
+    initialCacheRef.current = snapshot;
+    setPatientPwaSessionCache(profilePatientId, "reminders", snapshot);
+  }, [
+    activeTab,
+    appointmentReminders,
+    healthTips,
+    isLoadingAppointmentReminders,
+    isLoadingHealthTips,
+    isLoadingMedicationReminders,
+    isLoadingScheduleReminders,
+    medicationOccurrences,
+    medicationReminders,
+    patientRecordId,
+    profilePatientId,
+    scheduleReminders,
+    tipIndex,
+  ]);
 
   useEffect(() => {
     const notifyDueReminders = () => {
@@ -1626,16 +1889,29 @@ export default function PatientPWAReminder({ profile }) {
           </article>
         </section>
 
-        <section className="pwa-reminder-card pwa-health-tips-card">
+        <section
+          className="pwa-reminder-card pwa-health-tips-card"
+          ref={healthTipsSectionRef}
+          tabIndex="-1"
+        >
           <ReminderHeader
             icon="solar:lightbulb-bold-duotone"
             title="Daily Health Tips"
             tone="blue"
-            onViewAll={() => setViewAllSection("healthTips")}
+            onViewAll={openHealthTipsModal}
             viewAllLabel="View all daily health tips"
           />
 
-          <article className="pwa-daily-tip">
+          <article
+            className={`pwa-daily-tip${
+              healthTips.length > 1 ? " is-swipeable" : ""
+            }`}
+            onTouchCancel={() => {
+              healthTipSwipeRef.current = null;
+            }}
+            onTouchEnd={handleHealthTipTouchEnd}
+            onTouchStart={handleHealthTipTouchStart}
+          >
             <div className="pwa-tip-phone" aria-hidden="true">
               <div className="pwa-tip-phone-screen">
                 {activeTip ? (
@@ -1734,88 +2010,108 @@ export default function PatientPWAReminder({ profile }) {
         </div>
       </section>
 
-      {isViewAllOpen ? (
-        <div
-          className="patient-reminder-view-all-backdrop"
-          onClick={closeViewAllModal}
-          role="presentation"
-        >
-          <section
-            aria-labelledby="patient-reminder-view-all-title"
-            aria-modal="true"
-            className="patient-reminder-view-all-modal"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
+      {isViewAllOpen && typeof document !== "undefined"
+        ? createPortal(
+          <div
+            className={`patient-reminder-view-all-backdrop${
+              isHealthTipsViewAllOpen ? " is-health-tips" : ""
+            }`}
+            onClick={closeViewAllModal}
+            role="presentation"
           >
-            <header className="patient-reminder-view-all-header">
-              <div>
-                <h2 id="patient-reminder-view-all-title">
-                  {isHealthTipsViewAllOpen
-                    ? "All Daily Health Tips"
-                    : "All Medication Reminders"}
-                </h2>
-                <p>
-                  {isHealthTipsViewAllOpen
-                    ? `${healthTips.length} active ${
-                        healthTips.length === 1 ? "tip" : "tips"
-                      }`
-                    : `${medicationList.length} ${
-                        activeTab.toLowerCase()
-                      } ${
-                        medicationList.length === 1
-                          ? "reminder"
-                          : "reminders"
-                      }`}
-                </p>
-              </div>
-              <button
-                aria-label="Close view all reminders"
-                className="patient-reminder-view-all-close"
-                onClick={closeViewAllModal}
-                type="button"
-              >
-                <Icon icon="solar:close-circle-bold" />
-              </button>
-            </header>
+            <section
+              aria-labelledby="patient-reminder-view-all-title"
+              aria-modal="true"
+              className={`patient-reminder-view-all-modal${
+                isHealthTipsViewAllOpen ? " is-health-tips" : ""
+              }`}
+              onClick={(event) => event.stopPropagation()}
+              ref={viewAllModalRef}
+              role="dialog"
+              tabIndex={-1}
+            >
+              <header className="patient-reminder-view-all-header">
+                <div>
+                  <h2 id="patient-reminder-view-all-title">
+                    {isHealthTipsViewAllOpen
+                      ? "All Daily Health Tips"
+                      : "All Medication Reminders"}
+                  </h2>
+                  <p>
+                    {isHealthTipsViewAllOpen
+                      ? `${healthTips.length} active ${
+                          healthTips.length === 1 ? "tip" : "tips"
+                        }`
+                      : `${medicationList.length} ${
+                          activeTab.toLowerCase()
+                        } ${
+                          medicationList.length === 1
+                            ? "reminder"
+                            : "reminders"
+                        }`}
+                  </p>
+                </div>
+                <button
+                  aria-label="Close view all reminders"
+                  autoFocus
+                  className="patient-reminder-view-all-close"
+                  onClick={closeViewAllModal}
+                  type="button"
+                >
+                  <Icon icon="solar:close-circle-bold" />
+                </button>
+              </header>
 
-            {isHealthTipsViewAllOpen ? (
-              <div className="patient-reminder-health-tip-list">
-                {isLoadingHealthTips && !healthTips.length ? (
-                  <article className="patient-reminder-view-all-empty">
-                    <h3>Loading health tips...</h3>
-                    <p>Checking daily guidance from your clinic.</p>
-                  </article>
-                ) : healthTips.length ? (
-                  healthTips.map((tip) => (
-                    <article
-                      className="patient-reminder-health-tip-item"
-                      key={tip.id || `${tip.title}-${tip.text}`}
-                    >
-                      <div className="patient-reminder-health-tip-image">
-                        {tip.image ? (
-                          <img src={tip.image} alt="" />
-                        ) : (
-                          <Icon icon="solar:lightbulb-bold-duotone" />
-                        )}
-                      </div>
-                      <div>
-                        <span>{tip.displaySchedule || "Daily"}</span>
-                        <h3>{tip.title}</h3>
-                        <p>{tip.text}</p>
-                      </div>
+              {isHealthTipsViewAllOpen ? (
+                <div className="patient-reminder-health-tip-list">
+                  {isLoadingHealthTips && !healthTips.length ? (
+                    <article className="patient-reminder-view-all-empty">
+                      <h3>Loading health tips...</h3>
+                      <p>Checking daily guidance from your clinic.</p>
                     </article>
-                  ))
-                ) : (
-                  <article className="patient-reminder-view-all-empty">
-                    <h3>No health tips are currently available.</h3>
-                  </article>
-                )}
-              </div>
-            ) : null}
-
-          </section>
-        </div>
-      ) : null}
+                  ) : healthTipsError && !healthTips.length ? (
+                    <article
+                      className="patient-reminder-view-all-empty"
+                      role="alert"
+                    >
+                      <h3>Health tips could not be loaded.</h3>
+                      <p>{healthTipsError}</p>
+                    </article>
+                  ) : healthTips.length ? (
+                    healthTips.map((tip) => (
+                      <article
+                        className="patient-reminder-health-tip-item"
+                        key={tip.id || `${tip.title}-${tip.text}`}
+                      >
+                        <div className="patient-reminder-health-tip-image">
+                          {tip.image ? (
+                            <img src={tip.image} alt="" />
+                          ) : (
+                            <Icon icon="solar:lightbulb-bold-duotone" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="patient-reminder-health-tip-meta">
+                            <span>{tip.category || "General Health"}</span>
+                            <span>{tip.displaySchedule || "Daily"}</span>
+                          </div>
+                          <h3>{tip.title}</h3>
+                          <p>{tip.text}</p>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <article className="patient-reminder-view-all-empty">
+                      <h3>No active daily health tips right now.</h3>
+                    </article>
+                  )}
+                </div>
+              ) : null}
+            </section>
+          </div>,
+          document.body
+        )
+        : null}
 
       <SkipMedicationDialog
         actionState={medicationActionState}

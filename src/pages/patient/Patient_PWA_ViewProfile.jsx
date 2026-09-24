@@ -1,8 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
-import { supabase } from "../../lib/supabaseClient";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import { isValidPhilippineMobileNumber } from "../../lib/philippinePhone";
+import {
+  loadPatientProfileSummary,
+  mapPatientProfileSummary,
+  updatePatientEmergencyContact,
+  updatePatientProfile,
+} from "../../lib/patientProfile";
 import "../../styles/patient-PWA-viewprofile.css";
 
 const defaultProfile = {
@@ -14,6 +20,7 @@ const defaultProfile = {
   pregnancyStatus: "Not provided",
   avatar: "",
 
+  sexAtBirth: "",
   gender: "",
   birthdate: "",
   nationality: "",
@@ -36,7 +43,7 @@ const defaultProfile = {
   clinic: "",
 };
 
-export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
+export default function PatientPWAViewProfile({ profile, onAvatarChange, onProfileChange }) {
   const initialProfile = normalizeProfile(profile);
 
   const [profileData, setProfileData] = useState(initialProfile);
@@ -50,106 +57,59 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
   const [editingPersonal, setEditingPersonal] = useState(false);
   const [editingEmergency, setEditingEmergency] = useState(false);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [savingEmergency, setSavingEmergency] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState("info");
+  const feedbackTimerRef = useRef(null);
 
-  async function getCurrentUserSafe() {
-    const { data, error } = await supabase.auth.getUser();
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const nextProfile = normalizeProfile(profile);
+      setProfileData(nextProfile);
+      setPersonalDraft(createPersonalDraft(nextProfile));
+      setEmergencyDraft(createEmergencyDraft(nextProfile));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [profile]);
 
-    if (error) {
-      console.warn("Supabase auth check:", error.message);
-      return null;
+  useEffect(() => () => window.clearTimeout(feedbackTimerRef.current), []);
+
+  const showFeedback = (message, tone = "info", autoHide = tone === "success") => {
+    window.clearTimeout(feedbackTimerRef.current);
+    setSyncMessage(message);
+    setFeedbackTone(tone);
+    if (autoHide) {
+      feedbackTimerRef.current = window.setTimeout(() => {
+        setSyncMessage("");
+        setFeedbackTone("info");
+      }, 4000);
     }
+  };
 
-    return data?.user || null;
-  }
-
-  async function findPatientRow(user) {
-    if (user?.id) {
-      const { data, error } = await supabase
-        .from("patient_personal_information")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data) return data;
-    }
-
-    if (profile?.recordId) {
-      const { data, error } = await supabase
-        .from("patient_personal_information")
-        .select("*")
-        .eq("patient_record_id", profile.recordId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data) return data;
-    }
-
-    return null;
-  }
-
-  async function loadProfileFromSupabase() {
+  const reconcileProfile = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      setSyncMessage("");
-
-      const user = await getCurrentUserSafe();
-      const personalData = await findPatientRow(user);
-
-      if (!personalData) {
-        setProfileData(initialProfile);
-        setPersonalDraft(createPersonalDraft(initialProfile));
-        setEmergencyDraft(createEmergencyDraft(initialProfile));
-        setSyncMessage(
-          hasLinkedPatientRecord(initialProfile)
-            ? "Some optional profile details have not been added yet."
-            : "Profile details are not available yet."
-        );
-        return;
-      }
-
-      const { data: emergencyData, error: emergencyError } = await supabase
-        .from("patient_emergency_contact")
-        .select("*")
-        .eq("patient_id", personalData.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (emergencyError) {
-        console.warn("Emergency contact fetch error:", emergencyError.message);
-      }
-
-      const mappedPersonal = mapPersonalInformationRow(personalData, initialProfile);
-      const mappedProfile = mapEmergencyContactRow(emergencyData, mappedPersonal);
-
-      setProfileData(mappedProfile);
-      setPersonalDraft(createPersonalDraft(mappedProfile));
-      setEmergencyDraft(createEmergencyDraft(mappedProfile));
-      setSyncMessage(
-        emergencyData ? "" : "Some optional profile details have not been added yet."
-      );
-    } catch (error) {
-      console.error("Load profile error:", error);
-      setSyncMessage(`Failed to load profile: ${error.message}`);
+      const summary = await loadPatientProfileSummary();
+      const mapped = mapPatientProfileSummary(summary, {
+        userId: profile.userId,
+        fullName: profile.displayName,
+        email: profile.email,
+        avatarDisplayUrl: profileData.avatar,
+        emailVerified: profile.emailVerified,
+        lastLoginAt: profile.lastLoginAt,
+      });
+      const nextProfile = normalizeProfile({ ...profile, ...mapped });
+      setProfileData(nextProfile);
+      setPersonalDraft(createPersonalDraft(nextProfile));
+      setEmergencyDraft(createEmergencyDraft(nextProfile));
+      onProfileChange?.(mapped);
+      return nextProfile;
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    const timer = window.setTimeout(loadProfileFromSupabase, 0);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
   const updatePersonalDraft = (field, value) => {
     setPersonalDraft((draft) => ({ ...draft, [field]: value }));
@@ -162,110 +122,42 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
   const startPersonalEdit = () => {
     setPersonalDraft(createPersonalDraft(profileData));
     setEditingPersonal(true);
-    setSyncMessage("");
+    showFeedback("");
   };
 
   const cancelPersonalEdit = () => {
     setPersonalDraft(createPersonalDraft(profileData));
     setEditingPersonal(false);
-    setSyncMessage("");
+    showFeedback("");
   };
 
   async function savePersonalEdit() {
     try {
       setSavingPersonal(true);
-      setSyncMessage("");
+      showFeedback("");
 
-      const user = await getCurrentUserSafe();
+      if (!cleanText(personalDraft.displayName)) {
+        throw new Error("Full name is required.");
+      }
+      if (!isValidPhilippineMobileNumber(personalDraft.phone)) {
+        throw new Error("Enter a valid Philippine mobile number.");
+      }
 
-      const oldEmail = cleanText(profileData.email) || cleanText(profile.email);
-
-      const newEmail = cleanText(personalDraft.email) || oldEmail;
-
-      const personalPayload = {
-        patient_record_id: profile.recordId || null,
-        patient_code:
-          profile.patientId && profile.patientId !== "Not provided"
-            ? profile.patientId
-            : null,
-        full_name: cleanText(personalDraft.displayName) || "Unnamed Patient",
-        gender: cleanText(personalDraft.gender),
-        birthdate: toDatabaseDate(personalDraft.birthdate),
+      await updatePatientProfile({
+        full_name: cleanText(personalDraft.displayName),
+        date_of_birth: toDatabaseDate(personalDraft.birthdate),
         nationality: cleanText(personalDraft.nationality),
-        email: newEmail,
         address: cleanText(personalDraft.address),
         blood_type: cleanText(personalDraft.bloodType),
         civil_status: cleanText(personalDraft.civilStatus),
         contact_number: cleanText(personalDraft.phone),
-        updated_at: new Date().toISOString(),
-      };
-
-      if (user?.id) {
-        personalPayload.user_id = user.id;
-      }
-
-      let targetPatientId = profileData.personalInfoId;
-
-      if (!targetPatientId && user?.id) {
-        const { data, error } = await supabase
-          .from("patient_personal_information")
-          .select("id")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (error) throw error;
-        targetPatientId = data?.id || null;
-      }
-
-      if (!targetPatientId && profile.recordId) {
-        const { data, error } = await supabase
-          .from("patient_personal_information")
-          .select("id")
-          .eq("patient_record_id", profile.recordId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (error) throw error;
-        targetPatientId = data?.id || null;
-      }
-
-      let savedPersonal = null;
-
-      if (targetPatientId) {
-        const { data, error } = await supabase
-          .from("patient_personal_information")
-          .update(personalPayload)
-          .eq("id", targetPatientId)
-          .select("*")
-          .single();
-
-        if (error) throw error;
-        savedPersonal = data;
-      } else {
-        const { data, error } = await supabase
-          .from("patient_personal_information")
-          .insert(personalPayload)
-          .select("*")
-          .single();
-
-        if (error) throw error;
-        savedPersonal = data;
-      }
-
-      const updatedProfile = mapPersonalInformationRow(savedPersonal, profileData);
-
-      setProfileData(updatedProfile);
-      setPersonalDraft(createPersonalDraft(updatedProfile));
+      });
+      await reconcileProfile();
       setEditingPersonal(false);
-
-      setSyncMessage("Patient information saved to Supabase successfully.");
-      console.log("Saved patient row:", savedPersonal);
+      showFeedback("Profile information saved successfully.", "success");
     } catch (error) {
       console.error("Save personal information error:", error);
-      setSyncMessage(`Supabase save failed: ${error.message}`);
+      showFeedback(error?.message || "Unable to save profile information.", "error", false);
     } finally {
       setSavingPersonal(false);
     }
@@ -274,101 +166,59 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
   const startEmergencyEdit = () => {
     setEmergencyDraft(createEmergencyDraft(profileData));
     setEditingEmergency(true);
-    setSyncMessage("");
+    showFeedback("");
   };
 
   const cancelEmergencyEdit = () => {
     setEmergencyDraft(createEmergencyDraft(profileData));
     setEditingEmergency(false);
-    setSyncMessage("");
+    showFeedback("");
   };
 
   async function saveEmergencyEdit() {
     try {
       setSavingEmergency(true);
-      setSyncMessage("");
+      showFeedback("");
 
-      if (!profileData.personalInfoId) {
-        setSyncMessage(
-          "Please save Personal Information first before saving Emergency Contact."
-        );
-        return;
+      if (!cleanText(emergencyDraft.emergencyName) || !cleanText(emergencyDraft.emergencyRelation)) {
+        throw new Error("Contact person and relationship are required.");
+      }
+      if (!isValidPhilippineMobileNumber(emergencyDraft.emergencyPhone)) {
+        throw new Error("Enter a valid Philippine mobile number for the emergency contact.");
       }
 
-      const emergencyPayload = {
-        patient_id: profileData.personalInfoId,
-        contact_person:
-          cleanText(emergencyDraft.emergencyName) || "Emergency Contact",
+      await updatePatientEmergencyContact({
+        contact_person: cleanText(emergencyDraft.emergencyName),
         relationship: cleanText(emergencyDraft.emergencyRelation),
         contact_number: cleanText(emergencyDraft.emergencyPhone),
-        updated_at: new Date().toISOString(),
-      };
-
-      let savedEmergency = null;
-
-      if (profileData.emergencyContactId) {
-        const { data, error } = await supabase
-          .from("patient_emergency_contact")
-          .update(emergencyPayload)
-          .eq("id", profileData.emergencyContactId)
-          .select("*")
-          .maybeSingle();
-
-        if (error) throw error;
-        savedEmergency = data;
-      }
-
-      if (!savedEmergency) {
-        const { data: existingEmergency, error: findError } = await supabase
-          .from("patient_emergency_contact")
-          .select("id")
-          .eq("patient_id", profileData.personalInfoId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (findError) throw findError;
-
-        if (existingEmergency?.id) {
-          const { data, error } = await supabase
-            .from("patient_emergency_contact")
-            .update(emergencyPayload)
-            .eq("id", existingEmergency.id)
-            .select("*")
-            .single();
-
-          if (error) throw error;
-          savedEmergency = data;
-        }
-      }
-
-      if (!savedEmergency) {
-        const { data, error } = await supabase
-          .from("patient_emergency_contact")
-          .insert(emergencyPayload)
-          .select("*")
-          .single();
-
-        if (error) throw error;
-        savedEmergency = data;
-      }
-
-      const updatedProfile = mapEmergencyContactRow(savedEmergency, profileData);
-
-      setProfileData(updatedProfile);
-      setEmergencyDraft(createEmergencyDraft(updatedProfile));
+      });
+      await reconcileProfile();
       setEditingEmergency(false);
-
-      setSyncMessage("Emergency contact saved to Supabase successfully.");
+      showFeedback("Emergency contact saved successfully.", "success");
     } catch (error) {
       console.error("Save emergency contact error:", error);
-      setSyncMessage(`Supabase save failed: ${error.message}`);
+      showFeedback(error?.message || "Unable to save the emergency contact.", "error", false);
     } finally {
       setSavingEmergency(false);
     }
   }
 
   const ageText = calculateAge(profileData.birthdate, profileData.age);
+  const hasMissingOptionalDetails = [
+    profileData.sexAtBirth,
+    profileData.civilStatus,
+    profileData.nationality,
+    profileData.bloodType,
+    profileData.emergencyName,
+    profileData.emergencyRelation,
+    profileData.emergencyPhone,
+  ].some((value) => !hasMeaningfulValue(value));
+  const visibleMessage = syncMessage || (
+    !editingPersonal && !editingEmergency && hasMissingOptionalDetails
+      ? "Some optional profile details have not been added yet."
+      : ""
+  );
+  const visibleFeedbackTone = syncMessage ? feedbackTone : "info";
   const pregnancySummary = formatPregnancySummary(
     profileData.trimester,
     profileData.pregnancyWeek
@@ -387,16 +237,16 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
         className="pwa-profile-title"
       />
 
-      {loading || syncMessage ? (
+      {loading || visibleMessage ? (
         <div
-          className={`pwa-profile-feedback ${syncMessage?.toLowerCase().includes("failed") ? "is-error" : ""}`.trim()}
-          role="status"
+          className={`pwa-profile-feedback ${visibleFeedbackTone === "error" ? "is-error" : visibleFeedbackTone === "success" ? "is-success" : ""}`.trim()}
+          role={visibleFeedbackTone === "error" ? "alert" : "status"}
         >
           <Icon
             icon={loading ? "solar:refresh-linear" : "solar:info-circle-bold-duotone"}
             aria-hidden="true"
           />
-          <span>{loading ? "Loading your latest profile information..." : syncMessage}</span>
+          <span>{loading ? "Refreshing your profile information..." : visibleMessage}</span>
         </div>
       ) : null}
 
@@ -433,7 +283,7 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
             </li>
             <li>
               <Icon icon="solar:users-group-rounded-linear" />{" "}
-              {formatDisplayValue(profileData.gender)}
+              {formatDisplayValue(profileData.sexAtBirth)}
             </li>
             <li>
               <Icon icon="solar:heart-linear" />{" "}
@@ -497,14 +347,10 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
 
         <Info label="Age" value={ageText} icon="solar:clock-circle-linear" />
 
-        <EditableInfo
-          label="Gender"
-          value={profileData.gender}
-          draftValue={personalDraft.gender}
-          field="gender"
+        <Info
+          label="Sex at Birth"
+          value={profileData.sexAtBirth}
           icon="solar:users-group-rounded-linear"
-          editing={editingPersonal}
-          onChange={updatePersonalDraft}
         />
 
         <EditableInfo
@@ -558,15 +404,10 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
           onChange={updatePersonalDraft}
         />
 
-        <EditableInfo
+        <Info
           label="Email"
           value={profileData.email}
-          draftValue={personalDraft.email}
-          field="email"
           icon="solar:letter-linear"
-          editing={editingPersonal}
-          onChange={updatePersonalDraft}
-          type="email"
         />
 
         <EditableInfo
@@ -604,7 +445,7 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
         />
         <Info
           label="Estimated Due Date"
-          value={profileData.dueDate}
+          value={formatDateForDisplay(profileData.dueDate)}
           icon="solar:calendar-linear"
         />
         <Info
@@ -622,6 +463,7 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
 
       <InfoCard
         title="Emergency Contact"
+        className="pwa-emergency-contact-card"
         icon="solar:users-group-rounded-bold-duotone"
         action={
           editingEmergency ? (savingEmergency ? "Saving..." : "Save") : "Edit"
@@ -641,19 +483,19 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange }) {
         />
 
         <EditableInfo
-          label="Relationship"
-          value={profileData.emergencyRelation}
-          draftValue={emergencyDraft.emergencyRelation}
-          field="emergencyRelation"
+          label="Contact Number"
+          value={profileData.emergencyPhone}
+          draftValue={emergencyDraft.emergencyPhone}
+          field="emergencyPhone"
           editing={editingEmergency}
           onChange={updateEmergencyDraft}
         />
 
         <EditableInfo
-          label="Contact Number"
-          value={profileData.emergencyPhone}
-          draftValue={emergencyDraft.emergencyPhone}
-          field="emergencyPhone"
+          label="Relationship"
+          value={profileData.emergencyRelation}
+          draftValue={emergencyDraft.emergencyRelation}
+          field="emergencyRelation"
           editing={editingEmergency}
           onChange={updateEmergencyDraft}
         />
@@ -701,7 +543,7 @@ function formatCombinedValues(values) {
 
 function formatPregnancySummary(trimester, pregnancyWeek) {
   const normalizedWeek = normalizePregnancyWeek(pregnancyWeek);
-  const weekText = normalizedWeek ? `Week ${normalizedWeek}` : "";
+  const weekText = normalizedWeek !== null ? `Week ${normalizedWeek}` : "";
 
   return formatCombinedValues([trimester, weekText]);
 }
@@ -709,73 +551,37 @@ function formatPregnancySummary(trimester, pregnancyWeek) {
 function normalizePregnancyWeek(value) {
   const match = String(value ?? "").match(/\d+/);
   const week = match ? Number.parseInt(match[0], 10) : Number.NaN;
-  return Number.isFinite(week) && week >= 1 && week <= 45 ? week : null;
+  return Number.isFinite(week) && week >= 0 && week <= 42 ? week : null;
 }
 
 function formatPregnancyWeek(value) {
   const week = normalizePregnancyWeek(value);
-  if (!week) return "Not provided";
-  return `${week} ${week === 1 ? "Week" : "Weeks"}`;
-}
-
-function hasLinkedPatientRecord(profile) {
-  return [
-    profile?.recordId,
-    profile?.patientId,
-    profile?.email,
-    profile?.phone,
-  ].some(hasMeaningfulValue);
+  if (week === null) return "Not provided";
+  return `Week ${week}`;
 }
 
 function createPersonalDraft(profile) {
   return {
-    displayName: profile.displayName || "",
-    gender: profile.gender || "",
-    bloodType: profile.bloodType || "",
+    displayName: getEditableValue(profile.displayName),
+    bloodType: getEditableValue(profile.bloodType),
     birthdate: toDateInputValue(profile.birthdate),
-    civilStatus: profile.civilStatus || "",
-    nationality: profile.nationality || "",
-    phone: profile.phone || "",
-    email: profile.email || "",
-    address: profile.address || "",
+    civilStatus: getEditableValue(profile.civilStatus),
+    nationality: getEditableValue(profile.nationality),
+    phone: getEditableValue(profile.phone),
+    address: getEditableValue(profile.address),
   };
 }
 
 function createEmergencyDraft(profile) {
   return {
-    emergencyName: profile.emergencyName || "",
-    emergencyRelation: profile.emergencyRelation || "",
-    emergencyPhone: profile.emergencyPhone || "",
+    emergencyName: getEditableValue(profile.emergencyName),
+    emergencyRelation: getEditableValue(profile.emergencyRelation),
+    emergencyPhone: getEditableValue(profile.emergencyPhone),
   };
 }
 
-function mapPersonalInformationRow(row, currentProfile) {
-  return {
-    ...currentProfile,
-    personalInfoId: row.id,
-    patientId: row.patient_code || currentProfile.patientId,
-    displayName: row.full_name || currentProfile.displayName || "",
-    gender: row.gender || "",
-    birthdate: row.birthdate || "",
-    nationality: row.nationality || "",
-    email: row.email || currentProfile.email || "",
-    address: row.address || "",
-    bloodType: row.blood_type || "",
-    civilStatus: row.civil_status || "",
-    phone: row.contact_number || currentProfile.phone || "",
-  };
-}
-
-function mapEmergencyContactRow(row, currentProfile) {
-  if (!row) return currentProfile;
-
-  return {
-    ...currentProfile,
-    emergencyContactId: row.id,
-    emergencyName: row.contact_person || "",
-    emergencyRelation: row.relationship || "",
-    emergencyPhone: row.contact_number || "",
-  };
+function getEditableValue(value) {
+  return hasMeaningfulValue(value) ? String(value).trim() : "";
 }
 
 function cleanText(value) {
@@ -859,6 +665,7 @@ function Contact({ icon, value }) {
 
 function InfoCard({
   title,
+  className = "",
   icon,
   action,
   secondaryAction,
@@ -870,7 +677,7 @@ function InfoCard({
   const isSaving = action === "Saving...";
 
   return (
-    <section className="pwa-info-card">
+    <section className={`pwa-info-card ${className}`.trim()}>
       <header>
         <span>
           <Icon icon={icon} />

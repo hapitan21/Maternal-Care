@@ -462,7 +462,12 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
         </div>
 
         <div className="pwa-tip-actions">
-          <button type="button" onClick={() => onNavigate("reminders")}>
+          <button
+            type="button"
+            onClick={() =>
+              onNavigate("/patient/reminders?section=health-tips&view=all")
+            }
+          >
             View All Tips
             <Icon icon="solar:arrow-right-linear" />
           </button>

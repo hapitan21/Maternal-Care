@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { resolvePregnancyTracking } from "../lib/pregnancyTracking";
+import { loadPatientProfileSummary } from "../lib/patientProfile";
 import {
-  isCompletedClinicalVisitRecord,
-  normalizeClinicalVisitFormData,
-} from "../lib/clinicalVisitData";
+  getPatientPwaSessionCache,
+  setPatientPwaSessionCache,
+} from "../lib/patientPwaSessionCache";
 
 const initialState = {
   status: "loading",
@@ -12,57 +12,12 @@ const initialState = {
   error: "",
 };
 
-function getFormData(record) {
-  return normalizeClinicalVisitFormData(record);
-}
-
-function getClinicalGestationalAge(record) {
-  const formData = getFormData(record);
-  return formData.gestationalAge || "";
-}
-
-function getRecordTimestamp(record) {
-  const formData = getFormData(record);
-  const visitInformation =
-    formData.visitInformation || formData.visit_information || {};
-
-  const candidates = [
-    formData.visitDate,
-    formData.visit_date,
-    visitInformation.visitDate,
-    visitInformation.visit_date,
-    formData.appointmentDate,
-    formData.appointment_date,
-    record?.uploaded_at,
-    record?.created_at,
-  ];
-
-  for (const value of candidates) {
-    const date = value ? new Date(value) : null;
-
-    if (date && !Number.isNaN(date.getTime())) {
-      return date.getTime();
-    }
-  }
-
-  return 0;
-}
-
-function getLatestClinicalGestationalAge(records) {
-  const latestRecord = records
-    .filter(isCompletedClinicalVisitRecord)
-    .sort(
-      (first, second) =>
-        getRecordTimestamp(second) - getRecordTimestamp(first)
-    )[0];
-
-  return latestRecord
-    ? getClinicalGestationalAge(latestRecord)
-    : "";
-}
-
 export function usePatientPregnancyTracking(patientId) {
-  const [state, setState] = useState(initialState);
+  const [initialCache] = useState(() =>
+    getPatientPwaSessionCache(patientId, "pregnancy-tracking")
+  );
+  const initialCacheRef = useRef(initialCache);
+  const [state, setState] = useState(() => initialCache || initialState);
   const [reloadToken, setReloadToken] = useState(0);
 
   const refresh = useCallback(() => {
@@ -81,111 +36,34 @@ export function usePatientPregnancyTracking(patientId) {
     const loadPregnancyTracking = async ({
       showLoading = false,
     } = {}) => {
-      if (showLoading && active) {
+      if (showLoading && active && !initialCacheRef.current) {
         setState(initialState);
       }
 
-      const { data: patient, error: patientError } =
-        await supabase
-          .rpc("get_patient_own_record")
-          .limit(1)
-          .maybeSingle();
+      try {
+        const summary = await loadPatientProfileSummary();
+        if (!active) return;
 
-      if (!active) return;
+        if (summary.patient.id !== patientId) {
+          throw new Error("The authenticated patient record could not be verified.");
+        }
 
-      if (
-        patientError ||
-        !patient ||
-        patient.id !== patientId
-      ) {
+        const nextState = {
+          status: summary.tracking.hasCurrentPregnancy ? "ready" : "empty",
+          tracking: summary.tracking,
+          error: "",
+        };
+        initialCacheRef.current = nextState;
+        setPatientPwaSessionCache(patientId, "pregnancy-tracking", nextState);
+        setState(nextState);
+      } catch (error) {
+        if (!active) return;
         setState({
           status: "error",
           tracking: null,
-          error:
-            patientError?.message ||
-            "The authenticated patient record could not be verified.",
+          error: error?.message || "The pregnancy information could not be loaded.",
         });
-
-        return;
       }
-
-      const [obstetricResult, medicalRecordsResult] =
-        await Promise.all([
-          supabase
-            .from("patient_obstetric_history")
-            .select(
-              `
-                id,
-                patient_id,
-                gravida,
-                para,
-                last_menstrual_period,
-                expected_delivery_date,
-                updated_at
-              `
-            )
-            .eq("patient_id", patient.id)
-            .limit(1)
-            .maybeSingle(),
-
-          supabase
-            .from("medical_records")
-            .select(
-              `
-                id,
-                patient_id,
-                form_data,
-                uploaded_at,
-                created_at
-              `
-            )
-            .eq("patient_id", patient.id)
-            .order("uploaded_at", {
-              ascending: false,
-            }),
-        ]);
-
-      if (!active) return;
-
-      const clinicalReadError =
-        obstetricResult.error ||
-        medicalRecordsResult.error;
-
-      const tracking = resolvePregnancyTracking({
-        patient,
-        obstetric: obstetricResult.error
-          ? {}
-          : obstetricResult.data || {},
-        clinicalGestationalAge:
-          medicalRecordsResult.error
-            ? ""
-            : getLatestClinicalGestationalAge(
-                medicalRecordsResult.data || []
-              ),
-      });
-
-      if (
-        !tracking.hasCurrentPregnancy &&
-        clinicalReadError
-      ) {
-        setState({
-          status: "error",
-          tracking: null,
-          error: clinicalReadError.message,
-        });
-
-        return;
-      }
-
-      if (!active) return;
-
-      setState({
-        status: tracking.hasCurrentPregnancy
-          ? "ready"
-          : "empty",
-        tracking,
-        error: "",
-      });
     };
 
     const queueRealtimeRefresh = (payload) => {

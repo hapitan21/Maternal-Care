@@ -506,6 +506,14 @@
   font-weight: 700;
 }
 
+.pwa-settings-form-message.is-error {
+  color: #b42338;
+}
+
+.pwa-settings-form-message.is-success {
+  color: #15803d;
+}
+
 .pwa-security-toggle h4 {
   margin: 0 0 8px;
   color: var(--pwa-text);
@@ -986,16 +994,24 @@
 
   .pwa-settings-tabs {
     position: static;
+    max-width: 100%;
     gap: 6px;
     margin: 0 -2px;
     border-radius: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
     padding: 6px;
+    scrollbar-width: none;
   }
 
   .pwa-settings-tabs button {
+    flex: 0 0 auto;
+    width: auto;
     min-width: max-content;
     min-height: 42px;
     padding: 0 11px;
+    white-space: nowrap;
   }
 
   .pwa-settings-section-header {

@@ -17,6 +17,15 @@ import {
   normalizePatientAccountStatus,
   patientAccountStatuses,
 } from "../../lib/patientAccountStatus";
+import {
+  loadPatientProfileSummary,
+  mapPatientProfileSummary,
+} from "../../lib/patientProfile";
+import {
+  clearPatientPwaSessionCache,
+  getPatientPwaSessionCache,
+  setPatientPwaSessionCache,
+} from "../../lib/patientPwaSessionCache";
 import "../../styles/patient-PWA.css";
 import "../../styles/patient-notifications.css";
 import "../../styles/patient-pwa-ui-system.css";
@@ -36,6 +45,7 @@ const defaultPatientProfile = {
   patientId: "Not provided",
   avatar: "",
   age: "Not provided",
+  sexAtBirth: "Not provided",
   gender: "Not provided",
   civilStatus: "Not provided",
   trimester: "Not provided",
@@ -61,6 +71,7 @@ const defaultPatientProfile = {
 };
 
 const patientSessionStorageKey = "maternal_patient_session";
+const patientAccountCacheSection = "account-shell";
 const patientLoadingMessage = "Loading your Maternal Care account...";
 
 const navItems = [
@@ -115,65 +126,6 @@ function isMissingAuthSession(error) {
   );
 }
 
-function formatDateForDisplay(value) {
-  if (!value) return "";
-
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function getAgeLabel(row) {
-  if (!row?.date_of_birth) {
-    return row?.age ? `${row.age} years old` : defaultPatientProfile.age;
-  }
-
-  const birth = new Date(`${row.date_of_birth}T00:00:00`);
-  if (Number.isNaN(birth.getTime())) return "Not provided";
-
-  const today = new Date();
-  if (birth > today) return "Not provided";
-
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDelta = today.getMonth() - birth.getMonth();
-
-  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < birth.getDate())) {
-    age -= 1;
-  }
-
-  return `${age} years old`;
-}
-
-function mapPatientProfile(row, profile) {
-  const authUser = profile?.authUser || null;
-
-  return {
-    ...defaultPatientProfile,
-    recordId: row?.id || "",
-    displayName: row?.full_name || profile?.full_name || defaultPatientProfile.displayName,
-    patientId: row?.patient_id || defaultPatientProfile.patientId,
-    avatar: profile?.avatarDisplayUrl || "",
-    age: getAgeLabel(row),
-    email: row?.email || profile?.email || defaultPatientProfile.email,
-    phone: row?.contact_number || defaultPatientProfile.phone,
-    address: row?.address || defaultPatientProfile.address,
-    birthdate: formatDateForDisplay(row?.date_of_birth) || defaultPatientProfile.birthdate,
-    bloodType: row?.blood_type || defaultPatientProfile.bloodType,
-    trimester: row?.trimester || defaultPatientProfile.trimester,
-    pregnancyWeek: row?.gestational_age || defaultPatientProfile.pregnancyWeek,
-    dueDate: formatDateForDisplay(row?.expected_delivery_date) || defaultPatientProfile.dueDate,
-    pregnancyStatus: row?.status || defaultPatientProfile.pregnancyStatus,
-    accountStatus: row?.account_status || row?.status || defaultPatientProfile.accountStatus,
-    emailVerified: authUser?.email_confirmed_at ? true : null,
-    lastLoginAt: authUser?.last_sign_in_at || "",
-  };
-}
-
 function rememberPatientProfile(row, profile) {
   if (!row?.id && !row?.patient_id) return;
 
@@ -187,6 +139,35 @@ function rememberPatientProfile(row, profile) {
       displayName: row?.full_name || profile?.full_name || profile?.displayName || "Patient",
     })
   );
+}
+
+function getCachedPatientAccount() {
+  try {
+    const rememberedSession = JSON.parse(
+      window.localStorage.getItem(patientSessionStorageKey) || "null"
+    );
+    const recordId = String(rememberedSession?.recordId || "").trim();
+    const userId = String(rememberedSession?.userId || "").trim();
+
+    if (!recordId || !userId) return null;
+
+    const cachedAccount = getPatientPwaSessionCache(
+      recordId,
+      patientAccountCacheSection
+    );
+
+    if (
+      !cachedAccount?.profile ||
+      cachedAccount.userId !== userId ||
+      cachedAccount.profile.recordId !== recordId
+    ) {
+      return null;
+    }
+
+    return cachedAccount;
+  } catch {
+    return null;
+  }
 }
 
 function logPatientAccess(label, details = {}) {
@@ -306,12 +287,20 @@ export default function PatientPWA() {
   const activePage = getPageFromPath(location.pathname);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [topbarSecondaryTarget, setTopbarSecondaryTarget] = useState(null);
-  const [profile, setProfile] = useState(defaultPatientProfile);
-  const [accessState, setAccessState] = useState({
-    status: "loading",
-    message: patientLoadingMessage,
-    details: "",
-  });
+  const [initialAccountCache] = useState(getCachedPatientAccount);
+  const initialAccountCacheRef = useRef(initialAccountCache);
+  const [profile, setProfile] = useState(
+    () => initialAccountCache?.profile || defaultPatientProfile
+  );
+  const [accessState, setAccessState] = useState(() =>
+    initialAccountCache
+      ? { status: "active", message: "", details: "" }
+      : {
+          status: "loading",
+          message: patientLoadingMessage,
+          details: "",
+        }
+  );
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
@@ -321,11 +310,13 @@ export default function PatientPWA() {
       const routePath = window.location.pathname;
       const routeSearch = window.location.search;
 
-      setAccessState({
-        status: "loading",
-        message: patientLoadingMessage,
-        details: "",
-      });
+      if (!initialAccountCacheRef.current) {
+        setAccessState({
+          status: "loading",
+          message: patientLoadingMessage,
+          details: "",
+        });
+      }
 
       try {
         const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -338,6 +329,7 @@ export default function PatientPWA() {
             redirectDestination: "/patient/login",
           });
           window.localStorage.removeItem(patientSessionStorageKey);
+          clearPatientPwaSessionCache();
           setAccessState({
             status: "unauthenticated",
             message: "Please log in to open your Patient dashboard.",
@@ -356,6 +348,7 @@ export default function PatientPWA() {
             redirectDestination: "/patient/login",
           });
           window.localStorage.removeItem(patientSessionStorageKey);
+          clearPatientPwaSessionCache();
           setAccessState({
             status: "unauthenticated",
             message: "Please log in to open your Patient dashboard.",
@@ -365,6 +358,19 @@ export default function PatientPWA() {
         }
 
         const user = userData.user;
+        if (
+          initialAccountCacheRef.current &&
+          initialAccountCacheRef.current.userId !== user.id
+        ) {
+          initialAccountCacheRef.current = null;
+          clearPatientPwaSessionCache();
+          setProfile(defaultPatientProfile);
+          setAccessState({
+            status: "loading",
+            message: patientLoadingMessage,
+            details: "",
+          });
+        }
         logPatientAccess("authenticated user", {
           authenticatedUserId: user.id,
           route: routePath,
@@ -406,6 +412,7 @@ export default function PatientPWA() {
             redirectDestination: "/patient/login",
           });
           window.localStorage.removeItem(patientSessionStorageKey);
+          clearPatientPwaSessionCache();
           setAccessState({
             status: "unauthenticated",
             message: "This login is not a patient account.",
@@ -448,6 +455,7 @@ export default function PatientPWA() {
 
         if (!linkedSummary) {
           window.localStorage.removeItem(patientSessionStorageKey);
+          clearPatientPwaSessionCache();
           setAccessState({
             status: "unlinked",
             message: "No patient record is linked to this account yet.",
@@ -458,6 +466,7 @@ export default function PatientPWA() {
 
         if (linkedStatus !== patientAccountStatuses.active) {
           window.localStorage.removeItem(patientSessionStorageKey);
+          clearPatientPwaSessionCache();
           await supabase.auth.signOut().catch(() => null);
           setAccessState(
             getPatientAccessState(
@@ -520,9 +529,18 @@ export default function PatientPWA() {
 
         if (nextAccessState.status !== "active") {
           window.localStorage.removeItem(patientSessionStorageKey);
+          clearPatientPwaSessionCache();
           await supabase.auth.signOut().catch(() => null);
           setAccessState({ ...nextAccessState, details: "" });
           return;
+        }
+
+        const profileSummary = await loadPatientProfileSummary();
+
+        if (!active) return;
+
+        if (profileSummary.patient.id !== patientRow.id) {
+          throw new Error("The Patient profile summary did not match the linked Patient record.");
         }
 
         let avatarDisplayUrl = "";
@@ -536,20 +554,39 @@ export default function PatientPWA() {
           }
         }
 
-        setProfile(
-          mapPatientProfile(patientRow, {
-            ...(profileRow || { email: user.email }),
-            authUser: user,
+        const nextProfile = {
+          ...defaultPatientProfile,
+          ...mapPatientProfileSummary(profileSummary, {
+            userId: user.id,
+            fullName: profileRow?.full_name,
+            email: user.email || profileRow?.email,
             avatarDisplayUrl,
-          })
+            emailVerified: Boolean(user.email_confirmed_at),
+            lastLoginAt: user.last_sign_in_at || "",
+          }),
+        };
+        setProfile(nextProfile);
+        rememberPatientProfile(profileSummary.patient, {
+          ...(profileRow || {}),
+          email: user.email || profileRow?.email,
+        });
+        const nextAccountCache = {
+          userId: user.id,
+          profile: nextProfile,
+        };
+        initialAccountCacheRef.current = nextAccountCache;
+        setPatientPwaSessionCache(
+          profileSummary.patient.id,
+          patientAccountCacheSection,
+          nextAccountCache
         );
-        rememberPatientProfile(patientRow, profileRow || { email: user.email });
         setAccessState({ status: "active", message: "", details: "" });
       } catch (error) {
         if (!active) return;
 
         if (isMissingAuthSession(error)) {
           window.localStorage.removeItem(patientSessionStorageKey);
+          clearPatientPwaSessionCache();
           setAccessState({
             status: "unauthenticated",
             message: "Please log in to open your Patient dashboard.",
@@ -577,6 +614,27 @@ export default function PatientPWA() {
       active = false;
     };
   }, [reloadToken]);
+
+  useEffect(() => {
+    if (
+      accessState.status !== "active" ||
+      !profile.recordId ||
+      !profile.userId
+    ) {
+      return;
+    }
+
+    const nextAccountCache = {
+      userId: profile.userId,
+      profile,
+    };
+    initialAccountCacheRef.current = nextAccountCache;
+    setPatientPwaSessionCache(
+      profile.recordId,
+      patientAccountCacheSection,
+      nextAccountCache
+    );
+  }, [accessState.status, profile]);
 
   useEffect(() => {
     const syncProfilePicture = (event) => {
@@ -607,11 +665,17 @@ export default function PatientPWA() {
   }, [accessState.status, location.pathname, navigate]);
 
   const handleNavigate = (page) => {
+    if (typeof page === "string" && page.startsWith("/patient/")) {
+      navigate(page);
+      return;
+    }
+
     navigate(pageRoutes[page] || pageRoutes.dashboard);
   };
 
   const handleLogout = async () => {
     window.localStorage.removeItem(patientSessionStorageKey);
+    clearPatientPwaSessionCache();
     const { error } = await supabase.auth.signOut();
 
     if (error) {
@@ -627,6 +691,9 @@ export default function PatientPWA() {
         return (
           <PatientPWAViewProfile
             profile={profile}
+            onProfileChange={(updates) =>
+              setProfile((current) => ({ ...current, ...updates }))
+            }
             onAvatarChange={(avatar) =>
               setProfile((current) => ({ ...current, avatar }))
             }

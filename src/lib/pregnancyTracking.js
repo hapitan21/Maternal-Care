@@ -1,4 +1,4 @@
-const millisecondsPerWeek = 604800000;
+const daysPerWeek = 7;
 
 function parseNumber(value) {
   if (value === null || value === undefined) return null;
@@ -10,14 +10,23 @@ function parseNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function getTimestamp(value) {
-  const date = value ? new Date(value) : null;
-  return date && !Number.isNaN(date.getTime()) ? date.getTime() : null;
+function getCalendarDay(value) {
+  if (!value) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
+    const [year, month, day] = String(value).split("-").map(Number);
+    return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.floor(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000
+  );
 }
 
-function getNowTimestamp(now) {
-  if (now instanceof Date) return now.getTime();
-  return Number.isFinite(now) ? now : Date.now();
+function getTodayCalendarDay(now) {
+  return getCalendarDay(now instanceof Date ? now : new Date(Number.isFinite(now) ? now : Date.now()));
 }
 
 export function parsePregnancyWeek(value) {
@@ -27,18 +36,20 @@ export function parsePregnancyWeek(value) {
 }
 
 export function calculateWeeksFromLmp(value, now = Date.now()) {
-  const lmpTimestamp = getTimestamp(value);
-  if (lmpTimestamp === null) return null;
+  const lmpDay = getCalendarDay(value);
+  const todayDay = getTodayCalendarDay(now);
+  if (lmpDay === null || todayDay === null) return null;
 
-  const weeks = Math.floor((getNowTimestamp(now) - lmpTimestamp) / millisecondsPerWeek);
+  const weeks = Math.floor((todayDay - lmpDay) / daysPerWeek);
   return weeks >= 0 && weeks <= 42 ? weeks : null;
 }
 
 export function calculateWeeksFromEdd(value, now = Date.now()) {
-  const eddTimestamp = getTimestamp(value);
-  if (eddTimestamp === null) return null;
+  const eddDay = getCalendarDay(value);
+  const todayDay = getTodayCalendarDay(now);
+  if (eddDay === null || todayDay === null) return null;
 
-  const weeks = 40 - Math.floor((eddTimestamp - getNowTimestamp(now)) / millisecondsPerWeek);
+  const weeks = 40 - Math.floor((eddDay - todayDay) / daysPerWeek);
   return weeks >= 0 && weeks <= 42 ? weeks : null;
 }
 

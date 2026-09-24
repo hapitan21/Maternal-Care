@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
@@ -155,6 +155,104 @@ function getReadableBookingError(error) {
   return message || "We could not submit your booking request. Please try again.";
 }
 
+function isUnavailableSlotError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    error?.code === "23505" ||
+    message.includes("slot is no longer available") ||
+    message.includes("already have an appointment") ||
+    message.includes("already have a pending appointment request")
+  );
+}
+
+function isSelectionBoundBookingError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    isUnavailableSlotError(error) ||
+    message.includes("selected doctor is not available") ||
+    message.includes("choose an appointment time in the future")
+  );
+}
+
+function getSlotKey(doctorId, dateKey, time) {
+  return `${doctorId || "clinic-team"}:${dateKey}:${time}`;
+}
+
+function getBookingDayRange(dateKey) {
+  const start = dateFromKey(dateKey);
+  const end = addDays(start, 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function getUnavailableTimes(rows, dateKey) {
+  return new Set(
+    TIME_SLOTS.filter((time) => {
+      const [hours, minutes] = time.split(":").map(Number);
+      const slotStart = dateFromKey(dateKey);
+      slotStart.setHours(hours, minutes, 0, 0);
+      const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000);
+
+      return rows.some((row) => {
+        const status = String(row.status || "scheduled").trim().toLowerCase();
+        if (["cancel", "cancelled", "canceled", "completed", "complete", "no_show", "no show", "missed", "declined"].includes(status)) {
+          return false;
+        }
+
+        const rowStart = new Date(row.start_time);
+        const rowEnd = new Date(row.end_time || rowStart.getTime() + 30 * 60 * 1000);
+        return rowStart < slotEnd && rowEnd > slotStart;
+      });
+    })
+  );
+}
+
+async function fetchUnavailableBookingTimes({ dateKey, doctorId, patientId }) {
+  const range = getBookingDayRange(dateKey);
+  const patientScheduleQuery = supabase
+    .from("schedule")
+    .select("id, start_time, end_time, status")
+    .eq("patient_id", patientId)
+    .gte("start_time", range.start)
+    .lt("start_time", range.end);
+  const doctorScheduleQuery = doctorId
+    ? supabase
+        .from("schedule")
+        .select("id, start_time, end_time, status")
+        .eq("doctor_id", doctorId)
+        .gte("start_time", range.start)
+        .lt("start_time", range.end)
+    : Promise.resolve({ data: [], error: null });
+  const requestQuery = supabase
+    .from("create_patient_appointment_request")
+    .select("id, start_time, end_time, status")
+    .eq("patient_id", patientId)
+    .eq("status", "pending")
+    .gte("start_time", range.start)
+    .lt("start_time", range.end);
+
+  const [patientScheduleResult, doctorScheduleResult, requestResult] =
+    await Promise.all([
+      patientScheduleQuery,
+      doctorScheduleQuery,
+      requestQuery,
+    ]);
+  const error =
+    patientScheduleResult.error ||
+    doctorScheduleResult.error ||
+    requestResult.error;
+
+  if (error) throw error;
+
+  const rowsById = new Map();
+  [
+    ...(patientScheduleResult.data || []),
+    ...(doctorScheduleResult.data || []),
+    ...(requestResult.data || []),
+  ].forEach((row) => rowsById.set(`${row.id}:${row.start_time}`, row));
+
+  return getUnavailableTimes([...rowsById.values()], dateKey);
+}
+
 export default function PatientBookAppointment({ profile }) {
   const navigate = useNavigate();
   const tomorrow = useMemo(() => addDays(startOfDay(new Date()), 1), []);
@@ -168,9 +266,16 @@ export default function PatientBookAppointment({ profile }) {
     () => new Date(tomorrow.getFullYear(), tomorrow.getMonth(), 1)
   );
   const [selectedTime, setSelectedTime] = useState("");
+  const [unavailableTimes, setUnavailableTimes] = useState(() => new Set());
+  const [rejectedSlotKeys, setRejectedSlotKeys] = useState(() => new Set());
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotAvailabilityError, setSlotAvailabilityError] = useState("");
+  const [slotSelectionError, setSlotSelectionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [isSubmitErrorSelectionBound, setIsSubmitErrorSelectionBound] = useState(false);
   const [submittedAppointmentId, setSubmittedAppointmentId] = useState("");
+  const submitInFlightRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -277,6 +382,10 @@ export default function PatientBookAppointment({ profile }) {
 
   const selectedService = SERVICES.find((service) => service.id === serviceId) || SERVICES[0];
   const selectedDoctor = doctors.find((doctor) => doctor.id === selectedDoctorId) || doctors[0];
+  const selectedDoctorDatabaseId = selectedDoctor?.databaseId ||
+    (selectedDoctor?.id && !String(selectedDoctor.id).startsWith("name:") && selectedDoctor.id !== "clinic-team"
+      ? selectedDoctor.id
+      : null);
   const monthDays = useMemo(() => buildMonthDays(calendarMonth), [calendarMonth]);
   const chosenDate = dateFromKey(selectedDate);
   const chosenDateLabel = chosenDate.toLocaleDateString("en-US", {
@@ -286,16 +395,111 @@ export default function PatientBookAppointment({ profile }) {
     year: "numeric",
   });
 
+  const isSelectedTimeUnavailable = Boolean(
+    selectedTime &&
+      (unavailableTimes.has(selectedTime) ||
+        rejectedSlotKeys.has(
+          getSlotKey(selectedDoctorId, selectedDate, selectedTime)
+        ))
+  );
   const canContinue =
     (step === 1 && Boolean(selectedService)) ||
     (step === 2 && Boolean(selectedDoctor)) ||
-    (step === 3 && Boolean(selectedDate && selectedTime));
+    (step === 3 && Boolean(
+      selectedDate &&
+      selectedTime &&
+      !isLoadingSlots &&
+      !isSelectedTimeUnavailable
+    ));
+
+  const clearSelectionBoundErrors = () => {
+    setSlotSelectionError("");
+    if (isSubmitErrorSelectionBound) {
+      setSubmitError("");
+      setIsSubmitErrorSelectionBound(false);
+    }
+  };
+
+  useEffect(() => {
+    if (step !== 3 || !profile?.recordId || !selectedDate) return undefined;
+
+    let active = true;
+
+    const refreshSlots = async () => {
+      setIsLoadingSlots(true);
+      setSlotAvailabilityError("");
+
+      try {
+        const nextUnavailableTimes = await fetchUnavailableBookingTimes({
+          dateKey: selectedDate,
+          doctorId: selectedDoctorDatabaseId,
+          patientId: profile.recordId,
+        });
+        if (!active) return;
+
+        setUnavailableTimes(nextUnavailableTimes);
+        if (
+          selectedTime &&
+          (nextUnavailableTimes.has(selectedTime) ||
+            rejectedSlotKeys.has(
+              getSlotKey(selectedDoctorId, selectedDate, selectedTime)
+            ))
+        ) {
+          setSelectedTime("");
+          setSlotSelectionError(
+            "That time is no longer available. Please select another slot."
+          );
+        }
+      } catch (error) {
+        if (!active) return;
+        console.error("Patient booking availability refresh failed:", error);
+        setUnavailableTimes(new Set());
+        setSlotAvailabilityError(
+          "Availability could not be refreshed. Final availability will be checked when you submit."
+        );
+      } finally {
+        if (active) setIsLoadingSlots(false);
+      }
+    };
+
+    refreshSlots();
+    return () => {
+      active = false;
+    };
+  }, [
+    profile?.recordId,
+    rejectedSlotKeys,
+    selectedDate,
+    selectedDoctorDatabaseId,
+    selectedDoctorId,
+    selectedTime,
+    step,
+  ]);
+
+  const handleServiceSelect = (nextServiceId) => {
+    clearSelectionBoundErrors();
+    setServiceId(nextServiceId);
+  };
+
+  const handleDoctorSelect = (nextDoctorId) => {
+    clearSelectionBoundErrors();
+    setSelectedDoctorId(nextDoctorId);
+    setSelectedTime("");
+    setUnavailableTimes(new Set());
+  };
 
   const handleDateSelect = (date) => {
     if (startOfDay(date) < startOfDay(tomorrow)) return;
+    clearSelectionBoundErrors();
     setSelectedDate(toDateKey(date));
     setCalendarMonth(new Date(date.getFullYear(), date.getMonth(), 1));
     setSelectedTime("");
+    setUnavailableTimes(new Set());
+  };
+
+  const handleTimeSelect = (time) => {
+    clearSelectionBoundErrors();
+    setSelectedTime(time);
   };
 
   const submitBooking = async () => {
@@ -303,8 +507,17 @@ export default function PatientBookAppointment({ profile }) {
     // page does not need to insert directly into the request table.
     if (!selectedService || !selectedDoctor || !selectedDate || !selectedTime) {
       setSubmitError("Please complete all booking details before submitting.");
+      setIsSubmitErrorSelectionBound(true);
       return;
     }
+
+    if (isSelectedTimeUnavailable) {
+      setSubmitError("That appointment slot is no longer available. Please choose another time.");
+      setIsSubmitErrorSelectionBound(true);
+      return;
+    }
+
+    if (submitInFlightRef.current) return;
 
     const [hours, minutes] = selectedTime.split(":").map(Number);
     const startDate = dateFromKey(selectedDate);
@@ -312,11 +525,14 @@ export default function PatientBookAppointment({ profile }) {
 
     if (Number.isNaN(startDate.getTime())) {
       setSubmitError("Please select a valid appointment date and time.");
+      setIsSubmitErrorSelectionBound(true);
       return;
     }
 
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
     setSubmitError("");
+    setIsSubmitErrorSelectionBound(false);
 
     try {
       // Confirm that a patient is actually signed in before calling the RPC.
@@ -324,6 +540,7 @@ export default function PatientBookAppointment({ profile }) {
 
       if (authError || !authData?.user) {
         setSubmitError("Your session has expired. Please sign in again before booking an appointment.");
+        setIsSubmitErrorSelectionBound(false);
         return;
       }
 
@@ -350,7 +567,26 @@ export default function PatientBookAppointment({ profile }) {
 
       if (error) {
         console.error("Patient booking request failed:", error);
-        setSubmitError(getReadableBookingError(error));
+        const readableError = getReadableBookingError(error);
+
+        if (isUnavailableSlotError(error)) {
+          setRejectedSlotKeys((current) => {
+            const next = new Set(current);
+            next.add(getSlotKey(selectedDoctorId, selectedDate, selectedTime));
+            return next;
+          });
+          setSelectedTime("");
+          setSubmitError("");
+          setIsSubmitErrorSelectionBound(false);
+          setSlotSelectionError(
+            "That time is no longer available. Please select another slot."
+          );
+          setStep(3);
+          return;
+        }
+
+        setSubmitError(readableError);
+        setIsSubmitErrorSelectionBound(isSelectionBoundBookingError(error));
         return;
       }
 
@@ -366,7 +602,9 @@ export default function PatientBookAppointment({ profile }) {
       setSubmitError(
         "We could not submit your booking request. Please check your connection and try again."
       );
+      setIsSubmitErrorSelectionBound(false);
     } finally {
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -428,7 +666,7 @@ export default function PatientBookAppointment({ profile }) {
                   type="button"
                   key={service.id}
                   className={serviceId === service.id ? "is-selected" : ""}
-                  onClick={() => setServiceId(service.id)}
+                  onClick={() => handleServiceSelect(service.id)}
                   aria-pressed={serviceId === service.id}
                 >
                   <span className="patient-service-radio" />
@@ -457,7 +695,7 @@ export default function PatientBookAppointment({ profile }) {
               </span>
               <select
                 value={selectedDoctorId}
-                onChange={(event) => setSelectedDoctorId(event.target.value)}
+                onChange={(event) => handleDoctorSelect(event.target.value)}
                 disabled={isLoadingDoctors}
                 aria-label="Select doctor"
               >
@@ -519,20 +757,42 @@ export default function PatientBookAppointment({ profile }) {
               <div className="patient-time-slots">
                 <header>
                   <h3>Available Time Slots</h3>
-                  <p>Select an available appointment time</p>
+                  <p>
+                    {isLoadingSlots
+                      ? "Refreshing available times..."
+                      : "Select an available appointment time"}
+                  </p>
                 </header>
                 <div>
-                  {TIME_SLOTS.map((time) => (
-                    <button
-                      type="button"
-                      key={time}
-                      className={selectedTime === time ? "is-selected" : ""}
-                      onClick={() => setSelectedTime(time)}
-                    >
-                      {formatTime(time)}
-                    </button>
-                  ))}
+                  {TIME_SLOTS.map((time) => {
+                    const unavailable =
+                      unavailableTimes.has(time) ||
+                      rejectedSlotKeys.has(
+                        getSlotKey(selectedDoctorId, selectedDate, time)
+                      );
+
+                    return (
+                      <button
+                        type="button"
+                        key={time}
+                        className={selectedTime === time ? "is-selected" : ""}
+                        disabled={isLoadingSlots || unavailable}
+                        onClick={() => handleTimeSelect(time)}
+                        aria-label={`${formatTime(time)}${unavailable ? ", unavailable" : ""}`}
+                      >
+                        {formatTime(time)}
+                      </button>
+                    );
+                  })}
                 </div>
+                {slotSelectionError || slotAvailabilityError ? (
+                  <p
+                    className="patient-slot-feedback"
+                    role={slotSelectionError ? "alert" : "status"}
+                  >
+                    {slotSelectionError || slotAvailabilityError}
+                  </p>
+                ) : null}
               </div>
             </div>
           </section>

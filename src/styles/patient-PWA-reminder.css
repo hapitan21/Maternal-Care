@@ -659,11 +659,18 @@
 .patient-reminder-view-all-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: 12000;
   background: rgba(18, 25, 43, 0.38);
   display: grid;
   place-items: center;
   padding: 20px;
+}
+
+.patient-reminder-view-all-backdrop.is-health-tips {
+  background: rgba(15, 23, 42, 0.62);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  overscroll-behavior: contain;
 }
 
 .patient-reminder-view-all-modal {
@@ -675,6 +682,22 @@
   box-shadow: 0 24px 70px rgba(18, 25, 43, 0.2);
   display: flex;
   flex-direction: column;
+}
+
+.patient-reminder-view-all-modal.is-health-tips {
+  width: min(880px, calc(100vw - 48px));
+  max-height: min(84vh, 780px);
+  max-height: min(84dvh, 780px);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 30px 90px rgba(8, 13, 25, 0.42);
+}
+
+.patient-reminder-view-all-modal.is-health-tips .patient-reminder-view-all-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: 0 0 auto;
+  background: #ffffff;
 }
 
 .patient-reminder-view-all-header {
@@ -782,6 +805,21 @@
   line-height: 15px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.patient-reminder-health-tip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.patient-reminder-health-tip-meta span + span {
+  color: #756887;
+}
+
+.pwa-health-tips-card:focus {
+  outline: 2px solid rgba(36, 144, 203, 0.32);
+  outline-offset: 4px;
 }
 
 .patient-reminder-health-tip-item h3,
@@ -909,7 +947,7 @@
   }
 
   .patient-reminder-view-all-modal {
-    max-height: calc(100vh - 28px);
+    max-height: calc(100dvh - 28px);
   }
 
   .patient-reminder-view-all-header {
@@ -957,6 +995,57 @@
   .pwa-reminder-card-header h2 {
     font-size: 20px;
     line-height: 26px;
+  }
+}
+
+@media (max-width: 780px) {
+  .pwa-daily-tip.is-swipeable {
+    touch-action: pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .patient-reminder-view-all-backdrop.is-health-tips {
+    display: block;
+    padding: 0;
+  }
+
+  .patient-reminder-view-all-modal.is-health-tips {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .patient-reminder-view-all-modal.is-health-tips .patient-reminder-view-all-header {
+    padding:
+      calc(16px + env(safe-area-inset-top))
+      16px
+      16px;
+  }
+
+  .patient-reminder-view-all-modal.is-health-tips .patient-reminder-health-tip-list {
+    min-height: 0;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding:
+      14px
+      14px
+      calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .patient-reminder-view-all-modal.is-health-tips .patient-reminder-health-tip-item {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .patient-reminder-view-all-modal.is-health-tips .patient-reminder-health-tip-image {
+    width: 64px;
+    height: 64px;
   }
 }
 

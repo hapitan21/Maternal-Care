@@ -15,8 +15,8 @@ const statusLabels = {
   [patientPushStatuses.permissionDenied]: "Permission blocked",
   [patientPushStatuses.loading]: "Checking...",
   [patientPushStatuses.error]: "Status unavailable",
-  [patientPushStatuses.permissionDefault]: "Disabled on this device",
-  [patientPushStatuses.unsubscribed]: "Disabled on this device",
+  [patientPushStatuses.permissionDefault]: "Not enabled",
+  [patientPushStatuses.unsubscribed]: "Not enabled",
 };
 
 function getPermissionLabel(permission) {
@@ -85,7 +85,7 @@ export default function PatientPushNotificationSettings() {
         <div>
           <span>Current device status</span>
           <strong className={subscribed ? "is-enabled" : ""}>
-            {statusLabels[status] || "Disabled on this device"}
+            {statusLabels[status] || "Not enabled"}
           </strong>
         </div>
       </div>
@@ -105,14 +105,14 @@ export default function PatientPushNotificationSettings() {
         <p className="patient-push-guidance is-warning">
           <Icon icon="solar:danger-triangle-linear" />
           <span>
-            Notification permission is blocked. Allow notifications in your
-            browser or site settings, then return here.
+            Notifications are blocked in your browser. Allow notifications in
+            this site&apos;s browser settings, then refresh the status.
           </span>
         </p>
       ) : null}
 
       <div className="patient-push-feedback" aria-live="polite">
-        {error ? <p className="is-error">{error}</p> : null}
+        {error && permission !== "denied" ? <p className="is-error">{error}</p> : null}
         {message ? <p className="is-success">{message}</p> : null}
       </div>
 

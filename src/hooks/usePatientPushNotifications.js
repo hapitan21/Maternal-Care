@@ -146,7 +146,7 @@ export function usePatientPushNotifications() {
       finish({
         subscribed: false,
         status: patientPushStatuses.permissionDenied,
-        error: deniedMessage,
+        error: "",
       });
       return;
     }
@@ -321,7 +321,7 @@ export function usePatientPushNotifications() {
           loading: false,
           disabling: false,
           error: "",
-          message: "Push notifications are already disabled on this device.",
+          message: "Push notifications are already not enabled on this device.",
         });
         return true;
       }
@@ -351,8 +351,8 @@ export function usePatientPushNotifications() {
           ? ""
           : "Push delivery is disabled, but this browser could not remove its local subscription. You can safely retry.",
         message: unsubscribed
-          ? "Push notifications are disabled on this device."
-          : "Push delivery is disabled for this device.",
+          ? "Push notifications are no longer enabled on this device."
+          : "Push delivery is no longer enabled for this device.",
       });
       return true;
     } catch (error) {
