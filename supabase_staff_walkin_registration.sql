@@ -12,7 +12,6 @@
 -- - public.schedule
 -- - public.patients
 -- - public.finish_patient_registration(uuid, uuid, boolean)
--- - public.create_appointment_patient_reminder(uuid)
 
 begin;
 
@@ -124,8 +123,7 @@ begin
 
   with expected_functions(signature) as (
     values
-      ('public.finish_patient_registration(uuid, uuid, boolean)'::text),
-      ('public.create_appointment_patient_reminder(uuid)'::text)
+      ('public.finish_patient_registration(uuid, uuid, boolean)'::text)
   )
   select pg_catalog.string_agg(signature, '; ')
     into v_missing_functions
@@ -1171,8 +1169,6 @@ begin
     'scheduled'
   )
   returning * into v_schedule;
-
-  perform public.create_appointment_patient_reminder(v_schedule.id);
 
   update public.staff_walkin_registration_reservations r
   set status = 'completed',

@@ -59,25 +59,25 @@ const staffAppointmentSummaryCards = [
     key: "cancelled",
     label: "Cancelled",
     image: "/images/profile-ui/appointment-cancelled.png",
-    path: "/staff/appointments?status=cancelled&view=history",
+    path: "/staff/appointments?status=cancelled",
   },
   {
     key: "today",
     label: "Today's",
     image: "/images/profile-ui/appointment-today.png",
-    path: "/staff/appointments",
+    path: "/staff/appointments?scope=today",
   },
   {
     key: "pending",
     label: "Pending",
     image: "/images/profile-ui/appointment-pending.png",
-    path: "/staff/appointments?status=pending&view=main",
+    path: "/staff/appointments?status=pending",
   },
   {
     key: "completed",
     label: "Completed",
     image: "/images/profile-ui/appointment-completed.png",
-    path: "/staff/appointments?status=completed&view=history",
+    path: "/staff/appointments?status=completed",
   },
 ];
 

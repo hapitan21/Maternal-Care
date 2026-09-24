@@ -83,32 +83,6 @@ export function AppointmentControlGroup({
   );
 }
 
-export function AppointmentViewSwitch({
-  options,
-  value,
-  onChange,
-  className,
-  ariaLabel = "Appointment view",
-}) {
-  return (
-    <div
-      className={joinClasses("appointment-ui-segmented", className)}
-      aria-label={ariaLabel}
-    >
-      {options.map((option) => (
-        <button
-          type="button"
-          key={option}
-          className={value === option ? "is-active" : ""}
-          onClick={() => onChange(option)}
-        >
-          {option}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function AppointmentPagination({
   className,
   currentPage,

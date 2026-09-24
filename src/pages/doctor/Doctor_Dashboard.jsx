@@ -93,6 +93,7 @@ const dashboardStatusCards = [
     icon: "solar:clock-circle-bold",
     tone: "pink",
     target: "appointments",
+    path: "/doctor/appointments?scope=today",
   },
   {
     label: "Sessions Completed",
@@ -101,7 +102,7 @@ const dashboardStatusCards = [
     tone: "blue",
     progressKey: "completionProgress",
     target: "appointments",
-    path: "/doctor/appointments?status=completed&view=history",
+    path: "/doctor/appointments?status=completed",
   },
 ];
 
@@ -738,26 +739,35 @@ function Doctor_Dashboard() {
     );
 
     const scheduleRows = scheduleResult.error ? [] : scheduleResult.data || [];
-    const todaysAppointments = scheduleRows.filter(
+
+    // Keep all of today's rows for completion metrics, but only count
+    // appointments that still need clinic action in "Today's Appointments".
+    // Terminal rows such as completed, cancelled, and no-show/missed remain
+    // available through their status tabs without inflating the active-today count.
+    const allTodayAppointments = scheduleRows.filter(
       (appointment) => classifyAppointment(appointment).isToday
     );
+    const actionableTodayAppointments = allTodayAppointments.filter(
+      (appointment) => classifyAppointment(appointment).isActionable
+    );
+
     const completedSessions = scheduleRows.filter(
       (appointment) =>
         normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
     ).length;
-    const completedToday = todaysAppointments.filter(
+    const completedToday = allTodayAppointments.filter(
       (appointment) =>
         normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
     ).length;
 
     setDashboardStats({
       totalPatients: patientsResult.count ?? 0,
-      todaysAppointments: todaysAppointments.length,
+      todaysAppointments: actionableTodayAppointments.length,
       completedSessions,
-      completionProgress: todaysAppointments.length
+      completionProgress: allTodayAppointments.length
         ? Math.min(
             100,
-            Math.round((completedToday / todaysAppointments.length) * 100)
+            Math.round((completedToday / allTodayAppointments.length) * 100)
           )
         : 0,
     });

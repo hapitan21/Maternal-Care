@@ -15,8 +15,9 @@ import {
   appointmentStatuses,
   appointmentStoredStatuses,
   classifyAppointment,
-  compareHistoryAppointments,
+  compareAppointmentsByStatusPriority,
   compareUpcomingAppointments,
+  getAppointmentStatusTab,
   formatAppointmentDate,
   formatAppointmentTime,
   getAppointmentStatusClass,
@@ -41,29 +42,23 @@ import {
   AppointmentPageHeader,
   AppointmentPagination,
   AppointmentToolbar,
-  AppointmentViewSwitch,
 } from "../../components/appointments/AppointmentUi";
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
 import "../../styles/doctor-appointments.css";
 
 const scheduleTableName = "schedule";
-const appointmentRequestTableName = "create_patient_appointment_request";
 const patientColumns =
   "id, full_name, patient_id, user_id, age, contact_number, email, address, expected_delivery_date, gestational_age, risk_level";
 const scheduleColumns =
   "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, description, start_time, end_time, status, created_at";
-const appointmentRequestColumns =
-  "id, patient_id, patient_name, doctor_id, doctor_name, title, category, description, start_time, end_time, status, schedule_id, created_at, updated_at";
 const appointmentTabs = [
   "All",
-  "Requests",
   "Pending",
   "Checked-in",
   "Completed",
   "Cancelled",
   "Missed",
 ];
-const appointmentViews = ["Main", "History"];
 const appointmentPageSizes = [10, 15];
 
 const doctorPendingStatusActions = [
@@ -384,7 +379,6 @@ function getVisibleAppointmentId(schedule) {
 function statusMatches(schedule, activeTab) {
   const normalized = normalizeAppointmentStatus(schedule.status);
 
-  if (activeTab === "Requests") return false;
   if (activeTab === "All") return true;
   if (activeTab === "Pending") return normalized === appointmentStatuses.scheduled;
   if (activeTab === "Checked-in") return normalized === appointmentStatuses.checkedIn;
@@ -393,16 +387,6 @@ function statusMatches(schedule, activeTab) {
   if (activeTab === "Missed") return normalized === appointmentStatuses.missed;
 
   return true;
-}
-
-function appointmentViewMatches(schedule, appointmentView) {
-  const classification = classifyAppointment(schedule);
-
-  if (appointmentView === "History") {
-    return classification.isHistory;
-  }
-
-  return classification.isUpcoming;
 }
 
 function monthFilterMatches(schedule, monthFilter) {
@@ -536,18 +520,6 @@ function isLegacyPendingBookingSchedule(schedule) {
     (details.source === "patient-booking-request" || details.requestedByPatient === true) &&
     requestStatus === "pending"
   );
-}
-
-function getRequestId(schedule, index = 0) {
-  if (schedule?.maternal_appointment_id) {
-    return String(schedule.maternal_appointment_id).replace(/^MA/i, "REQ");
-  }
-
-  const requestDate = toDate(schedule?.created_at) || toDate(schedule?.start_time) || new Date();
-  const year = String(requestDate.getFullYear()).slice(-2);
-  const source = String(schedule?.id || index + 1).replace(/[^a-z0-9]/gi, "");
-  const suffix = source.slice(-4).toUpperCase().padStart(4, "0");
-  return `REQ-${year}-${suffix}`;
 }
 
 function formatRequestDate(value) {
@@ -1266,326 +1238,6 @@ function DoctorAppointmentSummary({ summary }) {
   );
 }
 
-function DoctorAppointmentRequests({
-  requests,
-  totalRequests,
-  currentPage,
-  totalPages,
-  searchTerm,
-  sortOrder,
-  patients,
-  miniMonthDate,
-  miniMonthDays,
-  todaySchedules,
-  onSearchChange,
-  onSortChange,
-  onPageChange,
-  onMonthChange,
-  onSelectDate,
-  onViewRequest,
-  onViewSchedule,
-}) {
-  const patientById = useMemo(
-    () => new Map(patients.map((patient) => [String(patient.id), patient])),
-    [patients]
-  );
-
-  return (
-    <section className="doctor-request-workspace" aria-label="Patient appointment requests">
-      <div className="doctor-request-main">
-        <div className="doctor-request-tools">
-          <label className="doctor-request-search">
-            <InlineIcon name="search" />
-            <input
-              type="search"
-              value={searchTerm}
-              placeholder="Search patient name or request ID..."
-              onChange={(event) => onSearchChange(event.target.value)}
-            />
-          </label>
-
-          <label className="doctor-request-sort">
-            <select value={sortOrder} onChange={(event) => onSortChange(event.target.value)}>
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="appointment">Appointment Date</option>
-            </select>
-            <InlineIcon name="chevronDown" />
-          </label>
-        </div>
-
-        <div className="doctor-request-table-wrap">
-          <div className="doctor-request-table">
-            <div className="doctor-request-table-head">
-              <span>Request ID</span>
-              <span>Patient</span>
-              <span>Appointment Type</span>
-              <span>Prefer Date &amp; Time</span>
-              <span>Date Requested</span>
-              <span>Action</span>
-            </div>
-
-            <div className="doctor-request-table-body">
-              {requests.length ? requests.map((schedule, index) => {
-                const patient = patientById.get(String(schedule.patient_id)) || null;
-                const requestId = getRequestId(schedule, index);
-                const gestation = patient?.gestational_age
-                  ? `${patient.gestational_age} weeks pregnant`
-                  : patient?.risk_level || "Patient request";
-
-                return (
-                  <article className="doctor-request-row" key={schedule.id}>
-                    <strong className="doctor-request-id">{requestId}</strong>
-                    <div className="doctor-request-patient">
-                      <span>{String(schedule.patient_name || "P").charAt(0).toUpperCase()}</span>
-                      <div>
-                        <strong>{schedule.patient_name || "Patient"}</strong>
-                        <small>{patient?.patient_id || "Patient ID pending"}</small>
-                        <small>{gestation}</small>
-                      </div>
-                    </div>
-                    <div className="doctor-request-type">
-                      <Icon icon={
-                        getScheduleCategory(schedule) === "laboratory"
-                          ? "solar:test-tube-linear"
-                          : getScheduleCategory(schedule) === "ultrasound"
-                            ? "solar:monitor-camera-linear"
-                            : getScheduleCategory(schedule) === "prenatal"
-                              ? "solar:medical-kit-linear"
-                              : "solar:heart-pulse-linear"
-                      } />
-                      <span>{schedule.title || "Appointment"}</span>
-                    </div>
-                    <div className="doctor-request-preferred">
-                      <span><Icon icon="solar:calendar-linear" /> {formatRequestDate(schedule.start_time)}</span>
-                      <span><Icon icon="solar:clock-circle-linear" /> {formatTime(schedule.start_time)}</span>
-                    </div>
-                    <div className="doctor-request-created">
-                      <span>{formatRequestDate(schedule.created_at)}</span>
-                      <small>{schedule.created_at ? formatTime(schedule.created_at) : "Not recorded"}</small>
-                    </div>
-                    <button type="button" className="doctor-request-view" onClick={() => onViewRequest(schedule)}>
-                      View
-                    </button>
-                  </article>
-                );
-              }) : (
-                <div className="doctor-request-empty">
-                  <Icon icon="solar:inbox-linear" />
-                  <strong>No appointment requests found</strong>
-                  <span>New requests from patients will appear here.</span>
-                </div>
-              )}
-            </div>
-
-            <footer className="doctor-request-pagination">
-              <span>
-                {totalRequests
-                  ? `Showing ${(currentPage - 1) * 5 + 1}-${Math.min(currentPage * 5, totalRequests)} of ${totalRequests} requests`
-                  : "Showing 0 requests"}
-              </span>
-              <div>
-                <button type="button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)} aria-label="Previous request page">
-                  <InlineIcon name="chevronLeft" />
-                </button>
-                <strong>{currentPage}</strong>
-                <button type="button" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)} aria-label="Next request page">
-                  <InlineIcon name="chevronRight" />
-                </button>
-              </div>
-            </footer>
-          </div>
-        </div>
-      </div>
-
-      <aside className="doctor-request-sidebar">
-        <section className="doctor-request-calendar">
-          <header>
-            <h2>Calendar</h2>
-            <span>Today</span>
-          </header>
-          <div className="doctor-request-calendar-month">
-            <button type="button" aria-label="Previous month" onClick={() => onMonthChange(-1)}>
-              <InlineIcon name="chevronLeft" />
-            </button>
-            <strong>{formatMonthTitle(miniMonthDate)}</strong>
-            <button type="button" aria-label="Next month" onClick={() => onMonthChange(1)}>
-              <InlineIcon name="chevronRight" />
-            </button>
-          </div>
-          <div className="doctor-request-calendar-weekdays">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}
-          </div>
-          <div className="doctor-request-calendar-days">
-            {miniMonthDays.map((day, index) => (
-              <button
-                key={`${day.value}-${index}`}
-                type="button"
-                className={`${day.disabled ? "is-muted" : ""} ${day.hasEvent ? "has-event" : ""} ${day.active ? "is-active" : ""}`}
-                onClick={() => onSelectDate(day.date)}
-              >
-                {day.value}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="doctor-request-today">
-          <header>
-            <h2>Today's Schedule</h2>
-            <span>{new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
-          </header>
-          <div>
-            {todaySchedules.length ? todaySchedules.slice(0, 5).map((schedule) => (
-              <button type="button" key={schedule.id} onClick={() => onViewSchedule(schedule)}>
-                <time>{formatTime(schedule.start_time)}</time>
-                <span className={`is-${getScheduleCategory(schedule)}`}>
-                  <strong>{schedule.patient_name || "Patient"}</strong>
-                  <small>{schedule.title || "Appointment"}</small>
-                </span>
-              </button>
-            )) : (
-              <p>No appointments scheduled for today.</p>
-            )}
-          </div>
-        </section>
-      </aside>
-    </section>
-  );
-}
-
-function DoctorAppointmentRequestDetails({
-  schedule,
-  patient,
-  isUpdating,
-  actionError,
-  onBack,
-  onApprove,
-  onDecline,
-}) {
-  const details = parseScheduleDetails(schedule?.description);
-  const gestationValue = String(patient?.gestational_age || "").trim();
-  const gestationLabel = gestationValue
-    ? `${gestationValue}${/week/i.test(gestationValue) ? "" : " weeks"} pregnant`
-    : patient?.risk_level || "Pregnancy information unavailable";
-  const requestNotes = String(
-    details.notes || details.message || details.reason || "No additional notes were provided."
-  ).trim();
-  const requestedAt = schedule?.created_at
-    ? `${formatRequestDate(schedule.created_at)} at ${formatTime(schedule.created_at)}`
-    : "Not recorded";
-
-  return (
-    <section className="doctor-request-details-page">
-      <nav className="doctor-request-breadcrumbs" aria-label="Breadcrumb">
-        <button type="button" onClick={onBack}>Appointments</button>
-        <InlineIcon name="chevronRight" />
-        <button type="button" onClick={onBack}>Patient Requests</button>
-        <InlineIcon name="chevronRight" />
-        <strong>Appointment Details</strong>
-      </nav>
-
-      <header className="doctor-request-details-heading">
-        <div>
-          <h1>Appointment Details</h1>
-          <p>Review the patient's appointment request and take action.</p>
-        </div>
-        <span className="doctor-request-pending-badge">
-          <Icon icon="solar:clock-circle-linear" /> Pending
-        </span>
-      </header>
-
-      <section className="doctor-request-patient-card">
-        <div className="doctor-request-detail-avatar">
-          {String(schedule?.patient_name || "P").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
-        </div>
-        <div className="doctor-request-patient-identity">
-          <h2>{schedule?.patient_name || patient?.full_name || "Patient"}</h2>
-          <p>Patient ID: {patient?.patient_id || "Not assigned"}</p>
-          <span>{gestationLabel}</span>
-        </div>
-        <div className="doctor-request-patient-contact">
-          <span><Icon icon="solar:user-rounded-linear" /> Age: {patient?.age || "Not provided"}</span>
-          <span><Icon icon="solar:phone-linear" /> {patient?.contact_number || "Not provided"}</span>
-          <span><Icon icon="solar:letter-linear" /> {patient?.email || "Not provided"}</span>
-        </div>
-      </section>
-
-      <section className="doctor-request-information-card">
-        <header>
-          <Icon icon="solar:calendar-linear" />
-          <h2>Appointment Information</h2>
-        </header>
-        <dl>
-          <div>
-            <dt>Appointment Type</dt>
-            <dd><Icon icon="solar:heart-pulse-linear" /> {schedule?.title || "Appointment"}</dd>
-          </div>
-          <div>
-            <dt>Preferred Date</dt>
-            <dd><Icon icon="solar:calendar-linear" /> {formatRequestDate(schedule?.start_time)}</dd>
-          </div>
-          <div>
-            <dt>Preferred Time</dt>
-            <dd><Icon icon="solar:clock-circle-linear" /> {formatTime(schedule?.start_time)}</dd>
-          </div>
-          <div>
-            <dt>Date Requested</dt>
-            <dd><Icon icon="solar:calendar-linear" /> {requestedAt}</dd>
-          </div>
-          <div className="is-notes">
-            <dt>Reason / Notes</dt>
-            <dd><Icon icon="solar:document-text-linear" /> <span>{requestNotes}</span></dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="doctor-request-status-card">
-        <header>
-          <Icon icon="solar:danger-triangle-linear" />
-          <h2>Request Status</h2>
-        </header>
-        <div className="doctor-request-current-status">
-          <strong>Current Status</strong>
-          <span className="doctor-request-pending-badge"><Icon icon="solar:clock-circle-linear" /> Pending</span>
-          <small><Icon icon="solar:info-circle-linear" /> Waiting for your approval.</small>
-        </div>
-
-        {actionError ? <p className="doctor-request-detail-error" role="alert">{actionError}</p> : null}
-
-        <footer>
-          <div>
-            <button type="button" className="doctor-request-back-button" onClick={onBack}>
-              <InlineIcon name="chevronLeft" /> Back
-            </button>
-            <SendPatientNotificationAction
-              patientId={schedule?.patient_id || ""}
-              patientName={schedule?.patient_name || "Patient"}
-              defaultType="general"
-              defaultTitle="Appointment request update"
-              defaultMessage="We are reviewing your appointment request."
-              lockedTargetPath="/patient/appointments"
-              contextLabel={`Appointment request ${getRequestId(schedule)}`}
-              triggerLabel="Message Patient"
-              className="doctor-request-message-button"
-              outline
-            />
-          </div>
-          <div>
-            <button type="button" className="doctor-request-decline-button" onClick={() => onDecline(schedule)} disabled={isUpdating}>
-              {isUpdating ? "Updating..." : "Decline"}
-            </button>
-            <button type="button" className="doctor-request-approve-button" onClick={() => onApprove(schedule)} disabled={isUpdating}>
-              <Icon icon="solar:check-read-linear" />
-              {isUpdating ? "Approving..." : "Approve & Schedule"}
-            </button>
-          </div>
-        </footer>
-      </section>
-    </section>
-  );
-}
-
 export function DoctorAppointmentsContent({
   embedded = false,
   headerAction = null,
@@ -1600,26 +1252,22 @@ export function DoctorAppointmentsContent({
     const params = new URLSearchParams(location.search);
     return String(params.get("appointmentId") || "").trim();
   }, [location.search]);
-  const dashboardCompletedHistoryTarget = useMemo(() => {
+  const dashboardTodayTarget = useMemo(() => {
     const params = new URLSearchParams(location.search);
-    return (
-      String(params.get("status") || "").trim().toLowerCase() === "completed" &&
-      String(params.get("view") || "").trim().toLowerCase() === "history"
-    );
+    return String(params.get("scope") || "").trim().toLowerCase() === "today";
+  }, [location.search]);
+  const dashboardStatusTarget = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return getAppointmentStatusTab(params.get("status"));
   }, [location.search]);
   const [form, setForm] = useState(initialAppointmentForm);
   const [patients, setPatients] = useState([]);
   const [schedules, setSchedules] = useState([]);
-  const [bookingRequests, setBookingRequests] = useState([]);
   const [activeTab, setActiveTab] = useState(() =>
-    dashboardCompletedHistoryTarget ? "Completed" : "All"
-  );
-  const [appointmentView, setAppointmentView] = useState(() =>
-    dashboardCompletedHistoryTarget ? "History" : "Main"
+    dashboardStatusTarget || "All"
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
-  const [requestSort, setRequestSort] = useState("newest");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState(() => getManilaDateKey());
@@ -1629,6 +1277,8 @@ export function DoctorAppointmentsContent({
   });
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [statusMessageVersion, setStatusMessageVersion] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState("");
@@ -1645,7 +1295,6 @@ export function DoctorAppointmentsContent({
   const [isResolvingAppointmentDoctor, setIsResolvingAppointmentDoctor] = useState(false);
   const [appointmentDoctorError, setAppointmentDoctorError] = useState(null);
   const [selectedCalendarSchedule, setSelectedCalendarSchedule] = useState(null);
-  const [selectedRequestSchedule, setSelectedRequestSchedule] = useState(null);
   const [detailActionError, setDetailActionError] = useState("");
   const tableScrollRef = useRef(null);
   const appointmentSaveLockRef = useRef(false);
@@ -1653,11 +1302,38 @@ export function DoctorAppointmentsContent({
   const rescheduleSaveLockRef = useRef(false);
   const visitRoutingLockRef = useRef("");
   const appointmentsRequestRef = useRef(null);
-  const bookingRequestsRequestRef = useRef(null);
   const appointmentsMountedRef = useRef(true);
   const patientsRequestRef = useRef(null);
-  const completedHistoryTargetAppliedRef = useRef(
-    dashboardCompletedHistoryTarget
+  const successTimerRef = useRef(null);
+  const dashboardStatusTargetAppliedRef = useRef(Boolean(dashboardStatusTarget));
+
+  const clearSuccessTimer = useCallback(() => {
+    if (successTimerRef.current !== null) {
+      window.clearTimeout(successTimerRef.current);
+      successTimerRef.current = null;
+    }
+  }, []);
+
+  const showSuccessMessage = useCallback(
+    (message) => {
+      clearSuccessTimer();
+      setSuccessMessage(message);
+      setStatusMessage(message);
+      setStatusMessageVersion((current) => current + 1);
+      successTimerRef.current = window.setTimeout(() => {
+        successTimerRef.current = null;
+        setStatusMessage((current) => (current === message ? "" : current));
+        setSuccessMessage((current) => (current === message ? "" : current));
+      }, 4000);
+    },
+    [clearSuccessTimer]
+  );
+
+  useEffect(
+    () => () => {
+      clearSuccessTimer();
+    },
+    [clearSuccessTimer]
   );
 
   useEffect(() => {
@@ -1666,24 +1342,32 @@ export function DoctorAppointmentsContent({
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      if (dashboardCompletedHistoryTarget) {
-        setActiveTab("Completed");
-        setAppointmentView("History");
-        completedHistoryTargetAppliedRef.current = true;
+      if (dashboardTodayTarget) {
+        setActiveTab("All");
+        setSearchTerm("");
+        setMonthFilter("");
+        setCurrentPage(1);
+        dashboardStatusTargetAppliedRef.current = false;
         return;
       }
 
-      if (completedHistoryTargetAppliedRef.current) {
+      if (dashboardStatusTarget) {
+        setActiveTab(dashboardStatusTarget);
+        dashboardStatusTargetAppliedRef.current = true;
+        return;
+      }
+
+      if (dashboardStatusTargetAppliedRef.current) {
         setActiveTab("All");
-        setAppointmentView("Main");
-        completedHistoryTargetAppliedRef.current = false;
+        dashboardStatusTargetAppliedRef.current = false;
       }
     });
 
     return () => window.cancelAnimationFrame(frameId);
   }, [
     dashboardAppointmentTarget,
-    dashboardCompletedHistoryTarget,
+    dashboardStatusTarget,
+    dashboardTodayTarget,
     isVisitFormRoute,
   ]);
 
@@ -1777,64 +1461,27 @@ export function DoctorAppointmentsContent({
   const visibleSchedules = useMemo(
     () =>
       schedules
-        .filter((schedule) =>
-          appointmentViewMatches(schedule, appointmentView)
-        )
+        .filter((schedule) => {
+          if (dashboardTodayTarget) {
+            const classification = classifyAppointment(schedule);
+            return classification.isToday && classification.isActionable;
+          }
+
+          return true;
+        })
         .filter((schedule) => statusMatches(schedule, activeTab))
         .filter((schedule) => searchMatches(schedule, searchTerm))
         .filter((schedule) => monthFilterMatches(schedule, monthFilter))
-        .sort(
-          appointmentView === "History"
-            ? compareHistoryAppointments
-            : compareUpcomingAppointments
-        ),
+        .sort(compareAppointmentsByStatusPriority),
     [
       activeTab,
-      appointmentView,
+      dashboardTodayTarget,
       monthFilter,
       schedules,
       searchTerm,
     ]
   );
 
-  const requestSchedules = useMemo(() => {
-    const keyword = searchTerm.trim().toLowerCase();
-    const matching = bookingRequests
-      .filter((request) => String(request.status || "").trim().toLowerCase() === "pending")
-      .filter(
-        (request) =>
-          !request.doctor_id ||
-          !authenticatedDoctorId ||
-          String(request.doctor_id) === String(authenticatedDoctorId)
-      )
-      .filter((request, index) => {
-        if (!keyword) return true;
-
-        return [
-          getRequestId(request, index),
-          request.patient_name,
-          request.title,
-          request.patient_id,
-        ].some((value) => String(value || "").toLowerCase().includes(keyword));
-      });
-
-    return matching.sort((first, second) => {
-      if (requestSort === "appointment") {
-        return (toDate(first.start_time)?.getTime() || 0) - (toDate(second.start_time)?.getTime() || 0);
-      }
-
-      const firstTime = toDate(first.created_at)?.getTime() || toDate(first.start_time)?.getTime() || 0;
-      const secondTime = toDate(second.created_at)?.getTime() || toDate(second.start_time)?.getTime() || 0;
-      return requestSort === "oldest" ? firstTime - secondTime : secondTime - firstTime;
-    });
-  }, [authenticatedDoctorId, bookingRequests, requestSort, searchTerm]);
-
-  const requestTotalPages = Math.max(1, Math.ceil(requestSchedules.length / 5));
-  const requestDisplayedPage = Math.min(currentPage, requestTotalPages);
-  const paginatedRequests = useMemo(() => {
-    const startIndex = (requestDisplayedPage - 1) * 5;
-    return requestSchedules.slice(startIndex, startIndex + 5);
-  }, [requestDisplayedPage, requestSchedules]);
   const todaySchedules = useMemo(() => {
     const todayKey = getManilaDateKey();
     return schedules
@@ -1850,7 +1497,29 @@ export function DoctorAppointmentsContent({
     return visibleSchedules.slice(startIndex, startIndex + pageSize);
   }, [displayedPage, pageSize, visibleSchedules]);
 
+  const clearDashboardTodayTarget = useCallback(() => {
+    if (!dashboardTodayTarget) return;
+
+    const params = new URLSearchParams(location.search);
+    params.delete("scope");
+    const nextSearch = params.toString();
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true }
+    );
+  }, [
+    dashboardTodayTarget,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
+
   const handleTabChange = (nextTab) => {
+    clearDashboardTodayTarget();
     setActiveTab(nextTab);
     setCurrentPage(1);
     setSearchTerm("");
@@ -1907,52 +1576,6 @@ export function DoctorAppointmentsContent({
     return request;
   }, []);
 
-  const loadBookingRequests = useCallback(() => {
-    if (bookingRequestsRequestRef.current) {
-      return bookingRequestsRequestRef.current;
-    }
-
-    const request = (async () => {
-      const { data, error } = await supabase
-        .from(appointmentRequestTableName)
-        .select(appointmentRequestColumns)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("[Doctor Appointment Flow] booking request fetch error:", error);
-        if (appointmentsMountedRef.current) {
-          setBookingRequests([]);
-          setStatusMessage(
-            `Unable to load Patient booking requests: ${getReadableScheduleError(error)}`
-          );
-        }
-        return { ok: false, count: 0, error };
-      }
-
-      const nextRequests = data ?? [];
-      if (appointmentsMountedRef.current) {
-        setBookingRequests(nextRequests);
-        setSelectedRequestSchedule((current) =>
-          current?.id
-            ? nextRequests.find((item) => String(item.id) === String(current.id)) || null
-            : current
-        );
-      }
-
-      return { ok: true, count: nextRequests.length };
-    })();
-
-    bookingRequestsRequestRef.current = request;
-    const clearPendingRequest = () => {
-      if (bookingRequestsRequestRef.current === request) {
-        bookingRequestsRequestRef.current = null;
-      }
-    };
-    request.then(clearPendingRequest, clearPendingRequest);
-    return request;
-  }, []);
-
   useEffect(() => {
     if (isVisitFormRoute || doctorIdentity?.loading || !authenticatedDoctorId) {
       return undefined;
@@ -1960,7 +1583,7 @@ export function DoctorAppointmentsContent({
 
     appointmentsMountedRef.current = true;
     const loadTimer = window.setTimeout(() => {
-      Promise.all([loadAppointments(), loadBookingRequests()]);
+      loadAppointments();
     }, 0);
 
     const channel = supabase
@@ -1974,22 +1597,11 @@ export function DoctorAppointmentsContent({
         },
         loadAppointments
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: appointmentRequestTableName,
-        },
-        loadBookingRequests
-      )
       .subscribe();
 
-    // Realtime is the fast path. Polling and focus refreshes keep production
-    // reliable if a browser sleeps, reconnects, or briefly loses its websocket.
-    const refreshAll = () => Promise.all([loadAppointments(), loadBookingRequests()]);
-    const refreshInterval = window.setInterval(refreshAll, 15000);
-    const refreshOnFocus = () => refreshAll();
+    const refreshAppointments = () => loadAppointments();
+    const refreshInterval = window.setInterval(refreshAppointments, 15000);
+    const refreshOnFocus = () => refreshAppointments();
     window.addEventListener("focus", refreshOnFocus);
 
     return () => {
@@ -2004,7 +1616,6 @@ export function DoctorAppointmentsContent({
     doctorIdentity?.loading,
     isVisitFormRoute,
     loadAppointments,
-    loadBookingRequests,
   ]);
 
   /*
@@ -2012,8 +1623,8 @@ export function DoctorAppointmentsContent({
    *
    * The Doctor Dashboard sends the public MA number (or, as a fallback,
    * the internal schedule UUID) in ?appointmentId=. Once schedules load,
-   * resolve that exact row, align Main/History, move the calendar to the
-   * appointment date, filter the table, and open the existing details modal.
+   * resolve that exact row, move the calendar to the appointment date, filter
+   * the table, and open the existing details modal.
    */
   useEffect(() => {
     if (
@@ -2039,12 +1650,10 @@ export function DoctorAppointmentsContent({
         return;
       }
 
-      const classification = classifyAppointment(target);
       const visibleAppointmentId =
         target.maternal_appointment_id || dashboardAppointmentTarget;
 
       setActiveTab("All");
-      setAppointmentView(classification.isHistory ? "History" : "Main");
       setSearchTerm(visibleAppointmentId);
       setMonthFilter("");
       setCurrentPage(1);
@@ -2111,7 +1720,6 @@ export function DoctorAppointmentsContent({
     }
   }, [
     activeTab,
-    appointmentView,
     monthFilter,
     displayedPage,
     pageSize,
@@ -2139,6 +1747,23 @@ export function DoctorAppointmentsContent({
       window.removeEventListener("keydown", handleEscape);
     };
   }, [selectedCalendarSchedule]);
+
+  useEffect(() => {
+    if (!noShowConfirmationSchedule || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [noShowConfirmationSchedule]);
 
   const openCalendarAppointmentDetails = useCallback((schedule) => {
     setSelectedCalendarSchedule(schedule);
@@ -2357,22 +1982,6 @@ export function DoctorAppointmentsContent({
       notificationType: "appointment_created",
     });
 
-    if (data?.id) {
-      const { error: reminderError } = await supabase
-        .rpc("create_appointment_patient_reminder", {
-          p_appointment_id: data.id,
-        });
-
-      if (reminderError) {
-        console.warn("Doctor appointment reminder RPC failed:", {
-          code: reminderError.code || null,
-          message: reminderError.message || "Unknown Supabase error",
-          details: reminderError.details || null,
-          hint: reminderError.hint || null,
-        });
-      }
-    }
-
     setSchedules((current) => {
       if (!data?.id) return current;
 
@@ -2385,15 +1994,21 @@ export function DoctorAppointmentsContent({
     setIsAdding(false);
     setActiveTab("All");
     selectCalendarDate(toDateInputValue(payload.start_time));
-    setStatusMessage(
-      getAutomaticNotificationStatusMessage(notificationResult, {
+    const appointmentMessage = getAutomaticNotificationStatusMessage(
+      notificationResult,
+      {
         sentMessage: "Appointment created and Patient notified.",
         skippedMessage:
           "Appointment created successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
         failedMessage:
           "Appointment was saved, but the Patient notification could not be sent.",
-      })
+      }
     );
+    if (notificationResult?.ok || notificationResult?.skipped) {
+      showSuccessMessage(appointmentMessage);
+    } else {
+      setStatusMessage(appointmentMessage);
+    }
     } finally {
       appointmentSaveLockRef.current = false;
       setIsSaving(false);
@@ -2446,7 +2061,14 @@ export function DoctorAppointmentsContent({
         return false;
       }
 
-      const updatedSchedule = data || { ...schedule, ...updatePayload };
+      if (!data) {
+        const message = "The appointment status was not updated. Please try again.";
+        setStatusMessage(message);
+        setDetailActionError(message);
+        return false;
+      }
+
+      const updatedSchedule = data;
       const notificationResult = options.notificationType
         ? await sendAutomaticAppointmentNotification({
             patientId: updatedSchedule.patient_id,
@@ -2471,6 +2093,21 @@ export function DoctorAppointmentsContent({
         refreshResult,
       });
       return { updatedSchedule, notificationResult };
+    } catch (error) {
+      const message = getReadableScheduleError(error);
+      logDoctorAppointmentDetailDebug("status update failed unexpectedly", {
+        scheduleId: schedule.id,
+        displayedAppointmentId: getVisibleAppointmentId(schedule),
+        currentStatus: schedule.status,
+        selectedAction: options.actionLabel || nextStatus,
+        error,
+      });
+      setStatusMessage(message);
+      setDetailActionError(message);
+      if (!options.silentAlert) {
+        alert(`Failed to update appointment status: ${message}`);
+      }
+      return false;
     } finally {
       appointmentStatusLockRef.current.delete(mutationKey);
       setUpdatingStatusId("");
@@ -2523,72 +2160,13 @@ export function DoctorAppointmentsContent({
       }
 
       setStatusMessage("");
+      setDetailActionError("");
       setNoShowConfirmationSchedule(schedule);
       return;
     }
 
     setStatusMessage("That appointment transition is not available.");
   };
-
-  const acceptPatientRequest = async (request) => {
-    if (!request?.id || updatingStatusId === request.id) return;
-
-    setUpdatingStatusId(request.id);
-    setDetailActionError("");
-
-    const { data, error } = await supabase
-      .rpc("accept_patient_appointment_request", {
-        p_request_id: request.id,
-      });
-
-    setUpdatingStatusId("");
-
-    if (error) {
-      console.error("Patient appointment request acceptance failed:", error);
-      setDetailActionError(`Unable to accept this request: ${getReadableScheduleError(error)}`);
-      return;
-    }
-
-    setBookingRequests((current) =>
-      current.filter((item) => String(item.id) !== String(request.id))
-    );
-    setSelectedCalendarSchedule(null);
-    setSelectedRequestSchedule(null);
-    setStatusMessage(
-      data?.schedule_id
-        ? "Appointment request accepted and moved to Pending appointments."
-        : "Appointment request accepted. Refresh appointments to view the saved schedule."
-    );
-    await Promise.all([loadAppointments(), loadBookingRequests()]);
-  };
-
-  const declinePatientRequest = async (request) => {
-    if (!request?.id || updatingStatusId === request.id) return;
-
-    setUpdatingStatusId(request.id);
-    setDetailActionError("");
-
-    const { error } = await supabase.rpc("decline_patient_appointment_request", {
-      p_request_id: request.id,
-    });
-
-    setUpdatingStatusId("");
-
-    if (error) {
-      console.error("Patient appointment request decline failed:", error);
-      setDetailActionError(`Unable to decline this request: ${getReadableScheduleError(error)}`);
-      return;
-    }
-
-    setBookingRequests((current) =>
-      current.filter((item) => String(item.id) !== String(request.id))
-    );
-    setSelectedRequestSchedule(null);
-    setSelectedCalendarSchedule(null);
-    setStatusMessage("Appointment request declined. No appointment was created.");
-    await loadBookingRequests();
-  };
-
 
   const startEditAppointment = (schedule) => {
     if (!schedule?.id || isClosedAppointmentStatus(schedule.status)) return;
@@ -2747,8 +2325,7 @@ export function DoctorAppointmentsContent({
     setCancelConfirmationSchedule(null);
     setCancelReason("");
     setCancelReasonError("");
-    setStatusMessage(
-      saved === true
+    const cancellationMessage = saved === true
         ? "Appointment cancelled successfully."
         : getAutomaticNotificationStatusMessage(saved.notificationResult, {
             sentMessage: "Appointment cancelled and Patient notified.",
@@ -2756,8 +2333,16 @@ export function DoctorAppointmentsContent({
               "Appointment cancelled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
             failedMessage:
               "Appointment cancelled successfully, but the Patient notification could not be sent.",
-          })
-    );
+          });
+    if (
+      saved === true ||
+      saved.notificationResult?.ok ||
+      saved.notificationResult?.skipped
+    ) {
+      showSuccessMessage(cancellationMessage);
+    } else {
+      setStatusMessage(cancellationMessage);
+    }
   };
 
   const confirmNoShowAppointment = async () => {
@@ -2787,9 +2372,18 @@ export function DoctorAppointmentsContent({
     if (saved) {
       setNoShowConfirmationSchedule(null);
       setSelectedCalendarSchedule(null);
+      setDetailActionError("");
+      setActiveTab("Missed");
       setCurrentPage(1);
-      setStatusMessage("Appointment marked as No Show.");
+      showSuccessMessage("Appointment marked as No Show.");
     }
+  };
+
+  const closeNoShowConfirmation = () => {
+    if (updatingStatusId === noShowConfirmationSchedule?.id) return;
+
+    setNoShowConfirmationSchedule(null);
+    setDetailActionError("");
   };
 
   const startRescheduleAppointment = () => {
@@ -2884,12 +2478,15 @@ export function DoctorAppointmentsContent({
     setRescheduleError("");
     setUpdatingStatusId(rescheduleSchedule.id);
 
-    const { data, error } = await supabase
-      .from(scheduleTableName)
-      .update(payload)
-      .eq("id", rescheduleSchedule.id)
-      .select(scheduleColumns)
-      .maybeSingle();
+    const { data: rescheduleResult, error } = await supabase.rpc(
+      "reschedule_appointment",
+      {
+        p_schedule_id: rescheduleSchedule.id,
+        p_new_start_time: payload.start_time,
+        p_new_end_time: payload.end_time,
+        p_description: payload.description,
+      }
+    );
 
     if (error) {
       const message = getReadableScheduleError(error);
@@ -2898,11 +2495,16 @@ export function DoctorAppointmentsContent({
       return;
     }
 
-    const updatedSchedule = data || { ...rescheduleSchedule, ...payload };
+    const updatedSchedule = rescheduleResult?.schedule;
+    if (!updatedSchedule?.id) {
+      setRescheduleError("The saved appointment was not returned.");
+      return;
+    }
     const notificationResult = await sendAutomaticAppointmentNotification({
       patientId: updatedSchedule.patient_id,
       scheduleId: updatedSchedule.id,
       notificationType: "appointment_rescheduled",
+      appointmentEventId: rescheduleResult.appointment_event_id,
     });
     setSchedules((current) =>
       current.map((item) => (item.id === rescheduleSchedule.id ? updatedSchedule : item))
@@ -2920,15 +2522,24 @@ export function DoctorAppointmentsContent({
       refreshResult,
     });
     closeRescheduleModal();
-    setStatusMessage(
-      getAutomaticNotificationStatusMessage(notificationResult, {
-        sentMessage: "Appointment rescheduled and Patient notified.",
-        skippedMessage:
-          "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
-        failedMessage:
-          "Appointment was saved, but the Patient notification could not be sent.",
-      })
-    );
+    const rescheduleMessage = rescheduleResult.rescheduled
+        ? getAutomaticNotificationStatusMessage(notificationResult, {
+            sentMessage: "Appointment rescheduled and Patient notified.",
+            skippedMessage:
+              "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
+            failedMessage:
+              "Appointment was saved, but the Patient notification could not be sent.",
+          })
+        : "Appointment details saved. The appointment time did not change.";
+    if (
+      !rescheduleResult.rescheduled ||
+      notificationResult?.ok ||
+      notificationResult?.skipped
+    ) {
+      showSuccessMessage(rescheduleMessage);
+    } else {
+      setStatusMessage(rescheduleMessage);
+    }
     } finally {
       rescheduleSaveLockRef.current = false;
       setUpdatingStatusId("");
@@ -2945,36 +2556,9 @@ export function DoctorAppointmentsContent({
     );
   }
 
-  if (selectedRequestSchedule) {
-    const requestPatient = patients.find(
-      (patient) => String(patient.id) === String(selectedRequestSchedule.patient_id)
-    ) || null;
-
-    return (
-      <main
-        className={`doctor-appointments-page doctor-request-details-shell appointment-workspace appointment-workspace--doctor${embedded ? " doctor-appointments-page--embedded" : ""}`}
-      >
-        <DoctorAppointmentRequestDetails
-          schedule={selectedRequestSchedule}
-          patient={requestPatient}
-          isUpdating={updatingStatusId === selectedRequestSchedule.id}
-          actionError={detailActionError}
-          onBack={() => {
-            setDetailActionError("");
-            setSelectedRequestSchedule(null);
-            setActiveTab("Requests");
-          }}
-          onApprove={acceptPatientRequest}
-          onDecline={declinePatientRequest}
-        />
-      </main>
-    );
-  }
-
   return (
     <main
       className={`doctor-appointments-page appointment-workspace appointment-workspace--doctor${embedded ? " doctor-appointments-page--embedded" : ""}`}
-      style={{ "--doctor-request-count": `"${requestSchedules.length}"` }}
     >
       <AppointmentPageHeader
         title="Appointments"
@@ -2990,8 +2574,11 @@ export function DoctorAppointmentsContent({
 
       {statusMessage ? (
         <p
+          key={statusMessageVersion}
           className={`doctor-appointments-status-message${
             /notification could not be sent/i.test(statusMessage) ? " is-warning" : ""
+          }${
+            successMessage === statusMessage ? " is-auto-hide" : ""
           }`}
           role="status"
         >
@@ -2999,51 +2586,7 @@ export function DoctorAppointmentsContent({
         </p>
       ) : null}
 
-      {activeTab === "Requests" ? (
-        <DoctorAppointmentRequests
-          requests={paginatedRequests}
-          totalRequests={requestSchedules.length}
-          currentPage={requestDisplayedPage}
-          totalPages={requestTotalPages}
-          searchTerm={searchTerm}
-          sortOrder={requestSort}
-          patients={patients}
-          miniMonthDate={miniMonthDate}
-          miniMonthDays={miniMonthDays}
-          todaySchedules={todaySchedules}
-          onSearchChange={(value) => {
-            setSearchTerm(value);
-            setCurrentPage(1);
-          }}
-          onSortChange={(value) => {
-            setRequestSort(value);
-            setCurrentPage(1);
-          }}
-          onPageChange={setCurrentPage}
-          onMonthChange={(amount) => setMiniMonthDate((current) => addMonths(current, amount))}
-          onSelectDate={selectCalendarDate}
-          onViewRequest={(schedule) => {
-            setDetailActionError("");
-            setSelectedRequestSchedule(schedule);
-          }}
-          onViewSchedule={openCalendarAppointmentDetails}
-        />
-      ) : (
-        <>
       <AppointmentToolbar className="doctor-appointments-action-row doctor-appointments-toolbar doctor-appointments-toolbar-labeled">
-        <AppointmentControlGroup
-          label="View"
-          area="view"
-          className="doctor-appointments-control-group doctor-appointments-view-group"
-        >
-          <AppointmentViewSwitch
-            options={appointmentViews}
-            value={appointmentView}
-            onChange={setAppointmentView}
-            className="doctor-appointments-view-switch"
-          />
-        </AppointmentControlGroup>
-
         <AppointmentControlGroup
           label="Search Appointments"
           area="search"
@@ -3244,8 +2787,7 @@ export function DoctorAppointmentsContent({
           </section>
         </aside>
       </section>
-        </>
-      )}
+
 
       {isAdding
         ? createPortal(
@@ -3421,7 +2963,8 @@ export function DoctorAppointmentsContent({
       <AppointmentNoShowDialog
         open={Boolean(noShowConfirmationSchedule)}
         busy={updatingStatusId === noShowConfirmationSchedule?.id}
-        onCancel={() => setNoShowConfirmationSchedule(null)}
+        error={detailActionError}
+        onCancel={closeNoShowConfirmation}
         onConfirm={confirmNoShowAppointment}
       />
 

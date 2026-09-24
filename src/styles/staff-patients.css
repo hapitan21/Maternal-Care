@@ -111,6 +111,110 @@
   margin: 0 0 18px;
 }
 
+.staff-patients-notice-region:empty {
+  display: none;
+}
+
+.staff-patients-notice {
+  width: min(760px, 100%);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: -24px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(31, 38, 55, 0.06);
+  animation: staff-patients-notice-in 180ms ease-out both;
+}
+
+.staff-patients-notice > svg {
+  width: 22px;
+  height: 22px;
+}
+
+.staff-patients-notice > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.staff-patients-notice strong,
+.staff-patients-notice small {
+  line-height: 1.4;
+}
+
+.staff-patients-notice strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.staff-patients-notice small {
+  color: #626b7c;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.staff-patients-notice > button {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: currentColor;
+}
+
+.staff-patients-notice > button:hover,
+.staff-patients-notice > button:focus-visible {
+  background: rgba(255, 255, 255, 0.7);
+  outline: none;
+}
+
+.staff-patients-notice > button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.staff-patients-notice.is-success {
+  border-color: #bfe4ce;
+  background: #f1fbf5;
+  color: #217a48;
+}
+
+.staff-patients-notice.is-info {
+  border-color: #c9dff5;
+  background: #f2f8fe;
+  color: #25699e;
+}
+
+.staff-patients-notice.is-warning,
+.staff-patients-notice.is-error {
+  border-color: #f2cad5;
+  background: #fff5f7;
+  color: #b52650;
+}
+
+@keyframes staff-patients-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-patients-notice {
+    animation: none;
+  }
+}
+
 .staff-patients-search {
   width: min(420px, 100%);
   height: 42px;
@@ -731,6 +835,19 @@
   color: #fff;
 }
 
+.staff-register-step.is-complete span {
+  background: #f35b91;
+}
+
+.staff-register-step.is-complete span svg {
+  width: 20px;
+  height: 20px;
+}
+
+.staff-register-step:disabled {
+  cursor: default;
+}
+
 /* Only current step has underline */
 .staff-register-step.is-active small::after {
   width: 100%;
@@ -807,9 +924,40 @@
 }
 
 .staff-register-field.is-full,
+.staff-register-subsection-heading.is-full,
 .staff-check-section.is-full,
 .staff-allergy-group.is-full {
   grid-column: 1 / -1;
+}
+
+.staff-register-subsection-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 4px;
+  padding: 4px 0 9px;
+  border-bottom: 1px solid #f0d8e3;
+}
+
+.staff-register-subsection-heading:not(:first-child) {
+  margin-top: 10px;
+}
+
+.staff-register-subsection-heading h4,
+.staff-register-subsection-heading p {
+  margin: 0;
+}
+
+.staff-register-subsection-heading h4 {
+  color: #343b4e;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.staff-register-subsection-heading p {
+  color: #7b8292;
+  font-size: 12.5px;
 }
 
 .staff-register-field > span,
@@ -887,6 +1035,30 @@
   border-color: rgba(255, 47, 125, 0.65);
   background: #fff;
   box-shadow: 0 0 0 4px rgba(255, 47, 125, 0.08);
+}
+
+.staff-register-input-wrap input[readonly] {
+  cursor: default;
+  background: #f7f8fb;
+  color: #626b7c;
+}
+
+.staff-register-field.has-error .staff-register-input-wrap input,
+.staff-register-field.has-error .staff-register-input-wrap select {
+  border-color: #d9305f;
+  background: #fffafb;
+}
+
+.staff-register-field.has-error .staff-register-input-wrap input:focus,
+.staff-register-field.has-error .staff-register-input-wrap select:focus {
+  box-shadow: 0 0 0 4px rgba(217, 48, 95, 0.1);
+}
+
+.staff-register-field-error {
+  color: #c52550;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.3;
 }
 
 .staff-register-radio-group {
@@ -4269,5 +4441,13 @@
   color: var(--patients-pink);
   pointer-events: none;
   z-index: 1;
+}
+
+@media (max-width: 680px) {
+  .staff-register-subsection-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
 }
 

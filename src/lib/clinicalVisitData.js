@@ -90,6 +90,99 @@ export function isMeaningfulClinicalValue(value) {
   return !emptyClinicalValues.has(String(value).trim().toLowerCase());
 }
 
+function parsePositiveClinicalNumber(value) {
+  if (!isMeaningfulClinicalValue(value)) return null;
+
+  const match = String(value).replace(",", ".").match(/\d+(?:\.\d+)?/);
+  if (!match) return null;
+
+  const number = Number(match[0]);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function getClinicalVisitType(source) {
+  const data = getSourceData(source);
+  return getFirstValue(
+    data.visitFormType,
+    data.visit_form_type,
+    data.visitType,
+    data.visit_type,
+    source?.type,
+    source?.title
+  );
+}
+
+function isInitialClinicalVisit(source) {
+  const visitType = normalizeLabel(getClinicalVisitType(source));
+  return visitType === "initial" || visitType.includes("initialvisit");
+}
+
+export function isFollowUpClinicalVisit(source) {
+  const visitType = normalizeLabel(getClinicalVisitType(source));
+  return visitType === "followup" || visitType.includes("followupvisit");
+}
+
+export function getClinicalVisitHeight(source) {
+  const data = normalizeClinicalVisitFormData(source);
+  const clinicalFindings = getObjectValue(
+    data.clinicalFindings || data.clinical_findings
+  );
+
+  return getFirstValue(
+    data.height,
+    data.heightCm,
+    data.height_cm,
+    clinicalFindings.height,
+    clinicalFindings.heightCm,
+    clinicalFindings.height_cm,
+    getFinding(data, ["Height", "Baseline Height"])
+  );
+}
+
+export function getClinicalVisitWeight(source) {
+  const data = normalizeClinicalVisitFormData(source);
+  const clinicalFindings = getObjectValue(
+    data.clinicalFindings || data.clinical_findings
+  );
+
+  return getFirstValue(
+    data.weight,
+    data.weightKg,
+    data.weight_kg,
+    clinicalFindings.weight,
+    clinicalFindings.weightKg,
+    clinicalFindings.weight_kg,
+    getFinding(data, ["Weight"])
+  );
+}
+
+export function calculateClinicalBmi(weightValue, heightValue) {
+  const weightKg = parsePositiveClinicalNumber(weightValue);
+  const heightCm = parsePositiveClinicalNumber(heightValue);
+  if (!weightKg || !heightCm) return "";
+
+  return (weightKg / ((heightCm / 100) ** 2)).toFixed(1);
+}
+
+export function getLatestInitialVisitHeight(records = []) {
+  return [...records]
+    .filter((record) => isCompletedClinicalVisitRecord(record) && isInitialClinicalVisit(record))
+    .sort((first, second) => {
+      const firstData = getSourceData(first);
+      const secondData = getSourceData(second);
+      const firstTime = Date.parse(
+        getFirstValue(firstData.appointmentDate, firstData.visitDate, first?.uploaded_at) || ""
+      );
+      const secondTime = Date.parse(
+        getFirstValue(secondData.appointmentDate, secondData.visitDate, second?.uploaded_at) || ""
+      );
+      return (Number.isNaN(secondTime) ? 0 : secondTime) -
+        (Number.isNaN(firstTime) ? 0 : firstTime);
+    })
+    .map(getClinicalVisitHeight)
+    .find((height) => parsePositiveClinicalNumber(height)) || "";
+}
+
 export function normalizeRiskLevel(value) {
   const normalized = String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
   if (["low", "low risk"].includes(normalized)) return "Low Risk";
@@ -203,7 +296,6 @@ export function normalizeClinicalVisitFormData(source) {
       data.fetal_heart_rate,
       clinicalFindings.fetalHeartRate,
       clinicalFindings.fetal_heart_rate,
-      data.heartRate,
       getFinding(data, ["Fetal Heart Rate"])
     ),
     fundalHeight: getFirstValue(

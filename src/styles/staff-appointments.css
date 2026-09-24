@@ -60,6 +60,21 @@
   line-height: 1.4;
 }
 
+.staff-appointments-status-message.is-auto-hide {
+  animation: staff-appointments-status-auto-hide 4s ease forwards;
+}
+
+@keyframes staff-appointments-status-auto-hide {
+  0%,
+  86% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 .staff-appointments-status-message button {
   min-height: 32px;
   padding: 6px 12px;
@@ -345,35 +360,6 @@
 
 .staff-appointments-tabs button.is-active::after {
   width: 100%;
-}
-
-.staff-appointments-view-switch {
-  width: max-content;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 14px;
-  padding: 4px;
-  border: 1px solid #d9dce8;
-  border-radius: 10px;
-  background: #ffffff;
-}
-
-.staff-appointments-view-switch button {
-  min-height: 32px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #596174;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.staff-appointments-view-switch button:hover,
-.staff-appointments-view-switch button.is-active {
-  background: #fff0f6;
-  color: var(--staff-appointments-pink);
 }
 
 .staff-appointments-action-stack {
@@ -1053,23 +1039,42 @@
 .staff-appointment-detail-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1600;
+  z-index: 650000;
   display: grid;
   place-items: center;
   padding: 20px;
+  overflow: hidden;
+  overscroll-behavior: contain;
   background: rgba(25, 27, 34, 0.44);
+  -webkit-backdrop-filter: blur(7px);
   backdrop-filter: blur(7px);
 }
 
 .staff-appointment-detail-modal {
   width: min(680px, 100%);
-  max-height: min(760px, calc(100vh - 40px));
-  overflow: auto;
+  max-height: min(760px, calc(100dvh - 40px));
+  overflow: hidden;
   position: relative;
   border: 1px solid #f1bfd3;
   border-radius: 18px;
   background: #fff;
   box-shadow: 0 30px 80px rgba(22, 27, 41, 0.25);
+}
+
+
+/* Appointment details stay non-scrollable on normal desktop screens.
+   Only very small/short viewports get an internal fallback scroll so
+   footer actions cannot be clipped off-screen. */
+@media (max-width: 640px), (max-height: 720px) {
+  .staff-appointment-detail-backdrop {
+    padding: 12px;
+  }
+
+  .staff-appointment-detail-modal {
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 .staff-appointment-detail-close {
@@ -3415,7 +3420,7 @@
 /* =========================================================
    STAFF APPOINTMENTS — COMPACT CONTROL TOOLBAR
    ---------------------------------------------------------
-   [ View ] [ Search ........ ] [ Month ] [ Add Appointment ]
+   [ Search ........ ] [ Month ] [ Add Appointment ]
    ========================================================= */
 
 .staff-dashboard-shell .staff-appointments-page .staff-appointments-header {
@@ -3425,8 +3430,8 @@
 .staff-appointments-page
   .staff-appointments-toolbar.staff-appointments-toolbar-labeled {
   display: grid !important;
-  grid-template-columns: max-content minmax(280px, 1fr) 210px 210px !important;
-  grid-template-areas: "view search month action" !important;
+  grid-template-columns: minmax(280px, 1fr) 210px 210px !important;
+  grid-template-areas: "search month action" !important;
   column-gap: 14px !important;
   row-gap: 0 !important;
   justify-content: stretch !important;
@@ -3435,10 +3440,6 @@
   width: 100% !important;
   max-width: none !important;
   margin: 0 0 20px !important;
-}
-
-.staff-appointments-page .staff-appointments-view-group {
-  grid-area: view !important;
 }
 
 .staff-appointments-page .staff-appointments-action-group {
@@ -3474,12 +3475,6 @@
   text-transform: uppercase !important;
   text-align: left !important;
   white-space: nowrap !important;
-}
-
-.staff-appointments-page .staff-appointments-view-switch {
-  width: max-content !important;
-  min-height: 52px !important;
-  margin: 0 !important;
 }
 
 .staff-appointments-page .staff-appointments-search-group,
@@ -3524,8 +3519,8 @@
     .staff-appointments-toolbar.staff-appointments-toolbar-labeled {
     grid-template-columns: minmax(0, 1fr) 210px !important;
     grid-template-areas:
-      "view action"
-      "search month" !important;
+      "search action"
+      "month month" !important;
     column-gap: 14px !important;
     row-gap: 16px !important;
   }
@@ -3537,14 +3532,12 @@
     width: 100% !important;
     grid-template-columns: 1fr !important;
     grid-template-areas:
-      "view"
       "search"
       "month"
       "action" !important;
     gap: 14px !important;
   }
 
-  .staff-appointments-page .staff-appointments-view-switch,
   .staff-appointments-page .staff-appointments-search-group,
   .staff-appointments-page .staff-appointments-search-wrap,
   .staff-appointments-page .staff-appointments-search,
@@ -3558,93 +3551,11 @@
   }
 }
 
-/* =========================================================
-   STAFF APPOINTMENTS — MAIN / HISTORY NO-SHIFT FIX
-   Keeps Main and History perfectly stationary when switching.
-   UI only — no appointment logic is changed.
-========================================================= */
-
-.staff-appointments-page .staff-appointments-view-group {
-  width: 180px !important;
-  min-width: 180px !important;
-  max-width: 180px !important;
-}
-
-.staff-appointments-page .staff-appointments-view-switch {
-  width: 180px !important;
-  min-width: 180px !important;
-  max-width: 180px !important;
-
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  align-items: stretch !important;
-
-  gap: 6px !important;
-  padding: 4px !important;
-
-  box-sizing: border-box !important;
-}
-
-/* Both buttons always occupy exactly half of the control */
-.staff-appointments-page .staff-appointments-view-switch button {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-
-  min-height: 32px !important;
-  padding: 0 8px !important;
-
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  box-sizing: border-box !important;
-
-  font-size: 12px !important;
-  font-weight: 850 !important;
-  line-height: 1 !important;
-
-  transform: none !important;
-
-  transition:
-    background-color 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease !important;
-}
-
-/* Switching state must never alter dimensions */
-.staff-appointments-page .staff-appointments-view-switch button:hover,
-.staff-appointments-page .staff-appointments-view-switch button:focus,
-.staff-appointments-page .staff-appointments-view-switch button:active,
-.staff-appointments-page .staff-appointments-view-switch button.is-active {
-  width: 100% !important;
-  min-width: 0 !important;
-  padding-left: 8px !important;
-  padding-right: 8px !important;
-  transform: none !important;
-}
-
-@media (max-width: 760px) {
-  .staff-appointments-page .staff-appointments-view-group,
-  .staff-appointments-page .staff-appointments-view-switch {
-    width: 180px !important;
-    min-width: 180px !important;
-    max-width: 180px !important;
-  }
-}
-
-/* =========================================================
-   STAFF APPOINTMENTS — FINAL MAIN / HISTORY NO-MOVEMENT FIX
-   ---------------------------------------------------------
-   Fixes table/column movement when switching Main ↔ History.
-   Does NOT change appointment logic.
-========================================================= */
-
-/* Keep the table viewport exactly the same width in both views */
+/* Keep the appointment table viewport and columns stable. */
 .staff-appointments-page .staff-appointments-table-scroll {
   width: 100% !important;
 
-  /* Reserve scrollbar space even when Main has fewer rows */
+  /* Reserve scrollbar space even when a filter has fewer rows */
   scrollbar-gutter: stable !important;
 
   /* Keep the vertical scrollbar area consistent */
@@ -3716,7 +3627,7 @@
 
 /* =========================================================
    STAFF APPOINTMENTS — PAGINATION NO-SHIFT FIX
-   Keeps "Rows 10" perfectly centered in Main and History.
+   Keeps "Rows 10" centered across status filters.
 ========================================================= */
 
 .staff-appointments-page .staff-appointments-pagination {

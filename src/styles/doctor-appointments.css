@@ -209,28 +209,6 @@
   background: var(--doctor-appointments-pink-dark);
 }
 
-.doctor-appointments-tabs button:nth-child(2) {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.doctor-appointments-tabs button:nth-child(2)::before {
-  content: var(--doctor-request-count, "0");
-  order: 2;
-  min-width: 23px;
-  height: 23px;
-  border-radius: 999px;
-  background: var(--doctor-appointments-pink);
-  color: #fff;
-  display: inline-grid;
-  place-items: center;
-  padding: 0 6px;
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 800;
-}
-
 /* PATIENT APPOINTMENT REQUESTS */
 
 .doctor-request-workspace {
@@ -1293,36 +1271,6 @@
   .doctor-request-status-card .doctor-request-message-button.send-patient-notification-trigger {
     width: 100%;
   }
-}
-
-.doctor-appointments-view-switch {
-  width: max-content;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 14px;
-  padding: 4px;
-  border: 1px solid #d9dce8;
-  border-radius: 12px;
-  background: #ffffff;
-}
-
-.doctor-appointments-view-switch button {
-  min-height: 34px;
-  padding: 0 15px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: #555b6a;
-  font-family: "Poppins", sans-serif;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.doctor-appointments-view-switch button:hover,
-.doctor-appointments-view-switch button.is-active {
-  background: var(--doctor-appointments-pink-soft);
-  color: var(--doctor-appointments-pink-dark);
 }
 
 .doctor-appointments-action-row {
@@ -4468,6 +4416,11 @@ body:has(.appointment-modal-overlay) {
   flex: 0 0 auto;
 }
 
+/* The shared dialog is portaled to body; keep it above the dashboard profile slot. */
+body:has(.doctor-dashboard) .appointment-no-show-overlay {
+  z-index: 2147483000;
+}
+
 .doctor-appointments-profile-wrap .doctor-appointments-profile-arrow {
   transition: transform var(--doctor-appointments-transition);
 }
@@ -5097,7 +5050,7 @@ body:has(.appointment-modal-overlay) {
 
 /* =========================================================
    DOCTOR APPOINTMENTS — STAFF-ALIGNED CONTROL TOOLBAR
-   [ View ] [ Search ........ ] [ Month ] [ Add Appointment ]
+   [ Search ........ ] [ Month ] [ Add Appointment ]
    ========================================================= */
 
 .doctor-dashboard .doctor-appointments-page .doctor-appointments-header {
@@ -5109,18 +5062,14 @@ body:has(.appointment-modal-overlay) {
   width: 100% !important;
   max-width: none !important;
   display: grid !important;
-  grid-template-columns: max-content minmax(280px, 1fr) 210px 210px !important;
-  grid-template-areas: "view search month action" !important;
+  grid-template-columns: minmax(280px, 1fr) 210px 210px !important;
+  grid-template-areas: "search month action" !important;
   column-gap: 14px !important;
   row-gap: 0 !important;
   justify-content: stretch !important;
   justify-items: stretch !important;
   align-items: start !important;
   margin: 0 0 20px !important;
-}
-
-.doctor-appointments-page .doctor-appointments-view-group {
-  grid-area: view !important;
 }
 
 .doctor-appointments-page .doctor-appointments-search-group {
@@ -5158,12 +5107,6 @@ body:has(.appointment-modal-overlay) {
   white-space: nowrap !important;
 }
 
-.doctor-appointments-page .doctor-appointments-view-switch {
-  width: max-content !important;
-  min-height: 52px !important;
-  margin: 0 !important;
-}
-
 .doctor-appointments-page .doctor-appointments-search-group,
 .doctor-appointments-page .doctor-appointments-search {
   width: 100% !important;
@@ -5194,8 +5137,8 @@ body:has(.appointment-modal-overlay) {
     .doctor-appointments-toolbar.doctor-appointments-toolbar-labeled {
     grid-template-columns: minmax(0, 1fr) 210px !important;
     grid-template-areas:
-      "view action"
-      "search month" !important;
+      "search action"
+      "month month" !important;
     column-gap: 14px !important;
     row-gap: 16px !important;
   }
@@ -5207,14 +5150,12 @@ body:has(.appointment-modal-overlay) {
     width: 100% !important;
     grid-template-columns: 1fr !important;
     grid-template-areas:
-      "view"
       "search"
       "month"
       "action" !important;
     gap: 14px !important;
   }
 
-  .doctor-appointments-page .doctor-appointments-view-switch,
   .doctor-appointments-page .doctor-appointments-search-group,
   .doctor-appointments-page .doctor-appointments-search,
   .doctor-appointments-page .doctor-appointments-action-group,
@@ -5310,8 +5251,8 @@ body:has(.appointment-modal-overlay) {
 .doctor-appointments-page
   .doctor-appointments-toolbar.doctor-appointments-toolbar-labeled {
   display: grid !important;
-  grid-template-columns: max-content minmax(280px, 1fr) 210px 210px !important;
-  grid-template-areas: "view search month action" !important;
+  grid-template-columns: minmax(280px, 1fr) 210px 210px !important;
+  grid-template-areas: "search month action" !important;
   column-gap: 14px !important;
   row-gap: 0 !important;
   align-items: start !important;
@@ -5340,29 +5281,6 @@ body:has(.appointment-modal-overlay) {
   letter-spacing: 0.045em !important;
   text-transform: uppercase !important;
   white-space: nowrap !important;
-}
-
-.doctor-appointments-page .doctor-appointments-view-switch {
-  min-height: 52px !important;
-  margin: 0 !important;
-  padding: 4px !important;
-  border: 1px solid #d9dce8 !important;
-  border-radius: 10px !important;
-}
-
-.doctor-appointments-page .doctor-appointments-view-switch button {
-  min-height: 42px !important;
-  padding: 0 18px !important;
-  border-radius: 8px !important;
-  color: #596174 !important;
-  font-size: 12px !important;
-  font-weight: 850 !important;
-}
-
-.doctor-appointments-page .doctor-appointments-view-switch button:hover,
-.doctor-appointments-page .doctor-appointments-view-switch button.is-active {
-  background: #fff0f6 !important;
-  color: var(--doctor-appointments-pink) !important;
 }
 
 .doctor-appointments-page .doctor-appointments-search label,
@@ -5829,8 +5747,8 @@ body:has(.appointment-modal-overlay) {
     .doctor-appointments-toolbar.doctor-appointments-toolbar-labeled {
     grid-template-columns: minmax(0, 1fr) 210px !important;
     grid-template-areas:
-      "view action"
-      "search month" !important;
+      "search action"
+      "month month" !important;
     row-gap: 16px !important;
   }
 }
@@ -5840,14 +5758,12 @@ body:has(.appointment-modal-overlay) {
     .doctor-appointments-toolbar.doctor-appointments-toolbar-labeled {
     grid-template-columns: 1fr !important;
     grid-template-areas:
-      "view"
       "search"
       "month"
       "action" !important;
     gap: 14px !important;
   }
 
-  .doctor-appointments-page .doctor-appointments-view-switch,
   .doctor-appointments-page .doctor-appointments-search-group,
   .doctor-appointments-page .doctor-appointments-search,
   .doctor-appointments-page .doctor-appointments-action-group,
@@ -6422,93 +6338,7 @@ body:has(.appointment-modal-overlay) {
 }
 
 /* =========================================================
-   DOCTOR APPOINTMENTS — STAFF PARITY FINAL FIX
-   ---------------------------------------------------------
-   1. Stops Main / History movement
-   2. Stops Rows pagination movement
-   3. Makes History compact like Staff
-   4. Keeps existing Doctor appointment logic untouched
-========================================================= */
-
-
-/* =========================================================
-   1. MAIN / HISTORY — FIXED POSITION
-========================================================= */
-
-.doctor-appointments-page .doctor-appointments-view-group {
-  width: 180px !important;
-  min-width: 180px !important;
-  max-width: 180px !important;
-}
-
-.doctor-appointments-page .doctor-appointments-view-switch {
-  width: 180px !important;
-  min-width: 180px !important;
-  max-width: 180px !important;
-
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-
-  align-items: stretch !important;
-  gap: 6px !important;
-
-  margin: 0 !important;
-  padding: 4px !important;
-
-  box-sizing: border-box !important;
-}
-
-.doctor-appointments-page .doctor-appointments-view-switch button {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-
-  min-height: 42px !important;
-  padding: 0 8px !important;
-
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  box-sizing: border-box !important;
-
-  transform: none !important;
-
-  transition:
-    background-color 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease !important;
-}
-
-.doctor-appointments-page .doctor-appointments-view-switch button:hover,
-.doctor-appointments-page .doctor-appointments-view-switch button:focus,
-.doctor-appointments-page .doctor-appointments-view-switch button:active,
-.doctor-appointments-page .doctor-appointments-view-switch button.is-active {
-  width: 100% !important;
-  min-width: 0 !important;
-
-  padding-left: 8px !important;
-  padding-right: 8px !important;
-
-  transform: none !important;
-}
-
-
-/* Keep first toolbar column fixed */
-@media (min-width: 1181px) {
-  .doctor-appointments-page
-    .doctor-appointments-toolbar.doctor-appointments-toolbar-labeled {
-    grid-template-columns:
-      180px
-      minmax(280px, 1fr)
-      210px
-      210px !important;
-  }
-}
-
-
-/* =========================================================
-   2. COMPACT APPOINTMENT HISTORY LIKE STAFF
+   DOCTOR APPOINTMENTS — TABLE AND PAGINATION STABILITY
 ========================================================= */
 
 .doctor-appointments-page .doctor-appointments-table-scroll {
@@ -6546,7 +6376,7 @@ body:has(.appointment-modal-overlay) {
 }
 
 
-/* Keep header visible while History scrolls */
+/* Keep the header visible while the appointment table scrolls */
 .doctor-appointments-page .doctor-appointments-table__head {
   position: sticky !important;
   top: 0 !important;
@@ -6666,12 +6496,6 @@ body:has(.appointment-modal-overlay) {
 }
 
 @media (max-width: 760px) {
-  .doctor-appointments-page .doctor-appointments-view-group,
-  .doctor-appointments-page .doctor-appointments-view-switch {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
 }
 
 @media (max-width: 640px) {

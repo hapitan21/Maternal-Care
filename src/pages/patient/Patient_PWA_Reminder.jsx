@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
@@ -752,7 +752,6 @@ export default function PatientPWAReminder({ profile }) {
   const [viewAllSection, setViewAllSection] = useState("");
   const [skipTarget, setSkipTarget] = useState(null);
   const [medicationActionSuccess, setMedicationActionSuccess] = useState("");
-  const [medicationReloadToken, setMedicationReloadToken] = useState(0);
   const [patientRecordId, setPatientRecordId] = useState(
     profile?.recordId || ""
   );
@@ -765,7 +764,6 @@ export default function PatientPWAReminder({ profile }) {
   const [isLoadingScheduleReminders, setIsLoadingScheduleReminders] = useState(true);
   const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(true);
   const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] = useState(true);
-  const [isLoadingMedicationOccurrences, setIsLoadingMedicationOccurrences] = useState(false);
   const [medicationReminderError, setMedicationReminderError] = useState("");
   const [medicationActionState, setMedicationActionState] = useState({
     key: "",
@@ -781,6 +779,11 @@ export default function PatientPWAReminder({ profile }) {
     schedule: false,
     healthTips: false,
     medication: false,
+  });
+  const reminderRefreshRef = useRef(null);
+  const medicationOccurrenceRequestRef = useRef({
+    patientId: "",
+    promise: null,
   });
 
   const medicationOccurrenceMap = useMemo(() => {
@@ -875,10 +878,9 @@ export default function PatientPWAReminder({ profile }) {
     setViewAllSection("");
   };
 
-  const loadMedicationOccurrenceRows = async (patientId) => {
+  const loadMedicationOccurrenceRows = useCallback(async (patientId) => {
     if (!patientId) {
       setMedicationOccurrences([]);
-      setIsLoadingMedicationOccurrences(false);
       return [];
     }
 
@@ -886,51 +888,61 @@ export default function PatientPWAReminder({ profile }) {
 
     if (!queryRange) {
       setMedicationOccurrences([]);
-      setIsLoadingMedicationOccurrences(false);
       return [];
     }
 
-    setIsLoadingMedicationOccurrences(true);
+    const currentRequest = medicationOccurrenceRequestRef.current;
+    if (currentRequest.patientId === patientId && currentRequest.promise) {
+      return currentRequest.promise;
+    }
 
-    const { data, error } = await supabase
-      .from("medication_reminder_occurrences")
-      .select(
-        `
-          id,
-          medication_reminder_id,
-          patient_id,
-          scheduled_for,
-          status,
-          notification_id,
-          notified_at,
-          action_at,
-          missed_at,
-          error_code,
-          updated_at
-        `
-      )
-      .eq("patient_id", patientId)
-      .gte("scheduled_for", queryRange.historyStart || queryRange.start)
-      .lt("scheduled_for", queryRange.end)
-      .order("scheduled_for", { ascending: true });
+    const request = (async () => {
+      const { data, error } = await supabase
+        .from("medication_reminder_occurrences")
+        .select(
+          `
+            id,
+            medication_reminder_id,
+            patient_id,
+            scheduled_for,
+            status,
+            notification_id,
+            notified_at,
+            action_at,
+            missed_at,
+            error_code,
+            updated_at
+          `
+        )
+        .eq("patient_id", patientId)
+        .gte("scheduled_for", queryRange.historyStart || queryRange.start)
+        .lt("scheduled_for", queryRange.end)
+        .order("scheduled_for", { ascending: true });
 
-    setIsLoadingMedicationOccurrences(false);
-
-    if (error) {
-      if (isMissingMedicationOccurrenceError(error)) {
-        setMedicationOccurrences([]);
+      if (error) {
+        if (!isMissingMedicationOccurrenceError(error)) {
+          console.error("Patient medication occurrence load failed:", error);
+        }
         return [];
       }
 
-      console.error("Patient medication occurrence load failed:", error);
-      setMedicationOccurrences([]);
-      return [];
-    }
+      const rows = (data || []).map(mapMedicationOccurrenceRow);
+      if (medicationOccurrenceRequestRef.current.patientId === patientId) {
+        setMedicationOccurrences(rows);
+      }
+      return rows;
+    })();
 
-    const rows = (data || []).map(mapMedicationOccurrenceRow);
-    setMedicationOccurrences(rows);
-    return rows;
-  };
+    medicationOccurrenceRequestRef.current = { patientId, promise: request };
+
+    try {
+      return await request;
+    } finally {
+      if (medicationOccurrenceRequestRef.current.promise === request) {
+        medicationOccurrenceRequestRef.current = { patientId: "", promise: null };
+      }
+    }
+  }, []);
 
   const handleMedicationOccurrenceAction = async (item, action, options = {}) => {
     const occurrenceId = item?.occurrence?.id;
@@ -1016,8 +1028,10 @@ export default function PatientPWAReminder({ profile }) {
 
   useEffect(() => {
     let active = true;
+    let refreshInFlight = false;
+    let refreshQueued = false;
 
-    const loadSupabaseReminders = async () => {
+    const fetchSupabaseReminders = async () => {
       if (!loadedStateRef.current.appointments) {
         setIsLoadingAppointmentReminders(true);
       }
@@ -1027,7 +1041,6 @@ export default function PatientPWAReminder({ profile }) {
       if (!loadedStateRef.current.medication) {
         setIsLoadingMedicationReminders(true);
       }
-      setIsLoadingMedicationOccurrences(true);
       setMedicationReminderError("");
       const patient = await loadAuthenticatedPatientRow();
       setPatientRecordId(patient?.id || profile?.recordId || "");
@@ -1095,7 +1108,6 @@ export default function PatientPWAReminder({ profile }) {
         loadedStateRef.current.appointments = true;
         loadedStateRef.current.medication = true;
         setMedicationOccurrences([]);
-        setIsLoadingMedicationOccurrences(false);
         setIsLoadingMedicationReminders(false);
         setIsLoadingAppointmentReminders(false);
         setMedicationReminderError(
@@ -1132,42 +1144,16 @@ export default function PatientPWAReminder({ profile }) {
         return;
       }
 
-      const occurrenceQueryRange = getMedicationOccurrenceQueryRange();
-      const occurrenceQuery = occurrenceQueryRange
-        ? supabase
-            .from("medication_reminder_occurrences")
-            .select(
-              `
-                id,
-                medication_reminder_id,
-                patient_id,
-                scheduled_for,
-                status,
-                notification_id,
-                notified_at,
-                action_at,
-                missed_at,
-                error_code,
-                updated_at
-              `
-            )
-            .eq("patient_id", patient.id)
-            .gte("scheduled_for", occurrenceQueryRange.historyStart || occurrenceQueryRange.start)
-            .lt("scheduled_for", occurrenceQueryRange.end)
-            .order("scheduled_for", { ascending: true })
-        : Promise.resolve({ data: [], error: null });
-
       const [
         appointmentResult,
         medicationResult,
         healthTipsResult,
-        occurrenceResult,
       ] =
         await Promise.all([
           appointmentQuery,
           medicationQuery,
           healthTipsQuery,
-          occurrenceQuery,
+          loadMedicationOccurrenceRows(patient.id),
         ]);
 
       if (!active) {
@@ -1237,21 +1223,6 @@ export default function PatientPWAReminder({ profile }) {
       loadedStateRef.current.medication = true;
       setIsLoadingMedicationReminders(false);
 
-      if (occurrenceResult.error) {
-        if (!isMissingMedicationOccurrenceError(occurrenceResult.error)) {
-          console.error(
-            "Patient medication occurrences load failed:",
-            occurrenceResult.error
-          );
-        }
-        setMedicationOccurrences([]);
-      } else {
-        setMedicationOccurrences(
-          (occurrenceResult.data || []).map(mapMedicationOccurrenceRow)
-        );
-      }
-      setIsLoadingMedicationOccurrences(false);
-
       if (healthTipsResult.error) {
         console.error(
           "Patient health tips load failed:",
@@ -1277,6 +1248,26 @@ export default function PatientPWAReminder({ profile }) {
       loadedStateRef.current.healthTips = true;
       setIsLoadingHealthTips(false);
     };
+
+    const loadSupabaseReminders = async () => {
+      if (refreshInFlight) {
+        refreshQueued = true;
+        return;
+      }
+
+      refreshInFlight = true;
+
+      try {
+        do {
+          refreshQueued = false;
+          await fetchSupabaseReminders();
+        } while (active && refreshQueued);
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+
+    reminderRefreshRef.current = loadSupabaseReminders;
 
     loadSupabaseReminders();
 
@@ -1328,6 +1319,9 @@ export default function PatientPWAReminder({ profile }) {
 
     return () => {
       active = false;
+      if (reminderRefreshRef.current === loadSupabaseReminders) {
+        reminderRefreshRef.current = null;
+      }
       window.clearInterval(refreshTimer);
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -1335,7 +1329,31 @@ export default function PatientPWAReminder({ profile }) {
       supabase.removeChannel(medicationReminderChannel);
       supabase.removeChannel(healthTipsChannel);
     };
-  }, [profile, medicationReloadToken]);
+  }, [loadMedicationOccurrenceRows, profile]);
+
+  useEffect(() => {
+    if (!patientRecordId) {
+      return undefined;
+    }
+
+    const medicationOccurrenceChannel = supabase
+      .channel(`patient-medication-reminder-occurrences-${patientRecordId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "medication_reminder_occurrences",
+          filter: `patient_id=eq.${patientRecordId}`,
+        },
+        () => loadMedicationOccurrenceRows(patientRecordId)
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(medicationOccurrenceChannel);
+    };
+  }, [loadMedicationOccurrenceRows, patientRecordId]);
 
   useEffect(() => {
     let active = true;
@@ -1484,17 +1502,14 @@ export default function PatientPWAReminder({ profile }) {
           activeTab={activeTab}
           error={medicationReminderError}
           historyRows={recentAdherenceRows}
-          isLoading={
-            isLoadingMedicationReminders ||
-            isLoadingMedicationOccurrences
-          }
+          isLoading={isLoadingMedicationReminders}
           items={medicationList}
           onBack={() => navigate("/patient/reminders")}
           onOccurrenceAction={handleMedicationOccurrenceAction}
-          onRefresh={() => setMedicationReloadToken((current) => current + 1)}
+          onRefresh={() => reminderRefreshRef.current?.()}
           onTabChange={(tab) => {
             setActiveTab(tab);
-            setMedicationReloadToken((current) => current + 1);
+            reminderRefreshRef.current?.();
           }}
           summary={todaySummary}
           successMessage={medicationActionSuccess}
@@ -1711,10 +1726,7 @@ export default function PatientPWAReminder({ profile }) {
             actionState={medicationActionState}
             activeTab={activeTab}
             error={medicationReminderError}
-            isLoading={
-              isLoadingMedicationReminders ||
-              isLoadingMedicationOccurrences
-            }
+            isLoading={isLoadingMedicationReminders}
             items={medicationList}
             onOccurrenceAction={handleMedicationOccurrenceAction}
             onOpenSchedule={() => navigate("/patient/reminders/medications")}

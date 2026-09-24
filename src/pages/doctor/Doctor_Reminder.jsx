@@ -734,6 +734,17 @@ function mapScheduleAppointment(row) {
   };
 }
 
+function isAppointmentReminderEligible(appointment, nowValue = new Date()) {
+  return classifyAppointment(
+    {
+      start: appointment?.scheduleAt,
+      end: appointment?.scheduleEndAt,
+      status: appointment?.scheduleStatus,
+    },
+    nowValue
+  ).isActionable;
+}
+
 function formatMedicationReminderTime(timeValue) {
   if (!timeValue) {
     return "";
@@ -893,6 +904,9 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     customNotifyAt: "",
     repeatReminder: "none",
   });
+  const [reminderFormSource, setReminderFormSource] = React.useState("global");
+  const [reminderTargetMode, setReminderTargetMode] = React.useState("single");
+  const [selectedAppointmentIds, setSelectedAppointmentIds] = React.useState([]);
   const [availableAppointments, setAvailableAppointments] = React.useState([]);
   const [isLoadingAppointments, setIsLoadingAppointments] = React.useState(true);
   const [appointmentsMessage, setAppointmentsMessage] = React.useState("");
@@ -900,6 +914,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [isLoadingAppointmentReminders, setIsLoadingAppointmentReminders] =
     React.useState(true);
   const [appointmentRemindersMessage, setAppointmentRemindersMessage] =
+    React.useState("");
+  const [appointmentRemindersLoadError, setAppointmentRemindersLoadError] =
     React.useState("");
   const [medicationReminders, setMedicationReminders] = React.useState([]);
   const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] =
@@ -1023,7 +1039,12 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
   const loadAppointmentReminders = React.useCallback(async () => {
     setIsLoadingAppointmentReminders(true);
-    setAppointmentRemindersMessage("");
+    setAppointmentRemindersLoadError("");
+    setAppointmentRemindersMessage((currentMessage) =>
+      currentMessage.startsWith("Unable to load appointment reminders:")
+        ? ""
+        : currentMessage
+    );
     const { data, error } = await supabase
       .from(remindersTableName)
       .select(`
@@ -1056,6 +1077,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     if (error) {
       console.error("Unable to load appointment reminders:", error);
       setReminders([]);
+      setAppointmentRemindersLoadError(error.message || "Unknown error");
       setAppointmentRemindersMessage(
         `Unable to load appointment reminders: ${error.message}`
       );
@@ -1063,6 +1085,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       return;
     }
 
+    setAppointmentRemindersLoadError("");
     setReminders((data || []).map(mapReminderDatabaseRow));
     setIsLoadingAppointmentReminders(false);
   }, []);
@@ -1287,6 +1310,21 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     loadHealthTipRows,
   ]);
 
+  React.useEffect(() => {
+    if (
+      !appointmentRemindersMessage ||
+      appointmentRemindersMessage.startsWith("Unable to load appointment reminders:")
+    ) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setAppointmentRemindersMessage("");
+    }, 4000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [appointmentRemindersMessage]);
+
 
   React.useEffect(() => {
     const searchMedicationPatients = async () => {
@@ -1346,10 +1384,15 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       customNotifyAt: "",
       repeatReminder: "none",
     });
+    setReminderTargetMode("single");
+    setSelectedAppointmentIds([]);
   }, []);
 
-  const handleSelectAppointmentForReminder = React.useCallback((appointment) => {
-    if (!appointment) return;
+  const handleSelectAppointmentForReminder = React.useCallback((appointment, source = "row") => {
+    if (!appointment || !isAppointmentReminderEligible(appointment, currentTime)) {
+      setStatusMessage("This appointment is no longer eligible for a reminder.");
+      return;
+    }
 
     const existingReminder =
       reminders.find((reminder) => reminder.appointmentId === appointment.id) || null;
@@ -1358,6 +1401,9 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       : "1day";
 
     setStatusMessage("");
+    setReminderFormSource(source);
+    setReminderTargetMode("single");
+    setSelectedAppointmentIds([]);
     setForm((current) => ({
       ...current,
       appointmentId: appointment.id,
@@ -1376,7 +1422,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       repeatReminder: existingReminder?.repeatMode || "none",
     }));
     setIsReminderFormOpen(true);
-  }, [reminders]);
+  }, [currentTime, reminders]);
 
   const handleReminderAppointmentChange = (event) => {
     const appointmentId = event.target.value;
@@ -1388,7 +1434,11 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     }
 
     const appointment =
-      availableAppointments.find((item) => item.id === appointmentId) || null;
+      availableAppointments.find(
+        (item) =>
+          item.id === appointmentId &&
+          isAppointmentReminderEligible(item, currentTime)
+      ) || null;
 
     if (!appointment) {
       resetAppointmentReminderForm();
@@ -1396,7 +1446,28 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       return;
     }
 
-    handleSelectAppointmentForReminder(appointment);
+    handleSelectAppointmentForReminder(appointment, reminderFormSource);
+  };
+
+  const handleReminderTargetModeChange = (mode) => {
+    setReminderTargetMode(mode);
+    setSelectedAppointmentIds([]);
+    setStatusMessage("");
+    setForm((current) => ({
+      ...current,
+      appointmentId: "",
+      patientId: "",
+      patientName: "",
+      scheduleDate: "",
+      scheduleTime: "",
+      appointmentType: "",
+      doctorName: "",
+      reminderLeadTime:
+        mode !== "single" && current.reminderLeadTime === "custom"
+          ? "1day"
+          : current.reminderLeadTime,
+      customNotifyAt: mode === "single" ? current.customNotifyAt : "",
+    }));
   };
 
   const reminderPreviewDetails = React.useMemo(() => {
@@ -1681,7 +1752,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
   const getAppointmentReminderStatus = (reminder) => {
     if (isLoadingAppointmentReminders) return "Checking";
-    if (appointmentRemindersMessage) return "Unavailable";
+    if (appointmentRemindersLoadError) return "Unavailable";
     if (!reminder) return "Not Set";
     return getReminderDisplayStatus(
       reminder.databaseStatus,
@@ -1696,39 +1767,29 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    const selectedAppointment =
-      availableAppointments.find(
-        (appointment) => appointment.id === form.appointmentId
-      ) || null;
+    const selectedAppointment = availableAppointments.find(
+      (appointment) =>
+        appointment.id === form.appointmentId &&
+        isAppointmentReminderEligible(appointment, currentTime)
+    ) || null;
+    const appointmentsToSave = isBulkReminderMode
+      ? selectedBulkAppointments
+      : selectedAppointment
+        ? [selectedAppointment]
+        : [];
 
-    if (!selectedAppointment) {
+    if (!appointmentsToSave.length) {
       setStatusMessage(
-        "Select an appointment before saving the reminder."
+        isBulkReminderMode
+          ? "Select at least one appointment without an existing reminder."
+          : "Select an appointment before saving the reminder."
       );
       return;
     }
 
-    const notifyAt = getReminderNotifyAtForAppointment(
-      selectedAppointment,
-      form.reminderLeadTime,
-      form.customNotifyAt
-    );
-
-    const notifyTime = new Date(notifyAt).getTime();
-    const scheduleTime = new Date(
-      selectedAppointment.scheduleAt ||
-        `${selectedAppointment.scheduleDate}T${
-          selectedAppointment.scheduleTime || "08:00"
-        }`
-    ).getTime();
-
-    if (
-      !Number.isFinite(notifyTime) ||
-      !Number.isFinite(scheduleTime) ||
-      notifyTime >= scheduleTime
-    ) {
+    if (isBulkReminderMode && form.reminderLeadTime === "custom") {
       setStatusMessage(
-        "Choose a valid reminder time strictly before the appointment schedule."
+        "Custom date/time is available for individual reminders only."
       );
       return;
     }
@@ -1740,110 +1801,155 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
           ? 24 * 60 * 60 * 1000
           : 0;
 
-    if (repeatStepMs && notifyTime + repeatStepMs >= scheduleTime) {
-      setStatusMessage(
-        form.repeatReminder === "hourly"
-          ? "Choose an earlier reminder time so at least one hourly repeat can occur before the appointment."
-          : "Choose an earlier reminder time so at least one daily repeat can occur before the appointment."
+    setIsSavingReminder(true);
+    setStatusMessage("");
+    const results = [];
+
+    for (const appointment of appointmentsToSave) {
+      try {
+        const notifyAt = getReminderNotifyAtForAppointment(
+          appointment,
+          form.reminderLeadTime,
+          form.customNotifyAt
+        );
+        const notifyTime = new Date(notifyAt).getTime();
+        const scheduleTime = new Date(
+          appointment.scheduleAt ||
+            `${appointment.scheduleDate}T${appointment.scheduleTime || "08:00"}`
+        ).getTime();
+
+        if (
+          !Number.isFinite(notifyTime) ||
+          !Number.isFinite(scheduleTime) ||
+          notifyTime >= scheduleTime
+        ) {
+          throw new Error("The reminder time must be before the appointment.");
+        }
+
+        if (repeatStepMs && notifyTime + repeatStepMs >= scheduleTime) {
+          throw new Error(
+            form.repeatReminder === "hourly"
+              ? "No hourly repeat fits before the appointment."
+              : "No daily repeat fits before the appointment."
+          );
+        }
+
+        const patientRecordId = await resolvePatientRecordId(
+          appointment.patientId,
+          appointment.patientName
+        );
+        if (!patientRecordId) {
+          throw new Error("The appointment is not linked to an active Patient.");
+        }
+
+        const existingReminder = remindersByAppointmentId[appointment.id];
+        if (isBulkReminderMode && existingReminder) {
+          throw new Error("An appointment reminder is already configured.");
+        }
+
+        const payload = {
+          patient_id: patientRecordId,
+          schedule_id: appointment.id,
+          reminder_type: "appointment",
+          title: `${appointment.appointmentType || "Appointment"} Reminder`,
+          message:
+            form.message.trim() || buildAppointmentReminderMessage(appointment),
+          remind_at: notifyAt,
+          repeat_mode: form.repeatReminder,
+          next_trigger_at: notifyAt,
+          repeat_until:
+            form.repeatReminder === "none"
+              ? null
+              : appointment.scheduleAt ||
+                toManilaISOString(
+                  appointment.scheduleDate,
+                  appointment.scheduleTime
+                ),
+          status: "pending",
+          sent_at: null,
+        };
+
+        const reminderQuery = existingReminder?.id
+          ? supabase
+              .from(remindersTableName)
+              .update(payload)
+              .eq("id", existingReminder.id)
+          : supabase.from(remindersTableName).insert([payload]);
+        const { error } = await reminderQuery;
+        if (error) throw error;
+
+        results.push({ appointment, success: true, updated: Boolean(existingReminder) });
+      } catch (error) {
+        console.error("Appointment reminder save failed:", {
+          appointmentId: appointment.id,
+          error,
+        });
+        results.push({
+          appointment,
+          success: false,
+          error: error?.message || "Unknown error",
+        });
+      }
+    }
+
+    await loadAppointmentReminders();
+    setIsSavingReminder(false);
+
+    const successfulResults = results.filter((result) => result.success);
+    const failedResults = results.filter((result) => !result.success);
+    const repeatLabel = {
+      none: "No repeat",
+      daily: "Daily",
+      hourly: "Every Hour",
+    }[form.repeatReminder] || "No repeat";
+
+    if (!isBulkReminderMode) {
+      const result = results[0];
+      if (!result?.success) {
+        setStatusMessage(
+          `Unable to save appointment reminder: ${result?.error || "Unknown error"}`
+        );
+        return;
+      }
+
+      resetAppointmentReminderForm();
+      setIsReminderFormOpen(false);
+      setAppointmentRemindersMessage(
+        result.updated
+          ? `Appointment reminder updated successfully. Repeat: ${repeatLabel}.`
+          : `Appointment reminder saved successfully. Repeat: ${repeatLabel}.`
       );
       return;
     }
 
-    setIsSavingReminder(true);
-    setStatusMessage("");
-
-    try {
-      const patientRecordId = await resolvePatientRecordId(
-        selectedAppointment.patientId || form.patientId,
-        selectedAppointment.patientName || form.patientName
-      );
-
-      if (!patientRecordId) {
-        setStatusMessage(
-          "This appointment is not linked to an active registered patient. Choose an appointment for a patient that exists in Supabase."
-        );
-        setIsSavingReminder(false);
-        return;
-      }
-
-      const existingReminder =
-        remindersByAppointmentId[selectedAppointment.id];
-
-      const payload = {
-        patient_id: patientRecordId,
-        schedule_id: selectedAppointment.id,
-        reminder_type: "appointment",
-        title: `${
-          selectedAppointment.appointmentType || "Appointment"
-        } Reminder`,
-        message:
-          form.message.trim() ||
-          buildAppointmentReminderMessage(selectedAppointment),
-        remind_at: notifyAt,
-        repeat_mode: form.repeatReminder,
-        next_trigger_at: notifyAt,
-        repeat_until:
-          form.repeatReminder === "none"
-            ? null
-            : selectedAppointment.scheduleAt ||
-              toManilaISOString(
-                selectedAppointment.scheduleDate,
-                selectedAppointment.scheduleTime
-              ),
-        status: "pending",
-        sent_at: null,
-      };
-
-      const reminderQuery = existingReminder?.id
-        ? supabase
-            .from(remindersTableName)
-            .update(payload)
-            .eq("id", existingReminder.id)
-        : supabase.from(remindersTableName).insert([payload]);
-
-      const { error } = await reminderQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      await loadAppointmentReminders();
-
-      setForm({
-        appointmentId: "",
-        patientId: "",
-        patientName: "",
-        scheduleDate: "",
-        scheduleTime: "",
-        appointmentType: "Prenatal Checkup",
-        doctorName: "",
-        message: "",
-        reminderLeadTime: "1day",
-        customNotifyAt: "",
-        repeatReminder: "none",
-      });
+    const successCount = successfulResults.length;
+    const failureCount = failedResults.length;
+    if (!failureCount) {
+      resetAppointmentReminderForm();
       setIsReminderFormOpen(false);
-      const repeatLabel = {
-        none: "No repeat",
-        daily: "Daily",
-        hourly: "Every Hour",
-      }[form.repeatReminder] || "No repeat";
-
-      setStatusMessage(
-        existingReminder
-          ? `Appointment reminder updated successfully. Repeat: ${repeatLabel}.`
-          : `Appointment reminder saved successfully. Repeat: ${repeatLabel}.`
+      setAppointmentRemindersMessage(
+        `${successCount} appointment reminder${successCount === 1 ? "" : "s"} scheduled successfully.`
       );
-    } catch (error) {
-      console.error("Appointment reminder save failed:", error);
-      setStatusMessage(
-        `Unable to save appointment reminder: ${
-          error?.message || "Unknown error"
-        }`
-      );
-    } finally {
-      setIsSavingReminder(false);
+      return;
     }
+
+    const successfulIds = new Set(
+      successfulResults.map((result) => result.appointment.id)
+    );
+    setSelectedAppointmentIds((current) =>
+      current.filter((appointmentId) => !successfulIds.has(appointmentId))
+    );
+    const failedAppointments = failedResults
+      .map(
+        (result) =>
+          `${result.appointment.patientName} — ${formatReminderDisplayDate(
+            result.appointment.scheduleDate
+          )}: ${result.error}`
+      )
+      .join("; ");
+    setStatusMessage(
+      `${successCount} reminder${successCount === 1 ? "" : "s"} scheduled; ${failureCount} failed. ${failedAppointments}`
+    );
   };
 
   const handleHealthTipChange = (event) => {
@@ -2069,29 +2175,50 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       .filter((reminder) => reminder.appointmentId)
       .map((reminder) => [reminder.appointmentId, reminder])
   );
-  const appointmentRows = availableAppointments.filter((appointment) => {
-    const isUpcoming = classifyAppointment({
-      start: appointment.scheduleAt,
-      end: appointment.scheduleEndAt,
-      status: appointment.scheduleStatus,
-    }).isUpcoming;
-    if (appointmentReminderFilter === "Today") return appointment.scheduleDate === todayDateKey && isUpcoming;
+  const reminderTargetAppointments = availableAppointments.filter((appointment) =>
+    isAppointmentReminderEligible(appointment, currentTime)
+  );
+  const bulkSelectableAppointments = reminderTargetAppointments.filter(
+    (appointment) => !remindersByAppointmentId[appointment.id]
+  );
+  const selectedBulkAppointments =
+    reminderTargetMode === "all_without"
+      ? bulkSelectableAppointments
+      : bulkSelectableAppointments.filter((appointment) =>
+          selectedAppointmentIds.includes(appointment.id)
+        );
+  const isBulkReminderMode =
+    reminderFormSource === "global" && reminderTargetMode !== "single";
+  const allBulkAppointmentsSelected =
+    bulkSelectableAppointments.length > 0 &&
+    selectedAppointmentIds.length === bulkSelectableAppointments.length;
+  const appointmentRows = reminderTargetAppointments.filter((appointment) => {
+    if (appointmentReminderFilter === "Today") return appointment.scheduleDate === todayDateKey;
     if (appointmentReminderFilter === "Tomorrow") return appointment.scheduleDate === tomorrowDateKey;
-    if (appointmentReminderFilter === "Upcoming") return isUpcoming;
+    if (appointmentReminderFilter === "Upcoming") return true;
     return true;
   });
   const visibleAppointmentRows = appointmentRows.slice(0, appointmentReminderFilter === "All" ? 8 : 3);
-  const reminderTargetAppointments = availableAppointments.filter((appointment) =>
-    classifyAppointment({
-      start: appointment.scheduleAt,
-      end: appointment.scheduleEndAt,
-      status: appointment.scheduleStatus,
-    }).isUpcoming
-  );
   const selectedReminderAppointment =
-    availableAppointments.find(
+    reminderTargetAppointments.find(
       (appointment) => appointment.id === form.appointmentId
     ) || null;
+
+  const toggleBulkAppointment = (appointmentId) => {
+    setSelectedAppointmentIds((current) =>
+      current.includes(appointmentId)
+        ? current.filter((id) => id !== appointmentId)
+        : [...current, appointmentId]
+    );
+  };
+
+  const toggleAllBulkAppointments = () => {
+    setSelectedAppointmentIds(
+      allBulkAppointmentsSelected
+        ? []
+        : bulkSelectableAppointments.map((appointment) => appointment.id)
+    );
+  };
   const medicationOccurrenceMap = React.useMemo(() => {
     return new Map(
       medicationOccurrences.map((occurrence) => [
@@ -2166,6 +2293,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     // The global Set Reminder button must never silently target the first patient.
     // Open a blank form and require the Doctor to explicitly choose one appointment.
     resetAppointmentReminderForm();
+    setReminderFormSource("global");
     setStatusMessage("");
     setIsReminderFormOpen(true);
   };
@@ -2580,7 +2708,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 </h2>
                 <p>
                   {viewAllSection === "appointments"
-                    ? `${availableAppointments.length} appointment${availableAppointments.length === 1 ? "" : "s"}`
+                    ? `${reminderTargetAppointments.length} appointment${reminderTargetAppointments.length === 1 ? "" : "s"}`
                     : viewAllSection === "medications"
                       ? `${allMedicationRows.length} medication schedule row${allMedicationRows.length === 1 ? "" : "s"}`
                       : `${managedHealthTips.length} ${healthTipManagementFilter.toLowerCase()} health tip${managedHealthTips.length === 1 ? "" : "s"} (${databaseHealthTips.length} total)`}
@@ -2600,8 +2728,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                     <span>Status</span>
                     <span>Action</span>
                   </div>
-                  {availableAppointments.length > 0 ? (
-                    availableAppointments.map((appointment) => {
+                  {reminderTargetAppointments.length > 0 ? (
+                    reminderTargetAppointments.map((appointment) => {
                       const reminder = remindersByAppointmentId[appointment.id];
 
                       return (
@@ -2850,11 +2978,17 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 </span>
                 <div>
                   <h2 id="doctor-reminder-form-title">
-                    {remindersByAppointmentId[form.appointmentId]
+                    {isBulkReminderMode
+                      ? "Set Appointment Reminders"
+                      : remindersByAppointmentId[form.appointmentId]
                       ? "Edit Reminder"
                       : "Set Reminder"}
                   </h2>
-                  <p>Select one appointment, then choose when that Patient should be notified.</p>
+                  <p>
+                    {isBulkReminderMode
+                      ? "Choose appointments, then apply one relative reminder rule to each schedule."
+                      : "Select one appointment, then choose when that Patient should be notified."}
+                  </p>
                 </div>
               </div>
               <button className="doctor-reminder-modal-close" type="button" aria-label="Close reminder form" onClick={closeReminderForm}>
@@ -2867,58 +3001,177 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
             <section className="doctor-reminder-target-block" aria-label="Reminder target">
               <div className="doctor-reminder-preference-heading">
                 <strong>Reminder Target</strong>
-                <span>Select exactly one Patient appointment.</span>
+                <span>
+                  {isBulkReminderMode
+                    ? "Select eligible appointments without configured reminders."
+                    : "Select exactly one Patient appointment."}
+                </span>
               </div>
 
-              <label className="doctor-reminder-target-field">
-                <span>Patient / Appointment <b>*</b></span>
-                <select
-                  value={form.appointmentId}
-                  onChange={handleReminderAppointmentChange}
-                  disabled={isLoadingAppointments || isSavingReminder}
-                  required
-                >
-                  <option value="">Select an appointment...</option>
-                  {reminderTargetAppointments.map((appointment) => (
-                    <option key={appointment.id} value={appointment.id}>
-                      {appointment.patientName} — {appointment.appointmentType} —{" "}
-                      {formatReminderDisplayDate(appointment.scheduleDate)}{" "}
-                      {formatReminderDisplayTime(appointment.scheduleTime)}
-                    </option>
+              {reminderFormSource === "global" ? (
+                <div className="doctor-reminder-target-modes" role="radiogroup" aria-label="Reminder target mode">
+                  {[
+                    {
+                      value: "single",
+                      title: "One Appointment",
+                      description: "Choose one Patient schedule.",
+                    },
+                    {
+                      value: "multiple",
+                      title: "Multiple Appointments",
+                      description: "Select several eligible schedules.",
+                    },
+                    {
+                      value: "all_without",
+                      title: "All Missing Reminders",
+                      description: "Apply a reminder to every eligible upcoming appointment without one.",
+                    },
+                  ].map(({ value, title, description }) => (
+                    <label className="doctor-reminder-target-mode" key={value}>
+                      <input
+                        className="doctor-reminder-target-mode-radio"
+                        type="radio"
+                        name="reminderTargetMode"
+                        value={value}
+                        checked={reminderTargetMode === value}
+                        disabled={isSavingReminder}
+                        onChange={() => handleReminderTargetModeChange(value)}
+                      />
+                      <span className="doctor-reminder-target-mode-copy">
+                        <strong>{title}</strong>
+                        <small>{description}</small>
+                      </span>
+                    </label>
                   ))}
-                </select>
-              </label>
-
-              {selectedReminderAppointment ? (
-                <div className="doctor-reminder-target-summary">
-                  <div>
-                    <span>Patient</span>
-                    <strong>{selectedReminderAppointment.patientName}</strong>
-                  </div>
-                  <div>
-                    <span>Appointment</span>
-                    <strong>{selectedReminderAppointment.appointmentType}</strong>
-                  </div>
-                  <div>
-                    <span>Schedule</span>
-                    <strong>
-                      {formatReminderDisplayDate(selectedReminderAppointment.scheduleDate)}{" "}
-                      {formatReminderDisplayTime(selectedReminderAppointment.scheduleTime)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Reminder</span>
-                    <strong>
-                      {remindersByAppointmentId[selectedReminderAppointment.id]
-                        ? "Existing reminder"
-                        : "New reminder"}
-                    </strong>
-                  </div>
                 </div>
+              ) : null}
+
+              {reminderTargetMode === "single" ? (
+                <>
+                  <label className="doctor-reminder-target-field">
+                    <span>Patient / Appointment <b>*</b></span>
+                    <select
+                      value={form.appointmentId}
+                      onChange={handleReminderAppointmentChange}
+                      disabled={isLoadingAppointments || isSavingReminder}
+                      required
+                    >
+                      <option value="">Select an appointment...</option>
+                      {reminderTargetAppointments.map((appointment) => (
+                        <option key={appointment.id} value={appointment.id}>
+                          {appointment.patientName} — {appointment.appointmentType} —{" "}
+                          {formatReminderDisplayDate(appointment.scheduleDate)}{" "}
+                          {formatReminderDisplayTime(appointment.scheduleTime)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {selectedReminderAppointment ? (
+                    <div className="doctor-reminder-target-summary">
+                      <div>
+                        <span>Patient</span>
+                        <strong>{selectedReminderAppointment.patientName}</strong>
+                      </div>
+                      <div>
+                        <span>Appointment</span>
+                        <strong>{selectedReminderAppointment.appointmentType}</strong>
+                      </div>
+                      <div>
+                        <span>Schedule</span>
+                        <strong>
+                          {formatReminderDisplayDate(selectedReminderAppointment.scheduleDate)}{" "}
+                          {formatReminderDisplayTime(selectedReminderAppointment.scheduleTime)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Reminder</span>
+                        <strong>
+                          {remindersByAppointmentId[selectedReminderAppointment.id]
+                            ? "Existing reminder"
+                            : "New reminder"}
+                        </strong>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="doctor-reminder-target-hint">
+                      Choose the Patient appointment that should receive this reminder.
+                    </p>
+                  )}
+                </>
               ) : (
-                <p className="doctor-reminder-target-hint">
-                  Choose the Patient appointment that should receive this reminder.
-                </p>
+                <div className="doctor-reminder-bulk-targets">
+                  {reminderTargetMode === "multiple" ? (
+                    <div className="doctor-reminder-bulk-toolbar">
+                      <label className="doctor-reminder-bulk-select-all">
+                        <input
+                          type="checkbox"
+                          checked={allBulkAppointmentsSelected}
+                          disabled={!bulkSelectableAppointments.length || isSavingReminder}
+                          onChange={toggleAllBulkAppointments}
+                        />
+                        <span>
+                          <strong>Select all eligible</strong>
+                          <small>Only appointments without a configured reminder.</small>
+                        </span>
+                      </label>
+                      <span className="doctor-reminder-bulk-selected-count">
+                        {selectedBulkAppointments.length} selected
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="doctor-reminder-bulk-count">
+                      <strong>{selectedBulkAppointments.length}</strong>{" "}
+                      appointment{selectedBulkAppointments.length === 1 ? "" : "s"} will receive a reminder.
+                    </p>
+                  )}
+
+                  <div className="doctor-reminder-bulk-list">
+                    {(reminderTargetMode === "all_without"
+                      ? bulkSelectableAppointments
+                      : reminderTargetAppointments
+                    ).map((appointment) => {
+                      const existingReminder = remindersByAppointmentId[appointment.id];
+                      const disabled = Boolean(existingReminder) || reminderTargetMode === "all_without";
+                      const checked = reminderTargetMode === "all_without"
+                        ? true
+                        : selectedAppointmentIds.includes(appointment.id);
+
+                      return (
+                        <label
+                          className={`doctor-reminder-bulk-row ${existingReminder ? "is-disabled" : ""}`}
+                          key={appointment.id}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={disabled || isSavingReminder}
+                            onChange={() => toggleBulkAppointment(appointment.id)}
+                          />
+                          <span className="doctor-reminder-bulk-copy">
+                            <strong>{appointment.patientName}</strong>
+                            <span>{appointment.appointmentType}</span>
+                            <small>
+                              {formatReminderDisplayDate(appointment.scheduleDate)} •{" "}
+                              {formatReminderDisplayTime(appointment.scheduleTime)}
+                            </small>
+                          </span>
+                          <em className={existingReminder ? "has-reminder" : "not-set"}>
+                            {existingReminder
+                              ? getAppointmentReminderStatus(existingReminder).toUpperCase()
+                              : "NOT SET"}
+                          </em>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {!bulkSelectableAppointments.length ? (
+                    <p className="doctor-reminder-target-hint">
+                      Every eligible upcoming appointment already has a configured reminder.
+                    </p>
+                  ) : null}
+                </div>
               )}
             </section>
 
@@ -2935,13 +3188,17 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   ["3weeks", "3 weeks", "before"],
                   ["custom", "Custom", ""],
                 ].map(([value, label, helper]) => (
-                  <label className="doctor-reminder-option" key={value}>
+                  <label
+                    className={`doctor-reminder-option ${value === "custom" && isBulkReminderMode ? "is-disabled" : ""}`}
+                    key={value}
+                  >
                     <input
                       className={value === "custom" ? "doctor-reminder-option-radio-hidden" : ""}
                       type="radio"
                       name="reminderLeadTime"
                       value={value}
                       checked={form.reminderLeadTime === value}
+                      disabled={value === "custom" && isBulkReminderMode}
                       onChange={handleChange}
                     />
                     {value === "custom" ? (
@@ -2952,6 +3209,11 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   </label>
                 ))}
               </div>
+              {isBulkReminderMode ? (
+                <p className="doctor-reminder-target-hint">
+                  Custom date/time is available for individual reminders only.
+                </p>
+              ) : null}
               {form.reminderLeadTime === "custom" ? (
                 <input
                   className="doctor-reminder-custom-time"
@@ -3006,6 +3268,13 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 <span aria-hidden="true">“</span>
                 {form.message.trim() ? (
                   <p>{form.message.trim()}</p>
+                ) : isBulkReminderMode && selectedBulkAppointments.length ? (
+                  <p>
+                    Each of the <strong className="doctor-reminder-preview-accent">
+                      {selectedBulkAppointments.length} selected appointments
+                    </strong>{" "}
+                    will receive its own appointment-specific reminder message and relative trigger time.
+                  </p>
                 ) : reminderPreviewDetails ? (
                   <p>
                     Reminder: <strong className="doctor-reminder-preview-accent">{reminderPreviewDetails.patient}</strong>{" "}
@@ -3030,13 +3299,19 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
               <button
                 type="submit"
                 disabled={
-                  !form.appointmentId ||
+                  (isBulkReminderMode
+                    ? selectedBulkAppointments.length === 0
+                    : !form.appointmentId) ||
                   isSavingReminder ||
                   doctorIdentity?.loading ||
                   Boolean(doctorIdentity?.error)
                 }
               >
-                {isSavingReminder ? "Saving..." : "Save Reminder"}
+                {isSavingReminder
+                  ? "Saving..."
+                  : isBulkReminderMode
+                    ? `Save ${selectedBulkAppointments.length} Reminder${selectedBulkAppointments.length === 1 ? "" : "s"}`
+                    : "Save Reminder"}
               </button>
             </footer>
           </form>

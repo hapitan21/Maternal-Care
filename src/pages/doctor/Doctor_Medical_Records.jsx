@@ -40,7 +40,12 @@ import {
 } from "../../lib/appointmentDate";
 import { resolveCurrentPregnancyWeek } from "../../lib/pregnancyTracking";
 import {
+  calculateClinicalBmi,
+  getClinicalVisitHeight,
+  getClinicalVisitWeight,
+  getLatestInitialVisitHeight,
   isCompletedClinicalVisitRecord,
+  isFollowUpClinicalVisit,
   isMeaningfulClinicalValue,
   normalizeClinicalVisitFormData,
 } from "../../lib/clinicalVisitData";
@@ -448,7 +453,8 @@ function mapSupabaseMedicalRecord(
   row,
   patient,
   doctorProfilesById = new Map(),
-  schedulesById = new Map()
+  schedulesById = new Map(),
+  baselineHeight = ""
 ) {
   const formData = getRecordFormData(row);
   const uploadedAt = row.uploaded_at ? new Date(row.uploaded_at) : null;
@@ -476,20 +482,39 @@ function mapSupabaseMedicalRecord(
     visitInformation.displayAppointmentId,
     visitInformation.display_appointment_id
   );
+  const isFollowUp = isFollowUpClinicalVisit(row);
+  const currentHeight = getClinicalVisitHeight(formData);
+  const displayHeight = currentHeight || (isFollowUp ? baselineHeight : "");
+  const heightLabel = isFollowUp && !currentHeight && displayHeight
+    ? "Baseline Height"
+    : "Height";
+  const weight = getClinicalVisitWeight(formData);
+  const bmi =
+    calculateClinicalBmi(weight, displayHeight) ||
+    getClinicalValue(clinicalFindings, "bmi", "bmi", formData);
   const findings = Array.isArray(formData.findings)
-    ? formData.findings.map((item) =>
-        Array.isArray(item)
-          ? item
-          : [item?.label || item?.name || "Finding", item?.value ?? item?.result ?? "Not recorded", item?.unit || ""]
-      )
+    ? [
+        ...formData.findings
+          .map((item) =>
+            Array.isArray(item)
+              ? item
+              : [item?.label || item?.name || "Finding", item?.value ?? item?.result ?? "Not recorded", item?.unit || ""]
+          )
+          .filter(([label]) =>
+            !["heart rate", "maternal heart rate", "height", "baseline height", "bmi"].includes(
+              String(label || "").trim().toLowerCase()
+            )
+          ),
+        ...(displayHeight ? [[heightLabel, displayHeight, "cm"]] : []),
+        ...(bmi ? [["BMI", bmi, "kg/m²"]] : []),
+      ]
     : [
         ["Blood Pressure", getClinicalValue(clinicalFindings, "bloodPressure", "blood_pressure", formData) || "Not recorded", "mmHg"],
-        ["Weight", getClinicalValue(clinicalFindings, "weight", "weight", formData) || "Not recorded", "kg"],
+        ["Weight", weight || "Not recorded", "kg"],
         ["Temperature", getClinicalValue(clinicalFindings, "temperature", "temperature", formData) || "Not recorded", "C"],
-        ["Heart Rate", getClinicalValue(clinicalFindings, "heartRate", "heart_rate", formData) || "Not recorded", "bpm"],
         ["Respiratory Rate", getClinicalValue(clinicalFindings, "respiratoryRate", "respiratory_rate", formData), "breaths/min"],
-        ["Height", getClinicalValue(clinicalFindings, "height", "height", formData), "cm"],
-        ["BMI", getClinicalValue(clinicalFindings, "bmi", "bmi", formData), "kg/m2"],
+        [heightLabel, displayHeight, "cm"],
+        ["BMI", bmi, "kg/m²"],
         ["Fetal Heart Rate", getClinicalValue(clinicalFindings, "fetalHeartRate", "fetal_heart_rate", formData), "bpm"],
         ["Fundal Height", getClinicalValue(clinicalFindings, "fundalHeight", "fundal_height", formData), "cm"],
         ["Estimated Fetal Weight", getClinicalValue(clinicalFindings, "estimatedFetalWeight", "estimated_fetal_weight", formData), "g"],
@@ -497,11 +522,10 @@ function mapSupabaseMedicalRecord(
         ["Fetal Movement", getClinicalValue(clinicalFindings, "fetalMovement", "fetal_movement", formData), ""],
         ["Additional Findings", getFirstRecordValue(clinicalFindings.additionalFindings, clinicalFindings.additional_findings, formData.additionalFindings, formData.additional_findings), ""],
       ].filter(([label, value]) =>
-        cleanRecordValue(value) || ["Blood Pressure", "Weight", "Temperature", "Heart Rate"].includes(label)
+        cleanRecordValue(value) || ["Blood Pressure", "Weight", "Temperature"].includes(label)
       );
   const assessment = normalizeRecordList([
     ...normalizeRecordList(getFirstRecordValue(formData.assessment, formData.clinical_assessment)),
-    ...normalizeRecordList(getFirstRecordValue(formData.symptoms, formData.patientConcerns, formData.patient_concerns)),
     ...normalizeRecordList(formData.dangerSigns),
     ...normalizeRecordList(formData.additionalNotes),
   ]);
@@ -579,20 +603,20 @@ function mapSupabaseMedicalRecord(
     ),
     recordStatus: formData.recordStatus || formData.status || "Not recorded",
     complaint: getFirstRecordValue(formData.chiefComplaint, formData.chief_complaint, formData.complaint, row.notes, row.title) || "Not recorded",
-    symptoms: getFirstRecordValue(formData.symptoms, formData.patientConcerns, formData.patient_concerns) || "Not recorded",
     assessment: assessment.length ? assessment : ["Not recorded"],
     findings,
     obstetric: Array.isArray(formData.obstetric) && formData.obstetric.length
-      ? formData.obstetric.map((item) =>
-          Array.isArray(item)
-            ? item
-            : [item?.label || item?.name || "Information", item?.value || "Not recorded"]
-        )
+      ? formData.obstetric
+          .map((item) =>
+            Array.isArray(item)
+              ? item
+              : [item?.label || item?.name || "Information", item?.value || "Not recorded"]
+          )
+          .filter(([label]) => String(label || "").trim().toLowerCase() !== "follow-up date")
       : [
           ["Gestational Age", pregnancyDetails.gestationalAge || pregnancyDetails.gestational_age || formData.gestationalAge || "Not recorded"],
           ["Risk Level", formData.riskLevel || pregnancyDetails.riskLevel || pregnancyDetails.risk_level || "Not recorded"],
           ["Expected Delivery Date", pregnancyDetails.expectedDeliveryDate || pregnancyDetails.expected_delivery_date || formData.expectedDeliveryDate || "Not recorded"],
-          ["Follow-up Date", formData.followUpDate || "Not recorded"],
         ],
     diagnosis: getFirstRecordValue(formData.diagnosis, row.title, row.type) || "Medical Record",
     treatment: treatment.length ? treatment : ["Not recorded"],
@@ -3157,8 +3181,6 @@ function MedicalRecordEntry({
           <section>
             <h4>Chief Complaint</h4>
             <p>{record.complaint}</p>
-            <h4>Symptoms / Concerns</h4>
-            <p>{record.symptoms}</p>
           </section>
           <section>
             <h4>Assessment</h4>
@@ -3375,6 +3397,7 @@ function MedicalRecordsPanel({
     filteredRecords.find((record) => record.id === focusedRecordId) ||
     filteredRecords[0] ||
     null;
+  const showInitialLoading = isLoading && records.length === 0;
 
   React.useEffect(() => {
     if (!focusedRecordId) return;
@@ -3382,11 +3405,6 @@ function MedicalRecordsPanel({
     const highlightTimer = window.setTimeout(() => {
       setHighlightedRecordId(focusedRecordId);
     }, 0);
-    const frame = window.requestAnimationFrame(() => {
-      setQuery("");
-      const target = document.querySelector(`[data-record-id="${focusedRecordId}"]`);
-      target?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
     const timer = window.setTimeout(() => {
       setHighlightedRecordId((current) =>
         current === focusedRecordId ? "" : current
@@ -3395,7 +3413,6 @@ function MedicalRecordsPanel({
 
     return () => {
       window.clearTimeout(highlightTimer);
-      window.cancelAnimationFrame(frame);
       window.clearTimeout(timer);
     };
   }, [focusedRecordId]);
@@ -3424,7 +3441,7 @@ function MedicalRecordsPanel({
       ) : null}
 
       <div className="mr-medical-record-list">
-        {isLoading ? (
+        {showInitialLoading ? (
           <div className="mr-medical-no-results">
             <Icon icon="eos-icons:loading" />
             <p>Loading medical records...</p>
@@ -3453,7 +3470,6 @@ function MedicalRecordsPanel({
               isFocused={selectedRecord.id === focusedRecordId}
               isHighlighted={selectedRecord.id === highlightedRecordId}
               onSelect={onSelectRecord}
-              key={selectedRecord.id}
             />
           </>
         ) : (
@@ -3521,6 +3537,7 @@ export default function Doctor_Medical_Records({
   const [focusedAppointmentId, setFocusedAppointmentId] = React.useState("");
   const pageRef = React.useRef(null);
   const onRecordSelectRef = React.useRef(onRecordSelect);
+  const focusedRecordIdRef = React.useRef(initialFocusedRecordId);
   const medicalRecordRequestRef = React.useRef(0);
   const patientRequestRef = React.useRef(0);
   const patientAvatarRequestRef = React.useRef(0);
@@ -3623,10 +3640,20 @@ export default function Doctor_Medical_Records({
     [appointmentState.appointments]
   );
   const medicalRecords = React.useMemo(
-    () =>
-      completedMedicalRecordRows
-        .map((row) => mapSupabaseMedicalRecord(row, patient, doctorProfilesById, schedulesById))
-        .sort((first, second) => second.sortTime - first.sortTime),
+    () => {
+      const baselineHeight = getLatestInitialVisitHeight(completedMedicalRecordRows);
+      return completedMedicalRecordRows
+        .map((row) =>
+          mapSupabaseMedicalRecord(
+            row,
+            patient,
+            doctorProfilesById,
+            schedulesById,
+            baselineHeight
+          )
+        )
+        .sort((first, second) => second.sortTime - first.sortTime);
+    },
     [completedMedicalRecordRows, doctorProfilesById, patient, schedulesById]
   );
   const currentPregnancyWeek = React.useMemo(
@@ -3673,6 +3700,15 @@ export default function Doctor_Medical_Records({
     onRecordSelectRef.current = onRecordSelect;
   }, [onRecordSelect]);
 
+  React.useEffect(() => {
+    const nextRecordId = initialFocusedRecordId || "";
+    if (focusedRecordIdRef.current === nextRecordId) return;
+
+    focusedRecordIdRef.current = nextRecordId;
+    setFocusedRecordId(nextRecordId);
+    setStableEditRecordId(nextRecordId);
+  }, [initialFocusedRecordId]);
+
   const loadMedicalRecords = React.useCallback(async (selectedPatient) => {
     const requestId = medicalRecordRequestRef.current + 1;
     medicalRecordRequestRef.current = requestId;
@@ -3709,33 +3745,29 @@ export default function Doctor_Medical_Records({
 
     const nextRows = data ?? [];
     const completedRows = nextRows.filter(isCompletedClinicalVisitRecord);
+    const currentFocusedRecordId = focusedRecordIdRef.current;
     setMedicalRecordRows(nextRows);
     setLoadedMedicalRecordsPatientId(selectedPatient.id);
-    const requestedRecordExists =
-      initialFocusedRecordId &&
-      completedRows.some((record) => record.id === initialFocusedRecordId && record.schedule_id);
     const currentRecordExists =
-      focusedRecordId &&
-      completedRows.some((record) => record.id === focusedRecordId && record.schedule_id);
-    const nextFocusedRecordId = requestedRecordExists
-      ? initialFocusedRecordId
-      : currentRecordExists
-        ? focusedRecordId
-        : completedRows.find((record) => record.schedule_id)?.id || "";
+      currentFocusedRecordId &&
+      completedRows.some((record) => record.id === currentFocusedRecordId && record.schedule_id);
+    const nextFocusedRecordId = currentRecordExists
+      ? currentFocusedRecordId
+      : completedRows.find((record) => record.schedule_id)?.id || "";
+    focusedRecordIdRef.current = nextFocusedRecordId;
     setFocusedRecordId(nextFocusedRecordId);
     setStableEditRecordId((current) => {
       const currentStillExists =
         current && completedRows.some((record) => record.id === current && record.schedule_id);
-      if (requestedRecordExists) return initialFocusedRecordId;
       if (currentStillExists) return current;
       return nextFocusedRecordId || completedRows.find((record) => record.schedule_id)?.id || "";
     });
-    if ((!initialFocusedRecordId || !requestedRecordExists) && nextFocusedRecordId) {
+    if (!currentRecordExists && nextFocusedRecordId) {
       onRecordSelectRef.current?.(nextFocusedRecordId);
     }
     setIsLoadingRecords(false);
     return nextRows;
-  }, [focusedRecordId, initialFocusedRecordId]);
+  }, []);
 
   const loadPatientAvatar = React.useCallback(async (selectedPatient) => {
     const requestId = patientAvatarRequestRef.current + 1;
@@ -3795,8 +3827,8 @@ export default function Doctor_Medical_Records({
         initialAssessment: null,
       });
       setRecordMessage("");
-      setFocusedRecordId(initialFocusedRecordId || "");
-      setStableEditRecordId(initialFocusedRecordId || "");
+      setFocusedRecordId(focusedRecordIdRef.current);
+      setStableEditRecordId(focusedRecordIdRef.current);
       setIsOpeningEditRecord(false);
       setFocusedAppointmentId("");
       const { data, error } = await supabase
@@ -3865,7 +3897,7 @@ export default function Doctor_Medical_Records({
     return () => {
       patientRequestRef.current += 1;
     };
-  }, [initialFocusedRecordId, initialPatientId, loadPatientAvatar]);
+  }, [initialPatientId, loadPatientAvatar]);
 
   React.useEffect(() => {
     if (!patient?.id) return undefined;
@@ -3994,6 +4026,7 @@ export default function Doctor_Medical_Records({
 
   const openMedicalRecord = React.useCallback((recordId) => {
     if (!recordId) return;
+    focusedRecordIdRef.current = recordId;
     setFocusedRecordId(recordId);
     setStableEditRecordId(recordId);
     onRecordSelectRef.current?.(recordId);
@@ -4430,6 +4463,7 @@ export default function Doctor_Medical_Records({
               focusedRecordId={focusedRecordId}
               onRetry={() => loadMedicalRecords(patient)}
               onSelectRecord={(recordId) => {
+                focusedRecordIdRef.current = recordId;
                 setFocusedRecordId(recordId);
                 setStableEditRecordId(recordId);
                 onRecordSelectRef.current?.(recordId);

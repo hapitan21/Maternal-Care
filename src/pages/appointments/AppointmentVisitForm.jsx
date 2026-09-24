@@ -25,6 +25,9 @@ const recordColumns =
   "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, form_data, uploaded_at, uploaded_by";
 const MEDICAL_RECORDS_BUCKET = "medical-records";
 const MAX_REPORT_FILE_SIZE = 10 * 1024 * 1024;
+const DATABASE_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const REPORT_ATTACHMENT_CATEGORIES = new Set(["laboratory", "ultrasound"]);
 
 const emptyForm = {
   gestationalAge: "",
@@ -151,11 +154,20 @@ async function uploadReportAttachment({ file, patientId, scheduleId, category })
   const label = category === "laboratory" ? "Laboratory report" : "Ultrasound report";
   const fileError = validateReportFile(file, label);
   if (fileError) throw new Error(fileError);
-  if (!patientId || !scheduleId) {
+  const patientDatabaseId = String(patientId || "").trim();
+  const scheduleDatabaseId = String(scheduleId || "").trim();
+
+  if (
+    !DATABASE_UUID_PATTERN.test(patientDatabaseId) ||
+    !DATABASE_UUID_PATTERN.test(scheduleDatabaseId)
+  ) {
     throw new Error(`${label} could not be uploaded because the visit identifiers are missing.`);
   }
+  if (!REPORT_ATTACHMENT_CATEGORIES.has(category)) {
+    throw new Error("The report attachment category is not supported.");
+  }
 
-  const storagePath = `${patientId}/${scheduleId}/${category}/${sanitizeStorageFilename(file.name)}`;
+  const storagePath = `${patientDatabaseId}/${scheduleDatabaseId}/${category}/${sanitizeStorageFilename(file.name)}`;
   const { error: uploadError } = await supabase.storage
     .from(MEDICAL_RECORDS_BUCKET)
     .upload(storagePath, file, {
@@ -165,6 +177,13 @@ async function uploadReportAttachment({ file, patientId, scheduleId, category })
     });
 
   if (uploadError) {
+    console.error("[Appointment Visit Form] report upload failed:", {
+      category,
+      bucket: MEDICAL_RECORDS_BUCKET,
+      objectPath: storagePath,
+      code: uploadError.code || null,
+      message: uploadError.message || "Unknown Supabase Storage error",
+    });
     throw new Error(
       getErrorMessage(uploadError, `${label} could not be uploaded. Please try again.`)
     );
@@ -1274,6 +1293,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       const appointmentTime = getManilaTimeKey(appointment?.start_time);
       const visitRecordTitle = requestedType === "initial" ? "Initial Visit" : "Follow-Up Visit";
       const patientId = appointment?.patient_id || existingRecord?.patient_id || null;
+      const scheduleId = appointment?.id || existingRecord?.schedule_id || null;
       const canonicalFormData = buildCanonicalClinicalVisitFormData(form);
       let laboratoryAttachment = form.laboratoryReportAttached === "Yes"
         ? canonicalFormData.laboratoryAttachment
@@ -1286,7 +1306,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         laboratoryAttachment = await uploadReportAttachment({
           file: laboratoryFile,
           patientId,
-          scheduleId: appointmentId,
+          scheduleId,
           category: "laboratory",
         });
       }
@@ -1295,7 +1315,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         ultrasoundAttachment = await uploadReportAttachment({
           file: ultrasoundFile,
           patientId,
-          scheduleId: appointmentId,
+          scheduleId,
           category: "ultrasound",
         });
       }

@@ -6827,3 +6827,440 @@ body:has(.doctor-reminder-modal) {
   }
 }
 
+.doctor-reminder-target-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.doctor-reminder-target-modes label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(77, 73, 74, 0.16);
+  border-radius: 9px;
+  background: #ffffff;
+  padding: 9px 10px;
+  color: #625b5e;
+  font-size: 0.73rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.doctor-reminder-target-modes label:has(input:checked) {
+  border-color: var(--doctor-pink);
+  background: #fff0f6;
+  color: #c91d62;
+}
+
+.doctor-reminder-target-modes input,
+.doctor-reminder-bulk-targets input {
+  flex: 0 0 auto;
+  accent-color: var(--doctor-pink);
+}
+
+.doctor-reminder-bulk-targets {
+  display: grid;
+  gap: 9px;
+}
+
+.doctor-reminder-bulk-select-all,
+.doctor-reminder-bulk-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #625b5e;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.doctor-reminder-bulk-select-all {
+  cursor: pointer;
+}
+
+.doctor-reminder-bulk-count strong {
+  color: var(--doctor-pink);
+  font-size: 0.9rem;
+}
+
+.doctor-reminder-bulk-list {
+  max-height: 270px;
+  display: grid;
+  gap: 7px;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(232, 43, 119, 0.4) transparent;
+}
+
+.doctor-reminder-bulk-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(77, 73, 74, 0.12);
+  border-radius: 9px;
+  background: #ffffff;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+
+.doctor-reminder-bulk-row:has(input:checked) {
+  border-color: rgba(232, 43, 119, 0.42);
+  background: #fff7fa;
+}
+
+.doctor-reminder-bulk-row.is-disabled {
+  background: #f8f8fa;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.doctor-reminder-bulk-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.doctor-reminder-bulk-copy strong,
+.doctor-reminder-bulk-copy span,
+.doctor-reminder-bulk-copy small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.doctor-reminder-bulk-copy strong {
+  color: var(--doctor-title);
+  font-size: 0.77rem;
+}
+
+.doctor-reminder-bulk-copy span {
+  color: #625b5e;
+  font-size: 0.72rem;
+}
+
+.doctor-reminder-bulk-copy small {
+  color: #898184;
+  font-size: 0.68rem;
+}
+
+.doctor-reminder-bulk-row em {
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.doctor-reminder-bulk-row em.not-set {
+  background: #f1f2f5;
+  color: #787f8d;
+}
+
+.doctor-reminder-bulk-row em.has-reminder {
+  background: #ffe5f0;
+  color: #be1d5e;
+}
+
+.doctor-reminder-option.is-disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .doctor-reminder-target-modes {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-reminder-bulk-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .doctor-reminder-bulk-row em {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+/* ==========================================================================
+   Appointment Reminder Target UI — 2026-09-24
+   UI-only cleanup for global single / multiple / all-without reminder modes.
+   Keeps the existing reminder logic unchanged.
+   ========================================================================== */
+
+.doctor-reminder-modal
+  .doctor-reminder-form.doctor-reminder-form--appointment.doctor-reminder-dialog {
+  width: min(800px, calc(100vw - 48px)) !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-target-block {
+  gap: 16px !important;
+  padding: 18px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-target-modes {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+.doctor-reminder-form--appointment
+  .doctor-reminder-target-modes
+  .doctor-reminder-target-mode {
+  position: relative !important;
+  min-width: 0 !important;
+  min-height: 112px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  overflow: hidden !important;
+  border: 1px solid #e1e5ed !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  padding: 15px 14px !important;
+  color: #3a4252 !important;
+  cursor: pointer !important;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease !important;
+}
+
+.doctor-reminder-form--appointment
+  .doctor-reminder-target-modes
+  .doctor-reminder-target-mode:hover {
+  border-color: #f2a2c1 !important;
+  background: #fffafd !important;
+  transform: translateY(-1px) !important;
+}
+
+.doctor-reminder-form--appointment
+  .doctor-reminder-target-modes
+  .doctor-reminder-target-mode:has(input:checked) {
+  border-color: #ef2878 !important;
+  background: #fff1f7 !important;
+  box-shadow: 0 0 0 3px rgba(239, 40, 120, 0.08) !important;
+  color: #c91d62 !important;
+}
+
+.doctor-reminder-form--appointment
+  .doctor-reminder-target-modes
+  .doctor-reminder-target-mode:has(input:disabled) {
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+}
+
+/* Prevent the generic form input rule from turning radios into large circles. */
+.doctor-reminder-form--appointment
+  .doctor-reminder-target-modes
+  input.doctor-reminder-target-mode-radio {
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+  flex: 0 0 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  accent-color: #ef2878 !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-target-mode-copy {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 4px !important;
+}
+
+.doctor-reminder-target-mode-copy strong {
+  min-width: 0 !important;
+  color: #273044 !important;
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+  font-weight: 800 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.doctor-reminder-target-mode:has(input:checked)
+  .doctor-reminder-target-mode-copy strong {
+  color: #c91d62 !important;
+}
+
+.doctor-reminder-target-mode-copy small {
+  min-width: 0 !important;
+  color: #858d9e !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.doctor-reminder-bulk-targets {
+  gap: 11px !important;
+}
+
+.doctor-reminder-bulk-toolbar {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-bulk-select-all {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+}
+
+.doctor-reminder-bulk-select-all > span {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 2px !important;
+}
+
+.doctor-reminder-bulk-select-all strong {
+  color: #3b4353 !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+}
+
+.doctor-reminder-bulk-select-all small {
+  color: #8e95a3 !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  font-weight: 500 !important;
+}
+
+.doctor-reminder-bulk-selected-count {
+  flex: 0 0 auto !important;
+  border-radius: 999px !important;
+  background: #fff0f6 !important;
+  color: #c91d62 !important;
+  padding: 5px 9px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+/* Prevent generic form input sizing from enlarging bulk checkboxes. */
+.doctor-reminder-form--appointment .doctor-reminder-bulk-select-all > input,
+.doctor-reminder-form--appointment .doctor-reminder-bulk-row > input {
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+  flex: 0 0 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  accent-color: #ef2878 !important;
+  box-shadow: none !important;
+}
+
+.doctor-reminder-bulk-list {
+  max-height: 300px !important;
+  gap: 8px !important;
+  padding-right: 5px !important;
+}
+
+.doctor-reminder-form--appointment .doctor-reminder-bulk-row {
+  min-height: 72px !important;
+  grid-template-columns: 18px minmax(0, 1fr) auto !important;
+  gap: 12px !important;
+  border-radius: 11px !important;
+  padding: 11px 12px !important;
+}
+
+.doctor-reminder-bulk-copy {
+  gap: 3px !important;
+}
+
+.doctor-reminder-bulk-copy strong {
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+}
+
+.doctor-reminder-bulk-copy span {
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+}
+
+.doctor-reminder-bulk-copy small {
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+}
+
+.doctor-reminder-bulk-row em {
+  padding: 5px 8px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+}
+
+.doctor-reminder-bulk-count {
+  min-height: 34px !important;
+  border: 1px solid #f3d6e2 !important;
+  border-radius: 10px !important;
+  background: #fff9fb !important;
+  padding: 8px 10px !important;
+}
+
+@media (max-width: 760px) {
+  .doctor-reminder-modal
+    .doctor-reminder-form.doctor-reminder-form--appointment.doctor-reminder-dialog {
+    width: calc(100vw - 20px) !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-target-modes {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doctor-reminder-form--appointment
+    .doctor-reminder-target-modes
+    .doctor-reminder-target-mode {
+    min-height: 78px !important;
+    display: grid !important;
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 10px !important;
+  }
+
+  .doctor-reminder-bulk-toolbar {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .doctor-reminder-bulk-selected-count {
+    margin-left: 28px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .doctor-reminder-form--appointment .doctor-reminder-target-block {
+    padding: 14px !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-bulk-row {
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+  }
+
+  .doctor-reminder-form--appointment .doctor-reminder-bulk-row em {
+    grid-column: 2 !important;
+    justify-self: start !important;
+  }
+}

@@ -235,14 +235,12 @@
   line-height: 1.2 !important;
 }
 
-.staff-dashboard-shell .staff-appointments-page .staff-appointments-view-switch,
 .staff-dashboard-shell .staff-appointments-page .staff-appointments-search,
 .staff-dashboard-shell .staff-appointments-page .staff-appointments-month-control,
 .staff-dashboard-shell .staff-appointments-page .staff-add-appointment-btn {
   min-height: 52px !important;
 }
 
-.staff-dashboard-shell .staff-appointments-page .staff-appointments-view-switch button,
 .staff-dashboard-shell .staff-appointments-page .staff-appointments-month-control input {
   font-size: 12px !important;
 }

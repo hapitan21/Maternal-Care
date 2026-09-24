@@ -3,12 +3,22 @@ import {
   getPatientNotificationType,
   isUuid,
 } from "./patientNotificationTypes";
+import {
+  appointmentSmsEvents,
+  requestAppointmentSms,
+} from "./appointmentSms";
 
 const automaticAppointmentTypes = new Set([
   "appointment_created",
   "appointment_rescheduled",
   "appointment_cancelled",
 ]);
+
+const appointmentSmsEventByNotificationType = {
+  appointment_created: appointmentSmsEvents.confirmed,
+  appointment_rescheduled: appointmentSmsEvents.rescheduled,
+  appointment_cancelled: appointmentSmsEvents.cancelled,
+};
 
 function logAutomaticNotificationError(notificationType, error) {
   if (!import.meta.env.DEV) return;
@@ -31,6 +41,7 @@ export async function sendAutomaticAppointmentNotification({
   patientId,
   scheduleId,
   notificationType,
+  appointmentEventId = null,
 }) {
   if (!automaticAppointmentTypes.has(notificationType)) {
     const error = new Error("Unsupported automatic appointment notification type.");
@@ -47,6 +58,26 @@ export async function sendAutomaticAppointmentNotification({
   }
 
   const notification = getPatientNotificationType(notificationType);
+  if (
+    notificationType === "appointment_rescheduled" &&
+    !isUuid(appointmentEventId)
+  ) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "appointment_time_unchanged",
+      appointmentSms: {
+        ok: true,
+        skipped: true,
+        reason: "appointment_time_unchanged",
+      },
+    };
+  }
+  const appointmentSmsPromise = requestAppointmentSms({
+    scheduleId,
+    event: appointmentSmsEventByNotificationType[notificationType],
+    appointmentEventId,
+  });
 
   try {
     const { data, error } = await supabase.rpc("create_patient_notification", {
@@ -61,6 +92,8 @@ export async function sendAutomaticAppointmentNotification({
       p_related_reminder_id: null,
     });
 
+    const appointmentSms = await appointmentSmsPromise;
+
     if (error) {
       if (isPatientNotLinkedNotificationError(error)) {
         return {
@@ -68,16 +101,23 @@ export async function sendAutomaticAppointmentNotification({
           skipped: true,
           reason: "patient_not_linked",
           error,
+          appointmentSms,
         };
       }
 
       logAutomaticNotificationError(notificationType, error);
-      return { ok: false, skipped: false, error };
+      return { ok: false, skipped: false, error, appointmentSms };
     }
 
-    return { ok: true, skipped: false, notification: data };
+    return {
+      ok: true,
+      skipped: false,
+      notification: data,
+      appointmentSms,
+    };
   } catch (error) {
+    const appointmentSms = await appointmentSmsPromise;
     logAutomaticNotificationError(notificationType, error);
-    return { ok: false, skipped: false, error };
+    return { ok: false, skipped: false, error, appointmentSms };
   }
 }

@@ -83,25 +83,25 @@ const appointmentSummaryCards = [
     key: "cancelled",
     label: "Cancelled",
     icon: "solar:calendar-mark-linear",
-    path: "/doctor/appointments?status=cancelled&view=history",
+    path: "/doctor/appointments?status=cancelled",
   },
   {
     key: "today",
     label: "Today's",
     icon: "solar:calendar-date-linear",
-    path: "/doctor/appointments",
+    path: "/doctor/appointments?scope=today",
   },
   {
     key: "pending",
     label: "Pending",
     icon: "solar:clock-circle-linear",
-    path: "/doctor/appointments?status=pending&view=main",
+    path: "/doctor/appointments?status=pending",
   },
   {
     key: "completed",
     label: "Completed",
     icon: "solar:check-circle-linear",
-    path: "/doctor/appointments?status=completed&view=history",
+    path: "/doctor/appointments?status=completed",
   },
 ];
 

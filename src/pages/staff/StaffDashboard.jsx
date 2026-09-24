@@ -75,6 +75,7 @@ const dashboardStatusCards = [
     tone: "pink",
     avatars: true,
     target: "appointments",
+    path: "/staff/appointments?scope=today",
   },
   {
     label: "Session Completed",
@@ -83,7 +84,7 @@ const dashboardStatusCards = [
     tone: "blue",
     progressKey: "completionProgress",
     target: "appointments",
-    path: "/staff/appointments?status=completed&view=history",
+    path: "/staff/appointments?status=completed",
   },
 ];
 
@@ -500,6 +501,10 @@ function DashboardHome({ onNavigate, headerAction }) {
           ? previousStats.totalPatients
           : patientRows.length;
 
+      // Preserve every row scheduled for today for completion metrics, while
+      // the dashboard's "Today's Appointment" number only represents work that
+      // is still actionable. Terminal rows remain available through status tabs
+      // without inflating the active-today count.
       const todayRows =
         scheduleRows === null
           ? null
@@ -507,10 +512,17 @@ function DashboardHome({ onNavigate, headerAction }) {
               (appointment) => classifyAppointment(appointment).isToday
             );
 
-      const todaysAppointments =
+      const actionableTodayRows =
         todayRows === null
+          ? null
+          : todayRows.filter(
+              (appointment) => classifyAppointment(appointment).isActionable
+            );
+
+      const todaysAppointments =
+        actionableTodayRows === null
           ? previousStats.todaysAppointments
-          : todayRows.length;
+          : actionableTodayRows.length;
 
       const completedSessions =
         scheduleRows === null
@@ -537,12 +549,12 @@ function DashboardHome({ onNavigate, headerAction }) {
         completionProgress:
           scheduleRows === null
             ? previousStats.completionProgress
-            : todaysAppointments > 0
+            : todayRows?.length
             ? Math.min(
                 100,
                 Math.round(
                   (completedToday /
-                    todaysAppointments) *
+                    todayRows.length) *
                     100
                 )
               )

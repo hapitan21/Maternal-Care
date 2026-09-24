@@ -5,3 +5,12 @@ verify_jwt = false
 
 [functions.send-doctor-followup-web-push]
 verify_jwt = false
+
+[functions.send-notification-sms]
+verify_jwt = false
+
+[functions.process-appointment-sms]
+verify_jwt = false
+
+[functions.process-medication-sms]
+verify_jwt = false

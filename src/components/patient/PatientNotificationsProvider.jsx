@@ -57,6 +57,21 @@ function mergeNotification(rows, nextRow) {
   return sortNotifications([nextRow, ...remainingRows]).slice(0, notificationLimit);
 }
 
+function mergeNotificationLists(rows, newerRows) {
+  const notificationsById = new Map(
+    rows.filter((row) => row?.id).map((row) => [row.id, row])
+  );
+
+  newerRows.forEach((row) => {
+    if (row?.id) notificationsById.set(row.id, row);
+  });
+
+  return sortNotifications([...notificationsById.values()]).slice(
+    0,
+    notificationLimit
+  );
+}
+
 export default function PatientNotificationsProvider({ patientId, children }) {
   const [notifications, setNotifications] = useState([]);
   const [loadedPatientId, setLoadedPatientId] = useState("");
@@ -66,10 +81,12 @@ export default function PatientNotificationsProvider({ patientId, children }) {
   const [online, setOnline] = useState(() => navigator.onLine !== false);
   const [updating, setUpdating] = useState(false);
   const requestSequence = useRef(0);
+  const realtimeSequence = useRef(0);
 
   const refresh = useCallback(async () => {
     const requestId = requestSequence.current + 1;
     requestSequence.current = requestId;
+    const realtimeSequenceAtStart = realtimeSequence.current;
 
     if (!patientId) {
       setNotifications([]);
@@ -108,7 +125,20 @@ export default function PatientNotificationsProvider({ patientId, children }) {
       return;
     }
 
-    setNotifications(sortNotifications(data || []));
+    const refreshedNotifications = sortNotifications(data || []);
+    setNotifications((current) => {
+      if (realtimeSequence.current === realtimeSequenceAtStart) {
+        return refreshedNotifications;
+      }
+
+      const currentPatientNotifications = current.filter(
+        (row) => row.patient_id === patientId
+      );
+      return mergeNotificationLists(
+        refreshedNotifications,
+        currentPatientNotifications
+      );
+    });
     setLoadedPatientId(patientId);
     setLoading(false);
   }, [patientId]);
@@ -131,7 +161,15 @@ export default function PatientNotificationsProvider({ patientId, children }) {
           filter: patientFilter,
         },
         (payload) => {
-          if (!active || !payload.new?.id) return;
+          if (
+            !active ||
+            !payload.new?.id ||
+            payload.new.patient_id !== patientId
+          ) {
+            return;
+          }
+
+          realtimeSequence.current += 1;
           setNotifications((current) => mergeNotification(current, payload.new));
         }
       )
@@ -144,7 +182,15 @@ export default function PatientNotificationsProvider({ patientId, children }) {
           filter: patientFilter,
         },
         (payload) => {
-          if (!active || !payload.new?.id) return;
+          if (
+            !active ||
+            !payload.new?.id ||
+            payload.new.patient_id !== patientId
+          ) {
+            return;
+          }
+
+          realtimeSequence.current += 1;
           setNotifications((current) => mergeNotification(current, payload.new));
         }
       )

@@ -9,6 +9,10 @@ import SendPatientNotificationAction from "../../components/notifications/SendPa
 import AppointmentNoShowDialog from "../../components/appointments/AppointmentNoShowDialog";
 import AppointmentStatusPopover from "../../components/appointments/AppointmentStatusPopover";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
+import {
+  appointmentSmsEvents,
+  requestAppointmentSms,
+} from "../../lib/appointmentSms";
 import { getAppointmentStatusPopoverPosition } from "../../lib/appointmentStatusPopover";
 import "../../styles/doctor-appointments.css";
 import "../../styles/appointment-ui-system.css";
@@ -17,7 +21,6 @@ import {
   AppointmentPageHeader,
   AppointmentPagination,
   AppointmentToolbar,
-  AppointmentViewSwitch,
 } from "../../components/appointments/AppointmentUi";
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
 import {
@@ -29,25 +32,29 @@ import {
 } from "../../lib/appointmentTypes";
 import {
   classifyAppointment,
+  appointmentStatuses,
   appointmentStoredStatuses,
-  compareHistoryAppointments,
-  compareUpcomingAppointments,
+  compareAppointmentsByStatusPriority,
+  getAppointmentStatusTab,
   formatAppointmentDate,
   formatAppointmentTime,
   getManilaDateKey,
   getManilaTimeKey,
   isAppointmentNoShowEligible,
+  normalizeAppointmentStatus,
 } from "../../lib/appointmentDate";
 import "../../styles/staff-appointments.css";
 
 const scheduleTableName = "schedule";
+const appointmentRequestTableName = "create_patient_appointment_request";
 const scheduleColumns =
   "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, description, start_time, end_time, status";
 const patientLookupColumns =
-  "id, full_name, patient_id, age, contact_number, address, status";
+  "id, full_name, patient_id, age, contact_number, email, address, status";
+const appointmentRequestColumns =
+  "id, patient_id, patient_name, doctor_id, doctor_name, title, category, description, start_time, end_time, status, schedule_id, created_at, updated_at";
 
-const filters = ["All", "Pending", "Checked in", "Completed", "Cancelled", "Missed"];
-const appointmentViews = ["Main", "History"];
+const filters = ["All", "Requests", "Pending", "Checked-in", "Completed", "Cancelled", "Missed"];
 const appointmentPageSizes = [10, 15];
 
 const pendingStatusActions = [
@@ -274,6 +281,42 @@ function formatDisplayTime(value) {
   });
 }
 
+function formatRequestDate(value) {
+  if (!value) return "Not recorded";
+  return formatAppointmentDate(value, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getRequestId(request, index = 0) {
+  const createdAt = request?.created_at || request?.start_time;
+  const date = createdAt ? new Date(createdAt) : new Date();
+  const year = Number.isNaN(date.getTime())
+    ? String(new Date().getFullYear()).slice(-2)
+    : String(date.getFullYear()).slice(-2);
+  const source = String(request?.id || index + 1).replace(/[^a-z0-9]/gi, "");
+  const suffix = source.slice(-4).toUpperCase().padStart(4, "0");
+  return `REQ-${year}-${suffix}`;
+}
+
+function getRequestCategory(request) {
+  const explicit = String(request?.category || "").trim();
+  if (categoryList.some((category) => category.id === explicit)) {
+    return explicit;
+  }
+  return getCategoryFromAppointmentType(request?.title || "");
+}
+
+function getRequestCategoryIcon(request) {
+  const category = getRequestCategory(request);
+  if (category === "laboratory") return "solar:test-tube-linear";
+  if (category === "ultrasound") return "solar:monitor-camera-linear";
+  if (category === "prenatal") return "solar:medical-kit-linear";
+  return "solar:heart-pulse-linear";
+}
+
 function isCheckedInStatus(status) {
   return status === "Checked in";
 }
@@ -286,14 +329,18 @@ function isCancelledStatus(status) {
   return ["Cancel", "Cancelled"].includes(status);
 }
 
-function appointmentViewMatches(appointment, appointmentView) {
-  const classification = classifyAppointment(appointment);
+function appointmentStatusMatches(appointment, activeFilter) {
+  if (activeFilter === "All") return true;
 
-  if (appointmentView === "History") {
-    return classification.isHistory;
-  }
-
-  return classification.isUpcoming;
+  const status = normalizeAppointmentStatus(
+    appointment?.databaseStatus ?? appointment?.status
+  );
+  if (activeFilter === "Pending") return status === appointmentStatuses.scheduled;
+  if (activeFilter === "Checked-in") return status === appointmentStatuses.checkedIn;
+  if (activeFilter === "Completed") return status === appointmentStatuses.completed;
+  if (activeFilter === "Cancelled") return status === appointmentStatuses.cancelled;
+  if (activeFilter === "Missed") return status === appointmentStatuses.missed;
+  return false;
 }
 
 function monthFilterMatches(appointment, selectedMonth) {
@@ -439,6 +486,7 @@ function mapScheduleToAppointment(schedule) {
     endTime: schedule.end_time,
     date: formatTableDate(schedule.start_time),
     time: formatTableTime(schedule.start_time),
+    databaseStatus: schedule.status,
     status: displayStatus,
     filterStatus: formatStatusValue(displayStatus),
   };
@@ -1506,6 +1554,441 @@ function AppointmentSummary({ summary }) {
   );
 }
 
+function StaffAppointmentRequests({
+  requests,
+  totalRequests,
+  currentPage,
+  totalPages,
+  searchTerm,
+  sortOrder,
+  patients,
+  miniMonthDate,
+  miniMonthDays,
+  todayAppointments,
+  onSearchChange,
+  onSortChange,
+  onPageChange,
+  onMonthChange,
+  onSelectDate,
+  onViewRequest,
+  onViewAppointment,
+}) {
+  const patientById = useMemo(
+    () => new Map(patients.map((patient) => [String(patient.id), patient])),
+    [patients]
+  );
+
+  return (
+    <section className="doctor-request-workspace" aria-label="Patient appointment requests">
+      <div className="doctor-request-main">
+        <div className="doctor-request-tools">
+          <label className="doctor-request-search">
+            <Icon icon="solar:magnifer-linear" aria-hidden="true" />
+            <input
+              type="search"
+              value={searchTerm}
+              placeholder="Search patient name or request ID..."
+              onChange={(event) => onSearchChange(event.target.value)}
+            />
+          </label>
+
+          <label className="doctor-request-sort">
+            <select value={sortOrder} onChange={(event) => onSortChange(event.target.value)}>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="appointment">Appointment Date</option>
+            </select>
+            <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
+          </label>
+        </div>
+
+        <div className="doctor-request-table-wrap">
+          <div className="doctor-request-table">
+            <div className="doctor-request-table-head">
+              <span>Request ID</span>
+              <span>Patient</span>
+              <span>Appointment Type</span>
+              <span>Preferred Date &amp; Time</span>
+              <span>Date Requested</span>
+              <span>Action</span>
+            </div>
+
+            <div className="doctor-request-table-body">
+              {requests.length ? (
+                requests.map((request, index) => {
+                  const patient = patientById.get(String(request.patient_id)) || null;
+                  return (
+                    <article className="doctor-request-row" key={request.id}>
+                      <strong className="doctor-request-id">{getRequestId(request, index)}</strong>
+
+                      <div className="doctor-request-patient">
+                        <span>{String(request.patient_name || "P").charAt(0).toUpperCase()}</span>
+                        <div>
+                          <strong>{request.patient_name || patient?.full_name || "Patient"}</strong>
+                          <small>{patient?.patient_id || "Patient ID pending"}</small>
+                          <small>{patient?.address || "Patient request"}</small>
+                        </div>
+                      </div>
+
+                      <div className="doctor-request-type">
+                        <Icon icon={getRequestCategoryIcon(request)} aria-hidden="true" />
+                        <span>{request.title || "Appointment"}</span>
+                      </div>
+
+                      <div className="doctor-request-preferred">
+                        <span>
+                          <Icon icon="solar:calendar-linear" aria-hidden="true" />{" "}
+                          {formatRequestDate(request.start_time)}
+                        </span>
+                        <span>
+                          <Icon icon="solar:clock-circle-linear" aria-hidden="true" />{" "}
+                          {formatAppointmentTime(request.start_time)}
+                        </span>
+                      </div>
+
+                      <div className="doctor-request-created">
+                        <span>{formatRequestDate(request.created_at)}</span>
+                        <small>
+                          {request.created_at
+                            ? formatAppointmentTime(request.created_at)
+                            : "Not recorded"}
+                        </small>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="doctor-request-view"
+                        onClick={() => onViewRequest(request)}
+                      >
+                        View
+                      </button>
+                    </article>
+                  );
+                })
+              ) : (
+                <div className="doctor-request-empty">
+                  <Icon icon="solar:inbox-linear" aria-hidden="true" />
+                  <strong>No appointment requests found</strong>
+                  <span>New requests from patients will appear here.</span>
+                </div>
+              )}
+            </div>
+
+            <footer className="doctor-request-pagination">
+              <span>
+                {totalRequests
+                  ? `Showing ${(currentPage - 1) * 5 + 1}-${Math.min(
+                      currentPage * 5,
+                      totalRequests
+                    )} of ${totalRequests} requests`
+                  : "Showing 0 requests"}
+              </span>
+              <div>
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => onPageChange(currentPage - 1)}
+                  aria-label="Previous request page"
+                >
+                  <Icon icon="solar:alt-arrow-left-linear" aria-hidden="true" />
+                </button>
+                <strong>{currentPage}</strong>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => onPageChange(currentPage + 1)}
+                  aria-label="Next request page"
+                >
+                  <Icon icon="solar:alt-arrow-right-linear" aria-hidden="true" />
+                </button>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </div>
+
+      <aside className="doctor-request-sidebar">
+        <section className="doctor-request-calendar">
+          <header>
+            <h2>Calendar</h2>
+            <span>Today</span>
+          </header>
+
+          <div className="doctor-request-calendar-month">
+            <button type="button" aria-label="Previous month" onClick={() => onMonthChange(-1)}>
+              <Icon icon="solar:alt-arrow-left-linear" aria-hidden="true" />
+            </button>
+            <strong>{formatMonthTitle(miniMonthDate)}</strong>
+            <button type="button" aria-label="Next month" onClick={() => onMonthChange(1)}>
+              <Icon icon="solar:alt-arrow-right-linear" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="doctor-request-calendar-weekdays">
+            {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+              <span key={day}>{day}</span>
+            ))}
+          </div>
+
+          <div className="doctor-request-calendar-days">
+            {miniMonthDays.map((day, index) => (
+              <button
+                key={`${day.value}-${index}`}
+                type="button"
+                className={`${day.disabled ? "is-muted" : ""} ${
+                  day.hasEvent ? "has-event" : ""
+                } ${day.active ? "is-active" : ""}`}
+                onClick={() => onSelectDate(day.date)}
+              >
+                {day.value}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="doctor-request-today">
+          <header>
+            <h2>Today's Schedule</h2>
+            <span>
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </span>
+          </header>
+
+          <div>
+            {todayAppointments.length ? (
+              todayAppointments.slice(0, 5).map((appointment) => (
+                <button
+                  type="button"
+                  key={appointment.id}
+                  onClick={() => onViewAppointment(appointment.id)}
+                >
+                  <time>{formatAppointmentTime(appointment.startTime)}</time>
+                  <span className={`is-${appointment.category || "fallback"}`}>
+                    <strong>{appointment.name || "Patient"}</strong>
+                    <small>{appointment.title || "Appointment"}</small>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p>No appointments scheduled for today.</p>
+            )}
+          </div>
+        </section>
+      </aside>
+    </section>
+  );
+}
+
+function StaffAppointmentRequestDetails({
+  request,
+  patient,
+  doctors,
+  selectedDoctorId,
+  onDoctorChange,
+  isUpdating,
+  actionError,
+  onBack,
+  onApprove,
+  onDecline,
+}) {
+  const requestNotes = String(request?.description || "No additional notes were provided.").trim();
+  const requestedAt = request?.created_at
+    ? `${formatRequestDate(request.created_at)} at ${formatAppointmentTime(request.created_at)}`
+    : "Not recorded";
+
+  return (
+    <section className="doctor-request-details-page">
+      <nav className="doctor-request-breadcrumbs" aria-label="Breadcrumb">
+        <button type="button" onClick={onBack}>Appointments</button>
+        <Icon icon="solar:alt-arrow-right-linear" aria-hidden="true" />
+        <button type="button" onClick={onBack}>Patient Requests</button>
+        <Icon icon="solar:alt-arrow-right-linear" aria-hidden="true" />
+        <strong>Appointment Details</strong>
+      </nav>
+
+      <header className="doctor-request-details-heading">
+        <div>
+          <h1>Appointment Details</h1>
+          <p>Review the patient's appointment request and assign the final Doctor.</p>
+        </div>
+        <span className="doctor-request-pending-badge">
+          <Icon icon="solar:clock-circle-linear" aria-hidden="true" /> Pending
+        </span>
+      </header>
+
+      <section className="doctor-request-patient-card">
+        <div className="doctor-request-detail-avatar">
+          {String(request?.patient_name || "P")
+            .split(/\s+/)
+            .map((part) => part[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase()}
+        </div>
+
+        <div className="doctor-request-patient-identity">
+          <h2>{request?.patient_name || patient?.full_name || "Patient"}</h2>
+          <p>Patient ID: {patient?.patient_id || "Not assigned"}</p>
+          <span>{patient?.address || "Patient appointment request"}</span>
+        </div>
+
+        <div className="doctor-request-patient-contact">
+          <span>
+            <Icon icon="solar:user-rounded-linear" aria-hidden="true" /> Age:{" "}
+            {patient?.age || "Not provided"}
+          </span>
+          <span>
+            <Icon icon="solar:phone-linear" aria-hidden="true" />{" "}
+            {patient?.contact_number || "Not provided"}
+          </span>
+          <span>
+            <Icon icon="solar:letter-linear" aria-hidden="true" />{" "}
+            {patient?.email || "Not provided"}
+          </span>
+        </div>
+      </section>
+
+      <section className="doctor-request-information-card">
+        <header>
+          <Icon icon="solar:calendar-linear" aria-hidden="true" />
+          <h2>Appointment Information</h2>
+        </header>
+
+        <dl>
+          <div>
+            <dt>Appointment Type</dt>
+            <dd>
+              <Icon icon={getRequestCategoryIcon(request)} aria-hidden="true" />{" "}
+              {request?.title || "Appointment"}
+            </dd>
+          </div>
+
+          <div>
+            <dt>Preferred Date</dt>
+            <dd>
+              <Icon icon="solar:calendar-linear" aria-hidden="true" />{" "}
+              {formatRequestDate(request?.start_time)}
+            </dd>
+          </div>
+
+          <div>
+            <dt>Preferred Time</dt>
+            <dd>
+              <Icon icon="solar:clock-circle-linear" aria-hidden="true" />{" "}
+              {formatAppointmentTime(request?.start_time)}
+            </dd>
+          </div>
+
+          <div>
+            <dt>Date Requested</dt>
+            <dd>
+              <Icon icon="solar:calendar-linear" aria-hidden="true" /> {requestedAt}
+            </dd>
+          </div>
+
+          <div className="is-notes">
+            <dt>Assign Doctor</dt>
+            <dd>
+              <select
+                className="staff-request-doctor-select"
+                value={selectedDoctorId}
+                onChange={(event) => onDoctorChange(event.target.value)}
+                disabled={isUpdating}
+                aria-label="Assign Doctor"
+              >
+                <option value="">Select Doctor</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.name}
+                  </option>
+                ))}
+              </select>
+            </dd>
+          </div>
+
+          <div className="is-notes">
+            <dt>Reason / Notes</dt>
+            <dd>
+              <Icon icon="solar:document-text-linear" aria-hidden="true" />
+              <span>{requestNotes}</span>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="doctor-request-status-card">
+        <header>
+          <Icon icon="solar:danger-triangle-linear" aria-hidden="true" />
+          <h2>Request Status</h2>
+        </header>
+
+        <div className="doctor-request-current-status">
+          <strong>Current Status</strong>
+          <span className="doctor-request-pending-badge">
+            <Icon icon="solar:clock-circle-linear" aria-hidden="true" /> Pending
+          </span>
+          <small>
+            <Icon icon="solar:info-circle-linear" aria-hidden="true" /> Waiting for Staff review.
+          </small>
+        </div>
+
+        {actionError ? (
+          <p className="doctor-request-detail-error" role="alert">
+            {actionError}
+          </p>
+        ) : null}
+
+        <footer>
+          <div>
+            <button type="button" className="doctor-request-back-button" onClick={onBack}>
+              <Icon icon="solar:alt-arrow-left-linear" aria-hidden="true" /> Back
+            </button>
+
+            <SendPatientNotificationAction
+              patientId={request?.patient_id || ""}
+              patientName={request?.patient_name || "Patient"}
+              defaultType="general"
+              defaultTitle="Appointment request update"
+              defaultMessage="We are reviewing your appointment request."
+              lockedTargetPath="/patient/appointments"
+              contextLabel={`Appointment request ${getRequestId(request)}`}
+              triggerLabel="Message Patient"
+              className="doctor-request-message-button"
+              outline
+            />
+          </div>
+
+          <div>
+            <button
+              type="button"
+              className="doctor-request-decline-button"
+              onClick={() => onDecline(request)}
+              disabled={isUpdating}
+            >
+              {isUpdating ? "Updating..." : "Decline"}
+            </button>
+
+            <button
+              type="button"
+              className="doctor-request-approve-button"
+              onClick={() => onApprove(request)}
+              disabled={isUpdating || !selectedDoctorId}
+            >
+              <Icon icon="solar:check-read-linear" aria-hidden="true" />
+              {isUpdating ? "Approving..." : "Approve & Schedule"}
+            </button>
+          </div>
+        </footer>
+      </section>
+    </section>
+  );
+}
+
 function StaffAppointmentsContent({ headerAction }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -1515,18 +1998,16 @@ function StaffAppointmentsContent({ headerAction }) {
     const params = new URLSearchParams(location.search);
     return String(params.get("appointmentId") || "").trim();
   }, [location.search]);
-  const dashboardCompletedHistoryTarget = useMemo(() => {
+  const dashboardTodayTarget = useMemo(() => {
     const params = new URLSearchParams(location.search);
-    return (
-      String(params.get("status") || "").trim().toLowerCase() === "completed" &&
-      String(params.get("view") || "").trim().toLowerCase() === "history"
-    );
+    return String(params.get("scope") || "").trim().toLowerCase() === "today";
+  }, [location.search]);
+  const dashboardStatusTarget = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return getAppointmentStatusTab(params.get("status"));
   }, [location.search]);
   const [activeFilter, setActiveFilter] = useState(() =>
-    dashboardCompletedHistoryTarget ? "Completed" : "All"
-  );
-  const [appointmentView, setAppointmentView] = useState(() =>
-    dashboardCompletedHistoryTarget ? "History" : "Main"
+    dashboardStatusTarget || "All"
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -1535,6 +2016,12 @@ function StaffAppointmentsContent({ headerAction }) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [scheduleEvents, setScheduleEvents] = useState([]);
+  const [bookingRequests, setBookingRequests] = useState([]);
+  const [requestSort, setRequestSort] = useState("newest");
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [requestDoctorId, setRequestDoctorId] = useState("");
+  const [requestActionError, setRequestActionError] = useState("");
+  const [isReviewingRequest, setIsReviewingRequest] = useState(false);
   const [patients, setPatients] = useState([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
   const [doctors, setDoctors] = useState([]);
@@ -1554,6 +2041,8 @@ function StaffAppointmentsContent({ headerAction }) {
   const [openStatusMenu, setOpenStatusMenu] = useState(null);
   const [statusMenuPosition, setStatusMenuPosition] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [statusMessageVersion, setStatusMessageVersion] = useState(0);
   const [noShowConfirmationAppointment, setNoShowConfirmationAppointment] = useState(null);
   const [isMarkingNoShow, setIsMarkingNoShow] = useState(false);
   const [cancelConfirmationAppointment, setCancelConfirmationAppointment] = useState(null);
@@ -1564,8 +2053,6 @@ function StaffAppointmentsContent({ headerAction }) {
   const [rescheduleForm, setRescheduleForm] = useState(initialStaffRescheduleForm);
   const [rescheduleError, setRescheduleError] = useState("");
   const [isReschedulingAppointment, setIsReschedulingAppointment] = useState(false);
-  const [failedReminderAppointmentId, setFailedReminderAppointmentId] = useState("");
-  const [isRetryingReminder, setIsRetryingReminder] = useState(false);
   const [visitRoutingAppointmentId, setVisitRoutingAppointmentId] = useState("");
   const statusButtonRefs = useRef({});
   const statusMenuRef = useRef(null);
@@ -1573,14 +2060,45 @@ function StaffAppointmentsContent({ headerAction }) {
   const appointmentStatusLockRef = useRef(new Set());
   const rescheduleSaveLockRef = useRef(false);
   const visitRoutingLockRef = useRef("");
-  const completedHistoryTargetAppliedRef = useRef(
-    dashboardCompletedHistoryTarget
+  const bookingRequestsRequestRef = useRef(null);
+  const successTimerRef = useRef(null);
+  const dashboardStatusTargetAppliedRef = useRef(Boolean(dashboardStatusTarget));
+
+  const clearSuccessTimer = useCallback(() => {
+    if (successTimerRef.current !== null) {
+      window.clearTimeout(successTimerRef.current);
+      successTimerRef.current = null;
+    }
+  }, []);
+
+  const showSuccessMessage = useCallback(
+    (message) => {
+      clearSuccessTimer();
+      setSuccessMessage(message);
+      setStatusMessage(message);
+      setStatusMessageVersion((current) => current + 1);
+      successTimerRef.current = window.setTimeout(() => {
+        successTimerRef.current = null;
+        setStatusMessage((current) => (current === message ? "" : current));
+        setSuccessMessage((current) => (current === message ? "" : current));
+      }, 4000);
+    },
+    [clearSuccessTimer]
+  );
+
+  useEffect(
+    () => () => {
+      clearSuccessTimer();
+    },
+    [clearSuccessTimer]
   );
 
   useEffect(() => {
     if (
       typeof document === "undefined" ||
-      (!cancelConfirmationAppointment && !rescheduleAppointment)
+      (!detailAppointment &&
+        !cancelConfirmationAppointment &&
+        !rescheduleAppointment)
     ) {
       return undefined;
     }
@@ -1595,7 +2113,11 @@ function StaffAppointmentsContent({ headerAction }) {
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
     };
-  }, [cancelConfirmationAppointment, rescheduleAppointment]);
+  }, [
+    detailAppointment,
+    cancelConfirmationAppointment,
+    rescheduleAppointment,
+  ]);
 
   useEffect(() => {
     if (isVisitFormRoute || dashboardAppointmentTarget) {
@@ -1603,24 +2125,32 @@ function StaffAppointmentsContent({ headerAction }) {
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      if (dashboardCompletedHistoryTarget) {
-        setActiveFilter("Completed");
-        setAppointmentView("History");
-        completedHistoryTargetAppliedRef.current = true;
+      if (dashboardTodayTarget) {
+        setActiveFilter("All");
+        setSearchQuery("");
+        setSelectedMonth("");
+        setCurrentPage(1);
+        dashboardStatusTargetAppliedRef.current = false;
         return;
       }
 
-      if (completedHistoryTargetAppliedRef.current) {
+      if (dashboardStatusTarget) {
+        setActiveFilter(dashboardStatusTarget);
+        dashboardStatusTargetAppliedRef.current = true;
+        return;
+      }
+
+      if (dashboardStatusTargetAppliedRef.current) {
         setActiveFilter("All");
-        setAppointmentView("Main");
-        completedHistoryTargetAppliedRef.current = false;
+        dashboardStatusTargetAppliedRef.current = false;
       }
     });
 
     return () => window.cancelAnimationFrame(frameId);
   }, [
     dashboardAppointmentTarget,
-    dashboardCompletedHistoryTarget,
+    dashboardStatusTarget,
+    dashboardTodayTarget,
     isVisitFormRoute,
   ]);
 
@@ -1694,12 +2224,82 @@ function StaffAppointmentsContent({ headerAction }) {
     }
   }, []);
 
+  const loadBookingRequests = useCallback(() => {
+    if (bookingRequestsRequestRef.current) {
+      return bookingRequestsRequestRef.current;
+    }
+
+    const request = (async () => {
+      const { data, error } = await supabase
+        .from(appointmentRequestTableName)
+        .select(appointmentRequestColumns)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Staff booking request fetch failed:", error);
+        setStatusMessage(
+          `Unable to load Patient booking requests: ${error.message || "Unknown error"}`
+        );
+        return { ok: false, count: 0, error };
+      }
+
+      const nextRequests = data || [];
+      setBookingRequests(nextRequests);
+      setSelectedRequest((current) =>
+        current?.id
+          ? nextRequests.find((item) => String(item.id) === String(current.id)) || null
+          : current
+      );
+
+      return { ok: true, count: nextRequests.length };
+    })();
+
+    bookingRequestsRequestRef.current = request;
+    const clearPendingRequest = () => {
+      if (bookingRequestsRequestRef.current === request) {
+        bookingRequestsRequestRef.current = null;
+      }
+    };
+    request.then(clearPendingRequest, clearPendingRequest);
+    return request;
+  }, []);
+
+  useEffect(() => {
+    const loadTimer = window.setTimeout(loadBookingRequests, 0);
+
+    const channel = supabase
+      .channel("staff-appointment-requests")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: appointmentRequestTableName,
+        },
+        loadBookingRequests
+      )
+      .subscribe();
+
+    const refreshInterval = window.setInterval(loadBookingRequests, 15000);
+    const refreshOnFocus = () => loadBookingRequests();
+    window.addEventListener("focus", refreshOnFocus);
+
+    return () => {
+      window.clearTimeout(loadTimer);
+      window.clearInterval(refreshInterval);
+      window.removeEventListener("focus", refreshOnFocus);
+      supabase.removeChannel(channel);
+    };
+  }, [loadBookingRequests]);
+
+
   /*
    * Dashboard "View Appointment" deep link.
    *
    * The dashboard passes either the public MA number or the schedule UUID.
-   * Once appointments are loaded, locate that exact row, align the Main /
-   * History view, filter the table to it, and open the existing details modal.
+   * Once appointments are loaded, locate that exact row, filter the table to
+   * it, and open the existing details modal.
    */
   useEffect(() => {
     if (!dashboardAppointmentTarget || appointments.length === 0) {
@@ -1720,10 +2320,7 @@ function StaffAppointmentsContent({ headerAction }) {
         return;
       }
 
-      const classification = classifyAppointment(target);
-
       setActiveFilter("All");
-      setAppointmentView(classification.isHistory ? "History" : "Main");
       setSearchQuery(target.appointmentId || dashboardAppointmentTarget);
       setCurrentPage(1);
       setDetailAppointment(target);
@@ -2012,13 +2609,13 @@ function StaffAppointmentsContent({ headerAction }) {
     const keyword = searchQuery.trim().toLowerCase();
 
     return appointments.filter((appointment) => {
-      const matchesFilter =
-        activeFilter === "All" ||
-        appointment.filterStatus === activeFilter ||
-        appointment.status === activeFilter;
+      if (!appointmentStatusMatches(appointment, activeFilter)) return false;
 
-      if (!matchesFilter) return false;
-      if (!appointmentViewMatches(appointment, appointmentView)) return false;
+      if (dashboardTodayTarget) {
+        const classification = classifyAppointment(appointment);
+        if (!classification.isToday || !classification.isActionable) return false;
+      }
+
       if (!monthFilterMatches(appointment, selectedMonth)) return false;
       if (!keyword) return true;
 
@@ -2033,15 +2630,11 @@ function StaffAppointmentsContent({ headerAction }) {
       ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(keyword));
-    }).sort(
-      appointmentView === "History"
-        ? compareHistoryAppointments
-        : compareUpcomingAppointments
-    );
+    }).sort(compareAppointmentsByStatusPriority);
   }, [
     activeFilter,
-    appointmentView,
     appointments,
+    dashboardTodayTarget,
     searchQuery,
     selectedMonth,
   ]);
@@ -2055,7 +2648,66 @@ function StaffAppointmentsContent({ headerAction }) {
   useEffect(() => {
     const pageResetTimer = window.setTimeout(() => setCurrentPage(1), 0);
     return () => window.clearTimeout(pageResetTimer);
-  }, [activeFilter, appointmentView, pageSize, searchQuery, selectedMonth]);
+  }, [activeFilter, pageSize, searchQuery, selectedMonth]);
+
+  const requestSchedules = useMemo(() => {
+    const keyword = searchQuery.trim().toLowerCase();
+
+    const matching = bookingRequests
+      .filter(
+        (request) =>
+          String(request.status || "").trim().toLowerCase() === "pending"
+      )
+      .filter((request, index) => {
+        if (!keyword) return true;
+
+        return [
+          getRequestId(request, index),
+          request.patient_name,
+          request.title,
+          request.patient_id,
+          request.doctor_name,
+        ].some((value) => String(value || "").toLowerCase().includes(keyword));
+      });
+
+    return matching.sort((first, second) => {
+      if (requestSort === "appointment") {
+        return (
+          new Date(first.start_time || 0).getTime() -
+          new Date(second.start_time || 0).getTime()
+        );
+      }
+
+      const firstTime = new Date(first.created_at || first.start_time || 0).getTime();
+      const secondTime = new Date(second.created_at || second.start_time || 0).getTime();
+      return requestSort === "oldest"
+        ? firstTime - secondTime
+        : secondTime - firstTime;
+    });
+  }, [bookingRequests, requestSort, searchQuery]);
+
+  const requestTotalPages = Math.max(1, Math.ceil(requestSchedules.length / 5));
+  const requestDisplayedPage = Math.min(currentPage, requestTotalPages);
+  const paginatedRequests = useMemo(() => {
+    const startIndex = (requestDisplayedPage - 1) * 5;
+    return requestSchedules.slice(startIndex, startIndex + 5);
+  }, [requestDisplayedPage, requestSchedules]);
+
+  const todayRequestAppointments = useMemo(
+    () =>
+      appointments
+        .filter(
+          (appointment) =>
+            isAppointmentToday(appointment.startTime) &&
+            !isClosedStatus(appointment.status)
+        )
+        .sort(
+          (first, second) =>
+            new Date(first.startTime || 0).getTime() -
+            new Date(second.startTime || 0).getTime()
+        ),
+    [appointments]
+  );
 
   const searchSuggestions = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
@@ -2066,13 +2718,11 @@ function StaffAppointmentsContent({ headerAction }) {
 
     return appointments
       .filter((appointment) => {
-        const matchesFilter =
-          activeFilter === "All" ||
-          appointment.filterStatus === activeFilter ||
-          appointment.status === activeFilter;
-
-        if (!matchesFilter) return false;
-        if (!appointmentViewMatches(appointment, appointmentView)) return false;
+        if (!appointmentStatusMatches(appointment, activeFilter)) return false;
+        if (dashboardTodayTarget) {
+          const classification = classifyAppointment(appointment);
+          if (!classification.isToday || !classification.isActionable) return false;
+        }
         if (!monthFilterMatches(appointment, selectedMonth)) return false;
 
         return [
@@ -2093,8 +2743,8 @@ function StaffAppointmentsContent({ headerAction }) {
       .slice(0, 6);
   }, [
     activeFilter,
-    appointmentView,
     appointments,
+    dashboardTodayTarget,
     searchQuery,
     selectedMonth,
   ]);
@@ -2220,67 +2870,147 @@ function StaffAppointmentsContent({ headerAction }) {
     };
   }, [openStatusMenu, updateStatusMenuPosition]);
 
-  const saveAppointmentReminder = useCallback(
-    async (schedule) => {
-      if (!schedule?.id) {
-        return {
-          ok: false,
-          error: { message: "The saved appointment ID was not returned." },
-        };
+  const openPatientRequest = useCallback(
+    (request) => {
+      if (!request?.id) return;
+
+      const requestedDoctorAvailable =
+        request.doctor_id &&
+        doctors.some((doctor) => String(doctor.id) === String(request.doctor_id));
+
+      setRequestActionError("");
+      setSelectedRequest(request);
+      setRequestDoctorId(
+        requestedDoctorAvailable
+          ? String(request.doctor_id)
+          : String(doctors[0]?.id || "")
+      );
+    },
+    [doctors]
+  );
+
+  useEffect(() => {
+    if (!selectedRequest || requestDoctorId || !doctors.length) return;
+
+    const requestedDoctorAvailable =
+      selectedRequest.doctor_id &&
+      doctors.some(
+        (doctor) => String(doctor.id) === String(selectedRequest.doctor_id)
+      );
+
+    setRequestDoctorId(
+      requestedDoctorAvailable
+        ? String(selectedRequest.doctor_id)
+        : String(doctors[0]?.id || "")
+    );
+  }, [doctors, requestDoctorId, selectedRequest]);
+
+  const acceptPatientRequest = useCallback(
+    async (request) => {
+      if (!request?.id || isReviewingRequest) return;
+
+      if (!requestDoctorId) {
+        setRequestActionError("Select an active Doctor before approving this request.");
+        return;
       }
+
+      setIsReviewingRequest(true);
+      setRequestActionError("");
 
       try {
         const { data, error } = await supabase.rpc(
-          "create_appointment_patient_reminder",
-          { p_appointment_id: schedule.id }
+          "accept_patient_appointment_request",
+          {
+            p_request_id: request.id,
+            p_doctor_id: requestDoctorId,
+          }
         );
 
         if (error) {
-          logAppointmentReminderError("RPC failed", error);
-          return { ok: false, error };
+          console.error("Staff appointment request acceptance failed:", error);
+          setRequestActionError(
+            `Unable to approve this request: ${error.message || "Unknown error"}`
+          );
+          return;
         }
 
-        if (!data) {
-          const responseError = {
-            message: "The appointment reminder record was not returned.",
-          };
-          logAppointmentReminderError("RPC returned no reminder", responseError);
-          return { ok: false, error: responseError };
+        if (data?.schedule_id) {
+          try {
+            await requestAppointmentSms({
+              scheduleId: data.schedule_id,
+              event: appointmentSmsEvents.confirmed,
+            });
+          } catch (smsError) {
+            console.warn(
+              "Appointment confirmation SMS orchestration did not complete:",
+              smsError
+            );
+          }
         }
 
-        return { ok: true, reminder: data };
-      } catch (error) {
-        logAppointmentReminderError("Unexpected RPC failure", error);
-        return { ok: false, error };
+        setBookingRequests((current) =>
+          current.filter((item) => String(item.id) !== String(request.id))
+        );
+        setSelectedRequest(null);
+        setRequestDoctorId("");
+        setRequestActionError("");
+        showSuccessMessage(
+          data?.schedule_id
+            ? "Appointment request approved and moved to Pending appointments."
+            : "Appointment request approved."
+        );
+
+        await Promise.all([loadAppointments(), loadBookingRequests()]);
+      } finally {
+        setIsReviewingRequest(false);
       }
     },
-    []
+    [
+      isReviewingRequest,
+      loadAppointments,
+      loadBookingRequests,
+      requestDoctorId,
+      showSuccessMessage,
+    ]
   );
 
-  const retryAppointmentReminder = useCallback(async () => {
-    if (!failedReminderAppointmentId || isRetryingReminder) return;
+  const declinePatientRequest = useCallback(
+    async (request) => {
+      if (!request?.id || isReviewingRequest) return;
 
-    setIsRetryingReminder(true);
-    let result;
+      setIsReviewingRequest(true);
+      setRequestActionError("");
 
-    try {
-      result = await saveAppointmentReminder({
-        id: failedReminderAppointmentId,
-      });
-    } finally {
-      setIsRetryingReminder(false);
-    }
+      try {
+        const { error } = await supabase.rpc(
+          "decline_patient_appointment_request",
+          {
+            p_request_id: request.id,
+          }
+        );
 
-    if (!result?.ok) {
-      setStatusMessage(
-        `Appointment saved, but the Patient reminder could not be created. ${getAppointmentReminderErrorMessage(result?.error)}`
-      );
-      return;
-    }
+        if (error) {
+          console.error("Staff appointment request decline failed:", error);
+          setRequestActionError(
+            `Unable to decline this request: ${error.message || "Unknown error"}`
+          );
+          return;
+        }
 
-    setFailedReminderAppointmentId("");
-    setStatusMessage("Patient reminder created successfully.");
-  }, [failedReminderAppointmentId, isRetryingReminder, saveAppointmentReminder]);
+        setBookingRequests((current) =>
+          current.filter((item) => String(item.id) !== String(request.id))
+        );
+        setSelectedRequest(null);
+        setRequestDoctorId("");
+        setRequestActionError("");
+        showSuccessMessage("Appointment request declined. No appointment was created.");
+        await loadBookingRequests();
+      } finally {
+        setIsReviewingRequest(false);
+      }
+    },
+    [isReviewingRequest, loadBookingRequests, showSuccessMessage]
+  );
 
   const disableAppointmentReminders = useCallback(async (appointmentId) => {
     const { error } = await supabase
@@ -2336,6 +3066,7 @@ function StaffAppointmentsContent({ headerAction }) {
                   ...item,
                   ...extraPayload,
                   description: extraPayload.description || item.description,
+                  databaseStatus: getDatabaseStatus(nextStatus),
                   status: nextStatus,
                   filterStatus: formatStatusValue(nextStatus),
                 }
@@ -2435,15 +3166,21 @@ function StaffAppointmentsContent({ headerAction }) {
       setCancelReasonError("");
       setDetailAppointment(null);
       setCurrentPage(1);
-      setStatusMessage(
-        getAutomaticNotificationStatusMessage(saved.notificationResult, {
+      const cancellationMessage = getAutomaticNotificationStatusMessage(
+        saved.notificationResult,
+        {
           sentMessage: "Appointment cancelled and Patient notified.",
           skippedMessage:
             "Appointment cancelled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
           failedMessage:
             "Appointment cancelled successfully, but the Patient notification could not be sent.",
-        })
+        }
       );
+      if (saved.notificationResult?.ok || saved.notificationResult?.skipped) {
+        showSuccessMessage(cancellationMessage);
+      } else {
+        setStatusMessage(cancellationMessage);
+      }
     } finally {
       setIsCancellingAppointment(false);
     }
@@ -2452,6 +3189,7 @@ function StaffAppointmentsContent({ headerAction }) {
     cancelReason,
     disableAppointmentReminders,
     isCancellingAppointment,
+    showSuccessMessage,
     updateAppointmentStatus,
   ]);
 
@@ -2557,17 +3295,15 @@ function StaffAppointmentsContent({ headerAction }) {
       setRescheduleError("");
 
       try {
-        const { data: savedSchedule, error } = await supabase
-          .from(scheduleTableName)
-          .update({
-            start_time: startTime,
-            end_time: endTime,
-            description,
-            status: "scheduled",
-          })
-          .eq("id", appointment.id)
-          .select(scheduleColumns)
-          .single();
+        const { data: rescheduleResult, error } = await supabase.rpc(
+          "reschedule_appointment",
+          {
+            p_schedule_id: appointment.id,
+            p_new_start_time: startTime,
+            p_new_end_time: endTime,
+            p_description: description,
+          }
+        );
 
         if (error) {
           console.error("Staff appointment reschedule failed:", error);
@@ -2577,23 +3313,29 @@ function StaffAppointmentsContent({ headerAction }) {
           return;
         }
 
+        const savedSchedule = rescheduleResult?.schedule;
+        if (!savedSchedule?.id) {
+          setRescheduleError("The saved appointment was not returned.");
+          return;
+        }
+
         const notificationResult =
           await sendAutomaticAppointmentNotification({
             patientId: savedSchedule.patient_id,
             scheduleId: savedSchedule.id,
             notificationType: "appointment_rescheduled",
+            appointmentEventId: rescheduleResult.appointment_event_id,
           });
 
-        const reminderResult = await saveAppointmentReminder(savedSchedule);
-
-        const notificationMessage =
-          getAutomaticNotificationStatusMessage(notificationResult, {
-            sentMessage: "Appointment rescheduled and Patient notified.",
-            skippedMessage:
-              "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
-            failedMessage:
-              "Appointment rescheduled successfully, but the Patient notification could not be sent.",
-          });
+        const notificationMessage = rescheduleResult.rescheduled
+          ? getAutomaticNotificationStatusMessage(notificationResult, {
+              sentMessage: "Appointment rescheduled and Patient notified.",
+              skippedMessage:
+                "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
+              failedMessage:
+                "Appointment rescheduled successfully, but the Patient notification could not be sent.",
+            })
+          : "Appointment details saved. The appointment time did not change.";
 
         const nextDate = new Date(startTime);
         setCalendarDate(nextDate);
@@ -2605,17 +3347,15 @@ function StaffAppointmentsContent({ headerAction }) {
         setRescheduleAppointment(null);
         setRescheduleForm(initialStaffRescheduleForm);
         setRescheduleError("");
-        setFailedReminderAppointmentId(
-          reminderResult.ok ? "" : savedSchedule.id
-        );
-
-        setStatusMessage(
-          reminderResult.ok
-            ? notificationMessage
-            : `${notificationMessage} Patient reminder could not be created. ${getAppointmentReminderErrorMessage(
-                reminderResult.error
-              )}`
-        );
+        if (
+          (!rescheduleResult.rescheduled ||
+            notificationResult?.ok ||
+            notificationResult?.skipped)
+        ) {
+          showSuccessMessage(notificationMessage);
+        } else {
+          setStatusMessage(notificationMessage);
+        }
       } finally {
         rescheduleSaveLockRef.current = false;
         setIsReschedulingAppointment(false);
@@ -2629,7 +3369,7 @@ function StaffAppointmentsContent({ headerAction }) {
       rescheduleForm.date,
       rescheduleForm.message,
       rescheduleForm.time,
-      saveAppointmentReminder,
+      showSuccessMessage,
     ]
   );
 
@@ -2968,6 +3708,7 @@ function StaffAppointmentsContent({ headerAction }) {
     }
 
     const category = categoryList.find((item) => item.id === addAppointmentForm.category);
+    const wasEditing = Boolean(editingAppointmentId);
     const payload = {
       patient_id: patientRecordId,
       patient_name: addAppointmentForm.patientName.trim(),
@@ -2982,22 +3723,32 @@ function StaffAppointmentsContent({ headerAction }) {
       end_time: endTime,
       status: "scheduled",
     };
-    const wasEditing = Boolean(editingAppointmentId);
 
     const saveQuery = wasEditing
       ? supabase
-          .from(scheduleTableName)
-          .update(payload)
-          .eq("id", editingAppointmentId)
-          .select(scheduleColumns)
-          .single()
+          .rpc("reschedule_appointment", {
+            p_schedule_id: editingAppointmentId,
+            p_new_start_time: payload.start_time,
+            p_new_end_time: payload.end_time,
+            p_description: payload.description,
+            p_apply_full_update: true,
+            p_patient_id: payload.patient_id,
+            p_patient_name: payload.patient_name,
+            p_doctor_id: payload.doctor_id,
+            p_doctor_name: payload.doctor_name,
+            p_title: payload.title,
+          })
       : supabase
           .from(scheduleTableName)
           .insert([payload])
           .select(scheduleColumns)
           .single();
 
-    const { data: savedSchedule, error } = await saveQuery;
+    const { data: savedResult, error } = await saveQuery;
+    const savedSchedule = wasEditing ? savedResult?.schedule : savedResult;
+    const appointmentEventId = wasEditing
+      ? savedResult?.appointment_event_id || null
+      : null;
 
     if (error) {
       setIsSavingAppointment(false);
@@ -3016,44 +3767,41 @@ function StaffAppointmentsContent({ headerAction }) {
           notificationType: wasEditing
             ? "appointment_rescheduled"
             : "appointment_created",
+          appointmentEventId,
         })
       : {
           ok: false,
           error: { message: "The saved appointment was not returned." },
         };
-    const reminderResult = savedSchedule
-      ? await saveAppointmentReminder(savedSchedule)
-      : { ok: false, error: { message: "The saved appointment was not returned." } };
     setIsAddAppointmentOpen(false);
     setEditingAppointmentId("");
     setAddAppointmentForm(createBlankAppointmentForm(doctors[0] || null));
     await loadAppointments();
 
-    const notificationMessage = getAutomaticNotificationStatusMessage(
-      notificationResult,
-      {
-        sentMessage: wasEditing
-          ? "Appointment rescheduled and Patient notified."
-          : "Appointment created and Patient notified.",
-        skippedMessage: wasEditing
-          ? "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent."
-          : "Appointment created successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
-        failedMessage: wasEditing
-          ? "Appointment rescheduled successfully, but the Patient notification could not be sent."
-          : "Appointment was saved, but the Patient notification could not be sent.",
-      }
-    );
+    const notificationMessage = wasEditing && !savedResult?.rescheduled
+      ? "Appointment details saved. The appointment time did not change."
+      : getAutomaticNotificationStatusMessage(notificationResult, {
+          sentMessage: wasEditing
+            ? "Appointment rescheduled and Patient notified."
+            : "Appointment created and Patient notified.",
+          skippedMessage: wasEditing
+            ? "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent."
+            : "Appointment created successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
+          failedMessage: wasEditing
+            ? "Appointment rescheduled successfully, but the Patient notification could not be sent."
+            : "Appointment was saved, but the Patient notification could not be sent.",
+        });
 
-    setFailedReminderAppointmentId(
-      reminderResult.ok ? "" : savedSchedule?.id || ""
-    );
-    setStatusMessage(
-      reminderResult.ok
-        ? notificationMessage
-        : `${notificationMessage} Patient reminder could not be created. ${getAppointmentReminderErrorMessage(
-            reminderResult.error
-          )}`
-    );
+    if (
+      (!wasEditing ||
+        !savedResult?.rescheduled ||
+        notificationResult?.ok ||
+        notificationResult?.skipped)
+    ) {
+      showSuccessMessage(notificationMessage);
+    } else {
+      setStatusMessage(notificationMessage);
+    }
     } finally {
       appointmentSaveLockRef.current = false;
       setIsSavingAppointment(false);
@@ -3218,6 +3966,7 @@ function StaffAppointmentsContent({ headerAction }) {
         appointment.id === selectedAppointment.id
           ? {
               ...appointment,
+              databaseStatus: getDatabaseStatus("Checked in"),
               status: "Checked in",
               filterStatus: "Checked in",
             }
@@ -3267,6 +4016,37 @@ function StaffAppointmentsContent({ headerAction }) {
     );
   }
 
+  if (selectedRequest) {
+    const requestPatient =
+      patients.find(
+        (patient) => String(patient.id) === String(selectedRequest.patient_id)
+      ) || null;
+
+    return (
+      <section className="staff-appointments-page doctor-request-details-shell appointment-workspace appointment-workspace--staff">
+        <StaffAppointmentRequestDetails
+          request={selectedRequest}
+          patient={requestPatient}
+          doctors={doctors}
+          selectedDoctorId={requestDoctorId}
+          onDoctorChange={(doctorId) => {
+            setRequestDoctorId(doctorId);
+            if (requestActionError) setRequestActionError("");
+          }}
+          isUpdating={isReviewingRequest}
+          actionError={requestActionError}
+          onBack={() => {
+            setRequestActionError("");
+            setSelectedRequest(null);
+            setActiveFilter("Requests");
+          }}
+          onApprove={acceptPatientRequest}
+          onDecline={declinePatientRequest}
+        />
+      </section>
+    );
+  }
+
   if (selectedAppointment) {
     return (
       <FollowUpVisitForm
@@ -3283,6 +4063,22 @@ function StaffAppointmentsContent({ headerAction }) {
     );
   }
 
+  const clearDashboardTodayTarget = () => {
+    if (!dashboardTodayTarget) return;
+
+    const params = new URLSearchParams(location.search);
+    params.delete("scope");
+    const nextSearch = params.toString();
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true }
+    );
+  };
+
   return (
     <section className="staff-appointments-page appointment-workspace appointment-workspace--staff">
       <AppointmentPageHeader
@@ -3290,7 +4086,13 @@ function StaffAppointmentsContent({ headerAction }) {
         subtitle="Manage scheduling, arrivals, and appointment status."
         tabs={filters}
         activeTab={activeFilter}
-        onTabChange={setActiveFilter}
+        onTabChange={(nextTab) => {
+          clearDashboardTodayTarget();
+          setActiveFilter(nextTab);
+          setCurrentPage(1);
+          setSearchQuery("");
+          setSelectedMonth("");
+        }}
         action={headerAction}
         className="staff-appointments-header staff-section-header"
         tabsClassName="staff-appointments-tabs"
@@ -3298,37 +4100,51 @@ function StaffAppointmentsContent({ headerAction }) {
       />
 
       {statusMessage ? (
-        <div className="staff-appointments-status-message" role="status">
+        <div
+          key={statusMessageVersion}
+          className={`staff-appointments-status-message${
+            successMessage === statusMessage ? " is-auto-hide" : ""
+          }`}
+          role="status"
+        >
           <span>{statusMessage}</span>
-          {failedReminderAppointmentId ? (
-            <button
-              type="button"
-              onClick={retryAppointmentReminder}
-              disabled={isRetryingReminder}
-            >
-              {isRetryingReminder ? "Retrying..." : "Retry Reminder"}
-            </button>
-          ) : null}
         </div>
       ) : null}
 
+      {activeFilter === "Requests" ? (
+        <StaffAppointmentRequests
+          requests={paginatedRequests}
+          totalRequests={requestSchedules.length}
+          currentPage={requestDisplayedPage}
+          totalPages={requestTotalPages}
+          searchTerm={searchQuery}
+          sortOrder={requestSort}
+          patients={patients}
+          miniMonthDate={miniMonthDate}
+          miniMonthDays={miniMonthDays}
+          todayAppointments={todayRequestAppointments}
+          onSearchChange={(value) => {
+            setSearchQuery(value);
+            setCurrentPage(1);
+          }}
+          onSortChange={(value) => {
+            setRequestSort(value);
+            setCurrentPage(1);
+          }}
+          onPageChange={setCurrentPage}
+          onMonthChange={(amount) =>
+            setMiniMonthDate((current) => addMonths(current, amount))
+          }
+          onSelectDate={selectCalendarDate}
+          onViewRequest={openPatientRequest}
+          onViewAppointment={openAppointmentDetails}
+        />
+      ) : (
+        <>
       <AppointmentToolbar
         as="div"
         className="staff-appointments-toolbar staff-appointments-toolbar-labeled"
       >
-        <AppointmentControlGroup
-          label="View"
-          area="view"
-          className="staff-appointments-control-group staff-appointments-view-group"
-        >
-          <AppointmentViewSwitch
-            options={appointmentViews}
-            value={appointmentView}
-            onChange={setAppointmentView}
-            className="staff-appointments-view-switch"
-          />
-        </AppointmentControlGroup>
-
         <AppointmentControlGroup
           label="Search Appointments"
           area="search"
@@ -3645,6 +4461,9 @@ function StaffAppointmentsContent({ headerAction }) {
           </section>
         </aside>
       </div>
+
+        </>
+      )}
 
       {openStatusMenu && activeStatusAppointment && statusMenuPosition &&
       typeof document !== "undefined"

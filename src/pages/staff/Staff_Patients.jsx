@@ -10,6 +10,7 @@ import {
   patientAccountStatuses,
 } from "../../lib/patientAccountStatus";
 import {
+  addCalendarDaysToDateInput,
   formatAppointmentDate,
   formatAppointmentTime,
   getManilaDateKey,
@@ -17,6 +18,7 @@ import {
   toManilaISOString,
 } from "../../lib/appointmentDate";
 import { getAvailabilityDayOfWeek } from "../../lib/availabilitySchedule";
+import { isValidPhilippineMobileNumber } from "../../lib/philippinePhone";
 import { supabase } from "../../lib/supabaseClient";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
@@ -49,9 +51,11 @@ const staffPatientNotificationTypes = [
 ];
 const staffRegistrationSessionKey = "maternal_staff_patient_registration";
 const staffWalkInSlotSessionKey = "maternal_staff_walkin_registration_slot";
+const staffPatientStatusTopic = "staff:patient-account-status";
+const registrationNoticeDurationMs = 5000;
 const steps = [
   { id: 1, label: "Basic Information" },
-  { id: 2, label: "Reproductive and Obstetric" },
+  { id: 2, label: "Reproductive & Obstetric History" },
   { id: 3, label: "Medical & Family History" },
 ];
 
@@ -59,6 +63,10 @@ const blankForm = {
   name: "",
   age: "",
   birthdate: "",
+  sexAtBirth: "Female",
+  civilStatus: "",
+  nationality: "Filipino",
+  nationalityOther: "",
   address: "",
   contactNumber: "",
   occupation: "",
@@ -68,6 +76,9 @@ const blankForm = {
   email: "",
   husbandPartner: "",
   partnerContactNumber: "",
+  emergencyContactPerson: "",
+  emergencyContactRelationship: "",
+  emergencyContactNumber: "",
 
   ageMenarche: "",
   menstrualPattern: "Regular",
@@ -95,6 +106,17 @@ const blankForm = {
   paternalFamilyHistory: [],
   paternalFamilyOther: "",
 };
+
+const civilStatusOptions = [
+  "Single",
+  "Married",
+  "Widowed",
+  "Separated",
+  "Divorced",
+  "Other",
+];
+
+const nationalityOptions = ["Filipino", "Other"];
 
 const contraceptiveMethodOptions = [
   "None",
@@ -550,14 +572,6 @@ function calculateAgeFromBirthdate(value) {
   return age >= 0 ? String(age) : "";
 }
 
-function addDaysToDateInput(value, days) {
-  if (!value) return "";
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 function isFutureDateInput(value) {
   if (!value) return false;
   const date = new Date(`${value}T00:00:00`);
@@ -638,6 +652,143 @@ function cleanText(value) {
   return cleaned || null;
 }
 
+const humanReadableRegistrationFields = [
+  "name",
+  "address",
+  "occupation",
+  "workAddress",
+  "company",
+  "husbandPartner",
+  "emergencyContactPerson",
+  "emergencyContactRelationship",
+  "nationalityOther",
+];
+
+function normalizeHumanReadableText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(/([\s'-]+)/)
+    .map((part) => {
+      if (!/^[\p{L}]+$/u.test(part)) return part;
+      if (/[\p{Lu}]/u.test(part.slice(1)) && part !== part.toLocaleUpperCase()) {
+        return `${part[0].toLocaleUpperCase()}${part.slice(1)}`;
+      }
+      return `${part[0].toLocaleUpperCase()}${part.slice(1).toLocaleLowerCase()}`;
+    })
+    .join("");
+}
+
+function normalizeRegistrationText(form) {
+  return humanReadableRegistrationFields.reduce(
+    (nextForm, field) => ({
+      ...nextForm,
+      [field]: normalizeHumanReadableText(nextForm[field]),
+    }),
+    { ...form, email: String(form.email || "").trim() }
+  );
+}
+
+function getResolvedNationality(form) {
+  if (form.nationality === "Other") {
+    return normalizeHumanReadableText(form.nationalityOther);
+  }
+  return normalizeHumanReadableText(form.nationality);
+}
+
+function getStepOneValidationErrors(form) {
+  const errors = {};
+
+  if (!String(form.name || "").trim()) {
+    errors.name = "This field is required.";
+  }
+  if (!form.birthdate) {
+    errors.birthdate = "This field is required.";
+  } else if (isFutureDateInput(form.birthdate)) {
+    errors.birthdate = "Date of birth cannot be in the future.";
+  } else if (!calculateAgeFromBirthdate(form.birthdate)) {
+    errors.birthdate = "Enter a valid date of birth.";
+  }
+  if (!String(form.sexAtBirth || "").trim()) {
+    errors.sexAtBirth = "This field is required.";
+  }
+  if (!String(form.civilStatus || "").trim()) {
+    errors.civilStatus = "This field is required.";
+  }
+  if (
+    form.nationality === "Other" &&
+    !String(form.nationalityOther || "").trim()
+  ) {
+    errors.nationalityOther = "Enter the Patient's nationality.";
+  }
+  if (!String(form.address || "").trim()) {
+    errors.address = "This field is required.";
+  }
+  if (!String(form.contactNumber || "").trim()) {
+    errors.contactNumber = "This field is required.";
+  } else if (!isValidPhilippineMobileNumber(form.contactNumber)) {
+    errors.contactNumber = "Enter a valid Philippine mobile number.";
+  }
+  if (
+    form.email.trim() &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+  ) {
+    errors.email = "Enter a valid Patient email address.";
+  }
+  if (!String(form.emergencyContactPerson || "").trim()) {
+    errors.emergencyContactPerson = "This field is required.";
+  }
+  if (!String(form.emergencyContactRelationship || "").trim()) {
+    errors.emergencyContactRelationship = "This field is required.";
+  }
+  if (!String(form.emergencyContactNumber || "").trim()) {
+    errors.emergencyContactNumber = "This field is required.";
+  } else if (!isValidPhilippineMobileNumber(form.emergencyContactNumber)) {
+    errors.emergencyContactNumber = "Enter a valid Philippine mobile number.";
+  }
+
+  return errors;
+}
+
+function getStepTwoValidationErrors(form) {
+  const errors = {};
+  const ageAtMenarche = parseOptionalNumber(form.ageMenarche);
+  const cycleLength = parseOptionalNumber(form.cycleLength);
+  const menstruationDuration = parseOptionalNumber(form.durationMenstruation);
+  const gravida = parseOptionalNumber(form.gravida);
+  const para = parseOptionalNumber(form.para);
+
+  if (!isNumberInRange(ageAtMenarche, 8, 25)) {
+    errors.ageMenarche = "Enter 8 to 25, or leave blank if unknown.";
+  }
+  if (!String(form.gravida || "").trim()) {
+    errors.gravida = "This field is required.";
+  } else if (gravida === null || gravida < 0) {
+    errors.gravida = "Gravida must be zero or greater.";
+  }
+  if (!String(form.para || "").trim()) {
+    errors.para = "This field is required.";
+  } else if (para === null || para < 0) {
+    errors.para = "Para must be zero or greater.";
+  } else if (gravida !== null && para > gravida) {
+    errors.para = "Para should not exceed Gravida.";
+  }
+  if (cycleLength !== null && (cycleLength < 15 || cycleLength > 60)) {
+    errors.cycleLength = "Enter 15 to 60 days, or leave blank if unknown.";
+  }
+  if (
+    menstruationDuration !== null &&
+    (menstruationDuration < 1 || menstruationDuration > 15)
+  ) {
+    errors.durationMenstruation = "Enter 1 to 15 days, or leave blank if unknown.";
+  }
+  if (isFutureDateInput(form.lmp)) {
+    errors.lmp = "Last Menstrual Period cannot be in the future.";
+  }
+
+  return errors;
+}
+
 function normalizeStructuredAllergies(form) {
   if (Array.isArray(form.allergies) && form.allergies.length) {
     return form.allergies
@@ -676,17 +827,21 @@ function getAllergyList(form) {
 }
 
 function createRegistrationDataPayload(form, selectedWalkInSlot) {
-  const allergies = normalizeStructuredAllergies(form);
+  const normalizedForm = normalizeRegistrationText(form);
+  const allergies = normalizeStructuredAllergies(normalizedForm);
   const legacyAllergyLabels = allergies.map(formatAllergyEntry);
 
   return {
-    ...form,
+    ...normalizedForm,
+    nationalityOther: normalizedForm.nationality === "Other"
+      ? normalizedForm.nationalityOther
+      : "",
     allergies,
     allergyOne: legacyAllergyLabels[0] || "",
     allergyTwo: legacyAllergyLabels[1] || "",
     allergyThree: legacyAllergyLabels[2] || "",
-    familyHistory: getFamilyHistoryList(form),
-    familyOther: getFamilyOtherText(form),
+    familyHistory: getFamilyHistoryList(normalizedForm),
+    familyOther: getFamilyOtherText(normalizedForm),
     walkInReservation: selectedWalkInSlot
       ? {
           reservationId: selectedWalkInSlot.reservationId || "",
@@ -833,43 +988,121 @@ function mergePatientAvatarMap(patientRows, avatarMap) {
 }
 
 function createPatientPersonalInfoPayload(form, savedPatient, credentials) {
+  const normalizedForm = normalizeRegistrationText(form);
+
   return {
     patient_record_id: savedPatient.id,
     patient_code: credentials.patientId,
-    full_name: form.name || "New Patient",
-    gender: "Female",
-    email: cleanText(form.email),
-    birthdate: form.birthdate || null,
-    age: parsePatientAgeValue(form),
-    address: cleanText(form.address),
-    contact_number: cleanText(form.contactNumber),
-    occupation: cleanText(form.occupation),
-    work_address: cleanText(form.workAddress),
-    company: cleanText(form.company),
-    work_contact_number: cleanText(form.workContactNumber),
-    blood_type: cleanText(form.bloodType),
-    civil_status: null,
+    full_name: normalizedForm.name || "New Patient",
+    gender: cleanText(normalizedForm.sexAtBirth),
+    email: cleanText(normalizedForm.email),
+    birthdate: normalizedForm.birthdate || null,
+    age: parsePatientAgeValue(normalizedForm),
+    address: cleanText(normalizedForm.address),
+    contact_number: cleanText(normalizedForm.contactNumber),
+    occupation: cleanText(normalizedForm.occupation),
+    work_address: cleanText(normalizedForm.workAddress),
+    company: cleanText(normalizedForm.company),
+    work_contact_number: cleanText(normalizedForm.workContactNumber),
+    blood_type: cleanText(normalizedForm.bloodType),
+    civil_status: cleanText(normalizedForm.civilStatus),
+    nationality: cleanText(getResolvedNationality(normalizedForm)),
+    partner_name: cleanText(normalizedForm.husbandPartner),
+    partner_contact_number: cleanText(normalizedForm.partnerContactNumber),
     updated_at: new Date().toISOString(),
   };
+}
+
+function mergePatientAccountStatus(patient, row) {
+  if (!patient || !row || String(patient.recordId) !== String(row.id)) {
+    return patient;
+  }
+
+  const updatedValue = (key, fallback) =>
+    Object.prototype.hasOwnProperty.call(row, key) ? row[key] : fallback;
+  const recordStatus = updatedValue("status", patient.recordStatus);
+  const userId = updatedValue("user_id", patient.userId);
+  const archivedAt = updatedValue("archived_at", patient.archivedAt);
+  const archivedBy = updatedValue("archived_by", patient.archivedBy);
+  const linkedStatus = userId
+    ? normalizePatientAccountStatus(
+        updatedValue("account_status", patient.accountStatus)
+      )
+    : patientAccountStatuses.unlinked;
+  const status = isPatientRecordArchived({
+    status: recordStatus,
+    archived_at: archivedAt,
+  })
+    ? patientAccountStatuses.archived
+    : linkedStatus;
+
+  if (
+    patient.status === status &&
+    patient.recordStatus === recordStatus &&
+    patient.accountStatus === linkedStatus &&
+    patient.userId === (userId || "") &&
+    patient.archivedAt === (archivedAt || null) &&
+    patient.archivedBy === (archivedBy || null)
+  ) {
+    return patient;
+  }
+
+  return {
+    ...patient,
+    status,
+    recordStatus,
+    accountStatus: linkedStatus,
+    userId: userId || "",
+    archivedAt: archivedAt || null,
+    archivedBy: archivedBy || null,
+  };
+}
+
+function mergePatientAccountStatuses(patientRows, updatedRows) {
+  const rowsById = new Map(
+    (updatedRows || []).map((row) => [String(row.id || ""), row])
+  );
+  let changed = false;
+  const nextRows = patientRows.map((patient) => {
+    const row = rowsById.get(String(patient.recordId || ""));
+    const nextPatient = row ? mergePatientAccountStatus(patient, row) : patient;
+    if (nextPatient !== patient) changed = true;
+    return nextPatient;
+  });
+
+  return changed ? nextRows : patientRows;
 }
 
 function createCorePatientPersonalInfoPayload(form, savedPatient, credentials) {
   return omitPayloadFields(
     createPatientPersonalInfoPayload(form, savedPatient, credentials),
-    ["occupation", "work_address", "company", "work_contact_number"]
+    [
+      "occupation",
+      "work_address",
+      "company",
+      "work_contact_number",
+      "partner_name",
+      "partner_contact_number",
+    ]
   );
 }
 
 function createEmergencyContactPayload(form, personalInfoId) {
-  if (!form.husbandPartner.trim() && !form.partnerContactNumber.trim()) {
+  if (
+    !form.emergencyContactPerson.trim() &&
+    !form.emergencyContactRelationship.trim() &&
+    !form.emergencyContactNumber.trim()
+  ) {
     return null;
   }
 
   return {
     patient_id: personalInfoId,
-    contact_person: cleanText(form.husbandPartner) || "Emergency Contact",
-    relationship: "Husband/Partner",
-    contact_number: cleanText(form.partnerContactNumber),
+    contact_person: cleanText(normalizeHumanReadableText(form.emergencyContactPerson)),
+    relationship: cleanText(
+      normalizeHumanReadableText(form.emergencyContactRelationship)
+    ),
+    contact_number: cleanText(form.emergencyContactNumber),
     updated_at: new Date().toISOString(),
   };
 }
@@ -951,12 +1184,21 @@ function InputField({
   type = "text",
   value,
   onChange,
+  onBlur,
   placeholder = "",
   icon,
   className = "",
+  error = "",
+  inputRef,
+  fieldId,
+  readOnly = false,
+  inputMode,
+  autoComplete,
 }) {
   return (
-    <label className={`staff-register-field ${className}`}>
+    <label
+      className={`staff-register-field ${className} ${error ? "has-error" : ""}`}
+    >
       {label ? (
         <span>
           {label}
@@ -966,28 +1208,76 @@ function InputField({
 
       <div className="staff-register-input-wrap">
         <input
+          ref={inputRef}
+          id={fieldId}
           type={type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           placeholder={placeholder}
+          readOnly={readOnly}
+          inputMode={inputMode}
+          autoComplete={autoComplete}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error && fieldId ? `${fieldId}-error` : undefined}
         />
         {icon ? <Icon icon={icon} aria-hidden="true" /> : null}
       </div>
+      {error ? (
+        <small
+          id={fieldId ? `${fieldId}-error` : undefined}
+          className="staff-register-field-error"
+        >
+          {error}
+        </small>
+      ) : null}
     </label>
   );
 }
 
-function SelectField({ label, value, onChange, children, className = "" }) {
+function SelectField({
+  label,
+  required = false,
+  value,
+  onChange,
+  children,
+  className = "",
+  error = "",
+  selectRef,
+  fieldId,
+}) {
   return (
-    <label className={`staff-register-field ${className}`}>
-      {label ? <span>{label}</span> : null}
+    <label
+      className={`staff-register-field ${className} ${error ? "has-error" : ""}`}
+    >
+      {label ? (
+        <span>
+          {label}
+          {required ? <b>*</b> : null}
+        </span>
+      ) : null}
 
       <div className="staff-register-input-wrap">
-        <select value={value} onChange={(event) => onChange(event.target.value)}>
+        <select
+          ref={selectRef}
+          id={fieldId}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error && fieldId ? `${fieldId}-error` : undefined}
+        >
           {children}
         </select>
         <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
       </div>
+      {error ? (
+        <small
+          id={fieldId ? `${fieldId}-error` : undefined}
+          className="staff-register-field-error"
+        >
+          {error}
+        </small>
+      ) : null}
     </label>
   );
 }
@@ -1277,9 +1567,16 @@ function Stepper({ currentStep, onStepSelect }) {
             onClick={() => {
               if (isReached) onStepSelect(item.id);
             }}
+            disabled={!isReached}
             aria-current={item.id === currentStep ? "step" : undefined}
           >
-            <span>{item.id}</span>
+            <span>
+              {item.id < currentStep ? (
+                <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+              ) : (
+                item.id
+              )}
+            </span>
             <small>{item.label}</small>
           </button>
         );
@@ -1302,6 +1599,7 @@ function StaffPatientsContent({ headerAction }) {
     return value && value !== "new" ? value : "";
   }, [location.pathname]);
   const registrationTopRef = useRef(null);
+  const registrationFieldRefs = useRef({});
   const walkInDateInputRef = useRef(null);
   const [screen, setScreen] = useState(() => {
     if (location.pathname.includes("/staff/patients/new/register")) return "register";
@@ -1312,6 +1610,7 @@ function StaffPatientsContent({ headerAction }) {
   const [query, setQuery] = useState("");
   const [activeModal, setActiveModal] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [registrationNotice, setRegistrationNotice] = useState(null);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [isSavingPatient, setIsSavingPatient] = useState(false);
   const [patientStatusFilter, setPatientStatusFilter] = useState("All");
@@ -1322,6 +1621,7 @@ function StaffPatientsContent({ headerAction }) {
   });
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(blankForm);
+  const [registrationErrors, setRegistrationErrors] = useState({});
   const [accessCredentials, setAccessCredentials] = useState({
     patientId: "",
     controlNumber: "",
@@ -1346,6 +1646,39 @@ function StaffPatientsContent({ headerAction }) {
   const [walkInRefreshKey, setWalkInRefreshKey] = useState(0);
   const [reservationClock, setReservationClock] = useState(() => Date.now());
   const finishRegistrationLockRef = useRef(false);
+  const registrationNoticeTimerRef = useRef(null);
+
+  const clearRegistrationNotice = () => {
+    if (registrationNoticeTimerRef.current) {
+      window.clearTimeout(registrationNoticeTimerRef.current);
+      registrationNoticeTimerRef.current = null;
+    }
+    setRegistrationNotice(null);
+  };
+
+  const showRegistrationNotice = ({ tone, message, detail = "", autoDismiss }) => {
+    if (registrationNoticeTimerRef.current) {
+      window.clearTimeout(registrationNoticeTimerRef.current);
+      registrationNoticeTimerRef.current = null;
+    }
+
+    setRegistrationNotice({ tone, message, detail });
+    if (autoDismiss) {
+      registrationNoticeTimerRef.current = window.setTimeout(() => {
+        setRegistrationNotice(null);
+        registrationNoticeTimerRef.current = null;
+      }, registrationNoticeDurationMs);
+    }
+  };
+
+  useEffect(
+    () => () => {
+      if (registrationNoticeTimerRef.current) {
+        window.clearTimeout(registrationNoticeTimerRef.current);
+      }
+    },
+    []
+  );
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -1489,6 +1822,91 @@ function StaffPatientsContent({ headerAction }) {
     restoreActiveWalkInReservation();
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let statusChannel = null;
+    let refreshPromise = null;
+
+    const refreshPatientAccountStatuses = () => {
+      if (refreshPromise) return refreshPromise;
+
+      refreshPromise = supabase
+        .rpc("get_staff_patient_directory")
+        .select("id, status, account_status, user_id, archived_at, archived_by")
+        .then(({ data, error }) => {
+          if (!active) return;
+          if (error) {
+            if (import.meta.env.DEV) {
+              console.warn("Refresh Staff patient account statuses failed:", error);
+            }
+            return;
+          }
+          setPatients((current) => mergePatientAccountStatuses(current, data));
+        })
+        .finally(() => {
+          refreshPromise = null;
+        });
+
+      return refreshPromise;
+    };
+
+    const handlePatientStatusBroadcast = ({ payload } = {}) => {
+      const updatedPatient = payload?.payload || payload;
+      if (!updatedPatient?.id) return;
+      setPatients((current) =>
+        mergePatientAccountStatuses(current, [updatedPatient])
+      );
+    };
+
+    const subscribeToPatientStatusChanges = async () => {
+      try {
+        await supabase.realtime.setAuth();
+        if (!active) return;
+
+        statusChannel = supabase
+          .channel(staffPatientStatusTopic, { config: { private: true } })
+          .on(
+            "broadcast",
+            { event: "patient_account_status_updated" },
+            handlePatientStatusBroadcast
+          )
+          .subscribe((status) => {
+            if (status === "SUBSCRIBED") {
+              void refreshPatientAccountStatuses();
+            }
+          });
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn("Subscribe to Staff patient account statuses failed:", error);
+        }
+      }
+    };
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPatientAccountStatuses();
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPatientAccountStatuses();
+      }
+    };
+
+    void subscribeToPatientStatusChanges();
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (statusChannel) {
+        void supabase.removeChannel(statusChannel);
+      }
     };
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -1851,6 +2269,7 @@ function StaffPatientsContent({ headerAction }) {
       setForm({
         ...blankForm,
         ...restoredForm,
+        sexAtBirth: "Female",
         medicalConditions: restoredForm.medicalConditions || [],
         familyHistory: restoredForm.familyHistory || [],
         maternalFamilyHistory: getFamilySideHistory(restoredForm, "Mother"),
@@ -1965,24 +2384,63 @@ function StaffPatientsContent({ headerAction }) {
     return "No walk-in slots are available for the selected date.";
   }, [doctors.length, selectedDoctor, visibleWalkInSlots, walkInError]);
 
+  const clearResolvedRegistrationError = (field, nextForm) => {
+    setRegistrationErrors((current) => {
+      const nextFieldErrors = {
+        ...getStepOneValidationErrors(nextForm),
+        ...getStepTwoValidationErrors(nextForm),
+      };
+
+      if (!current[field] || nextFieldErrors[field]) {
+        return current;
+      }
+
+      const nextErrors = { ...current };
+      delete nextErrors[field];
+      return nextErrors;
+    });
+  };
+
   const updateForm = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }));
+    const nextForm = { ...form, [field]: value };
+    setForm(nextForm);
+    clearResolvedRegistrationError(field, nextForm);
+    if (field === "nationality" && value !== "Other") {
+      clearResolvedRegistrationError("nationalityOther", nextForm);
+    }
+    if (field === "gravida") {
+      clearResolvedRegistrationError("para", nextForm);
+    }
+  };
+
+  const normalizeFormField = (field) => {
+    if (!humanReadableRegistrationFields.includes(field)) return;
+    const nextForm = {
+      ...form,
+      [field]: normalizeHumanReadableText(form[field]),
+    };
+    setForm(nextForm);
+    clearResolvedRegistrationError(field, nextForm);
   };
 
   const updateBirthdate = (value) => {
-    setForm((current) => ({
-      ...current,
+    const nextForm = {
+      ...form,
       birthdate: value,
       age: calculateAgeFromBirthdate(value),
-    }));
+    };
+    setForm(nextForm);
+    clearResolvedRegistrationError("birthdate", nextForm);
   };
 
   const updateLmp = (value) => {
-    setForm((current) => ({
-      ...current,
+    const nextForm = {
+      ...form,
       lmp: value,
-      edd: current.edd || addDaysToDateInput(value, 280),
-    }));
+      edd: value ? addCalendarDaysToDateInput(value, 280) : "",
+    };
+    setForm(nextForm);
+    clearResolvedRegistrationError("lmp", nextForm);
   };
 
   const addPregnancyRecord = () => {
@@ -2585,6 +3043,7 @@ function StaffPatientsContent({ headerAction }) {
   };
 
   const openRegister = () => {
+    clearRegistrationNotice();
     if (activeWalkInReservation) {
       setStatusMessage("");
       setWalkInError("");
@@ -2597,6 +3056,7 @@ function StaffPatientsContent({ headerAction }) {
     window.sessionStorage.removeItem(staffRegistrationSessionKey);
     setStep(1);
     setForm(blankForm);
+    setRegistrationErrors({});
     setStatusMessage("");
     setAccessCredentials({ patientId: "", controlNumber: "" });
     setRegistrationView("form");
@@ -2829,6 +3289,7 @@ function StaffPatientsContent({ headerAction }) {
       );
       setCredentialPool(nextCredentialPool);
       setForm(blankForm);
+      setRegistrationErrors({});
       setAccessCredentials(createAccessCredentials(nextCredentialPool));
       setStep(1);
       setScreen("list");
@@ -2873,53 +3334,52 @@ function StaffPatientsContent({ headerAction }) {
     });
   };
 
+  const focusRegistrationField = (field) => {
+    window.requestAnimationFrame(() => {
+      const control = registrationFieldRefs.current[field];
+      control?.scrollIntoView({ behavior: "smooth", block: "center" });
+      control?.focus({ preventScroll: true });
+    });
+  };
+
+  const setRegistrationFieldRef = (field) => (node) => {
+    registrationFieldRefs.current[field] = node;
+  };
+
   const validateRegistrationStep = (stepNumber, showMessage = true) => {
     let message = "";
+    let firstInvalidField = "";
 
     if (stepNumber === 1) {
-      if (!form.name.trim()) message = "Patient name is required.";
-      else if (!form.age.trim() || !form.birthdate || !form.address.trim()) {
-        message = "Please complete the required age, birthdate, and home address fields.";
-      } else if (isFutureDateInput(form.birthdate)) {
-        message = "Birthdate cannot be in the future.";
-      } else if (!form.contactNumber.trim()) {
-        message = "Patient contact number is required.";
-      } else if (
-        form.email.trim() &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
-      ) {
-        message = "Enter a valid Patient email address.";
+      const fieldErrors = getStepOneValidationErrors(form);
+      const invalidFields = Object.keys(fieldErrors);
+      setRegistrationErrors(fieldErrors);
+
+      if (invalidFields.length) {
+        firstInvalidField = invalidFields[0];
+        message = "Review the highlighted required information before continuing.";
       }
     }
 
     if (stepNumber === 2) {
-      if (!form.gravida.trim() || !form.para.trim()) {
-        message = "Gravida and Para are required.";
-      } else {
-        const ageAtMenarche = parseOptionalNumber(form.ageMenarche);
-        const cycleLength = parseOptionalNumber(form.cycleLength);
-        const menstruationDuration = parseOptionalNumber(form.durationMenstruation);
-        const gravida = parseOptionalNumber(form.gravida);
-        const para = parseOptionalNumber(form.para);
+      const fieldErrors = getStepTwoValidationErrors(form);
+      const invalidFields = Object.keys(fieldErrors);
+      setRegistrationErrors((current) => {
+        const nextErrors = { ...current };
+        [
+          "ageMenarche",
+          "gravida",
+          "para",
+          "cycleLength",
+          "durationMenstruation",
+          "lmp",
+        ].forEach((field) => delete nextErrors[field]);
+        return { ...nextErrors, ...fieldErrors };
+      });
 
-        if (!isNumberInRange(ageAtMenarche, 8, 25)) {
-          message = "Age at Menarche must be between 8 and 25 years old. Leave it blank if unknown.";
-        } else if (gravida !== null && gravida < 0) {
-          message = "Gravida cannot be negative.";
-        } else if (para !== null && para < 0) {
-          message = "Para cannot be negative.";
-        } else if (gravida !== null && para !== null && para > gravida) {
-          message = "Para should not exceed Gravida.";
-        } else if (cycleLength !== null && (cycleLength < 15 || cycleLength > 60)) {
-          message = "Cycle Length must be between 15 and 60 days. Example: 28.";
-        } else if (
-          menstruationDuration !== null &&
-          (menstruationDuration < 1 || menstruationDuration > 15)
-        ) {
-          message = "Duration of Menstruation must be between 1 and 15 days. Example: 5.";
-        } else if (isFutureDateInput(form.lmp)) {
-          message = "Last Menstrual Period cannot be in the future.";
-        }
+      if (invalidFields.length) {
+        firstInvalidField = invalidFields[0];
+        message = "Review the highlighted obstetric information before continuing.";
       }
     }
 
@@ -2954,7 +3414,11 @@ function StaffPatientsContent({ headerAction }) {
       setStep(stepNumber);
       setRegistrationView("form");
       setStatusMessage(message);
-      scrollRegistrationToTop();
+      if (firstInvalidField) {
+        focusRegistrationField(firstInvalidField);
+      } else {
+        scrollRegistrationToTop();
+      }
     }
 
     return !message;
@@ -3164,6 +3628,7 @@ function StaffPatientsContent({ headerAction }) {
       }
 
       setForm(blankForm);
+      setRegistrationErrors({});
       window.sessionStorage.removeItem(staffRegistrationSessionKey);
       window.sessionStorage.removeItem(staffWalkInSlotSessionKey);
       setAccessCredentials({ patientId: "", controlNumber: "" });
@@ -3176,14 +3641,41 @@ function StaffPatientsContent({ headerAction }) {
       setStep(1);
       setScreen("list");
       navigate("/staff/patients");
-      setStatusMessage(
-        appointmentNotificationResult
-          ? appointmentNotificationResult.ok
-            ? "Patient registration completed. Appointment created and Patient notified."
-            : "Patient registration completed and the appointment was saved, but the Patient notification could not be sent."
-          : "Patient registration completed successfully. The Patient can now create or log in to their Patient account using the QR code and one-time control number."
-      );
-      setActiveModal("saved");
+      if (!appointmentNotificationResult) {
+        showRegistrationNotice({
+          tone: "success",
+          message: "Patient registered successfully.",
+          detail:
+            "The Patient can activate her account using the QR code and one-time control number.",
+          autoDismiss: true,
+        });
+      } else if (appointmentNotificationResult.ok) {
+        showRegistrationNotice({
+          tone: "success",
+          message: "Patient registered successfully and the appointment was saved.",
+          detail: "The Patient was notified.",
+          autoDismiss: true,
+        });
+      } else if (
+        appointmentNotificationResult.skipped &&
+        appointmentNotificationResult.reason === "patient_not_linked"
+      ) {
+        showRegistrationNotice({
+          tone: "info",
+          message: "Patient registered successfully and the appointment was saved.",
+          detail:
+            "Patient notifications will become available after the Patient activates her account.",
+          autoDismiss: true,
+        });
+      } else {
+        showRegistrationNotice({
+          tone: "warning",
+          message: "Patient registered successfully and the appointment was saved.",
+          detail:
+            "The Patient notification could not be sent. Confirm that the Patient account is active, then try again.",
+          autoDismiss: false,
+        });
+      }
     } catch (error) {
       console.error("Finish Patient registration failed:", error);
       setStatusMessage(
@@ -3213,60 +3705,149 @@ function StaffPatientsContent({ headerAction }) {
           </header>
 
           <div className="staff-register-grid">
+            <div className="staff-register-subsection-heading is-full">
+              <h4>Patient Information</h4>
+              <p>Primary demographic and contact information.</p>
+            </div>
             <InputField
               label="Patient's Name"
               required
               value={form.name}
               onChange={(value) => updateForm("name", value)}
+              onBlur={() => normalizeFormField("name")}
               placeholder="Enter Full Name"
               className="is-wide"
+              error={registrationErrors.name}
+              fieldId="registration-patient-name"
+              inputRef={setRegistrationFieldRef("name")}
+              autoComplete="name"
             />
             <InputField
-              label="Age"
-              required
-              value={form.age}
-              onChange={(value) => updateForm("age", value)}
-            />
-            <InputField
-              label="Birthdate"
+              label="Date of Birth"
               required
               type="date"
               value={form.birthdate}
               onChange={updateBirthdate}
               icon="solar:calendar-linear"
+              error={registrationErrors.birthdate}
+              fieldId="registration-birthdate"
+              inputRef={setRegistrationFieldRef("birthdate")}
             />
+            <InputField
+              label="Age"
+              value={form.age}
+              onChange={() => {}}
+              placeholder="Calculated from date of birth"
+              readOnly
+            />
+            <InputField
+              label="Sex at Birth"
+              required
+              value="Female"
+              onChange={() => {}}
+              error={registrationErrors.sexAtBirth}
+              fieldId="registration-sex-at-birth"
+              inputRef={setRegistrationFieldRef("sexAtBirth")}
+              readOnly
+            />
+            <SelectField
+              label="Civil Status"
+              required
+              value={form.civilStatus}
+              onChange={(value) => updateForm("civilStatus", value)}
+              error={registrationErrors.civilStatus}
+              fieldId="registration-civil-status"
+              selectRef={setRegistrationFieldRef("civilStatus")}
+            >
+              <option value="">Select civil status</option>
+              {civilStatusOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </SelectField>
+            <SelectField
+              label="Nationality"
+              value={form.nationality}
+              onChange={(value) => updateForm("nationality", value)}
+            >
+              <option value="">Not specified</option>
+              {nationalityOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </SelectField>
+            {form.nationality === "Other" ? (
+              <InputField
+                label="Specify Nationality"
+                value={form.nationalityOther}
+                onChange={(value) => updateForm("nationalityOther", value)}
+                onBlur={() => normalizeFormField("nationalityOther")}
+                placeholder="Enter nationality"
+                error={registrationErrors.nationalityOther}
+                fieldId="registration-nationality-other"
+                inputRef={setRegistrationFieldRef("nationalityOther")}
+              />
+            ) : null}
             <InputField
               label="Home Address"
               required
               value={form.address}
               onChange={(value) => updateForm("address", value)}
+              onBlur={() => normalizeFormField("address")}
               placeholder="House no., Street, Barangay, City/Municipality"
               className="is-full"
+              error={registrationErrors.address}
+              fieldId="registration-address"
+              inputRef={setRegistrationFieldRef("address")}
+              autoComplete="street-address"
             />
             <InputField
-              label="Contact Number"
+              label="Patient Contact Number"
               required
               value={form.contactNumber}
               onChange={(value) => updateForm("contactNumber", value)}
               placeholder="09XXXXXXXXX"
               className="is-half"
+              error={registrationErrors.contactNumber}
+              fieldId="registration-contact-number"
+              inputRef={setRegistrationFieldRef("contactNumber")}
+              inputMode="tel"
+              autoComplete="tel"
             />
+            <InputField
+              label="Email Address"
+              type="email"
+              value={form.email}
+              onChange={(value) => updateForm("email", value)}
+              onBlur={() => updateForm("email", form.email.trim())}
+              className="is-half"
+              error={registrationErrors.email}
+              fieldId="registration-email"
+              inputRef={setRegistrationFieldRef("email")}
+              autoComplete="email"
+            />
+
+            <div className="staff-register-subsection-heading is-full">
+              <h4>Employment Information</h4>
+              <p>Optional employment details.</p>
+            </div>
             <InputField
               label="Occupation"
               value={form.occupation}
               onChange={(value) => updateForm("occupation", value)}
-              className="is-half"
-            />
-            <InputField
-              label="Work Address"
-              value={form.workAddress}
-              onChange={(value) => updateForm("workAddress", value)}
+              onBlur={() => normalizeFormField("occupation")}
               className="is-half"
             />
             <InputField
               label="Company"
               value={form.company}
               onChange={(value) => updateForm("company", value)}
+              onBlur={() => normalizeFormField("company")}
+              className="is-half"
+            />
+            <InputField
+              label="Work Address"
+              value={form.workAddress}
+              onChange={(value) => updateForm("workAddress", value)}
+              onBlur={() => normalizeFormField("workAddress")}
               className="is-half"
             />
             <InputField
@@ -3274,25 +3855,65 @@ function StaffPatientsContent({ headerAction }) {
               value={form.workContactNumber}
               onChange={(value) => updateForm("workContactNumber", value)}
               className="is-half"
+              inputMode="tel"
             />
+
+            <div className="staff-register-subsection-heading is-full">
+              <h4>Partner Information</h4>
+              <p>Optional husband or partner information.</p>
+            </div>
             <InputField
-              label="Email Address"
-              type="email"
-              value={form.email}
-              onChange={(value) => updateForm("email", value)}
-              className="is-half"
-            />
-            <InputField
-              label="Husband/Partner"
+              label="Husband / Partner"
               value={form.husbandPartner}
               onChange={(value) => updateForm("husbandPartner", value)}
+              onBlur={() => normalizeFormField("husbandPartner")}
               className="is-half"
             />
             <InputField
-              label="Contact Number"
+              label="Partner Contact Number"
               value={form.partnerContactNumber}
               onChange={(value) => updateForm("partnerContactNumber", value)}
               className="is-half"
+              inputMode="tel"
+            />
+
+            <div className="staff-register-subsection-heading is-full">
+              <h4>Emergency Contact</h4>
+              <p>Required contact to use in an emergency.</p>
+            </div>
+            <InputField
+              label="Contact Person"
+              required
+              value={form.emergencyContactPerson}
+              onChange={(value) => updateForm("emergencyContactPerson", value)}
+              onBlur={() => normalizeFormField("emergencyContactPerson")}
+              error={registrationErrors.emergencyContactPerson}
+              fieldId="registration-emergency-person"
+              inputRef={setRegistrationFieldRef("emergencyContactPerson")}
+              autoComplete="name"
+            />
+            <InputField
+              label="Relationship"
+              required
+              value={form.emergencyContactRelationship}
+              onChange={(value) => updateForm("emergencyContactRelationship", value)}
+              onBlur={() => normalizeFormField("emergencyContactRelationship")}
+              error={registrationErrors.emergencyContactRelationship}
+              fieldId="registration-emergency-relationship"
+              inputRef={setRegistrationFieldRef("emergencyContactRelationship")}
+            />
+            <InputField
+              label="Contact Number"
+              required
+              value={form.emergencyContactNumber}
+              onChange={(value) => updateForm("emergencyContactNumber", value)}
+              placeholder="09XXXXXXXXX"
+              className="is-half"
+              error={registrationErrors.emergencyContactNumber}
+              fieldId="registration-emergency-number"
+              inputRef={setRegistrationFieldRef("emergencyContactNumber")}
+              inputMode="tel"
+              autoComplete="tel"
             />
           </div>
 
@@ -3322,6 +3943,10 @@ function StaffPatientsContent({ headerAction }) {
               value={form.ageMenarche}
               onChange={(value) => updateForm("ageMenarche", value)}
               placeholder="Enter age"
+              error={registrationErrors.ageMenarche}
+              fieldId="registration-age-menarche"
+              inputRef={setRegistrationFieldRef("ageMenarche")}
+              inputMode="numeric"
             />
             <RadioGroup
               label="Menstrual Pattern"
@@ -3334,12 +3959,20 @@ function StaffPatientsContent({ headerAction }) {
               value={form.cycleLength}
               onChange={(value) => updateForm("cycleLength", value)}
               placeholder="Enter days"
+              error={registrationErrors.cycleLength}
+              fieldId="registration-cycle-length"
+              inputRef={setRegistrationFieldRef("cycleLength")}
+              inputMode="numeric"
             />
             <InputField
               label="Duration of Menstruation"
               value={form.durationMenstruation}
               onChange={(value) => updateForm("durationMenstruation", value)}
               placeholder="Enter days"
+              error={registrationErrors.durationMenstruation}
+              fieldId="registration-menstruation-duration"
+              inputRef={setRegistrationFieldRef("durationMenstruation")}
+              inputMode="numeric"
             />
             <RadioGroup
               label="Sexually Active"
@@ -3358,6 +3991,10 @@ function StaffPatientsContent({ headerAction }) {
                 value={form.gravida}
                 onChange={(value) => updateForm("gravida", value)}
                 placeholder="Enter number"
+                error={registrationErrors.gravida}
+                fieldId="registration-gravida"
+                inputRef={setRegistrationFieldRef("gravida")}
+                inputMode="numeric"
               />
               <InputField
                 label="Para (P)"
@@ -3365,6 +4002,10 @@ function StaffPatientsContent({ headerAction }) {
                 value={form.para}
                 onChange={(value) => updateForm("para", value)}
                 placeholder="Enter number"
+                error={registrationErrors.para}
+                fieldId="registration-para"
+                inputRef={setRegistrationFieldRef("para")}
+                inputMode="numeric"
               />
               <InputField
                 label="Last Menstrual Period (LMP)"
@@ -3372,6 +4013,9 @@ function StaffPatientsContent({ headerAction }) {
                 value={form.lmp}
                 onChange={updateLmp}
                 icon="solar:calendar-linear"
+                error={registrationErrors.lmp}
+                fieldId="registration-lmp"
+                inputRef={setRegistrationFieldRef("lmp")}
               />
               <InputField
                 label="Estimated Due Date (EDD)"
@@ -3797,9 +4441,15 @@ function StaffPatientsContent({ headerAction }) {
             <div><dt>Patient</dt><dd>{form.name}</dd></div>
             <div><dt>Birthdate</dt><dd>{form.birthdate}</dd></div>
             <div><dt>Age</dt><dd>{form.age}</dd></div>
+            <div><dt>Sex at Birth</dt><dd>{form.sexAtBirth}</dd></div>
+            <div><dt>Civil Status</dt><dd>{form.civilStatus}</dd></div>
+            <div><dt>Nationality</dt><dd>{getResolvedNationality(form) || "Not provided"}</dd></div>
             <div><dt>Contact</dt><dd>{form.contactNumber}</dd></div>
             <div><dt>Email</dt><dd>{form.email || "Not provided"}</dd></div>
             <div><dt>Address</dt><dd>{form.address}</dd></div>
+            <div><dt>Emergency Contact</dt><dd>{form.emergencyContactPerson}</dd></div>
+            <div><dt>Relationship</dt><dd>{form.emergencyContactRelationship}</dd></div>
+            <div><dt>Emergency Number</dt><dd>{form.emergencyContactNumber}</dd></div>
           </dl>
           <button type="button" onClick={() => moveToRegistrationStep(1)}>Edit Basic Information</button>
         </section>
@@ -4290,6 +4940,44 @@ function StaffPatientsContent({ headerAction }) {
         action={headerAction}
         className="staff-patients-header staff-section-header"
       />
+
+      <div className="staff-patients-notice-region" aria-live="polite">
+        {registrationNotice ? (
+          <div
+            className={`staff-patients-notice is-${registrationNotice.tone}`}
+            role={
+              registrationNotice.tone === "warning" ||
+              registrationNotice.tone === "error"
+                ? "alert"
+                : "status"
+            }
+          >
+            <Icon
+              icon={
+                registrationNotice.tone === "success"
+                  ? "solar:check-circle-bold"
+                  : registrationNotice.tone === "info"
+                    ? "solar:info-circle-bold"
+                    : "solar:danger-triangle-bold"
+              }
+              aria-hidden="true"
+            />
+            <span>
+              <strong>{registrationNotice.message}</strong>
+              {registrationNotice.detail ? (
+                <small>{registrationNotice.detail}</small>
+              ) : null}
+            </span>
+            <button
+              type="button"
+              onClick={clearRegistrationNotice}
+              aria-label="Dismiss registration notice"
+            >
+              <Icon icon="solar:close-circle-linear" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <PatientDirectoryToolbar className="staff-patients-actions">
         <PatientDirectorySearch

@@ -177,6 +177,33 @@ export function toManilaISOString(dateValue, timeValue = "00:00") {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
+export function addCalendarDaysToDateInput(dateValue, days) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateValue || ""));
+  const dayOffset = Number(days);
+  if (!match || !Number.isInteger(dayOffset)) return "";
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, monthIndex, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== monthIndex ||
+    date.getUTCDate() !== day
+  ) {
+    return "";
+  }
+
+  date.setUTCDate(date.getUTCDate() + dayOffset);
+  return [
+    String(date.getUTCFullYear()).padStart(4, "0"),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 export function getManilaDayRange(value = new Date()) {
   const dateKey = getManilaDateKey(value);
   if (!dateKey) return null;
@@ -236,6 +263,23 @@ export function classifyAppointment(appointment, nowValue = new Date()) {
   };
 }
 
+export function getAppointmentStatusTab(status) {
+  switch (normalizeAppointmentStatus(status)) {
+    case appointmentStatuses.checkedIn:
+      return "Checked-in";
+    case appointmentStatuses.completed:
+      return "Completed";
+    case appointmentStatuses.cancelled:
+      return "Cancelled";
+    case appointmentStatuses.missed:
+      return "Missed";
+    case appointmentStatuses.scheduled:
+      return status ? "Pending" : "";
+    default:
+      return "";
+  }
+}
+
 export function isAppointmentNoShowEligible(appointment, nowValue = new Date()) {
   const classification = classifyAppointment(appointment, nowValue);
   return Boolean(
@@ -253,6 +297,41 @@ export function compareHistoryAppointments(first, second) {
   const firstStart = getAppointmentStart(first)?.getTime() ?? Number.NEGATIVE_INFINITY;
   const secondStart = getAppointmentStart(second)?.getTime() ?? Number.NEGATIVE_INFINITY;
   return secondStart - firstStart;
+}
+
+export function compareAppointmentsByStatusPriority(first, second) {
+  const getPriority = (appointment) => {
+    const status = normalizeAppointmentStatus(
+      appointment?.databaseStatus ?? appointment?.status
+    );
+    const classification = classifyAppointment(appointment);
+
+    if (status === appointmentStatuses.checkedIn) return 0;
+    if (
+      status === appointmentStatuses.scheduled &&
+      classification.category === "overdue"
+    ) {
+      return 1;
+    }
+    if (status === appointmentStatuses.scheduled) return 2;
+    if (status === appointmentStatuses.completed) return 3;
+    if (status === appointmentStatuses.cancelled) return 4;
+    if (status === appointmentStatuses.missed) return 5;
+    return 6;
+  };
+
+  const firstPriority = getPriority(first);
+  const secondPriority = getPriority(second);
+
+  if (firstPriority !== secondPriority) {
+    return firstPriority - secondPriority;
+  }
+
+  if (firstPriority === 1 || firstPriority >= 3) {
+    return compareHistoryAppointments(first, second);
+  }
+
+  return compareUpcomingAppointments(first, second);
 }
 
 export function formatAppointmentDate(value, options = {}) {

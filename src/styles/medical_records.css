@@ -2721,6 +2721,11 @@ body:has(.medical-records-page),
   gap: 14px;
 }
 
+.mr-record-panel--medical .mr-medical-record-list {
+  min-height: 420px;
+  align-content: start;
+}
+
 .mr-medical-record-selector {
   min-width: 0;
   display: flex;

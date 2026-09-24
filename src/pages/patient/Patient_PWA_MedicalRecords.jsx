@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  calculateClinicalBmi,
+  getClinicalVisitHeight,
+  getClinicalVisitWeight,
+  getLatestInitialVisitHeight,
+  isFollowUpClinicalVisit,
+  normalizeClinicalVisitFormData,
+} from "../../lib/clinicalVisitData";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
 import "../../styles/patient-PWA-medicalrecords.css";
 
@@ -25,7 +33,7 @@ const findingUnits = {
 };
 
 function getFormData(row) {
-  return row?.form_data && typeof row.form_data === "object" ? row.form_data : {};
+  return normalizeClinicalVisitFormData(row);
 }
 
 function cleanRecordValue(value) {
@@ -130,32 +138,55 @@ function normalizeFinding(item) {
   };
 }
 
-function normalizeFindings(formData) {
+function normalizeFindings(formData, baselineHeight = "") {
   const clinicalFindings =
     formData.clinicalFindings && typeof formData.clinicalFindings === "object"
       ? formData.clinicalFindings
       : {};
+  const isFollowUp = isFollowUpClinicalVisit(formData);
+  const currentHeight = getClinicalVisitHeight(formData);
+  const displayHeight = currentHeight || (isFollowUp ? baselineHeight : "");
+  const heightLabel = isFollowUp && !currentHeight && displayHeight
+    ? "Baseline Height"
+    : "Height";
+  const weight = getClinicalVisitWeight(formData);
+  const bmi =
+    calculateClinicalBmi(weight, displayHeight) ||
+    cleanRecordValue(clinicalFindings.bmi || formData.bmi);
 
   if (Array.isArray(formData.findings) && formData.findings.length) {
-    return formData.findings.map(normalizeFinding);
+    const findings = formData.findings
+      .map(normalizeFinding)
+      .filter((item) => {
+        const label = String(item.label || "").trim().toLowerCase();
+        return !["heart rate", "maternal heart rate", "height", "baseline height", "bmi"].includes(label);
+      });
+
+    if (displayHeight) findings.push({ label: heightLabel, value: displayHeight, unit: "cm" });
+    if (bmi) findings.push({ label: "BMI", value: bmi, unit: "kg/m²" });
+    return findings;
   }
 
   return [
     { label: "Blood Pressure", value: clinicalFindings.bloodPressure || formData.bloodPressure || "-", unit: "mmHg" },
-    { label: "Weight", value: clinicalFindings.weight || formData.weight || "-", unit: "kg" },
+    { label: "Weight", value: weight || "-", unit: "kg" },
     { label: "Temp", value: clinicalFindings.temperature || formData.temperature || "-", unit: "C" },
-    { label: "Heart Rate", value: clinicalFindings.heartRate || formData.heartRate || "-", unit: "bpm" },
-    { label: "Height", value: clinicalFindings.height || formData.height || "-", unit: "cm" },
-    { label: "BMI", value: clinicalFindings.bmi || formData.bmi || "-", unit: "kg/m2" },
+    { label: "Respiratory Rate", value: clinicalFindings.respiratoryRate || formData.respiratoryRate, unit: "breaths/min" },
+    { label: heightLabel, value: displayHeight, unit: "cm" },
+    { label: "BMI", value: bmi, unit: "kg/m²" },
+    { label: "Oxygen Saturation", value: clinicalFindings.oxygenSaturation || formData.oxygenSaturation, unit: "%" },
     { label: "Fetal Heart Rate", value: clinicalFindings.fetalHeartRate || formData.fetalHeartRate || "-", unit: "bpm" },
     { label: "Fundal Height", value: clinicalFindings.fundalHeight || formData.fundalHeight || "-", unit: "cm" },
-  ];
+    { label: "Estimated Fetal Weight", value: clinicalFindings.estimatedFetalWeight || formData.estimatedFetalWeight, unit: "kg" },
+    { label: "Baby Position", value: clinicalFindings.babyPosition || formData.babyPosition, unit: "" },
+    { label: "Fetal Movement", value: clinicalFindings.fetalMovement || formData.fetalMovement, unit: "" },
+    { label: "Additional Findings", value: clinicalFindings.additionalFindings || formData.additionalFindings, unit: "" },
+  ].filter((item) => cleanRecordValue(item.value) || ["Blood Pressure", "Weight", "Temp", "Fetal Heart Rate", "Fundal Height"].includes(item.label));
 }
 
 function normalizeAssessment(formData, row) {
   const values = [
     ...toList(formData.assessment),
-    ...toList(formData.symptoms),
     ...toList(formData.dangerSigns),
     ...toList(formData.additionalNotes),
   ];
@@ -183,11 +214,13 @@ function normalizeObstetric(formData) {
       : {};
 
   if (obstetric.length) {
-    return obstetric.map((item) => ({
-      label: item.label || item.name || "Information",
-      value: item.value || "-",
-      wide: Boolean(item.wide),
-    }));
+    return obstetric
+      .map((item) => ({
+        label: item.label || item.name || "Information",
+        value: item.value || "-",
+        wide: Boolean(item.wide),
+      }))
+      .filter((item) => String(item.label).trim().toLowerCase() !== "follow-up date");
   }
 
   return [
@@ -207,11 +240,6 @@ function normalizeObstetric(formData) {
     {
       label: "Expected Delivery Date",
       value: pregnancyStatus.expectedDeliveryDate || formData.expectedDeliveryDate || "-",
-      wide: true,
-    },
-    {
-      label: "Follow-up Date",
-      value: formData.followUpDate || "-",
       wide: true,
     },
   ];
@@ -326,7 +354,7 @@ async function createAttachmentUrl(attachment) {
   return data.signedUrl;
 }
 
-function mapMedicalRecord(row, linkedSchedule = null) {
+function mapMedicalRecord(row, linkedSchedule = null, baselineHeight = "") {
   const formData = getFormData(row);
 
   // Canonical clinical visit date/time comes from the linked appointment.
@@ -383,8 +411,7 @@ function mapMedicalRecord(row, linkedSchedule = null) {
       formData.recordStatus || formData.status || linkedSchedule?.status
     ),
     complaint,
-    symptoms: formData.symptoms || "Not recorded",
-    findings: normalizeFindings(formData),
+    findings: normalizeFindings(formData, baselineHeight),
     assessment: normalizeAssessment(formData, row),
     obstetric: normalizeObstetric(formData),
     treatment: normalizeTreatment(formData),
@@ -510,7 +537,6 @@ function mapRegistrationMedicalRecord(patient, obstetric, medicalHistory, assess
       assessment?.assessment_others ||
       patient?.medical_notes ||
       "Patient registration and initial maternal health assessment.",
-    symptoms: "Not recorded",
     findings,
     assessment: toList(assessmentItems.join("\n")).length
       ? toList(assessmentItems.join("\n"))
@@ -663,8 +689,13 @@ export default function PatientPWAMedicalRecords({ profile }) {
         setLoadError(`Formal medical records could not be loaded: ${error.message}`);
       }
 
+      const baselineHeight = getLatestInitialVisitHeight(formalRecords);
       const mappedRecords = formalRecords.map((record) =>
-        mapMedicalRecord(record, schedulesById.get(record.schedule_id) || null)
+        mapMedicalRecord(
+          record,
+          schedulesById.get(record.schedule_id) || null,
+          baselineHeight
+        )
       );
 
       // Keep registration information only as a fallback for patients who do not
@@ -917,8 +948,6 @@ function MedicalRecordCard({ record }) {
           <section className="pwa-record-section pwa-chief-section">
             <SectionTitle title="Chief Complaint" />
             <p>{record.complaint}</p>
-            <h3>Symptoms / Concerns</h3>
-            <p>{record.symptoms}</p>
           </section>
 
           <section className="pwa-record-section pwa-findings-section">

@@ -9,21 +9,21 @@ const SERVICES = [
   {
     id: "prenatal",
     title: "Prenatal Check-up",
-    databaseTitle: "Follow-up Prenatal Check-up",
+    databaseTitle: "Prenatal Check-up",
     description: "Regular check-up for you and your baby",
     icon: "solar:stethoscope-linear",
   },
   {
     id: "ultrasound",
     title: "Ultrasound Appointment",
-    databaseTitle: "Ultrasound Examination",
+    databaseTitle: "Ultrasound Appointment",
     description: "Ultrasound scan and monitoring",
     icon: "solar:monitor-camera-linear",
   },
   {
     id: "laboratory",
     title: "Laboratory Test Appointment",
-    databaseTitle: "Laboratory Test",
+    databaseTitle: "Laboratory Test Appointment",
     description: "Required laboratory exams",
     icon: "solar:test-tube-linear",
   },
@@ -37,7 +37,7 @@ const SERVICES = [
   {
     id: "follow-up",
     title: "Follow-up Consultation",
-    databaseTitle: "Follow-up Prenatal Check-up",
+    databaseTitle: "Follow-up Consultation",
     description: "Follow-up on previous visit",
     icon: "solar:clipboard-text-linear",
   },
