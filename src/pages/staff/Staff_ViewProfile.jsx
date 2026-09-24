@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
+import { classifyAppointment } from "../../lib/appointmentDate";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import {
@@ -122,17 +123,8 @@ function isStaffAppointmentInSummaryPeriod(appointment, period) {
 }
 
 function isStaffAppointmentToday(appointment) {
-  const appointmentTime = new Date(appointment?.start_time || "");
-
-  if (Number.isNaN(appointmentTime.getTime())) return false;
-
-  const today = new Date();
-
-  return (
-    appointmentTime.getFullYear() === today.getFullYear() &&
-    appointmentTime.getMonth() === today.getMonth() &&
-    appointmentTime.getDate() === today.getDate()
-  );
+  const classification = classifyAppointment(appointment);
+  return classification.isToday && classification.isActionable;
 }
 
 function normalizeStaffAppointmentStatus(value) {
@@ -372,15 +364,6 @@ function StaffViewProfileContent({
   const [profilePhoto, setProfilePhoto] = useState(
     () => initialProfilePhoto || ""
   );
-
-  /*
-   * StaffDashboard stays mounted while Staff moves between sections.
-   * Reuse its already-loaded avatar immediately so View Profile never
-   * falls back to initials/old artwork while Supabase refreshes.
-   */
-  useEffect(() => {
-    setProfilePhoto(initialProfilePhoto || "");
-  }, [initialProfilePhoto]);
 
   const [profile, setProfile] = useState(
     initialProfileSnapshot

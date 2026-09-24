@@ -15,6 +15,7 @@ import {
   getStaffSettings,
   saveStaffSettings,
 } from "../../lib/staffProfile";
+import { isValidPhilippineMobileNumber } from "../../lib/philippinePhone";
 
 function StaffIcon({ name }) {
   const icons = {
@@ -977,6 +978,25 @@ function StaffSettingsContent({ headerAction }) {
     return () => window.clearInterval(timer);
   }, [changePasswordOtp.isOpen]);
 
+  React.useEffect(() => {
+    if (
+      typeof document === "undefined" ||
+      (!changeEmail.isOpen && !changePasswordOtp.isOpen)
+    ) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [changeEmail.isOpen, changePasswordOtp.isOpen]);
+
   const redirectToLoginAfterEmailChange = React.useCallback(() => {
     window.setTimeout(async () => {
       try {
@@ -1101,6 +1121,13 @@ function StaffSettingsContent({ headerAction }) {
   const saveProfileSettingsToSupabase = async (
     nextSettings
   ) => {
+    if (
+      nextSettings.contactNumber &&
+      !isValidPhilippineMobileNumber(nextSettings.contactNumber)
+    ) {
+      throw new Error("Enter a valid Philippine mobile number.");
+    }
+
     const user = await getAuthenticatedUser();
 
     const currentTimestamp = new Date().toISOString();
@@ -1262,6 +1289,13 @@ function StaffSettingsContent({ headerAction }) {
       const contactNumber = String(
         draftSettings.contactNumber ?? ""
       ).trim();
+
+      if (
+        contactNumber &&
+        !isValidPhilippineMobileNumber(contactNumber)
+      ) {
+        throw new Error("Enter a valid Philippine mobile number.");
+      }
 
       await saveAccountSettingsRecord({
         user_id: user.id,
@@ -1833,57 +1867,6 @@ function StaffSettingsContent({ headerAction }) {
         loadingLabel: "",
         error: getFriendlyAuthError(error),
       }));
-    }
-  };
-
-  const saveSecurityPreference = async (
-    field,
-    checked
-  ) => {
-    const previousSettings = draftSettings;
-    const nextSettings = {
-      ...draftSettings,
-      [field]: checked,
-    };
-
-    setDraftSettings(nextSettings);
-    setIsSavingSettings(true);
-    clearMessages();
-
-    try {
-      const user = await getAuthenticatedUser();
-
-      await saveAccountSettingsRecord({
-        user_id: user.id,
-        email_address: normalizeEmail(user.email) || null,
-        contact_number: nullableText(
-          nextSettings.contactNumber
-        ),
-        two_factor_auth: Boolean(
-          nextSettings.twoFactorAuth
-        ),
-        login_notifications: Boolean(
-          nextSettings.loginNotifications
-        ),
-      });
-
-      setSettings(nextSettings);
-      setSettingsMessage(
-        "Security preference was saved to Supabase."
-      );
-    } catch (error) {
-      console.error(
-        "Security preference save failed:",
-        error
-      );
-
-      setDraftSettings(previousSettings);
-      setSettingsError(
-        error?.message ||
-          "The security preference could not be saved."
-      );
-    } finally {
-      setIsSavingSettings(false);
     }
   };
 
@@ -2463,25 +2446,12 @@ function StaffSettingsContent({ headerAction }) {
                       </strong>
 
                       <small>
-                        Save the 2FA preference for this
-                        account. Supabase MFA enrollment
-                        must be implemented separately.
+                        MFA enrollment and sign-in challenge enforcement are not
+                        available yet.
                       </small>
                     </span>
 
-                    <input
-                      type="checkbox"
-                      checked={
-                        draftSettings.twoFactorAuth
-                      }
-                      onChange={(event) =>
-                        saveSecurityPreference(
-                          "twoFactorAuth",
-                          event.target.checked
-                        )
-                      }
-                      disabled={isSavingSettings}
-                    />
+                    <span className="staff-security-unavailable">Unavailable</span>
                   </label>
 
                   <label className="doctor-settings-security-option">
@@ -2491,25 +2461,11 @@ function StaffSettingsContent({ headerAction }) {
                       </strong>
 
                       <small>
-                        Save the login-notification
-                        preference. Sending the email must
-                        be implemented separately.
+                        Login-event security emails are not available yet.
                       </small>
                     </span>
 
-                    <input
-                      type="checkbox"
-                      checked={
-                        draftSettings.loginNotifications
-                      }
-                      onChange={(event) =>
-                        saveSecurityPreference(
-                          "loginNotifications",
-                          event.target.checked
-                        )
-                      }
-                      disabled={isSavingSettings}
-                    />
+                    <span className="staff-security-unavailable">Unavailable</span>
                   </label>
                 </section>
               </div>

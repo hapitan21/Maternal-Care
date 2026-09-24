@@ -14,6 +14,10 @@ import {
   requestAppointmentSms,
 } from "../../lib/appointmentSms";
 import { getAppointmentStatusPopoverPosition } from "../../lib/appointmentStatusPopover";
+import {
+  getStaffSessionSnapshot,
+  setStaffSessionSnapshot,
+} from "../../lib/staffSessionCache";
 import "../../styles/doctor-appointments.css";
 import "../../styles/appointment-ui-system.css";
 import {
@@ -1509,7 +1513,7 @@ function StaffRescheduleAppointmentDialog({
   );
 }
 
-function AppointmentSummary({ summary }) {
+function AppointmentSummary({ summary, isLoading = false }) {
   const cards = [
     {
       label: "Total",
@@ -1546,7 +1550,9 @@ function AppointmentSummary({ summary }) {
           </span>
           <div>
             <span>{card.label}</span>
-            <strong>{card.value}</strong>
+            <strong aria-label={isLoading ? "Loading" : undefined}>
+              {isLoading ? "—" : card.value}
+            </strong>
           </div>
         </article>
       ))}
@@ -1556,6 +1562,7 @@ function AppointmentSummary({ summary }) {
 
 function StaffAppointmentRequests({
   requests,
+  isLoading,
   totalRequests,
   currentPage,
   totalPages,
@@ -1665,6 +1672,11 @@ function StaffAppointmentRequests({
                     </article>
                   );
                 })
+              ) : isLoading ? (
+                <div className="doctor-request-empty" role="status">
+                  <Icon icon="solar:refresh-linear" aria-hidden="true" />
+                  <strong>Loading appointment requests...</strong>
+                </div>
               ) : (
                 <div className="doctor-request-empty">
                   <Icon icon="solar:inbox-linear" aria-hidden="true" />
@@ -1989,7 +2001,7 @@ function StaffAppointmentRequestDetails({
   );
 }
 
-function StaffAppointmentsContent({ headerAction }) {
+function StaffAppointmentsContent({ headerAction, staffUserId }) {
   const location = useLocation();
   const navigate = useNavigate();
   const visitRoute = parseAppointmentVisitRoute(location.pathname, "staff");
@@ -2014,9 +2026,24 @@ function StaffAppointmentsContent({ headerAction }) {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [appointments, setAppointments] = useState([]);
-  const [scheduleEvents, setScheduleEvents] = useState([]);
-  const [bookingRequests, setBookingRequests] = useState([]);
+  const [initialAppointmentsSnapshot] = useState(() =>
+    getStaffSessionSnapshot(staffUserId, "appointments")
+  );
+  const [appointments, setAppointments] = useState(
+    () => initialAppointmentsSnapshot?.appointments || []
+  );
+  const [scheduleEvents, setScheduleEvents] = useState(
+    () => initialAppointmentsSnapshot?.scheduleEvents || []
+  );
+  const [bookingRequests, setBookingRequests] = useState(
+    () => initialAppointmentsSnapshot?.bookingRequests || []
+  );
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(
+    !initialAppointmentsSnapshot
+  );
+  const [isLoadingRequests, setIsLoadingRequests] = useState(
+    !initialAppointmentsSnapshot
+  );
   const [requestSort, setRequestSort] = useState("newest");
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [requestDoctorId, setRequestDoctorId] = useState("");
@@ -2061,6 +2088,7 @@ function StaffAppointmentsContent({ headerAction }) {
   const rescheduleSaveLockRef = useRef(false);
   const visitRoutingLockRef = useRef("");
   const bookingRequestsRequestRef = useRef(null);
+  const appointmentsRequestRef = useRef(null);
   const successTimerRef = useRef(null);
   const dashboardStatusTargetAppliedRef = useRef(Boolean(dashboardStatusTarget));
 
@@ -2098,7 +2126,9 @@ function StaffAppointmentsContent({ headerAction }) {
       typeof document === "undefined" ||
       (!detailAppointment &&
         !cancelConfirmationAppointment &&
-        !rescheduleAppointment)
+        !rescheduleAppointment &&
+        !noShowConfirmationAppointment &&
+        !isAddAppointmentOpen)
     ) {
       return undefined;
     }
@@ -2116,6 +2146,8 @@ function StaffAppointmentsContent({ headerAction }) {
   }, [
     detailAppointment,
     cancelConfirmationAppointment,
+    isAddAppointmentOpen,
+    noShowConfirmationAppointment,
     rescheduleAppointment,
   ]);
 
@@ -2154,27 +2186,31 @@ function StaffAppointmentsContent({ headerAction }) {
     isVisitFormRoute,
   ]);
 
-  const loadAppointments = useCallback(async () => {
-    const { data, error } = await supabase
-      .from(scheduleTableName)
-      .select(scheduleColumns)
-      .order("start_time", { ascending: true });
-
-    if (error) {
-      console.error("Staff appointments load failed:", error);
-      setStatusMessage(`Unable to load appointments: ${error.message}`);
-      return;
+  const loadAppointments = useCallback(() => {
+    if (appointmentsRequestRef.current) {
+      return appointmentsRequestRef.current;
     }
 
-    const schedules = data || [];
-    const mappedAppointments =
-      schedules.map(mapScheduleToAppointment);
-    const appointmentById = new Map(
-      mappedAppointments.map((appointment) => [appointment.id, appointment])
-    );
+    const request = (async () => {
+      const { data, error } = await supabase
+        .from(scheduleTableName)
+        .select(scheduleColumns)
+        .order("start_time", { ascending: true });
 
-    setAppointments(mappedAppointments);
-    setScheduleEvents(schedules.map(mapScheduleToCalendarEvent));
+      if (error) {
+        console.error("Staff appointments load failed:", error);
+        setStatusMessage(`Unable to load appointments: ${error.message}`);
+        return { ok: false, error };
+      }
+
+      const schedules = data || [];
+      const mappedAppointments = schedules.map(mapScheduleToAppointment);
+      const appointmentById = new Map(
+        mappedAppointments.map((appointment) => [appointment.id, appointment])
+      );
+
+      setAppointments(mappedAppointments);
+      setScheduleEvents(schedules.map(mapScheduleToCalendarEvent));
     setDetailAppointment((current) =>
       current?.id ? appointmentById.get(current.id) || null : current
     );
@@ -2209,19 +2245,32 @@ function StaffAppointmentsContent({ headerAction }) {
      * Dashboard deep links still intentionally move the calendar to the exact
      * appointment date in the separate dashboardAppointmentTarget effect.
      */
-    setStatusMessage("");
+      setStatusMessage("");
 
-    if (import.meta.env.DEV) {
-      console.table(
-        mappedAppointments.map((appointment) => ({
+      if (import.meta.env.DEV) {
+        console.table(
+          mappedAppointments.map((appointment) => ({
           appointmentId: appointment.appointmentId,
           internalUuid: appointment.id,
           patient: appointment.name,
           date: appointment.date,
           time: appointment.time,
-        }))
-      );
-    }
+          }))
+        );
+      }
+
+      return { ok: true, count: mappedAppointments.length };
+    })();
+
+    appointmentsRequestRef.current = request;
+    request.finally(() => {
+      if (appointmentsRequestRef.current === request) {
+        appointmentsRequestRef.current = null;
+      }
+      setIsLoadingAppointments(false);
+    });
+
+    return request;
   }, []);
 
   const loadBookingRequests = useCallback(() => {
@@ -2241,11 +2290,13 @@ function StaffAppointmentsContent({ headerAction }) {
         setStatusMessage(
           `Unable to load Patient booking requests: ${error.message || "Unknown error"}`
         );
+        setIsLoadingRequests(false);
         return { ok: false, count: 0, error };
       }
 
       const nextRequests = data || [];
       setBookingRequests(nextRequests);
+      setIsLoadingRequests(false);
       setSelectedRequest((current) =>
         current?.id
           ? nextRequests.find((item) => String(item.id) === String(current.id)) || null
@@ -2264,6 +2315,23 @@ function StaffAppointmentsContent({ headerAction }) {
     request.then(clearPendingRequest, clearPendingRequest);
     return request;
   }, []);
+
+  useEffect(() => {
+    if (isLoadingAppointments || isLoadingRequests || !staffUserId) return;
+
+    setStaffSessionSnapshot(staffUserId, "appointments", {
+      appointments,
+      scheduleEvents,
+      bookingRequests,
+    });
+  }, [
+    appointments,
+    bookingRequests,
+    isLoadingAppointments,
+    isLoadingRequests,
+    scheduleEvents,
+    staffUserId,
+  ]);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(loadBookingRequests, 0);
@@ -4114,6 +4182,7 @@ function StaffAppointmentsContent({ headerAction }) {
       {activeFilter === "Requests" ? (
         <StaffAppointmentRequests
           requests={paginatedRequests}
+          isLoading={isLoadingRequests}
           totalRequests={requestSchedules.length}
           currentPage={requestDisplayedPage}
           totalPages={requestTotalPages}
@@ -4244,7 +4313,10 @@ function StaffAppointmentsContent({ headerAction }) {
         </AppointmentControlGroup>
       </AppointmentToolbar>
 
-      <AppointmentSummary summary={appointmentSummary} />
+      <AppointmentSummary
+        summary={appointmentSummary}
+        isLoading={isLoadingAppointments}
+      />
 
       <section className="staff-appointments-table-card appointment-ui-table-card">
         <div className="staff-appointments-table-xscroll">
@@ -4333,7 +4405,15 @@ function StaffAppointmentsContent({ headerAction }) {
                 </tr>
               ))}
 
-              {!paginatedAppointments.length ? (
+              {isLoadingAppointments && !paginatedAppointments.length ? (
+                <tr>
+                  <td colSpan="5" className="staff-appointments-empty-cell">
+                    Loading appointments...
+                  </td>
+                </tr>
+              ) : null}
+
+              {!isLoadingAppointments && !paginatedAppointments.length ? (
                 <tr>
                   <td colSpan="5" className="staff-appointments-empty-cell">
                     No appointments found.

@@ -21,6 +21,11 @@ import {
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
+import {
+  clearStaffSessionCache,
+  getStaffSessionSnapshot,
+  setStaffSessionSnapshot,
+} from "../../lib/staffSessionCache";
 import "../../styles/doctor-dashboard.css";
 import "../../styles/staff-dashboard.css";
 import "../../styles/staff-doctor-parity.css";
@@ -94,20 +99,6 @@ const emptyStaffDashboardStats = {
   todaysAppointments: 0,
   completedSessions: 0,
   completionProgress: 0,
-};
-
-/*
- * Module-level UI snapshot.
- *
- * DashboardHome is intentionally unmounted when Staff opens Patients or
- * Appointments. Keeping the last successful snapshot here prevents the cards
- * and session table from flashing back to zero/empty when Staff returns.
- * Supabase remains the source of truth and refreshes the snapshot immediately.
- */
-let staffDashboardSnapshot = {
-  stats: null,
-  upcomingSessions: null,
-  message: "",
 };
 
 function formatDashboardDate(value) {
@@ -288,6 +279,8 @@ function StaffProfileCard({
       return;
     }
 
+    clearStaffSessionCache();
+
     navigate("/", { replace: true });
   };
 
@@ -335,27 +328,27 @@ function StaffProfileCard({
   );
 }
 
-function DashboardHome({ onNavigate, headerAction }) {
+function DashboardHome({ onNavigate, headerAction, staffUserId }) {
   const [settings, setSettings] = useState(getStaffSettings);
 
+  const [initialDashboardSnapshot] = useState(() =>
+    getStaffSessionSnapshot(staffUserId, "dashboard")
+  );
+  const dashboardSnapshotRef = useRef(initialDashboardSnapshot);
+
   const [dashboardStats, setDashboardStats] = useState(
-    () =>
-      staffDashboardSnapshot.stats
-        ? { ...staffDashboardSnapshot.stats }
-        : { ...emptyStaffDashboardStats }
+    () => initialDashboardSnapshot?.stats || null
   );
 
   const [upcomingSessions, setUpcomingSessions] = useState(
-    () =>
-      staffDashboardSnapshot.upcomingSessions
-        ? staffDashboardSnapshot.upcomingSessions.map(
-            (session) => ({ ...session })
-          )
-        : []
+    () => initialDashboardSnapshot?.upcomingSessions || []
   );
 
   const [dashboardMessage, setDashboardMessage] = useState(
-    staffDashboardSnapshot.message || ""
+    initialDashboardSnapshot?.message || ""
+  );
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(
+    !initialDashboardSnapshot?.stats
   );
 
   const [activeSessionActionId, setActiveSessionActionId] =
@@ -417,8 +410,12 @@ function DashboardHome({ onNavigate, headerAction }) {
 
   useEffect(() => {
     let active = true;
+    let refreshPromise = null;
 
-    const loadDashboardStats = async () => {
+    const loadDashboardStats = () => {
+      if (refreshPromise) return refreshPromise;
+
+      refreshPromise = (async () => {
       /*
        * IMPORTANT:
        * Staff Patients intentionally uses the secure
@@ -458,7 +455,7 @@ function DashboardHome({ onNavigate, headerAction }) {
         .map((error) => error.message);
 
       const hasExistingSnapshot = Boolean(
-        staffDashboardSnapshot.stats
+        dashboardSnapshotRef.current?.stats
       );
 
       if (errors.length > 0) {
@@ -484,7 +481,7 @@ function DashboardHome({ onNavigate, headerAction }) {
       }
 
       const previousStats =
-        staffDashboardSnapshot.stats || {
+        dashboardSnapshotRef.current?.stats || {
           ...emptyStaffDashboardStats,
         };
 
@@ -562,7 +559,7 @@ function DashboardHome({ onNavigate, headerAction }) {
       };
 
       let nextUpcomingSessions =
-        staffDashboardSnapshot.upcomingSessions || [];
+        dashboardSnapshotRef.current?.upcomingSessions || [];
 
       if (scheduleRows !== null) {
         const upcomingRows = scheduleRows
@@ -587,7 +584,7 @@ function DashboardHome({ onNavigate, headerAction }) {
        * failing section instead of flashing zero/empty content.
        */
       if (errors.length === 0) {
-        staffDashboardSnapshot = {
+        const nextSnapshot = {
           stats: {
             ...nextStats,
           },
@@ -597,12 +594,26 @@ function DashboardHome({ onNavigate, headerAction }) {
             })),
           message: "",
         };
+        dashboardSnapshotRef.current = nextSnapshot;
+        setStaffSessionSnapshot(
+          staffUserId,
+          "dashboard",
+          nextSnapshot
+        );
       }
 
-      setDashboardStats(nextStats);
-      setUpcomingSessions(
-        nextUpcomingSessions
-      );
+      if (errors.length === 0 || hasExistingSnapshot) {
+        setDashboardStats(nextStats);
+        setUpcomingSessions(nextUpcomingSessions);
+      }
+      setIsLoadingDashboard(false);
+      })();
+
+      refreshPromise.finally(() => {
+        refreshPromise = null;
+      });
+
+      return refreshPromise;
     };
 
     loadDashboardStats();
@@ -649,13 +660,16 @@ function DashboardHome({ onNavigate, headerAction }) {
       supabase.removeChannel(patientsChannel);
       supabase.removeChannel(scheduleChannel);
     };
-  }, []);
+  }, [staffUserId]);
 
   const statusCards = dashboardStatusCards.map((card) => ({
     ...card,
-    value: String(dashboardStats[card.statKey] ?? 0),
+    value:
+      dashboardStats === null
+        ? null
+        : String(dashboardStats[card.statKey] ?? 0),
     progress: card.progressKey
-      ? dashboardStats[card.progressKey]
+      ? dashboardStats?.[card.progressKey] ?? 0
       : card.progress,
   }));
 
@@ -679,14 +693,19 @@ function DashboardHome({ onNavigate, headerAction }) {
           <p className="doctor-hero-support">
             <span>Here&apos;s what&apos;s happening with your practice today.</span>
             <span>
-              You have{" "}
-              <strong className="doctor-hero-highlight">
-                {dashboardStats.todaysAppointments}{" "}
-                {dashboardStats.todaysAppointments === 1
-                  ? "appointment"
-                  : "appointments"}{" "}
-                scheduled today.
-              </strong>
+              {dashboardStats ? (
+                <strong className="doctor-hero-highlight">
+                  You have {dashboardStats.todaysAppointments}{" "}
+                  {dashboardStats.todaysAppointments === 1
+                    ? "appointment"
+                    : "appointments"}{" "}
+                  scheduled today.
+                </strong>
+              ) : (
+                <strong className="doctor-hero-highlight">
+                  Loading today&apos;s schedule...
+                </strong>
+              )}
             </span>
           </p>
         </div>
@@ -715,7 +734,9 @@ function DashboardHome({ onNavigate, headerAction }) {
 
               <div className="doctor-status-copy">
                 <p>{card.label}</p>
-                <h3>{card.value}</h3>
+                <h3 aria-label={card.value === null ? "Loading" : undefined}>
+                  {card.value ?? "—"}
+                </h3>
               </div>
             </div>
 
@@ -969,7 +990,18 @@ function DashboardHome({ onNavigate, headerAction }) {
                   </tr>
                 ))}
 
-                {!upcomingSessions.length ? (
+                {isLoadingDashboard && !upcomingSessions.length ? (
+                  <tr>
+                    <td
+                      colSpan="5"
+                      className="staff-dashboard-empty-sessions"
+                    >
+                      Loading upcoming sessions...
+                    </td>
+                  </tr>
+                ) : null}
+
+                {!isLoadingDashboard && !upcomingSessions.length ? (
                   <tr>
                     <td
                       colSpan="5"
@@ -1008,7 +1040,7 @@ function getInitialPage(pathname) {
   return "dashboard";
 }
 
-function StaffDashboard() {
+function StaffDashboard({ staffIdentity }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -1086,33 +1118,22 @@ function StaffDashboard() {
     let active = true;
 
     const hydrateStaffIdentity = async () => {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const user = staffIdentity?.authUser;
+      const profile = staffIdentity?.profile;
 
-      if (!active || userError || !user) {
+      if (!active || !user || !profile) {
         return;
       }
 
-      const [profileResult, personalResult] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, full_name, email, role, account_status")
-          .eq("id", user.id)
-          .maybeSingle(),
-        supabase
+      const personalResult = await supabase
           .from("staff_personal_information")
           .select("full_name")
           .eq("auth_user_id", user.id)
-          .maybeSingle(),
-      ]);
+          .maybeSingle();
 
-      if (!active || profileResult.error || !profileResult.data) {
+      if (!active) {
         return;
       }
-
-      const profile = profileResult.data;
 
       const role = String(profile.role || "")
         .trim()
@@ -1166,7 +1187,7 @@ function StaffDashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [staffIdentity]);
 
   const activePage = getInitialPage(location.pathname);
 
@@ -1251,6 +1272,8 @@ function StaffDashboard() {
           return;
         }
 
+        clearStaffSessionCache();
+
         navigate("/", { replace: true });
         return;
       }
@@ -1283,12 +1306,18 @@ function StaffDashboard() {
     switch (activePage) {
       case "patients":
         return (
-          <StaffPatientsContent headerAction={headerAction} />
+          <StaffPatientsContent
+            headerAction={headerAction}
+            staffUserId={staffIdentity?.authUser?.id}
+          />
         );
 
       case "appointments":
         return (
-          <StaffAppointmentsContent headerAction={headerAction} />
+          <StaffAppointmentsContent
+            headerAction={headerAction}
+            staffUserId={staffIdentity?.authUser?.id}
+          />
         );
 
       case "profile":
@@ -1310,6 +1339,7 @@ function StaffDashboard() {
           <DashboardHome
             onNavigate={navigateToPage}
             headerAction={headerAction}
+            staffUserId={staffIdentity?.authUser?.id}
           />
         );
     }

@@ -400,7 +400,12 @@ function StaffRoute() {
     );
   }
 
-  return <StaffDashboard />;
+  return (
+    <StaffDashboard
+      key={staffAccess.identity.authUser.id}
+      staffIdentity={staffAccess.identity}
+    />
+  );
 }
 
 

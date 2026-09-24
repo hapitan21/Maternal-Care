@@ -35,6 +35,7 @@ export const defaultStaffSettings = {
  * only as a compatibility/UI cache for older Staff components.
  */
 let staffSettingsMemoryCache = null;
+let staffSettingsOwnerUserId = "";
 
 function normalizeSavedStaffSettings(savedSettings = {}) {
   return {
@@ -112,9 +113,24 @@ export function hydrateStaffSettingsFromIdentity(
   identity,
   { broadcast = true } = {}
 ) {
-  const current = getStaffSettings();
   const profile = identity?.profile || {};
   const authUser = identity?.authUser || {};
+  const userId = String(authUser.id || profile.id || "").trim();
+  const identityEmail = String(profile.email || authUser.email || "")
+    .trim()
+    .toLowerCase();
+  let current = getStaffSettings();
+  const cachedEmail = String(current.email || "").trim().toLowerCase();
+
+  if (
+    (staffSettingsOwnerUserId && staffSettingsOwnerUserId !== userId) ||
+    (!staffSettingsOwnerUserId && cachedEmail && identityEmail && cachedEmail !== identityEmail)
+  ) {
+    staffSettingsMemoryCache = { ...defaultStaffSettings };
+    current = { ...defaultStaffSettings };
+  }
+
+  staffSettingsOwnerUserId = userId;
 
   const currentName = String(current.displayName || "").trim();
   const profileName = String(profile.full_name || "").trim();
@@ -146,9 +162,9 @@ export function hydrateStaffSettingsFromIdentity(
     ...current,
     displayName,
     email:
-      current.email ||
       profile.email ||
       authUser.email ||
+      current.email ||
       "",
   };
 
@@ -157,6 +173,7 @@ export function hydrateStaffSettingsFromIdentity(
 
 export function clearStaffSettingsMemoryCache() {
   staffSettingsMemoryCache = null;
+  staffSettingsOwnerUserId = "";
 }
 
 /*

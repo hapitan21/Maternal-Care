@@ -21,6 +21,10 @@ import { getAvailabilityDayOfWeek } from "../../lib/availabilitySchedule";
 import { isValidPhilippineMobileNumber } from "../../lib/philippinePhone";
 import { supabase } from "../../lib/supabaseClient";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
+import {
+  getStaffSessionSnapshot,
+  setStaffSessionSnapshot,
+} from "../../lib/staffSessionCache";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
 import "../../styles/doctor-patients.css";
 import "../../styles/patient-record-ui-system.css";
@@ -987,6 +991,29 @@ function mergePatientAvatarMap(patientRows, avatarMap) {
   return changed ? nextRows : patientRows;
 }
 
+function mergePatientDirectoryRows(currentRows, incomingRows) {
+  if (!Array.isArray(incomingRows)) return [];
+  if (!Array.isArray(currentRows) || !currentRows.length) return incomingRows;
+
+  const currentByRecordId = new Map(
+    currentRows.map((patient) => [
+      String(patient?.recordId || ""),
+      patient,
+    ])
+  );
+
+  return incomingRows.map((patient) => {
+    const currentPatient = currentByRecordId.get(
+      String(patient?.recordId || "")
+    );
+    const currentPhoto = String(currentPatient?.photo || "").trim();
+
+    return currentPhoto && !patient.photo
+      ? { ...patient, photo: currentPhoto }
+      : patient;
+  });
+}
+
 function createPatientPersonalInfoPayload(form, savedPatient, credentials) {
   const normalizedForm = normalizeRegistrationText(form);
 
@@ -1585,7 +1612,7 @@ function Stepper({ currentStep, onStepSelect }) {
   );
 }
 
-function StaffPatientsContent({ headerAction }) {
+function StaffPatientsContent({ headerAction, staffUserId }) {
   const location = useLocation();
   const navigate = useNavigate();
   const dashboardPatientTarget = useMemo(() => {
@@ -1606,12 +1633,19 @@ function StaffPatientsContent({ headerAction }) {
     if (location.pathname.includes("/staff/patients/new")) return "select-slot";
     return "list";
   });
-  const [patients, setPatients] = useState([]);
+  const [initialPatientsSnapshot] = useState(() =>
+    getStaffSessionSnapshot(staffUserId, "patients")
+  );
+  const [patients, setPatients] = useState(
+    () => initialPatientsSnapshot?.patients || []
+  );
   const [query, setQuery] = useState("");
   const [activeModal, setActiveModal] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [registrationNotice, setRegistrationNotice] = useState(null);
-  const [isLoadingPatients, setIsLoadingPatients] = useState(true);
+  const [isLoadingPatients, setIsLoadingPatients] = useState(
+    !initialPatientsSnapshot
+  );
   const [isSavingPatient, setIsSavingPatient] = useState(false);
   const [patientStatusFilter, setPatientStatusFilter] = useState("All");
   const [patientActionMenu, setPatientActionMenu] = useState(null);
@@ -1626,7 +1660,9 @@ function StaffPatientsContent({ headerAction }) {
     patientId: "",
     controlNumber: "",
   });
-  const [credentialPool, setCredentialPool] = useState([]);
+  const [credentialPool, setCredentialPool] = useState(
+    () => initialPatientsSnapshot?.credentialPool || []
+  );
   const [registrationView, setRegistrationView] = useState("form");
   const [registrationToken, setRegistrationToken] = useState("");
   const [registrationRecord, setRegistrationRecord] = useState(null);
@@ -1915,7 +1951,9 @@ function StaffPatientsContent({ headerAction }) {
     let active = true;
 
     const loadPatients = async () => {
-      setIsLoadingPatients(true);
+      if (!initialPatientsSnapshot) {
+        setIsLoadingPatients(true);
+      }
 
       const [patientsResult, patientLoginResult] = await Promise.all([
         supabase
@@ -1953,7 +1991,9 @@ function StaffPatientsContent({ headerAction }) {
         ...patientLoginCredentials,
       ];
 
-      setPatients(mappedPatients);
+      setPatients((current) =>
+        mergePatientDirectoryRows(current, mappedPatients)
+      );
       setCredentialPool(nextCredentialPool);
 
       const avatarMap = await fetchPatientAvatarMap(mappedPatients);
@@ -1967,7 +2007,16 @@ function StaffPatientsContent({ headerAction }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialPatientsSnapshot]);
+
+  useEffect(() => {
+    if (isLoadingPatients || !staffUserId) return;
+
+    setStaffSessionSnapshot(staffUserId, "patients", {
+      patients,
+      credentialPool,
+    });
+  }, [credentialPool, isLoadingPatients, patients, staffUserId]);
 
   useEffect(() => {
     if (screen !== "list" || !patients.length) return undefined;
@@ -3722,17 +3771,29 @@ function StaffPatientsContent({ headerAction }) {
               inputRef={setRegistrationFieldRef("name")}
               autoComplete="name"
             />
-            <InputField
-              label="Date of Birth"
-              required
-              type="date"
-              value={form.birthdate}
-              onChange={updateBirthdate}
-              icon="solar:calendar-linear"
-              error={registrationErrors.birthdate}
-              fieldId="registration-birthdate"
-              inputRef={setRegistrationFieldRef("birthdate")}
-            />
+            <div className="staff-register-dob-field">
+              <InputField
+                label="Date of Birth"
+                required
+                type="date"
+                value={form.birthdate}
+                onChange={updateBirthdate}
+                icon="solar:calendar-linear"
+                error={registrationErrors.birthdate}
+                fieldId="registration-birthdate"
+                inputRef={setRegistrationFieldRef("birthdate")}
+              />
+              {form.birthdate && form.age === "0" ? (
+                <p
+                  className="staff-register-dob-warning"
+                  role="status"
+                  aria-live="polite"
+                >
+                  Please confirm this very recent date of birth is correct before
+                  continuing.
+                </p>
+              ) : null}
+            </div>
             <InputField
               label="Age"
               value={form.age}
@@ -4906,7 +4967,19 @@ function StaffPatientsContent({ headerAction }) {
                 </div>
               </div>
 
-              <Stepper currentStep={step} onStepSelect={moveToRegistrationStep} />
+              {registrationView === "confirmation" ? (
+                <div className="staff-register-completion-state" role="status">
+                  <Icon icon="solar:qr-code-bold" aria-hidden="true" />
+                  <span>
+                    <strong>Patient Access &amp; Confirmation</strong>
+                    <small>
+                      Registration details are saved; confirm the QR handoff to finish.
+                    </small>
+                  </span>
+                </div>
+              ) : (
+                <Stepper currentStep={step} onStepSelect={moveToRegistrationStep} />
+              )}
               {statusMessage ? (
                 <p className="staff-patients-status-message">{statusMessage}</p>
               ) : null}
@@ -5036,6 +5109,11 @@ function StaffPatientsContent({ headerAction }) {
         </p>
       ) : null}
 
+      <p className="staff-patients-access-note">
+        <Icon icon="solar:lock-keyhole-minimalistic-linear" aria-hidden="true" />
+        <span>Clinical medical records remain available to authorized Doctors only.</span>
+      </p>
+
       <section className="staff-patients-card" aria-label="Patients table">
         <div className="staff-patients-table-xscroll">
           <div className="staff-patients-table-inner">
@@ -5062,7 +5140,6 @@ function StaffPatientsContent({ headerAction }) {
                       </button>
                     </th>
                     <th>Status</th>
-                    <th>Medical Records</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -5128,16 +5205,6 @@ function StaffPatientsContent({ headerAction }) {
                   </td>
 
                   <td>
-                    <span
-                      className="staff-patient-medical-access"
-                      aria-label="Medical records access: Doctor only"
-                    >
-                      <Icon icon="solar:lock-keyhole-minimalistic-linear" aria-hidden="true" />
-                      Doctor Only
-                    </span>
-                  </td>
-
-                  <td>
                     <div className="staff-patient-action-group">
                       {canSendPatientNotification(patient) ? (
                         <div
@@ -5182,9 +5249,9 @@ function StaffPatientsContent({ headerAction }) {
                 </tr>
               ))}
 
-              {!isLoadingPatients && !filteredPatients.length ? (
+              {!isLoadingPatients && !statusMessage && !filteredPatients.length ? (
                 <tr>
-                  <td colSpan="6" className="staff-patients-empty-cell">
+                  <td colSpan="5" className="staff-patients-empty-cell">
                     <Icon icon="solar:magnifer-linear" aria-hidden="true" />
                     <strong>No patients found</strong>
                     <span>Try a different status, name, ID, or birthdate.</span>

@@ -2425,6 +2425,18 @@
   -webkit-backdrop-filter: blur(5px);
 }
 
+.staff-appointments-page .doctor-request-sort {
+  width: 168px;
+  flex-basis: 168px;
+}
+
+@media (max-width: 760px) {
+  .staff-appointments-page .doctor-request-sort {
+    width: 100%;
+    flex-basis: auto;
+  }
+}
+
 .staff-add-appointment-modal {
   position: relative;
   width: min(100%, 560px);

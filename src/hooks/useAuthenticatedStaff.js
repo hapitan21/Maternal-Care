@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isClinicAccountInactive } from "../lib/clinicAccountStatus";
 import { supabase } from "../lib/supabaseClient";
+import { clearStaffSessionCache } from "../lib/staffSessionCache";
+import {
+  clearStaffSettingsMemoryCache,
+  hydrateStaffSettingsFromIdentity,
+} from "../lib/staffProfile";
 
 const inactiveStaffMessage =
   "Your Staff account has been deactivated. Please contact the system administrator.";
@@ -136,7 +141,15 @@ export function useAuthenticatedStaff() {
         role,
       };
 
+      if (
+        cachedStaffIdentity?.authUser?.id &&
+        cachedStaffIdentity.authUser.id !== user.id
+      ) {
+        clearStaffSessionCache();
+      }
+
       cachedStaffIdentity = nextIdentity;
+      hydrateStaffSettingsFromIdentity(nextIdentity, { broadcast: false });
 
       if (
         mountedRef.current &&
@@ -160,6 +173,8 @@ export function useAuthenticatedStaff() {
 
         if (isDefinitiveStaffAccessError(nextError)) {
           cachedStaffIdentity = null;
+          clearStaffSessionCache();
+          clearStaffSettingsMemoryCache();
           setIdentity(null);
           setError(nextError);
           setRefreshError(null);
@@ -214,6 +229,8 @@ export function useAuthenticatedStaff() {
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
         cachedStaffIdentity = null;
+        clearStaffSessionCache();
+        clearStaffSettingsMemoryCache();
 
         if (mountedRef.current) {
           setIdentity(null);
