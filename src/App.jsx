@@ -70,6 +70,15 @@ function RouteLoadingFallback() {
   );
 }
 
+function DoctorAuthorizationLoadingFallback() {
+  return (
+    <main className="app-route-loading" role="status" aria-live="polite">
+      <span aria-hidden="true" />
+      <p>Checking Doctor account access...</p>
+    </main>
+  );
+}
+
 function ApplicationNotFound() {
   return (
     <main className="app-error-fallback app-not-found">
@@ -256,15 +265,7 @@ function DoctorRoute() {
    * no Doctor has been successfully authorized yet.
    */
   if (doctorAccess.loading && !doctorAccess.authorized) {
-    return (
-      <main
-        className="admin-auth-state"
-        role="status"
-        aria-live="polite"
-      >
-        <p>Checking Doctor account access...</p>
-      </main>
-    );
+    return <DoctorAuthorizationLoadingFallback />;
   }
 
   /*
@@ -285,15 +286,7 @@ function DoctorRoute() {
    * successfully-authorized Doctor ID.
    */
   if (!doctorAccess.user?.id) {
-    return (
-      <main
-        className="admin-auth-state"
-        role="status"
-        aria-live="polite"
-      >
-        <p>Checking Doctor account access...</p>
-      </main>
-    );
+    return <DoctorAuthorizationLoadingFallback />;
   }
 
   /*

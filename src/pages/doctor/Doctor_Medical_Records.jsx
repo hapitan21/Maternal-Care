@@ -3519,6 +3519,8 @@ export default function Doctor_Medical_Records({
   const [prenatalDetailsError, setPrenatalDetailsError] = React.useState("");
   const [doctorProfilesById, setDoctorProfilesById] = React.useState(() => new Map());
   const [isLoadingPatient, setIsLoadingPatient] = React.useState(Boolean(initialPatient?.id));
+  const [isLoadingPatientRelated, setIsLoadingPatientRelated] = React.useState(Boolean(initialPatient?.id));
+  const [patientRelatedError, setPatientRelatedError] = React.useState("");
   const [isLoadingRecords, setIsLoadingRecords] = React.useState(false);
   const [recordMessage, setRecordMessage] = React.useState("");
   const [isRecordFormOpen, setIsRecordFormOpen] = React.useState(false);
@@ -3806,10 +3808,14 @@ export default function Doctor_Medical_Records({
         setMedicalRecordRows([]);
         setLoadedMedicalRecordsPatientId("");
         setIsLoadingPatient(false);
+        setIsLoadingPatientRelated(false);
+        setPatientRelatedError("");
         return;
       }
 
       setIsLoadingPatient(true);
+      setIsLoadingPatientRelated(true);
+      setPatientRelatedError("");
       setPatient(null);
       setPatientAvatarUrl("");
       setPatientLoadError("");
@@ -3845,6 +3851,7 @@ export default function Doctor_Medical_Records({
         setPatient(null);
         setPatientAvatarUrl("");
         setIsLoadingPatient(false);
+        setIsLoadingPatientRelated(false);
         setPatientLoadError(
           error
             ? "Unable to verify access to this patient record. Please return to Patients and try again."
@@ -3858,8 +3865,11 @@ export default function Doctor_Medical_Records({
       setIsLoadingPatient(false);
       void loadPatientAvatar(selectedPatient);
 
-      const [personalResult, obstetricResult] =
-        await Promise.all([
+      let personalResult;
+      let obstetricResult;
+
+      try {
+        [personalResult, obstetricResult] = await Promise.all([
           supabase
             .from("patient_personal_information")
             .select("*")
@@ -3874,6 +3884,18 @@ export default function Doctor_Medical_Records({
             .limit(1)
             .maybeSingle(),
         ]);
+      } catch (error) {
+        if (patientRequestRef.current !== requestId) {
+          return;
+        }
+
+        console.warn("Unable to load optional Patient detail rows:", error);
+        setPatientRelatedError(
+          "Some patient details could not be loaded. Missing values may be incomplete."
+        );
+        setIsLoadingPatientRelated(false);
+        return;
+      }
 
       if (patientRequestRef.current !== requestId) {
         return;
@@ -3885,11 +3907,19 @@ export default function Doctor_Medical_Records({
           console.warn("Unable to load optional Patient detail row:", result.error);
         });
 
+      const relatedLoadFailed = Boolean(personalResult.error || obstetricResult.error);
+
       setPatientRelated((current) => ({
         ...current,
         personal: personalResult.error ? null : personalResult.data || null,
         obstetric: obstetricResult.error ? null : obstetricResult.data || null,
       }));
+      setPatientRelatedError(
+        relatedLoadFailed
+          ? "Some patient details could not be loaded. Missing values may be incomplete."
+          : ""
+      );
+      setIsLoadingPatientRelated(false);
     };
 
     loadPatient();
@@ -4208,6 +4238,7 @@ export default function Doctor_Medical_Records({
   const editableRecordForAction = currentRecordForAction?.scheduleId ? currentRecordForAction : null;
   const isResolvingEditRecord =
     isLoadingPatient ||
+    isLoadingPatientRelated ||
     isLoadingRecords ||
     loadedMedicalRecordsPatientId !== patient?.id ||
     !editableRecordForAction?.scheduleId;
@@ -4232,10 +4263,15 @@ export default function Doctor_Medical_Records({
     navigate(
       `/doctor/appointments/${editableRecordForAction.scheduleId}/${routeSegment}?${params.toString()}`
     );
-  }, [editableRecordForAction, isOpeningEditRecord, isResolvingEditRecord, navigate, patient?.id]);
+  }, [editableRecordForAction, isOpeningEditRecord, isResolvingEditRecord, navigate, patient]);
 
   React.useEffect(() => {
     if (typeof onHeaderActionChange !== "function") {
+      return undefined;
+    }
+
+    if (isLoadingPatient || isLoadingPatientRelated || !patient?.id) {
+      onHeaderActionChange(null);
       return undefined;
     }
 
@@ -4245,7 +4281,7 @@ export default function Doctor_Medical_Records({
       onClick: handleEditLinkedRecord,
     });
     return undefined;
-  }, [handleEditLinkedRecord, isOpeningEditRecord, isResolvingEditRecord, onHeaderActionChange]);
+  }, [handleEditLinkedRecord, isLoadingPatient, isLoadingPatientRelated, isOpeningEditRecord, isResolvingEditRecord, onHeaderActionChange, patient?.id]);
 
   return (
     <main className="medical-records-page medical-record-workspace" ref={pageRef}>
@@ -4272,14 +4308,16 @@ export default function Doctor_Medical_Records({
           {headerActions ? (
             <div className="doctor-patient-header-action-slot medical-record-ui-actions">
               {headerActions}
-              <SendPatientNotificationAction
-                patientId={patient?.id || ""}
-                patientName={patient?.full_name || "Patient"}
-                medicalRecordId={currentRecordForAction?.id || null}
-                defaultType="medical_record_available"
-                className="mr-header-notification-action"
-                outline
-              />
+              {!isLoadingPatient && !isLoadingPatientRelated && patient?.id ? (
+                <SendPatientNotificationAction
+                  patientId={patient.id}
+                  patientName={patient.full_name || "Patient"}
+                  medicalRecordId={currentRecordForAction?.id || null}
+                  defaultType="medical_record_available"
+                  className="mr-header-notification-action"
+                  outline
+                />
+              ) : null}
             </div>
           ) : null}
         </header>
@@ -4291,8 +4329,19 @@ export default function Doctor_Medical_Records({
                 {patientLoadError}
               </div>
             </section>
+          ) : isLoadingPatient || isLoadingPatientRelated || !patient ? (
+            <section className="mr-record-panel" aria-busy="true">
+              <div className="mr-empty-tab" role="status">
+                Loading patient information...
+              </div>
+            </section>
           ) : (
             <>
+          {patientRelatedError ? (
+            <p className="mr-record-form-message" role="status">
+              {patientRelatedError}
+            </p>
+          ) : null}
           <section className="mr-patient-card medical-record-ui-patient-card">
           <div className="mr-patient-main medical-record-ui-summary">
             <div className="mr-avatar">
@@ -4317,7 +4366,7 @@ export default function Doctor_Medical_Records({
 
             <div className="mr-patient-info">
               <div className="mr-name-row">
-                <h2>{isLoadingPatient ? "Loading patient..." : patient?.full_name || "Patient Record"}</h2>
+                <h2>{patient.full_name || "Patient Record"}</h2>
                 <span className="mr-status">{displayPatientValue(patient?.status)}</span>
               </div>
 

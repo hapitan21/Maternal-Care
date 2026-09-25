@@ -1993,7 +1993,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   };
 
   const activeSectionLabel = settingsSections.find((section) => section.id === activePanel)?.label || "Profile";
-  const breadcrumbLabel = activePanel === "profile" ? activeSectionLabel : "Account";
+  const breadcrumbLabel = activeSectionLabel;
   const availability = Array.isArray(settings.availability)
     ? settings.availability
     : [];

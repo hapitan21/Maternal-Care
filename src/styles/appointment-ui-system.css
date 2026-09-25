@@ -27,6 +27,70 @@
   box-sizing: border-box;
 }
 
+.appointment-success-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 112px);
+  right: clamp(18px, 3vw, 42px);
+  z-index: 800;
+  width: min(360px, calc(100vw - 24px));
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #f3cbd9;
+  border-radius: 12px;
+  background: rgba(255, 251, 252, 0.98);
+  box-shadow: 0 12px 30px rgba(40, 26, 33, 0.13);
+  color: #713147;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  animation: appointment-success-toast-in 180ms ease-out both;
+}
+
+.appointment-success-toast > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--appointment-ui-primary-dark);
+}
+
+@keyframes appointment-success-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .appointment-success-toast {
+    top: calc(env(safe-area-inset-top, 0px) + 84px);
+    right: auto;
+    left: 50%;
+    width: calc(100% - 24px);
+    transform: translateX(-50%);
+    animation-name: appointment-success-toast-mobile-in;
+  }
+}
+
+@keyframes appointment-success-toast-mobile-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 .appointment-ui-header {
   width: 100% !important;
   min-height: var(--doctor-page-header-min-height, 88px) !important;
@@ -210,6 +274,27 @@
   width: 19px !important;
   height: 19px !important;
   flex: 0 0 19px;
+}
+
+.doctor-appointments-page .doctor-appointments-month-placeholder {
+  position: absolute;
+  left: 47px;
+  color: #697080;
+  font-size: 14px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.doctor-appointments-page .doctor-appointments-month-input.is-empty:not(:focus-within) input {
+  color: transparent !important;
+}
+
+.doctor-appointments-page .doctor-appointments-month-input.is-empty:not(:focus-within) input::-webkit-datetime-edit {
+  color: transparent;
+}
+
+.doctor-appointments-page .doctor-appointments-month-input.is-empty:focus-within .doctor-appointments-month-placeholder {
+  display: none;
 }
 
 .appointment-ui-primary {

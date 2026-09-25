@@ -395,12 +395,6 @@ function parseScheduleDescription(description) {
   }
 }
 
-function stringifyScheduleDescription(description, updates = {}) {
-  return JSON.stringify({
-    ...parseScheduleDescription(description),
-    ...updates,
-  });
-}
 
 function getScheduleHumanMessage(description) {
   const details = parseScheduleDescription(description);
@@ -940,6 +934,7 @@ function AppointmentFormField({
   required = false,
   placeholder = "",
   className = "",
+  min,
 }) {
   return (
     <label className={`staff-add-appointment-field ${className}`}>
@@ -964,6 +959,7 @@ function AppointmentFormField({
           onChange={(event) => onChange(event.target.value)}
           required={required}
           placeholder={placeholder}
+          min={min}
         />
       )}
     </label>
@@ -982,6 +978,7 @@ function AddAppointmentModal({
   isLoadingPatients,
   doctors,
   isLoadingDoctors,
+  error,
 }) {
   const [isPatientResultsOpen, setIsPatientResultsOpen] = useState(false);
 
@@ -1110,6 +1107,7 @@ function AddAppointmentModal({
           <AppointmentFormField
             label="Select Date:"
             type="date"
+            min={getManilaDateKey()}
             value={form.date}
             onChange={(value) => onChange("date", value)}
             required
@@ -1152,6 +1150,13 @@ function AddAppointmentModal({
             />
           </label>
 
+          {error ? (
+            <p className="staff-add-appointment-error" role="alert">
+              <Icon icon="solar:danger-triangle-bold" aria-hidden="true" />
+              <span>{error}</span>
+            </p>
+          ) : null}
+
           <footer>
             <button type="submit" disabled={saving}>
               {saving ? "Saving..." : mode === "edit" ? "Update" : "Save"}
@@ -1178,8 +1183,10 @@ function AppointmentDetailsModal({
   if (!appointment) return null;
 
   const isCheckedIn = isCheckedInStatus(appointment.status);
-  const isClosed = isClosedStatus(appointment.status);
   const isPending = appointment.status === "Pending";
+  const canCheckIn =
+    isPending &&
+    isAppointmentToday(appointment.startTime);
 
   const details = [
     ["Patient name", appointment.name],
@@ -1254,17 +1261,16 @@ function AppointmentDetailsModal({
               <Icon icon="solar:clipboard-list-bold" aria-hidden="true" />
               Open Visit
             </button>
-          ) : (
+          ) : canCheckIn ? (
             <button
               type="button"
               className="is-outline"
               onClick={() => onCheckIn(appointment)}
-              disabled={isClosed}
             >
               <Icon icon="solar:login-3-bold" aria-hidden="true" />
               Check in
             </button>
-          )}
+          ) : null}
 
           <button
             type="button"
@@ -2060,6 +2066,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   const [isAddAppointmentOpen, setIsAddAppointmentOpen] = useState(false);
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
+  const [addAppointmentError, setAddAppointmentError] = useState("");
   const [addAppointmentForm, setAddAppointmentForm] = useState(() =>
     createBlankAppointmentForm()
   );
@@ -2878,11 +2885,17 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     if (!activeStatusAppointment) return [];
 
     if (activeStatusAppointment.status === "Pending") {
-      return pendingStatusActions.filter(
-        (action) =>
-          action.value !== "No show" ||
-          isAppointmentNoShowEligible(activeStatusAppointment)
-      );
+      return pendingStatusActions.filter((action) => {
+        if (action.value === "Checked in") {
+          return isAppointmentToday(activeStatusAppointment.startTime);
+        }
+
+        if (action.value === "No show") {
+          return isAppointmentNoShowEligible(activeStatusAppointment);
+        }
+
+        return true;
+      });
     }
 
     if (isCheckedInStatus(activeStatusAppointment.status)) {
@@ -2958,19 +2971,27 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   );
 
   useEffect(() => {
-    if (!selectedRequest || requestDoctorId || !doctors.length) return;
+    if (!selectedRequest || requestDoctorId || !doctors.length) {
+      return undefined;
+    }
 
-    const requestedDoctorAvailable =
-      selectedRequest.doctor_id &&
-      doctors.some(
-        (doctor) => String(doctor.id) === String(selectedRequest.doctor_id)
+    const timer = window.setTimeout(() => {
+      const requestedDoctorAvailable =
+        selectedRequest.doctor_id &&
+        doctors.some(
+          (doctor) => String(doctor.id) === String(selectedRequest.doctor_id)
+        );
+
+      setRequestDoctorId(
+        requestedDoctorAvailable
+          ? String(selectedRequest.doctor_id)
+          : String(doctors[0]?.id || "")
       );
+    }, 0);
 
-    setRequestDoctorId(
-      requestedDoctorAvailable
-        ? String(selectedRequest.doctor_id)
-        : String(doctors[0]?.id || "")
-    );
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [doctors, requestDoctorId, selectedRequest]);
 
   const acceptPatientRequest = useCallback(
@@ -3494,6 +3515,15 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
         return;
       }
 
+      if (!isAppointmentToday(appointment.startTime)) {
+        setOpenStatusMenu(null);
+        setDetailAppointment(null);
+        setStatusMessage(
+          "Check-in is only available on the scheduled appointment date."
+        );
+        return;
+      }
+
       const saved = await updateAppointmentStatus(appointment, "Checked in");
       if (saved) {
         await openVisitForm({ ...appointment, status: "Checked in" });
@@ -3598,6 +3628,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
 
   const openAddAppointment = () => {
     setStatusMessage("");
+    setAddAppointmentError("");
     setEditingAppointmentId("");
     setAddAppointmentForm(createBlankAppointmentForm(doctors[0] || null));
     setIsAddAppointmentOpen(true);
@@ -3618,6 +3649,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
       const category = "prenatal";
 
       setStatusMessage("");
+      setAddAppointmentError("");
       setEditingAppointmentId("");
       setAddAppointmentForm({
         ...createBlankAppointmentForm(doctors[0] || null),
@@ -3633,6 +3665,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   );
 
   const updateAddAppointmentForm = (field, value) => {
+    setAddAppointmentError("");
     setAddAppointmentForm((current) => {
       const next = { ...current, [field]: value };
 
@@ -3663,7 +3696,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
       patientRecordId: patient.id || "",
       patientName: patient.full_name || "",
     }));
-    setStatusMessage("");
+    setAddAppointmentError("");
   };
 
   const resolveAddAppointmentPatientId = async () => {
@@ -3703,20 +3736,20 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     appointmentSaveLockRef.current = true;
 
     try {
-    setStatusMessage("");
+    setAddAppointmentError("");
 
     if (!addAppointmentForm.patientName.trim()) {
-      setStatusMessage("Patient name is required.");
+      setAddAppointmentError("Patient name is required.");
       return;
     }
 
     if (!addAppointmentForm.date || !addAppointmentForm.startTime) {
-      setStatusMessage("Choose a valid appointment date and time.");
+      setAddAppointmentError("Choose a valid appointment date and time.");
       return;
     }
 
     if (!addAppointmentForm.appointmentType.trim()) {
-      setStatusMessage("Select an appointment type.");
+      setAddAppointmentError("Select an appointment type.");
       return;
     }
 
@@ -3725,7 +3758,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     );
 
     if (!selectedDoctor) {
-      setStatusMessage(
+      setAddAppointmentError(
         "Select an active Doctor before saving the appointment."
       );
       return;
@@ -3736,7 +3769,9 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     const patientRecordId = await resolveAddAppointmentPatientId();
 
     if (!patientRecordId) {
-      setStatusMessage("Select a registered patient so the appointment can notify their account.");
+      setAddAppointmentError(
+        "Select a registered patient so the appointment can notify their account."
+      );
       setIsSavingAppointment(false);
       return;
     }
@@ -3747,7 +3782,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     );
 
     if (!appointmentRange) {
-      setStatusMessage("Choose a valid appointment date and time.");
+      setAddAppointmentError("Choose a valid appointment date and time.");
       setIsSavingAppointment(false);
       return;
     }
@@ -3755,7 +3790,9 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     const { startDate, endDate } = appointmentRange;
 
     if (startDate < new Date()) {
-      setStatusMessage("Appointments cannot start in the past.");
+      setAddAppointmentError(
+        "The selected appointment date and time has already passed. Please choose a future date and time."
+      );
       setIsSavingAppointment(false);
       return;
     }
@@ -3770,7 +3807,9 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
         end: endTime,
       })
     ) {
-      setStatusMessage("This appointment conflicts with another active appointment.");
+      setAddAppointmentError(
+        "This appointment conflicts with another active appointment."
+      );
       setIsSavingAppointment(false);
       return;
     }
@@ -3821,7 +3860,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     if (error) {
       setIsSavingAppointment(false);
       console.error("Staff appointment insert failed:", error);
-      setStatusMessage(`Unable to save appointment: ${error.message}`);
+      setAddAppointmentError(`Unable to save appointment: ${error.message}`);
       return;
     }
 
@@ -3841,6 +3880,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
           ok: false,
           error: { message: "The saved appointment was not returned." },
         };
+    setAddAppointmentError("");
     setIsAddAppointmentOpen(false);
     setEditingAppointmentId("");
     setAddAppointmentForm(createBlankAppointmentForm(doctors[0] || null));
@@ -3916,6 +3956,13 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
 
     setStatusMessage("");
 
+    if (!isAppointmentToday(selectedAppointment.startTime)) {
+      setStatusMessage(
+        "Check-in is only available on the scheduled appointment date."
+      );
+      return;
+    }
+
     if (!followUpForm.patientRecordId) {
       setStatusMessage(
         "Unable to check in: no matching patient record was found. Make sure the appointment patient name matches a registered patient."
@@ -3949,6 +3996,29 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     }
 
     setIsSavingFollowUp(true);
+
+    if (!isCheckedInStatus(selectedAppointment.status)) {
+      if (selectedAppointment.status !== "Pending") {
+        setStatusMessage(
+          "Only pending appointments can be checked in."
+        );
+        setIsSavingFollowUp(false);
+        return;
+      }
+
+      const checkedIn = await updateAppointmentStatus(
+        selectedAppointment,
+        "Checked in"
+      );
+
+      if (!checkedIn) {
+        setStatusMessage(
+          "Unable to check in the appointment. Please try again before saving the Staff intake."
+        );
+        setIsSavingFollowUp(false);
+        return;
+      }
+    }
 
     const recordPayload = {
       patient_id: followUpForm.patientRecordId,
@@ -4007,27 +4077,13 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     if (recordError) {
       console.error("Follow-up medical record insert failed:", recordError);
       setStatusMessage(
-        `Unable to check in: the Staff intake was not saved. ${recordError.message}`
+        `The appointment is checked in, but the Staff intake was not saved. Please retry the visit form. ${recordError.message}`
       );
       setIsSavingFollowUp(false);
       return;
     }
 
-    // Change the appointment to Checked in only after the form was saved.
-    const { error: statusError } = await supabase
-      .from(scheduleTableName)
-      .update({ status: getDatabaseStatus("Checked in") })
-      .eq("id", selectedAppointment.id);
-
-    if (statusError) {
-      console.error("Follow-up check-in update failed:", statusError);
-
-      setStatusMessage(
-        `The Staff intake was saved, but the appointment could not be checked in. ${statusError.message}`
-      );
-      setIsSavingFollowUp(false);
-      return;
-    }
+    // The appointment is already checked in before the Staff intake is saved.
 
     setAppointments((currentAppointments) =>
       currentAppointments.map((appointment) =>
@@ -4167,12 +4223,21 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
         tabsLabel="Appointment filters"
       />
 
-      {statusMessage ? (
+      {successMessage ? (
         <div
           key={statusMessageVersion}
-          className={`staff-appointments-status-message${
-            successMessage === statusMessage ? " is-auto-hide" : ""
-          }`}
+          className="appointment-success-toast"
+          role="status"
+          aria-live="polite"
+        >
+          <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+          <span>{successMessage}</span>
+        </div>
+      ) : null}
+
+      {statusMessage && statusMessage !== successMessage ? (
+        <div
+          className="staff-appointments-status-message"
           role="status"
         >
           <span>{statusMessage}</span>
@@ -4581,6 +4646,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
           onClose={() => {
             setIsAddAppointmentOpen(false);
             setEditingAppointmentId("");
+            setAddAppointmentError("");
           }}
           onSave={saveAppointment}
           saving={isSavingAppointment}
@@ -4589,6 +4655,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
           isLoadingPatients={isLoadingPatients}
           doctors={doctors}
           isLoadingDoctors={isLoadingDoctors}
+          error={addAppointmentError}
         />
       ) : null}
 

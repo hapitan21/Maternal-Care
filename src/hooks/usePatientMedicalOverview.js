@@ -79,6 +79,36 @@ function getRecordTimestamp(record) {
   );
 }
 
+function getRecordCompletionTimestamp(record) {
+  const formData = getFormData(record);
+  return (
+    parseAppointmentTimestamp(formData.completedAt) ||
+    parseAppointmentTimestamp(formData.completed_at) ||
+    parseAppointmentTimestamp(record?.completed_at)
+  );
+}
+
+function getPastVisitTimestamp(record, schedule, now) {
+  const scheduleTimestamp = getAppointmentStart(schedule);
+  if (scheduleTimestamp && scheduleTimestamp.getTime() > now) {
+    return null;
+  }
+
+  const completionTimestamp = getRecordCompletionTimestamp(record);
+  if (completionTimestamp && completionTimestamp.getTime() <= now) {
+    return completionTimestamp;
+  }
+
+  const recordTimestamp = getRecordTimestamp(record);
+  if (recordTimestamp && recordTimestamp.getTime() <= now) {
+    return recordTimestamp;
+  }
+
+  return scheduleTimestamp && scheduleTimestamp.getTime() <= now
+    ? scheduleTimestamp
+    : null;
+}
+
 function formatRecordDateTime(record) {
   const timestamp = getRecordTimestamp(record);
   if (!timestamp) return "Not recorded";
@@ -263,18 +293,28 @@ function getAssessmentSummary(record) {
 }
 
 function makeLastVisit(records, schedules, profileMap) {
-  const completedSchedules = schedules
+  const now = Date.now();
+  const completedVisits = schedules
     .filter((schedule) => classifyAppointment(schedule).category === "completed")
-    .sort((first, second) => {
-      const firstTime = getAppointmentStart(first)?.getTime() ?? 0;
-      const secondTime = getAppointmentStart(second)?.getTime() ?? 0;
-      return secondTime - firstTime;
-    });
+    .map((schedule) => {
+      const linkedRecords = records.filter((record) => record.schedule_id === schedule.id);
+      const record = linkedRecords
+        .map((item) => ({
+          record: item,
+          timestamp: getPastVisitTimestamp(item, schedule, now),
+        }))
+        .filter((item) => item.timestamp)
+        .sort((first, second) => second.timestamp.getTime() - first.timestamp.getTime())[0]
+        ?.record || null;
+      const timestamp = getPastVisitTimestamp(record, schedule, now);
 
-  for (const schedule of completedSchedules) {
-    const linkedRecords = records.filter((record) => record.schedule_id === schedule.id);
-    const record = linkedRecords[0] || null;
-    const timestamp = record ? getRecordTimestamp(record) : getAppointmentStart(schedule);
+      return timestamp ? { record, schedule, timestamp } : null;
+    })
+    .filter(Boolean)
+    .sort((first, second) => second.timestamp.getTime() - first.timestamp.getTime());
+
+  if (completedVisits.length) {
+    const { record, schedule, timestamp } = completedVisits[0];
 
     return {
       recordId: record?.id || "",
@@ -287,14 +327,21 @@ function makeLastVisit(records, schedules, profileMap) {
     };
   }
 
-  const clinicalRecord = records.find((record) => {
-    const formData = getFormData(record);
-    return cleanValue(formData.visitType) || cleanValue(record.type);
-  });
+  const clinicalVisit = records
+    .filter((record) => {
+      const formData = getFormData(record);
+      return cleanValue(formData.visitType) || cleanValue(record.type);
+    })
+    .map((record) => ({
+      record,
+      timestamp: getPastVisitTimestamp(record, null, now),
+    }))
+    .filter((item) => item.timestamp)
+    .sort((first, second) => second.timestamp.getTime() - first.timestamp.getTime())[0];
 
-  if (!clinicalRecord) return null;
+  if (!clinicalVisit) return null;
 
-  const timestamp = getRecordTimestamp(clinicalRecord);
+  const { record: clinicalRecord, timestamp } = clinicalVisit;
   return {
     recordId: clinicalRecord.id,
     scheduleId: clinicalRecord.schedule_id || "",

@@ -15,6 +15,7 @@ import {
   normalizeAppointmentStatus,
 } from "../../lib/appointmentDate";
 import "../../styles/doctor-dashboard.css";
+import "../../styles/doctor-loading.css";
 
 const doctorSectionLoaders = {
   appointments: () => import("./Doctor_Appointments"),
@@ -45,6 +46,8 @@ const defaultDoctorDashboardProfile = {
   displayName: "Doctor",
   roleLabel: "Doctor",
 };
+
+const doctorDashboardSnapshots = new Map();
 
 const navItems = [
   {
@@ -88,7 +91,7 @@ const dashboardStatusCards = [
     target: "patients",
   },
   {
-    label: "Today's Appointments",
+    label: "Today's Active Appointments",
     statKey: "todaysAppointments",
     icon: "solar:clock-circle-bold",
     tone: "pink",
@@ -256,7 +259,7 @@ function ProfileDropdown({
   );
 }
 
-function ProfileCard({ setActivePage, profile }) {
+function ProfileCard({ setActivePage, profile, isLoading = false }) {
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
   const triggerRef = useRef(null);
@@ -322,15 +325,33 @@ function ProfileCard({ setActivePage, profile }) {
         aria-label={isDropdownOpen ? "Close Doctor account menu" : "Open Doctor account menu"}
         aria-expanded={isDropdownOpen}
         aria-haspopup="menu"
+        aria-busy={isLoading || undefined}
       >
-        <div className="doctor-profile-avatar">
-          <ProfileAvatarContent src={profile.avatarUrl} fallback={initials} />
+        <div className="doctor-profile-avatar" aria-hidden={isLoading || undefined}>
+          {isLoading ? (
+            <span className="doctor-loading-bar doctor-profile-loading-avatar" />
+          ) : (
+            <ProfileAvatarContent src={profile.avatarUrl} fallback={initials} />
+          )}
         </div>
 
         <div className="doctor-profile-info">
-          <strong>{profile.displayName}</strong>
-          <span>{profile.roleLabel}</span>
+          {isLoading ? (
+            <span className="doctor-profile-loading-copy" aria-hidden="true">
+              <span className="doctor-loading-bar doctor-profile-loading-name" />
+              <span className="doctor-loading-bar doctor-profile-loading-role" />
+            </span>
+          ) : (
+            <>
+              <strong>{profile.displayName}</strong>
+              <span>{profile.roleLabel}</span>
+            </>
+          )}
         </div>
+
+        {isLoading ? (
+          <span className="app-sr-only" role="status">Loading Doctor profile...</span>
+        ) : null}
 
         <Icon
           className="doctor-profile-arrow"
@@ -349,13 +370,14 @@ function ProfileCard({ setActivePage, profile }) {
   );
 }
 
-function DoctorHeaderControls({ setActivePage, profile, profileKey }) {
+function DoctorHeaderControls({ setActivePage, profile, profileKey, isLoading }) {
   return (
     <div className="doctor-shell-header-controls">
       <ProfileCard
         key={profileKey}
         setActivePage={setActivePage}
         profile={profile}
+        isLoading={isLoading}
       />
     </div>
   );
@@ -368,6 +390,7 @@ function DashboardHome({
   upcomingSessions,
   dashboardMessage,
   accountName,
+  dashboardStatsLoading,
 }) {
   const [activeSessionActionId, setActiveSessionActionId] = useState("");
 
@@ -413,6 +436,11 @@ function DashboardHome({
       </header>
 
       <section className="doctor-hero-card">
+        {dashboardStatsLoading ? (
+          <span className="app-sr-only" role="status">
+            Loading dashboard statistics...
+          </span>
+        ) : null}
         <div className="doctor-hero-blur doctor-hero-blur-one" />
         <div className="doctor-hero-blur doctor-hero-blur-two" />
 
@@ -421,14 +449,23 @@ function DashboardHome({
           <p className="doctor-hero-support">
             <span>Here&apos;s what&apos;s happening with your practice today.</span>
             <span>
-              You have{" "}
-              <strong className="doctor-hero-highlight">
-                {dashboardStats.todaysAppointments}{" "}
-                {dashboardStats.todaysAppointments === 1
-                  ? "appointment"
-                  : "appointments"}{" "}
-                scheduled.
-              </strong>
+              {dashboardStatsLoading ? (
+                <span className="doctor-dashboard-hero-loading" aria-hidden="true">
+                  <span className="doctor-loading-bar" />
+                  <span className="doctor-loading-bar" />
+                </span>
+              ) : (
+                <>
+                  You have{" "}
+                  <strong className="doctor-hero-highlight">
+                    {dashboardStats.todaysAppointments}{" "}
+                    {dashboardStats.todaysAppointments === 1
+                      ? "appointment"
+                      : "appointments"}{" "}
+                    scheduled.
+                  </strong>
+                </>
+              )}
             </span>
           </p>
         </div>
@@ -461,7 +498,14 @@ function DashboardHome({
 
               <div className="doctor-status-copy">
                 <p>{card.label}</p>
-                <h3>{card.value}</h3>
+                <h3>
+                  {dashboardStatsLoading ? (
+                    <span
+                      className="doctor-loading-bar doctor-dashboard-stat-value-loading"
+                      aria-hidden="true"
+                    />
+                  ) : card.value}
+                </h3>
               </div>
             </div>
 
@@ -469,7 +513,7 @@ function DashboardHome({
               <span className="doctor-growth-badge">{card.badge}</span>
             )}
 
-            {card.progress > 0 && (
+            {!dashboardStatsLoading && card.progress > 0 && (
               <div className="doctor-progress-track">
                 <span style={{ width: `${card.progress}%` }} />
               </div>
@@ -654,6 +698,7 @@ function Doctor_Dashboard() {
     completedSessions: 0,
     completionProgress: 0,
   });
+  const [dashboardStatsResolved, setDashboardStatsResolved] = useState(false);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [dashboardMessage, setDashboardMessage] = useState("");
   const [medicalRecordTarget, setMedicalRecordTarget] = useState(() =>
@@ -662,7 +707,11 @@ function Doctor_Dashboard() {
   const [doctorPatientHeaderAction, setDoctorPatientHeaderAction] = useState(null);
   const dashboardStatsRequestRef = useRef(0);
   const navigate = useNavigate();
-  const authenticatedDoctorId = doctorIdentity.profile?.id || "";
+  const authenticatedDoctorId =
+    doctorIdentity.authUser?.id || doctorIdentity.profile?.id || "";
+  const dashboardSnapshot = authenticatedDoctorId
+    ? doctorDashboardSnapshots.get(authenticatedDoctorId) || null
+    : null;
   const inactiveDoctorError =
     doctorIdentity.error?.code === "doctor_account_inactive"
       ? doctorIdentity.error
@@ -670,9 +719,7 @@ function Doctor_Dashboard() {
   const profile = {
     ...defaultDoctorDashboardProfile,
     displayName: doctorIdentity.doctorDisplayName ||
-      (doctorIdentity.loading
-        ? "Loading Doctor profile..."
-        : doctorIdentity.error
+      (doctorIdentity.error
           ? "Doctor profile not found"
           : defaultDoctorDashboardProfile.displayName),
     avatarUrl: doctorIdentity.avatarUrl || "",
@@ -741,7 +788,7 @@ function Doctor_Dashboard() {
     const scheduleRows = scheduleResult.error ? [] : scheduleResult.data || [];
 
     // Keep all of today's rows for completion metrics, but only count
-    // appointments that still need clinic action in "Today's Appointments".
+    // appointments that still need clinic action in "Today's Active Appointments".
     // Terminal rows such as completed, cancelled, and no-show/missed remain
     // available through their status tabs without inflating the active-today count.
     const allTodayAppointments = scheduleRows.filter(
@@ -760,7 +807,7 @@ function Doctor_Dashboard() {
         normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
     ).length;
 
-    setDashboardStats({
+    const nextDashboardStats = {
       totalPatients: patientsResult.count ?? 0,
       todaysAppointments: actionableTodayAppointments.length,
       completedSessions,
@@ -770,22 +817,37 @@ function Doctor_Dashboard() {
             Math.round((completedToday / allTodayAppointments.length) * 100)
           )
         : 0,
-    });
+    };
+
+    if (errors.length === 0) {
+      setDashboardStats(nextDashboardStats);
+      setDashboardStatsResolved(true);
+    }
 
     const upcomingRows = scheduleRows
       .filter((appointment) => classifyAppointment(appointment).isUpcoming)
       .sort(compareUpcomingAppointments)
       .slice(0, 4);
 
+    if (scheduleResult.error) {
+      return;
+    }
+
     const avatarMap = await fetchDashboardPatientAvatarMap(upcomingRows);
 
     if (dashboardStatsRequestRef.current !== requestId) return;
 
-    setUpcomingSessions(
-      upcomingRows.map((appointment) =>
-        mapUpcomingSession(appointment, avatarMap)
-      )
+    const nextUpcomingSessions = upcomingRows.map((appointment) =>
+      mapUpcomingSession(appointment, avatarMap)
     );
+    setUpcomingSessions(nextUpcomingSessions);
+
+    if (errors.length === 0) {
+      doctorDashboardSnapshots.set(doctorId, {
+        dashboardStats: nextDashboardStats,
+        upcomingSessions: nextUpcomingSessions,
+      });
+    }
   }, [authenticatedDoctorId]);
 
   useEffect(() => {
@@ -966,18 +1028,21 @@ function Doctor_Dashboard() {
           profileKey={`medical-records-${location.pathname}-${location.search}`}
           setActivePage={navigateDoctorPage}
           profile={profile}
+          isLoading={doctorIdentity.loading}
         />
 
-        <button
-          className="doctor-edit-record-button"
-          type="button"
-          onClick={doctorPatientHeaderAction?.onClick}
-          disabled={!doctorPatientHeaderAction || doctorPatientHeaderAction.disabled}
-          aria-busy={doctorPatientHeaderAction?.disabled || undefined}
-        >
-          <Icon icon="solar:pen-new-square-linear" />
-          <span>{doctorPatientHeaderAction?.label || "Edit Record"}</span>
-        </button>
+        {doctorPatientHeaderAction ? (
+          <button
+            className="doctor-edit-record-button"
+            type="button"
+            onClick={doctorPatientHeaderAction.onClick}
+            disabled={doctorPatientHeaderAction.disabled}
+            aria-busy={doctorPatientHeaderAction.disabled || undefined}
+          >
+            <Icon icon="solar:pen-new-square-linear" />
+            <span>{doctorPatientHeaderAction.label || "Edit Record"}</span>
+          </button>
+        ) : null}
       </div>
     );
 
@@ -985,6 +1050,8 @@ function Doctor_Dashboard() {
       case "patients":
         return (
           <DoctorPatientsContent
+            key={doctorIdentity.authUser?.id || "doctor-patients-loading"}
+            doctorIdentity={doctorIdentity}
             headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />}
           />
         );
@@ -992,6 +1059,7 @@ function Doctor_Dashboard() {
       case "appointments":
         return (
           <DoctorAppointmentsContent
+            key={doctorIdentity.authUser?.id || "doctor-appointments-loading"}
             doctorIdentity={doctorIdentity}
             headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />}
             onOpenMedicalRecord={(target) => {
@@ -1025,7 +1093,7 @@ function Doctor_Dashboard() {
         );
 
       case "reminders":
-        return <DoctorReminderContent doctorIdentity={doctorIdentity} headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />} />;
+        return <DoctorReminderContent key={doctorIdentity.authUser?.id || "doctor-reminders-loading"} doctorIdentity={doctorIdentity} headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />} />;
 
       case "profile":
         return (
@@ -1044,10 +1112,11 @@ function Doctor_Dashboard() {
           <DashboardHome
             setActivePage={navigateDoctorPage}
             headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />}
-            dashboardStats={dashboardStats}
-            upcomingSessions={upcomingSessions}
+            dashboardStats={dashboardStatsResolved ? dashboardStats : dashboardSnapshot?.dashboardStats || dashboardStats}
+            upcomingSessions={dashboardStatsResolved ? upcomingSessions : dashboardSnapshot?.upcomingSessions || upcomingSessions}
             dashboardMessage={doctorIdentity.error?.message || dashboardMessage}
             accountName={profile.displayName}
+            dashboardStatsLoading={!dashboardStatsResolved && !dashboardSnapshot}
           />
         );
     }
@@ -1065,6 +1134,12 @@ function Doctor_Dashboard() {
     );
   }
 
+  const activeNavigationPage =
+    activePage === "medicalRecords" &&
+    navItems.some((item) => item.key === medicalRecordTarget?.returnPage)
+      ? medicalRecordTarget.returnPage
+      : activePage;
+
   return (
     <div className="doctor-dashboard">
       <aside className="doctor-sidebar">
@@ -1079,12 +1154,12 @@ function Doctor_Dashboard() {
                   key={item.key}
                   type="button"
                   aria-label={item.label}
-                  aria-current={activePage === item.key ? "page" : undefined}
+                  aria-current={activeNavigationPage === item.key ? "page" : undefined}
                   onPointerEnter={() => preloadDoctorSection(item.key)}
                   onFocus={() => preloadDoctorSection(item.key)}
                   onClick={() => navigateDoctorPage(item.key)}
                   className={`doctor-nav-link ${
-                    activePage === item.key || (activePage === "settings" && item.key === "dashboard") ? "active" : ""
+                    activeNavigationPage === item.key ? "active" : ""
                   }`}
                 >
                   <Icon icon={item.icon} />
@@ -1103,6 +1178,7 @@ function Doctor_Dashboard() {
                 profileKey={`${activePage}-${location.pathname}-${location.search}`}
                 setActivePage={navigateDoctorPage}
                 profile={profile}
+                isLoading={doctorIdentity.loading}
               />
             </div>
           </div>

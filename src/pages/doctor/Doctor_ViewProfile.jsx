@@ -87,7 +87,7 @@ const appointmentSummaryCards = [
   },
   {
     key: "today",
-    label: "Today's",
+    label: "All Appointments Today",
     icon: "solar:calendar-date-linear",
     path: "/doctor/appointments?scope=today",
   },
@@ -333,7 +333,7 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
           );
 
           /*
-           * "Today's" is intentionally always today's live count.
+           * "All Appointments Today" is intentionally always today's live count.
            * The selected period controls Cancelled / Pending / Completed.
            */
           if (classifyAppointment(appointment).isToday) {

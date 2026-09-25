@@ -5,7 +5,6 @@ import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
 import AppointmentVisitForm from "../appointments/AppointmentVisitForm";
-import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
 import AppointmentNoShowDialog from "../../components/appointments/AppointmentNoShowDialog";
 import AppointmentStatusPopover from "../../components/appointments/AppointmentStatusPopover";
 import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
@@ -16,7 +15,6 @@ import {
   appointmentStoredStatuses,
   classifyAppointment,
   compareAppointmentsByStatusPriority,
-  compareUpcomingAppointments,
   getAppointmentStatusTab,
   formatAppointmentDate,
   formatAppointmentTime,
@@ -44,6 +42,7 @@ import {
   AppointmentToolbar,
 } from "../../components/appointments/AppointmentUi";
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
+import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
 import "../../styles/doctor-appointments.css";
 
 const scheduleTableName = "schedule";
@@ -60,6 +59,7 @@ const appointmentTabs = [
   "Missed",
 ];
 const appointmentPageSizes = [10, 15];
+const doctorAppointmentSnapshots = new Map();
 
 const doctorPendingStatusActions = [
   {
@@ -126,58 +126,6 @@ const initialRescheduleForm = {
   time: "",
   message: "",
 };
-
-const initialRescheduleTimeDraft = {
-  hour: "08",
-  minute: "00",
-  period: "AM",
-};
-
-function getRescheduleTimeDraft(value) {
-  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
-  if (!match) return initialRescheduleTimeDraft;
-
-  const hour24 = Number(match[1]);
-  const minute = match[2];
-  if (!Number.isInteger(hour24) || hour24 < 0 || hour24 > 23) {
-    return initialRescheduleTimeDraft;
-  }
-
-  return {
-    hour: String(hour24 % 12 || 12).padStart(2, "0"),
-    minute,
-    period: hour24 >= 12 ? "PM" : "AM",
-  };
-}
-
-function getRescheduleTimeValue(draft) {
-  const hour12 = Number(draft?.hour);
-  const minute = String(draft?.minute || "00").padStart(2, "0");
-  const period = draft?.period === "PM" ? "PM" : "AM";
-
-  if (!Number.isInteger(hour12) || hour12 < 1 || hour12 > 12 || !/^\d{2}$/.test(minute)) {
-    return "";
-  }
-
-  let hour24 = hour12 % 12;
-  if (period === "PM") hour24 += 12;
-
-  return `${String(hour24).padStart(2, "0")}:${minute}`;
-}
-
-function formatRescheduleTime(value) {
-  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
-  if (!match) return "--:-- --";
-
-  const hour24 = Number(match[1]);
-  const minute = match[2];
-  if (!Number.isInteger(hour24) || hour24 < 0 || hour24 > 23) return "--:-- --";
-
-  const period = hour24 >= 12 ? "PM" : "AM";
-  const hour12 = hour24 % 12 || 12;
-  return `${String(hour12).padStart(2, "0")}:${minute} ${period}`;
-}
-
 
 function getAppointmentDoctorFromIdentity(doctorIdentity) {
   const doctorId = doctorIdentity?.authUser?.id || doctorIdentity?.profile?.id || "";
@@ -396,6 +344,13 @@ function monthFilterMatches(schedule, monthFilter) {
   if (!scheduleDate) return false;
 
   return scheduleDate.slice(0, 7) === monthFilter;
+}
+
+function isAppointmentToday(value) {
+  return Boolean(
+    value &&
+    getManilaDateKey(value) === getManilaDateKey()
+  );
 }
 
 
@@ -813,11 +768,17 @@ function StatusDropdown({
   const availableActions = isCheckedIn
     ? doctorCheckedInStatusActions
     : isPending
-      ? doctorPendingStatusActions.filter(
-        (action) =>
-          action.value !== appointmentStoredStatuses.noShow ||
-          isAppointmentNoShowEligible(schedule)
-        )
+      ? doctorPendingStatusActions.filter((action) => {
+        if (action.value === appointmentStatuses.checkedIn) {
+          return isAppointmentToday(schedule.start_time);
+        }
+
+        if (action.value === appointmentStoredStatuses.noShow) {
+          return isAppointmentNoShowEligible(schedule);
+        }
+
+        return true;
+      })
       : [];
 
   const updateMenuPosition = useCallback(() => {
@@ -964,7 +925,9 @@ function DoctorAppointmentDetailsModal({
 
   const statusLabel = getDoctorAppointmentStatusLabel(schedule);
   const canEdit = isPendingAppointmentStatus(schedule.status);
-  const canCheckIn = isPendingAppointmentStatus(schedule.status);
+  const canCheckIn =
+    isPendingAppointmentStatus(schedule.status) &&
+    isAppointmentToday(schedule.start_time);
   const canComplete = isCheckedInAppointmentStatus(schedule.status);
   const canCancel = isPendingAppointmentStatus(schedule.status);
   const detailDate = formatLongDate(schedule.start_time);
@@ -1189,7 +1152,37 @@ function FigmaWeekCalendar({
 }
 
 
-function DoctorAppointmentSummary({ summary }) {
+function AppointmentTableSkeleton({ isVisible }) {
+  return (
+    <div
+      className={`doctor-appointments-loading-skeleton doctor-loading-shell${isVisible ? " is-visible" : ""}`}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="app-sr-only">Loading appointments...</span>
+      {[0, 1, 2, 3].map((rowIndex) => (
+        <div
+          className="doctor-appointments-row doctor-appointments-skeleton-row"
+          key={`appointment-loading-${rowIndex}`}
+          aria-hidden="true"
+        >
+          {[0, 1, 2, 3, 4].map((cellIndex) => (
+            <span key={`appointment-loading-${rowIndex}-${cellIndex}`}>
+              <span className="doctor-loading-bar" />
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DoctorAppointmentSummary({
+  summary,
+  isLoading = false,
+  isUnavailable = false,
+  showLoading = false,
+}) {
   const cards = [
     {
       label: "Total",
@@ -1218,7 +1211,11 @@ function DoctorAppointmentSummary({ summary }) {
   ];
 
   return (
-    <section className="doctor-appointment-summary" aria-label="Appointment summary">
+    <section
+      className="doctor-appointment-summary"
+      aria-label="Appointment summary"
+      aria-busy={isLoading || undefined}
+    >
       {cards.map((card) => (
         <article
           className={`doctor-appointment-summary-card ${card.tone}`}
@@ -1230,7 +1227,14 @@ function DoctorAppointmentSummary({ summary }) {
 
           <div>
             <span>{card.label}</span>
-            <strong>{card.value}</strong>
+            <strong>
+              {isLoading ? (
+                <span
+                  className={`doctor-loading-bar doctor-loading-shell doctor-appointment-summary-value-loading${showLoading ? " is-visible" : ""}`}
+                  aria-hidden="true"
+                />
+              ) : isUnavailable ? "—" : card.value}
+            </strong>
           </div>
         </article>
       ))}
@@ -1260,9 +1264,12 @@ export function DoctorAppointmentsContent({
     const params = new URLSearchParams(location.search);
     return getAppointmentStatusTab(params.get("status"));
   }, [location.search]);
+  const appointmentSnapshot = authenticatedDoctorId
+    ? doctorAppointmentSnapshots.get(authenticatedDoctorId) || null
+    : null;
   const [form, setForm] = useState(initialAppointmentForm);
   const [patients, setPatients] = useState([]);
-  const [schedules, setSchedules] = useState([]);
+  const [schedules, setSchedules] = useState(() => appointmentSnapshot || []);
   const [activeTab, setActiveTab] = useState(() =>
     dashboardStatusTarget || "All"
   );
@@ -1276,11 +1283,19 @@ export function DoctorAppointmentsContent({
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const [isAdding, setIsAdding] = useState(false);
+  const [addAppointmentError, setAddAppointmentError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [statusMessageVersion, setStatusMessageVersion] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(
+    () => !appointmentSnapshot
+  );
+  const [hasLoadedAppointments, setHasLoadedAppointments] = useState(
+    () => Boolean(appointmentSnapshot)
+  );
+  const [appointmentsLoadError, setAppointmentsLoadError] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState("");
   const [cancelConfirmationSchedule, setCancelConfirmationSchedule] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -1289,8 +1304,6 @@ export function DoctorAppointmentsContent({
   const [rescheduleSchedule, setRescheduleSchedule] = useState(null);
   const [rescheduleForm, setRescheduleForm] = useState(initialRescheduleForm);
   const [rescheduleError, setRescheduleError] = useState("");
-  const [isRescheduleTimePickerOpen, setIsRescheduleTimePickerOpen] = useState(false);
-  const [rescheduleTimeDraft, setRescheduleTimeDraft] = useState(initialRescheduleTimeDraft);
   const [refreshedAppointmentDoctor, setRefreshedAppointmentDoctor] = useState(null);
   const [isResolvingAppointmentDoctor, setIsResolvingAppointmentDoctor] = useState(false);
   const [appointmentDoctorError, setAppointmentDoctorError] = useState(null);
@@ -1303,9 +1316,13 @@ export function DoctorAppointmentsContent({
   const visitRoutingLockRef = useRef("");
   const appointmentsRequestRef = useRef(null);
   const appointmentsMountedRef = useRef(true);
+  const appointmentsLoadedRef = useRef(Boolean(appointmentSnapshot));
   const patientsRequestRef = useRef(null);
   const successTimerRef = useRef(null);
   const dashboardStatusTargetAppliedRef = useRef(Boolean(dashboardStatusTarget));
+  const showAppointmentsLoading = useDoctorDelayedLoader(
+    isLoadingAppointments && !isVisitFormRoute
+  );
 
   const clearSuccessTimer = useCallback(() => {
     if (successTimerRef.current !== null) {
@@ -1482,14 +1499,6 @@ export function DoctorAppointmentsContent({
     ]
   );
 
-  const todaySchedules = useMemo(() => {
-    const todayKey = getManilaDateKey();
-    return schedules
-      .filter((schedule) => getManilaDateKey(schedule.start_time) === todayKey)
-      .filter((schedule) => !isClosedAppointmentStatus(schedule.status))
-      .sort(compareUpcomingAppointments);
-  }, [schedules]);
-
   const totalPages = Math.max(1, Math.ceil(visibleSchedules.length / pageSize));
   const displayedPage = Math.min(currentPage, totalPages);
   const paginatedSchedules = useMemo(() => {
@@ -1532,17 +1541,44 @@ export function DoctorAppointmentsContent({
     }
 
     const request = (async () => {
-      const { data, error } = await supabase
-        .from(scheduleTableName)
-        .select(scheduleColumns)
-        .order("start_time", { ascending: true });
+      if (appointmentsMountedRef.current && !appointmentsLoadedRef.current) {
+        setIsLoadingAppointments(true);
+      }
+      if (appointmentsMountedRef.current) {
+        setAppointmentsLoadError("");
+      }
+
+      let data;
+      let error;
+
+      try {
+        ({ data, error } = await supabase
+          .from(scheduleTableName)
+          .select(scheduleColumns)
+          .order("start_time", { ascending: true }));
+      } catch (unexpectedError) {
+        console.error("[Doctor Appointment Flow] appointment fetch rejected:", unexpectedError);
+        if (appointmentsMountedRef.current) {
+          if (!appointmentsLoadedRef.current) {
+            setSchedules([]);
+          }
+          setIsLoadingAppointments(false);
+          setAppointmentsLoadError(
+            `Unable to load appointments: ${getReadableScheduleError(unexpectedError)}`
+          );
+        }
+        return { ok: false, count: 0, error: unexpectedError };
+      }
 
       if (error) {
         console.error("[Doctor Appointment Flow] appointment fetch error:", error);
         if (appointmentsMountedRef.current) {
-          setSchedules([]);
-          setStatusMessage(
-            `Unable to load appointments from Supabase: ${getReadableScheduleError(error)}`
+          if (!appointmentsLoadedRef.current) {
+            setSchedules([]);
+          }
+          setIsLoadingAppointments(false);
+          setAppointmentsLoadError(
+            `Unable to load appointments: ${getReadableScheduleError(error)}`
           );
         }
         return { ok: false, count: 0, error };
@@ -1552,7 +1588,12 @@ export function DoctorAppointmentsContent({
         (schedule) => !isLegacyPendingBookingSchedule(schedule)
       );
       if (appointmentsMountedRef.current) {
+        appointmentsLoadedRef.current = true;
+        setHasLoadedAppointments(true);
+        doctorAppointmentSnapshots.set(authenticatedDoctorId, nextSchedules);
         setSchedules(nextSchedules);
+        setIsLoadingAppointments(false);
+        setAppointmentsLoadError("");
         setSelectedCalendarSchedule((current) =>
           current?.id
             ? nextSchedules.find((schedule) => schedule.id === current.id) || current
@@ -1574,7 +1615,13 @@ export function DoctorAppointmentsContent({
     };
     request.then(clearPendingAppointmentRequest, clearPendingAppointmentRequest);
     return request;
-  }, []);
+  }, [authenticatedDoctorId]);
+
+  useEffect(() => {
+    if (authenticatedDoctorId && appointmentsLoadedRef.current) {
+      doctorAppointmentSnapshots.set(authenticatedDoctorId, schedules);
+    }
+  }, [authenticatedDoctorId, schedules]);
 
   useEffect(() => {
     if (isVisitFormRoute || doctorIdentity?.loading || !authenticatedDoctorId) {
@@ -1804,6 +1851,7 @@ export function DoctorAppointmentsContent({
   ]);
 
   const updateFormValue = (field, value) => {
+    setAddAppointmentError("");
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -1857,6 +1905,7 @@ export function DoctorAppointmentsContent({
 
     window.dispatchEvent(new CustomEvent("doctor:close-profile-menu"));
     setIsAdding(true);
+    setAddAppointmentError("");
     setStatusMessage("");
     setAppointmentDoctorError(null);
 
@@ -1870,7 +1919,7 @@ export function DoctorAppointmentsContent({
 
   const selectPatient = (patient) => {
     updateFormValue("patient_name", patient.full_name || "");
-    setStatusMessage("");
+    setAddAppointmentError("");
   };
 
 
@@ -1886,7 +1935,7 @@ export function DoctorAppointmentsContent({
     appointmentSaveLockRef.current = true;
 
     try {
-    setStatusMessage("");
+    setAddAppointmentError("");
 
     const appointmentRange = buildThirtyMinuteAppointmentRange(
       form.appointment_date,
@@ -1894,24 +1943,28 @@ export function DoctorAppointmentsContent({
     );
 
     if (!appointmentRange) {
-      setStatusMessage("Choose a valid appointment date and time.");
+      setAddAppointmentError("Choose a valid appointment date and time.");
       return;
     }
 
     const { startDate, endDate } = appointmentRange;
 
     if (startDate < new Date()) {
-      setStatusMessage("New appointments cannot start in the past.");
+      setAddAppointmentError(
+        "The selected appointment date and time has already passed. Please choose a future date and time."
+      );
       return;
     }
 
     if (!form.title.trim()) {
-      setStatusMessage("Select an appointment type.");
+      setAddAppointmentError("Select an appointment type.");
       return;
     }
 
     if (!hasExactPatientMatch) {
-      setStatusMessage("Select a patient from the search results before creating a schedule.");
+      setAddAppointmentError(
+        "Select a patient from the search results before creating a schedule."
+      );
       return;
     }
 
@@ -1922,7 +1975,7 @@ export function DoctorAppointmentsContent({
     );
 
     if (!selectedPatient?.id) {
-      setStatusMessage(
+      setAddAppointmentError(
         "The selected patient could not be matched to a registered patient."
       );
       return;
@@ -1931,7 +1984,7 @@ export function DoctorAppointmentsContent({
     const selectedDoctor = appointmentDoctor || (await resolveAppointmentDoctor());
 
     if (!selectedDoctor?.id || !selectedDoctor?.name) {
-      setStatusMessage("Unable to load Doctor profile. Please try again.");
+      setAddAppointmentError("Unable to load Doctor profile. Please try again.");
       return;
     }
 
@@ -1948,7 +2001,7 @@ export function DoctorAppointmentsContent({
     };
 
     if (hasDuplicateAppointment(schedules, payload)) {
-      setStatusMessage(
+      setAddAppointmentError(
         "This patient already has an active appointment at the selected date and time."
       );
       return;
@@ -1970,7 +2023,7 @@ export function DoctorAppointmentsContent({
         profileId: selectedDoctor.profileId || null,
         startTime: payload.start_time,
       });
-      setStatusMessage(
+      setAddAppointmentError(
         `Appointment was not saved: ${getReadableScheduleError(error)}`
       );
       return;
@@ -1990,6 +2043,7 @@ export function DoctorAppointmentsContent({
         ...current.filter((appointment) => appointment.id !== data.id),
       ];
     });
+    setAddAppointmentError("");
     setForm(initialAppointmentForm);
     setIsAdding(false);
     setActiveTab("All");
@@ -2188,8 +2242,6 @@ export function DoctorAppointmentsContent({
       message: getScheduleHumanMessage(schedule.description),
     });
     setRescheduleError("");
-    setRescheduleTimeDraft(getRescheduleTimeDraft(currentTime));
-    setIsRescheduleTimePickerOpen(false);
   };
 
   const checkInAppointment = async (schedule) => {
@@ -2197,6 +2249,15 @@ export function DoctorAppointmentsContent({
 
     if (!isPendingAppointmentStatus(schedule.status)) {
       setDetailActionError("Only pending or scheduled appointments can be checked in.");
+      return;
+    }
+
+    if (!isAppointmentToday(schedule.start_time)) {
+      const message =
+        "Check-in is only available on the scheduled appointment date.";
+
+      setDetailActionError(message);
+      setStatusMessage(message);
       return;
     }
 
@@ -2398,25 +2459,9 @@ export function DoctorAppointmentsContent({
       message: getScheduleHumanMessage(cancelConfirmationSchedule.description),
     });
     setRescheduleError("");
-    setRescheduleTimeDraft(getRescheduleTimeDraft(currentTime));
-    setIsRescheduleTimePickerOpen(false);
     setCancelConfirmationSchedule(null);
     setCancelReason("");
     setCancelReasonError("");
-  };
-
-  const openRescheduleTimePicker = () => {
-    setRescheduleTimeDraft(getRescheduleTimeDraft(rescheduleForm.time));
-    setIsRescheduleTimePickerOpen(true);
-  };
-
-  const applyRescheduleTime = () => {
-    const nextTime = getRescheduleTimeValue(rescheduleTimeDraft);
-    if (!nextTime) return;
-
-    setRescheduleForm((current) => ({ ...current, time: nextTime }));
-    setRescheduleError("");
-    setIsRescheduleTimePickerOpen(false);
   };
 
   const closeRescheduleModal = () => {
@@ -2425,8 +2470,6 @@ export function DoctorAppointmentsContent({
     setRescheduleSchedule(null);
     setRescheduleForm(initialRescheduleForm);
     setRescheduleError("");
-    setRescheduleTimeDraft(initialRescheduleTimeDraft);
-    setIsRescheduleTimePickerOpen(false);
   };
 
   const saveRescheduleAppointment = async (event) => {
@@ -2572,17 +2615,32 @@ export function DoctorAppointmentsContent({
         tabsClassName="doctor-appointments-tabs"
       />
 
-      {statusMessage ? (
-        <p
+      {successMessage ? (
+        <div
           key={statusMessageVersion}
+          className="appointment-success-toast"
+          role="status"
+          aria-live="polite"
+        >
+          <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+          <span>{successMessage}</span>
+        </div>
+      ) : null}
+
+      {statusMessage && statusMessage !== successMessage ? (
+        <p
           className={`doctor-appointments-status-message${
             /notification could not be sent/i.test(statusMessage) ? " is-warning" : ""
-          }${
-            successMessage === statusMessage ? " is-auto-hide" : ""
           }`}
           role="status"
         >
           {statusMessage}
+        </p>
+      ) : null}
+
+      {appointmentsLoadError ? (
+        <p className="doctor-appointments-status-message is-warning" role="alert">
+          {appointmentsLoadError}
         </p>
       ) : null}
 
@@ -2616,8 +2674,15 @@ export function DoctorAppointmentsContent({
           area="month"
           className="doctor-appointments-month-filter doctor-appointments-control-group"
         >
-          <div className="doctor-appointments-month-input appointment-ui-month">
+          <div
+            className={`doctor-appointments-month-input appointment-ui-month${monthFilter ? "" : " is-empty"}`}
+          >
             <Icon icon="solar:calendar-linear" />
+            {!monthFilter ? (
+              <span className="doctor-appointments-month-placeholder" aria-hidden="true">
+                All months
+              </span>
+            ) : null}
             <input
               type="month"
               value={monthFilter}
@@ -2654,7 +2719,12 @@ export function DoctorAppointmentsContent({
         </AppointmentControlGroup>
       </AppointmentToolbar>
 
-      <DoctorAppointmentSummary summary={appointmentSummary} />
+      <DoctorAppointmentSummary
+        summary={appointmentSummary}
+        isLoading={isLoadingAppointments && !hasLoadedAppointments}
+        isUnavailable={Boolean(appointmentsLoadError) && !hasLoadedAppointments}
+        showLoading={showAppointmentsLoading}
+      />
 
       <section
         className="doctor-appointments-table-card appointment-ui-table-card"
@@ -2674,7 +2744,13 @@ export function DoctorAppointmentsContent({
               className="doctor-appointments-table-scroll appointment-ui-table-scroll"
               ref={tableScrollRef}
             >
-              {paginatedSchedules.length > 0 ? (
+              {isLoadingAppointments && !hasLoadedAppointments ? (
+                <AppointmentTableSkeleton isVisible={showAppointmentsLoading} />
+              ) : appointmentsLoadError && !hasLoadedAppointments ? (
+                <div className="doctor-appointments-empty" role="alert">
+                  Appointments could not be loaded.
+                </div>
+              ) : paginatedSchedules.length > 0 ? (
                 paginatedSchedules.map((schedule) => (
                   <div className="doctor-appointments-row" key={schedule.id}>
                     <span>
@@ -2697,16 +2773,19 @@ export function DoctorAppointmentsContent({
           </div>
         </div>
 
-        <AppointmentPagination
-          className="doctor-appointments-pagination"
-          currentPage={displayedPage}
-          pageSize={pageSize}
-          pageSizes={appointmentPageSizes}
-          totalItems={visibleSchedules.length}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={setPageSize}
-        />
+        {(!isLoadingAppointments || hasLoadedAppointments) &&
+        (!appointmentsLoadError || hasLoadedAppointments) ? (
+          <AppointmentPagination
+            className="doctor-appointments-pagination"
+            currentPage={displayedPage}
+            pageSize={pageSize}
+            pageSizes={appointmentPageSizes}
+            totalItems={visibleSchedules.length}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        ) : null}
       </section>
 
 
@@ -2799,6 +2878,7 @@ export function DoctorAppointmentsContent({
                   aria-label="Close add appointment form"
                   onClick={() => {
                     setIsAdding(false);
+                    setAddAppointmentError("");
                     setStatusMessage("");
                   }}
                 >
@@ -2858,6 +2938,7 @@ export function DoctorAppointmentsContent({
                     </span>
                     <input
                       type="date"
+                      min={getManilaDateKey()}
                       value={form.appointment_date}
                       onChange={(event) => updateFormValue("appointment_date", event.target.value)}
                       required
@@ -2916,7 +2997,11 @@ export function DoctorAppointmentsContent({
                     </p>
                   ) : null}
 
-                  {statusMessage ? <p className="appointment-form-message">{statusMessage}</p> : null}
+                  {addAppointmentError ? (
+                    <p className="appointment-form-message" role="alert">
+                      {addAppointmentError}
+                    </p>
+                  ) : null}
 
                   <div className="appointment-form-actions">
                     <button
@@ -2934,6 +3019,7 @@ export function DoctorAppointmentsContent({
                       type="button"
                       onClick={() => {
                         setIsAdding(false);
+                        setAddAppointmentError("");
                         setStatusMessage("");
                       }}
                     >

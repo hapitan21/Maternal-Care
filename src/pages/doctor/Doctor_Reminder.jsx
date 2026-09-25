@@ -6,6 +6,7 @@ import AppointmentTimePicker from "../../components/appointments/AppointmentTime
 import { ClinicalWorkflowHeader } from "../../components/clinical/ClinicalWorkflowUi";
 import { supabase } from "../../lib/supabaseClient";
 import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
+import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
 import {
   classifyAppointment,
   formatAppointmentDate,
@@ -25,6 +26,115 @@ const medicationReminderOccurrencesTableName = "medication_reminder_occurrences"
 const healthTipsTableName = "health_tips";
 const healthTipCategories = ["All", "Nutrition", "Exercise"];
 const healthTipManagementFilters = ["Active", "Archived", "All"];
+const doctorReminderSnapshots = new Map();
+
+function hasDoctorReminderSnapshot(doctorId, dataset) {
+  const snapshot = doctorId ? doctorReminderSnapshots.get(doctorId) : null;
+  return Boolean(
+    snapshot && Object.prototype.hasOwnProperty.call(snapshot, dataset)
+  );
+}
+
+function updateDoctorReminderSnapshot(doctorId, dataset, data) {
+  if (!doctorId) return;
+
+  doctorReminderSnapshots.set(doctorId, {
+    ...(doctorReminderSnapshots.get(doctorId) || {}),
+    [dataset]: data,
+  });
+}
+
+function ReminderAppointmentSkeletonRows({ isVisible, rows = 3 }) {
+  return Array.from({ length: rows }, (_, rowIndex) => (
+    <div
+      className={`doctor-reminder-appointment-row doctor-reminder-skeleton-row doctor-loading-shell${isVisible ? " is-visible" : ""}`}
+      key={`reminder-appointment-loading-${rowIndex}`}
+      aria-hidden="true"
+    >
+      {[0, 1, 2, 3, 4, 5].map((cellIndex) => (
+        <span key={`reminder-appointment-loading-${rowIndex}-${cellIndex}`}>
+          <span className="doctor-loading-bar" />
+        </span>
+      ))}
+    </div>
+  ));
+}
+
+function ReminderMedicationSkeletonRows({ isVisible, rows = 3 }) {
+  return Array.from({ length: rows }, (_, rowIndex) => (
+    <div
+      className={`doctor-medication-row doctor-reminder-skeleton-row doctor-loading-shell${isVisible ? " is-visible" : ""}`}
+      key={`reminder-medication-loading-${rowIndex}`}
+      aria-hidden="true"
+    >
+      {[0, 1, 2, 3, 4, 5].map((cellIndex) => (
+        <span key={`reminder-medication-loading-${rowIndex}-${cellIndex}`}>
+          <span className="doctor-loading-bar" />
+        </span>
+      ))}
+    </div>
+  ));
+}
+
+function ReminderHealthTipSkeletonCards({ isVisible, management = false, cards = 3 }) {
+  return Array.from({ length: cards }, (_, cardIndex) => (
+    <article
+      className={`doctor-reminder-health-tip-skeleton doctor-loading-shell${management ? " doctor-health-tip-management-card" : ""}${isVisible ? " is-visible" : ""}`}
+      key={`reminder-health-tip-loading-${cardIndex}`}
+      aria-hidden="true"
+    >
+      <span className="doctor-health-tip-logo">
+        <span className="doctor-loading-bar doctor-reminder-health-tip-icon-loading" />
+      </span>
+      <span className="doctor-reminder-health-tip-skeleton-copy">
+        <span className="doctor-loading-bar" />
+        <span className="doctor-loading-bar" />
+      </span>
+      {management ? (
+        <span className="doctor-loading-bar doctor-reminder-health-tip-action-loading" />
+      ) : null}
+    </article>
+  ));
+}
+
+function runCoalescedLoad(trackerRef, task, handleUnexpectedError) {
+  if (trackerRef.current.promise) {
+    trackerRef.current.trailingRequested = true;
+    return trackerRef.current.promise;
+  }
+
+  const requestId = trackerRef.current.requestId + 1;
+  trackerRef.current.requestId = requestId;
+  trackerRef.current.trailingRequested = false;
+  const request = Promise.resolve()
+    .then(() => task(requestId))
+    .catch((error) => handleUnexpectedError?.(error, requestId));
+  trackerRef.current.promise = request;
+
+  const clearRequest = () => {
+    if (trackerRef.current.promise === request) {
+      const shouldRunTrailingRequest = trackerRef.current.trailingRequested;
+      trackerRef.current.promise = null;
+      trackerRef.current.trailingRequested = false;
+
+      if (shouldRunTrailingRequest) {
+        runCoalescedLoad(trackerRef, task, handleUnexpectedError);
+      }
+    }
+  };
+  request.then(clearRequest, clearRequest);
+  return request;
+}
+
+function isCurrentLoad(mountedRef, trackerRef, requestId) {
+  return mountedRef.current && trackerRef.current.requestId === requestId;
+}
+
+function invalidateLoad(trackerRef) {
+  trackerRef.current.requestId += 1;
+  trackerRef.current.promise = null;
+  trackerRef.current.trailingRequested = false;
+}
 
 const healthTipImages = {
   hydration: "",
@@ -891,6 +1001,30 @@ function ReminderProfileMenu({ doctorIdentity }) {
 }
 
 function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
+  const authenticatedDoctorId = doctorIdentity?.authUser?.id || "";
+  const reminderSnapshot = authenticatedDoctorId
+    ? doctorReminderSnapshots.get(authenticatedDoctorId) || null
+    : null;
+  const hasCachedAppointments = hasDoctorReminderSnapshot(
+    authenticatedDoctorId,
+    "appointments"
+  );
+  const hasCachedAppointmentReminders = hasDoctorReminderSnapshot(
+    authenticatedDoctorId,
+    "appointmentReminders"
+  );
+  const hasCachedMedicationReminders = hasDoctorReminderSnapshot(
+    authenticatedDoctorId,
+    "medicationReminders"
+  );
+  const hasCachedMedicationOccurrences = hasDoctorReminderSnapshot(
+    authenticatedDoctorId,
+    "medicationOccurrences"
+  );
+  const hasCachedHealthTips = hasDoctorReminderSnapshot(
+    authenticatedDoctorId,
+    "healthTips"
+  );
   const [form, setForm] = React.useState({
     appointmentId: "",
     patientId: "",
@@ -907,31 +1041,43 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [reminderFormSource, setReminderFormSource] = React.useState("global");
   const [reminderTargetMode, setReminderTargetMode] = React.useState("single");
   const [selectedAppointmentIds, setSelectedAppointmentIds] = React.useState([]);
-  const [availableAppointments, setAvailableAppointments] = React.useState([]);
-  const [isLoadingAppointments, setIsLoadingAppointments] = React.useState(true);
+  const [availableAppointments, setAvailableAppointments] = React.useState(
+    () => reminderSnapshot?.appointments || []
+  );
+  const [isLoadingAppointments, setIsLoadingAppointments] = React.useState(
+    () => !hasCachedAppointments
+  );
   const [appointmentsMessage, setAppointmentsMessage] = React.useState("");
-  const [reminders, setReminders] = React.useState([]);
+  const [reminders, setReminders] = React.useState(
+    () => reminderSnapshot?.appointmentReminders || []
+  );
   const [isLoadingAppointmentReminders, setIsLoadingAppointmentReminders] =
-    React.useState(true);
+    React.useState(() => !hasCachedAppointmentReminders);
   const [appointmentRemindersMessage, setAppointmentRemindersMessage] =
     React.useState("");
   const [appointmentRemindersLoadError, setAppointmentRemindersLoadError] =
     React.useState("");
-  const [medicationReminders, setMedicationReminders] = React.useState([]);
+  const [medicationReminders, setMedicationReminders] = React.useState(
+    () => reminderSnapshot?.medicationReminders || []
+  );
   const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] =
-    React.useState(true);
+    React.useState(() => !hasCachedMedicationReminders);
   const [medicationRemindersMessage, setMedicationRemindersMessage] =
     React.useState("");
-  const [medicationOccurrences, setMedicationOccurrences] = React.useState([]);
+  const [medicationOccurrences, setMedicationOccurrences] = React.useState(
+    () => reminderSnapshot?.medicationOccurrences || []
+  );
   const [medicationOccurrenceStatus, setMedicationOccurrenceStatus] =
-    React.useState("loading");
+    React.useState(() => hasCachedMedicationOccurrences ? "ready" : "loading");
   const [medicationOccurrencesMessage, setMedicationOccurrencesMessage] =
     React.useState("");
   const [isReminderFormOpen, setIsReminderFormOpen] = React.useState(false);
   const [isMedicationFormOpen, setIsMedicationFormOpen] = React.useState(false);
   const [appointmentReminderFilter, setAppointmentReminderFilter] = React.useState("Today");
   const [medicationReminderFilter, setMedicationReminderFilter] = React.useState("Today");
-  const [healthTips, setHealthTips] = React.useState([]);
+  const [healthTips, setHealthTips] = React.useState(
+    () => reminderSnapshot?.healthTips || []
+  );
   const [healthTipFilter, setHealthTipFilter] = React.useState("All");
   const [viewAllSection, setViewAllSection] = React.useState(null);
   const [isHealthTipFormOpen, setIsHealthTipFormOpen] = React.useState(false);
@@ -952,7 +1098,9 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [statusMessage, setStatusMessage] = React.useState("");
   const [isSavingReminder, setIsSavingReminder] = React.useState(false);
   const [isSavingMedicationReminder, setIsSavingMedicationReminder] = React.useState(false);
-  const [isLoadingHealthTips, setIsLoadingHealthTips] = React.useState(true);
+  const [isLoadingHealthTips, setIsLoadingHealthTips] = React.useState(
+    () => !hasCachedHealthTips
+  );
   const [isSavingHealthTip, setIsSavingHealthTip] = React.useState(false);
   const [healthTipsMessage, setHealthTipsMessage] = React.useState("");
   const [medicationForm, setMedicationForm] = React.useState({
@@ -975,6 +1123,12 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [medicationStatusMessage, setMedicationStatusMessage] = React.useState("");
   const [currentTime, setCurrentTime] = React.useState(() => Date.now());
   const medicationTimePickerRef = React.useRef(null);
+  const reminderMountedRef = React.useRef(false);
+  const appointmentsLoadRef = React.useRef({ requestId: 0, promise: null, trailingRequested: false });
+  const appointmentRemindersLoadRef = React.useRef({ requestId: 0, promise: null, trailingRequested: false });
+  const medicationRemindersLoadRef = React.useRef({ requestId: 0, promise: null, trailingRequested: false });
+  const medicationOccurrencesLoadRef = React.useRef({ requestId: 0, promise: null, trailingRequested: false });
+  const healthTipsLoadRef = React.useRef({ requestId: 0, promise: null, trailingRequested: false });
 
   React.useEffect(() => {
     const reminderStatusTimer = window.setInterval(() => {
@@ -984,8 +1138,17 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     return () => window.clearInterval(reminderStatusTimer);
   }, []);
 
-  const loadAppointments = React.useCallback(async () => {
-    setIsLoadingAppointments(true);
+  const loadAppointments = React.useCallback(() => runCoalescedLoad(
+    appointmentsLoadRef,
+    async (requestId) => {
+    if (!isCurrentLoad(reminderMountedRef, appointmentsLoadRef, requestId)) return;
+    const hasSnapshot = hasDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "appointments"
+    );
+    if (!hasSnapshot) {
+      setIsLoadingAppointments(true);
+    }
 
     const [scheduleResult, patientsResult] = await Promise.all([
       supabase
@@ -1000,10 +1163,14 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
         .order("full_name", { ascending: true }),
     ]);
 
+    if (!isCurrentLoad(reminderMountedRef, appointmentsLoadRef, requestId)) return;
+
     setIsLoadingAppointments(false);
 
     if (scheduleResult.error) {
-      setAvailableAppointments([]);
+      if (!hasSnapshot) {
+        setAvailableAppointments([]);
+      }
       setAppointmentsMessage(
         `Unable to load appointments: ${scheduleResult.error.message}`
       );
@@ -1012,9 +1179,13 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
     if (patientsResult.error) {
       console.warn("Unable to verify appointment patients:", patientsResult.error);
-      setAvailableAppointments(
-        (scheduleResult.data || []).map(mapScheduleAppointment)
+      const nextAppointments = (scheduleResult.data || []).map(mapScheduleAppointment);
+      updateDoctorReminderSnapshot(
+        authenticatedDoctorId,
+        "appointments",
+        nextAppointments
       );
+      setAvailableAppointments(nextAppointments);
       setAppointmentsMessage("");
       return;
     }
@@ -1029,16 +1200,46 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       .filter(Boolean)
       .map(mapScheduleAppointment);
 
+    updateDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "appointments",
+      registeredAppointments
+    );
     setAvailableAppointments(registeredAppointments);
     setAppointmentsMessage(
       registeredAppointments.length
         ? ""
         : "No appointments linked to registered patients are available for reminders."
     );
-  }, []);
+    },
+    (error, requestId) => {
+      if (!isCurrentLoad(reminderMountedRef, appointmentsLoadRef, requestId)) return;
+      console.error("Unable to load appointments:", error);
+      const hasSnapshot = hasDoctorReminderSnapshot(
+        authenticatedDoctorId,
+        "appointments"
+      );
+      if (!hasSnapshot) {
+        setAvailableAppointments([]);
+      }
+      setAppointmentsMessage(
+        `Unable to load appointments: ${error?.message || "Unexpected request failure"}`
+      );
+      setIsLoadingAppointments(false);
+    }
+  ), [authenticatedDoctorId]);
 
-  const loadAppointmentReminders = React.useCallback(async () => {
-    setIsLoadingAppointmentReminders(true);
+  const loadAppointmentReminders = React.useCallback(() => runCoalescedLoad(
+    appointmentRemindersLoadRef,
+    async (requestId) => {
+    if (!isCurrentLoad(reminderMountedRef, appointmentRemindersLoadRef, requestId)) return;
+    const hasSnapshot = hasDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "appointmentReminders"
+    );
+    if (!hasSnapshot) {
+      setIsLoadingAppointmentReminders(true);
+    }
     setAppointmentRemindersLoadError("");
     setAppointmentRemindersMessage((currentMessage) =>
       currentMessage.startsWith("Unable to load appointment reminders:")
@@ -1074,9 +1275,13 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       `)
       .order("remind_at", { ascending: true });
 
+    if (!isCurrentLoad(reminderMountedRef, appointmentRemindersLoadRef, requestId)) return;
+
     if (error) {
       console.error("Unable to load appointment reminders:", error);
-      setReminders([]);
+      if (!hasSnapshot) {
+        setReminders([]);
+      }
       setAppointmentRemindersLoadError(error.message || "Unknown error");
       setAppointmentRemindersMessage(
         `Unable to load appointment reminders: ${error.message}`
@@ -1085,13 +1290,40 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       return;
     }
 
+    const nextReminders = (data || []).map(mapReminderDatabaseRow);
+    updateDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "appointmentReminders",
+      nextReminders
+    );
     setAppointmentRemindersLoadError("");
-    setReminders((data || []).map(mapReminderDatabaseRow));
+    setReminders(nextReminders);
     setIsLoadingAppointmentReminders(false);
-  }, []);
+    },
+    (error, requestId) => {
+      if (!isCurrentLoad(reminderMountedRef, appointmentRemindersLoadRef, requestId)) return;
+      console.error("Unable to load appointment reminders:", error);
+      const message = error?.message || "Unexpected request failure";
+      if (!hasDoctorReminderSnapshot(authenticatedDoctorId, "appointmentReminders")) {
+        setReminders([]);
+      }
+      setAppointmentRemindersLoadError(message);
+      setAppointmentRemindersMessage(`Unable to load appointment reminders: ${message}`);
+      setIsLoadingAppointmentReminders(false);
+    }
+  ), [authenticatedDoctorId]);
 
-  const loadMedicationReminderRows = React.useCallback(async () => {
-    setIsLoadingMedicationReminders(true);
+  const loadMedicationReminderRows = React.useCallback(() => runCoalescedLoad(
+    medicationRemindersLoadRef,
+    async (requestId) => {
+    if (!isCurrentLoad(reminderMountedRef, medicationRemindersLoadRef, requestId)) return;
+    const hasSnapshot = hasDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "medicationReminders"
+    );
+    if (!hasSnapshot) {
+      setIsLoadingMedicationReminders(true);
+    }
     setMedicationRemindersMessage("");
     const { data, error } = await supabase
       .from(medicationRemindersTableName)
@@ -1112,9 +1344,13 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       `)
       .order("start_date", { ascending: true });
 
+    if (!isCurrentLoad(reminderMountedRef, medicationRemindersLoadRef, requestId)) return;
+
     if (error) {
       console.error("Unable to load medication reminders:", error);
-      setMedicationReminders([]);
+      if (!hasSnapshot) {
+        setMedicationReminders([]);
+      }
       setMedicationRemindersMessage(
         `Unable to load medication reminders: ${error.message}`
       );
@@ -1132,9 +1368,13 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
           .in("id", patientIds)
       : { data: [], error: null };
 
+    if (!isCurrentLoad(reminderMountedRef, medicationRemindersLoadRef, requestId)) return;
+
     if (patientResult.error) {
       console.error("Unable to resolve medication reminder Patients:", patientResult.error);
-      setMedicationReminders([]);
+      if (!hasSnapshot) {
+        setMedicationReminders([]);
+      }
       setMedicationRemindersMessage(
         `Unable to load medication reminders: ${patientResult.error.message}`
       );
@@ -1145,23 +1385,50 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     const patientsById = new Map(
       (patientResult.data || []).map((patient) => [patient.id, patient])
     );
-    setMedicationReminders(
-      (data || []).map((row) => ({
+    const nextMedicationReminders = (data || []).map((row) => ({
         ...row,
         patients: patientsById.get(row.patient_id) || null,
-      })).map(mapMedicationReminderDatabaseRow)
+      })).map(mapMedicationReminderDatabaseRow);
+    updateDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "medicationReminders",
+      nextMedicationReminders
     );
+    setMedicationReminders(nextMedicationReminders);
     setIsLoadingMedicationReminders(false);
-  }, []);
+    },
+    (error, requestId) => {
+      if (!isCurrentLoad(reminderMountedRef, medicationRemindersLoadRef, requestId)) return;
+      console.error("Unable to load medication reminders:", error);
+      if (!hasDoctorReminderSnapshot(authenticatedDoctorId, "medicationReminders")) {
+        setMedicationReminders([]);
+      }
+      setMedicationRemindersMessage(
+        `Unable to load medication reminders: ${error?.message || "Unexpected request failure"}`
+      );
+      setIsLoadingMedicationReminders(false);
+    }
+  ), [authenticatedDoctorId]);
 
-  const loadMedicationOccurrenceRows = React.useCallback(async () => {
-    setMedicationOccurrenceStatus("loading");
+  const loadMedicationOccurrenceRows = React.useCallback(() => runCoalescedLoad(
+    medicationOccurrencesLoadRef,
+    async (requestId) => {
+    if (!isCurrentLoad(reminderMountedRef, medicationOccurrencesLoadRef, requestId)) return;
+    const hasSnapshot = hasDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "medicationOccurrences"
+    );
+    if (!hasSnapshot) {
+      setMedicationOccurrenceStatus("loading");
+    }
     setMedicationOccurrencesMessage("");
     const queryRange = getMedicationOccurrenceQueryRange();
 
     if (!queryRange) {
-      setMedicationOccurrences([]);
-      setMedicationOccurrenceStatus("error");
+      if (!hasSnapshot) {
+        setMedicationOccurrences([]);
+        setMedicationOccurrenceStatus("error");
+      }
       setMedicationOccurrencesMessage(
         "Medication dose status is unavailable because the date range could not be determined."
       );
@@ -1189,12 +1456,16 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       .lt("scheduled_for", queryRange.end)
       .order("scheduled_for", { ascending: true });
 
+    if (!isCurrentLoad(reminderMountedRef, medicationOccurrencesLoadRef, requestId)) return;
+
     if (error) {
       if (!isMissingMedicationOccurrenceError(error)) {
         console.error("Unable to load medication occurrences:", error);
       }
-      setMedicationOccurrences([]);
-      setMedicationOccurrenceStatus("error");
+      if (!hasSnapshot) {
+        setMedicationOccurrences([]);
+        setMedicationOccurrenceStatus("error");
+      }
       setMedicationOccurrencesMessage(
         isMissingMedicationOccurrenceError(error)
           ? "Medication dose status is not available yet."
@@ -1203,11 +1474,29 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       return;
     }
 
-    setMedicationOccurrences(
-      (data || []).map(mapMedicationOccurrenceDatabaseRow)
+    const nextMedicationOccurrences = (data || []).map(
+      mapMedicationOccurrenceDatabaseRow
     );
+    updateDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "medicationOccurrences",
+      nextMedicationOccurrences
+    );
+    setMedicationOccurrences(nextMedicationOccurrences);
     setMedicationOccurrenceStatus("ready");
-  }, []);
+    },
+    (error, requestId) => {
+      if (!isCurrentLoad(reminderMountedRef, medicationOccurrencesLoadRef, requestId)) return;
+      console.error("Unable to load medication occurrences:", error);
+      if (!hasDoctorReminderSnapshot(authenticatedDoctorId, "medicationOccurrences")) {
+        setMedicationOccurrences([]);
+        setMedicationOccurrenceStatus("error");
+      }
+      setMedicationOccurrencesMessage(
+        `Unable to load medication dose status: ${error?.message || "Unexpected request failure"}`
+      );
+    }
+  ), [authenticatedDoctorId]);
 
   const loadMedicationReminderData = React.useCallback(async () => {
     await Promise.all([
@@ -1216,8 +1505,17 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     ]);
   }, [loadMedicationOccurrenceRows, loadMedicationReminderRows]);
 
-  const loadHealthTipRows = React.useCallback(async () => {
-    setIsLoadingHealthTips(true);
+  const loadHealthTipRows = React.useCallback(() => runCoalescedLoad(
+    healthTipsLoadRef,
+    async (requestId) => {
+    if (!isCurrentLoad(reminderMountedRef, healthTipsLoadRef, requestId)) return;
+    const hasSnapshot = hasDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "healthTips"
+    );
+    if (!hasSnapshot) {
+      setIsLoadingHealthTips(true);
+    }
 
     const { data, error } = await supabase
       .from(healthTipsTableName)
@@ -1225,11 +1523,15 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       .order("published_at", { ascending: false })
       .order("created_at", { ascending: false });
 
+    if (!isCurrentLoad(reminderMountedRef, healthTipsLoadRef, requestId)) return;
+
     setIsLoadingHealthTips(false);
 
     if (error) {
       console.error("Unable to load health tips:", error);
-      setHealthTips([]);
+      if (!hasSnapshot) {
+        setHealthTips([]);
+      }
       setHealthTipsMessage(`Unable to load health tips: ${error.message}`);
       return;
     }
@@ -1238,11 +1540,33 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       .map(mapHealthTipDatabaseRow)
       .filter(Boolean);
 
+    updateDoctorReminderSnapshot(
+      authenticatedDoctorId,
+      "healthTips",
+      databaseTips
+    );
     setHealthTips(databaseTips);
     setHealthTipsMessage("");
-  }, []);
+    },
+    (error, requestId) => {
+      if (!isCurrentLoad(reminderMountedRef, healthTipsLoadRef, requestId)) return;
+      console.error("Unable to load health tips:", error);
+      if (!hasDoctorReminderSnapshot(authenticatedDoctorId, "healthTips")) {
+        setHealthTips([]);
+      }
+      setHealthTipsMessage(
+        `Unable to load health tips: ${error?.message || "Unexpected request failure"}`
+      );
+      setIsLoadingHealthTips(false);
+    }
+  ), [authenticatedDoctorId]);
 
   React.useEffect(() => {
+    if (doctorIdentity?.loading || !authenticatedDoctorId) {
+      return undefined;
+    }
+
+    reminderMountedRef.current = true;
     const initialLoadTimer = window.setTimeout(() => {
       loadAppointments();
       loadAppointmentReminders();
@@ -1251,7 +1575,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     }, 0);
 
     const appointmentDataChannel = supabase
-      .channel("doctor-reminder-appointment-data")
+      .channel(`doctor-reminder-appointment-data-${authenticatedDoctorId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: scheduleTableName },
@@ -1265,7 +1589,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       .subscribe();
 
     const medicationDataChannel = supabase
-      .channel("doctor-reminder-medication-data")
+      .channel(`doctor-reminder-medication-data-${authenticatedDoctorId}`)
       .on(
         "postgres_changes",
         {
@@ -1287,7 +1611,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       .subscribe();
 
     const healthTipsChannel = supabase
-      .channel("doctor-health-tips")
+      .channel(`doctor-health-tips-${authenticatedDoctorId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: healthTipsTableName },
@@ -1296,12 +1620,20 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       .subscribe();
 
     return () => {
+      reminderMountedRef.current = false;
+      invalidateLoad(appointmentsLoadRef);
+      invalidateLoad(appointmentRemindersLoadRef);
+      invalidateLoad(medicationRemindersLoadRef);
+      invalidateLoad(medicationOccurrencesLoadRef);
+      invalidateLoad(healthTipsLoadRef);
       window.clearTimeout(initialLoadTimer);
       supabase.removeChannel(appointmentDataChannel);
       supabase.removeChannel(medicationDataChannel);
       supabase.removeChannel(healthTipsChannel);
     };
   }, [
+    authenticatedDoctorId,
+    doctorIdentity?.loading,
     loadAppointments,
     loadAppointmentReminders,
     loadMedicationOccurrenceRows,
@@ -2198,6 +2530,16 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     if (appointmentReminderFilter === "Upcoming") return true;
     return true;
   });
+  const filteredAppointmentEmptyMessage = appointmentsMessage.startsWith("Unable to load appointments:")
+    ? appointmentsMessage
+    : appointmentReminderFilter === "Today"
+      ? "No eligible appointments found for today."
+      : appointmentReminderFilter === "Tomorrow"
+        ? "No eligible appointments found for tomorrow."
+        : "No eligible upcoming appointments found.";
+  const allAppointmentsEmptyMessage = appointmentsMessage.startsWith("Unable to load appointments:")
+    ? appointmentsMessage
+    : "No eligible appointments found.";
   const visibleAppointmentRows = appointmentRows.slice(0, appointmentReminderFilter === "All" ? 8 : 3);
   const selectedReminderAppointment =
     reminderTargetAppointments.find(
@@ -2274,6 +2616,15 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const activeHealthTipMenuTip = healthTipActionMenu
     ? databaseHealthTips.find((tip) => tip.id === healthTipActionMenu.tipId) || null
     : null;
+  const showAppointmentLoading = useDoctorDelayedLoader(
+    isLoadingAppointments && visibleAppointmentRows.length === 0
+  );
+  const showMedicationLoading = useDoctorDelayedLoader(
+    isLoadingMedicationReminders && visibleMedicationRows.length === 0
+  );
+  const showHealthTipsLoading = useDoctorDelayedLoader(
+    isLoadingHealthTips && visibleHealthTips.length === 0
+  );
   const isAnyModalOpen =
     isReminderFormOpen ||
     isMedicationFormOpen ||
@@ -2487,6 +2838,12 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
         className="doctor-dashboard-header doctor-reminder-header"
       />
 
+      {isLoadingAppointments || isLoadingAppointmentReminders ||
+      isLoadingMedicationReminders || medicationOccurrenceStatus === "loading" ||
+      isLoadingHealthTips ? (
+        <p className="app-sr-only" role="status">Loading reminder data...</p>
+      ) : null}
+
       <div className="doctor-reminder-layout">
         <section className="doctor-reminder-card doctor-reminder-appointments-card clinical-workflow-card">
           <header className="doctor-reminder-card__header clinical-workflow-card-header">
@@ -2516,6 +2873,11 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
               {appointmentRemindersMessage}
             </p>
           ) : null}
+          {appointmentsMessage.startsWith("Unable to load appointments:") ? (
+            <p className="doctor-reminder-message" role="alert">
+              {appointmentsMessage}
+            </p>
+          ) : null}
           <div className="doctor-reminder-appointment-table clinical-workflow-table">
             <div className="doctor-reminder-appointment-head">
               <span>Patient</span>
@@ -2538,7 +2900,9 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                     <span>{formatReminderDisplayDate(appointment.scheduleDate)}</span>
                     <span>{formatReminderDisplayTime(appointment.scheduleTime)}</span>
                     <span>{appointment.appointmentType}</span>
-                    <mark>{getAppointmentReminderStatus(reminder)}</mark>
+                    <mark className={isLoadingAppointmentReminders ? "doctor-reminder-status-loading" : undefined}>
+                      {getAppointmentReminderStatus(reminder)}
+                    </mark>
                     <span>
                       <button
                         className="doctor-reminder-row-action"
@@ -2551,9 +2915,11 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   </div>
                 );
               })
+            ) : isLoadingAppointments ? (
+              <ReminderAppointmentSkeletonRows isVisible={showAppointmentLoading} />
             ) : (
               <div className="doctor-reminder-appointment-empty">
-                {isLoadingAppointments ? "Loading appointments..." : appointmentsMessage || "No saved appointments found."}
+                {filteredAppointmentEmptyMessage}
               </div>
             )}
           </div>
@@ -2594,6 +2960,9 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   </div>
                 </article>
               ))}
+              {isLoadingHealthTips && visibleHealthTips.length === 0 ? (
+                <ReminderHealthTipSkeletonCards isVisible={showHealthTipsLoading} />
+              ) : null}
               {!isLoadingHealthTips && !healthTipsMessage && visibleHealthTips.length === 0 ? (
                 <article className="doctor-health-tip-empty">
                   <span className="doctor-health-tip-logo"><Icon icon="solar:lightbulb-linear" /></span>
@@ -2601,9 +2970,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 </article>
               ) : null}
             </div>
-            {isLoadingHealthTips ? (
-              <p className="doctor-reminder-message">Loading health tips...</p>
-            ) : healthTipsMessage ? (
+            {!isLoadingHealthTips && healthTipsMessage ? (
               <p className="doctor-reminder-message">{healthTipsMessage}</p>
             ) : null}
             <button className="doctor-reminder-outline-action" type="button" onClick={openHealthTipForm}>
@@ -2658,7 +3025,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 <span>{reminder.medication}</span>
                 <span>{reminder.dosage}</span>
                 <span>{reminder.schedule || `${formatReminderDisplayTime(reminder.scheduleTime)} daily`}</span>
-                <mark className={`is-${reminder.statusClassName || getStatusClass(reminder.status)}`}>
+                <mark className={`is-${reminder.statusClassName || getStatusClass(reminder.status)}${reminder.status === "CHECKING" ? " doctor-reminder-status-loading" : ""}`}>
                   {reminder.status}
                 </mark>
                 <span className="doctor-medication-actions">
@@ -2678,11 +3045,11 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   </button>
                 </span>
               </div>
-            )) : (
+            )) : isLoadingMedicationReminders ? (
+              <ReminderMedicationSkeletonRows isVisible={showMedicationLoading} />
+            ) : (
               <div className="doctor-reminder-appointment-empty">
-                {isLoadingMedicationReminders
-                  ? "Loading medication reminders..."
-                  : medicationRemindersMessage || "No medication reminders yet."}
+                {medicationRemindersMessage || "No medication reminders yet."}
               </div>
             )}
           </div>
@@ -2763,7 +3130,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                     <div className="doctor-reminder-appointment-empty">
                       {isLoadingAppointments
                         ? "Loading appointments..."
-                        : appointmentsMessage || "No saved appointments found."}
+                        : allAppointmentsEmptyMessage}
                     </div>
                   )}
                 </div>
@@ -3310,7 +3677,9 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 {isSavingReminder
                   ? "Saving..."
                   : isBulkReminderMode
-                    ? `Save ${selectedBulkAppointments.length} Reminder${selectedBulkAppointments.length === 1 ? "" : "s"}`
+                    ? selectedBulkAppointments.length === 0
+                      ? "Select Appointments"
+                      : `Save ${selectedBulkAppointments.length} Reminder${selectedBulkAppointments.length === 1 ? "" : "s"}`
                     : "Save Reminder"}
               </button>
             </footer>

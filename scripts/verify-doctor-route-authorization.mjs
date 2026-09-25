@@ -42,32 +42,27 @@ const doctorRouteEnd = appSource.indexOf("function PatientRoute()", doctorRouteS
 assert.ok(doctorRouteStart >= 0 && doctorRouteEnd > doctorRouteStart);
 
 const doctorRouteSource = appSource.slice(doctorRouteStart, doctorRouteEnd);
-const loadingGuardIndex = doctorRouteSource.indexOf("if (doctorAccess.loading)");
-const denialGuardIndex = doctorRouteSource.indexOf("if (!doctorAccess.authorized)");
+const loadingGuardMatch = doctorRouteSource.match(
+  /if\s*\(\s*doctorAccess\.loading\s*&&\s*!doctorAccess\.authorized\s*\)/
+);
+const denialGuardMatch = doctorRouteSource.match(
+  /if\s*\(\s*!doctorAccess\.loading\s*&&\s*!doctorAccess\.authorized\s*\)/
+);
+const loadingGuardIndex = loadingGuardMatch?.index ?? -1;
+const denialGuardIndex = denialGuardMatch?.index ?? -1;
 const dashboardMountIndex = doctorRouteSource.indexOf("<DoctorDashboard");
 assert.ok(loadingGuardIndex >= 0);
 assert.ok(denialGuardIndex > loadingGuardIndex);
 assert.ok(dashboardMountIndex > denialGuardIndex);
 
-const doctorPaths = [
-  "/doctor",
-  "/doctor/dashboard",
-  "/doctor/patients",
-  "/doctor/appointments",
-  "/doctor/appointments/:appointmentId/initial-visit",
-  "/doctor/appointments/:appointmentId/follow-up",
-  "/doctor/reminders",
-  "/doctor/profile",
-  "/doctor/settings",
-  "/doctor/*",
-];
-
-doctorPaths.forEach((path) => {
-  assert.ok(
-    appSource.includes(`<Route path="${path}" element={<DoctorRoute />} />`),
-    `${path} must use DoctorRoute`
-  );
-});
+const protectedDoctorRoutes = appSource.match(
+  /<Route\s+path="\/doctor\/\*"\s+element=\{<DoctorRoute\s*\/>\}\s*\/>/g
+) || [];
+assert.equal(
+  protectedDoctorRoutes.length,
+  1,
+  "The persistent /doctor/* branch must use DoctorRoute exactly once"
+);
 
 assert.match(hookSource, /useState\(createLoadingState\)/);
 assert.match(hookSource, /\.select\("id, role, account_status"\)/);
@@ -75,5 +70,5 @@ assert.doesNotMatch(hookSource, /\.from\("patients"\)/);
 assert.doesNotMatch(hookSource, /\.from\("medical_records"\)/);
 
 console.log("Doctor route authorization verification passed.");
-console.log(`Verified ${doctorPaths.length} Doctor route patterns.`);
+console.log("Verified the persistent /doctor/* Doctor route branch.");
 console.log(`Verification script: ${fileURLToPath(import.meta.url)}`);

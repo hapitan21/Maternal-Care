@@ -2554,6 +2554,28 @@
     background-color 160ms ease;
 }
 
+.staff-add-appointment-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #f2c9d1;
+  border-radius: 9px;
+  background: #fff4f6;
+  color: #a9233b;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.staff-add-appointment-error svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
 .staff-add-appointment-field input,
 .staff-add-appointment-field select {
   height: 50px;

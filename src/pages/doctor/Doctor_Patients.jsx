@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
 import "../../styles/doctor-patients.css";
 
 const patientSelectColumns =
   "id, full_name, patient_id, date_of_birth, age, contact_number, email, address, status, expected_delivery_date, gestational_age, blood_type, risk_level, created_at";
+
+const doctorPatientSnapshots = new Map();
 
 function isActivePatientRow(row) {
   const status = String(row?.status || "").trim().toLowerCase();
@@ -132,14 +135,39 @@ function PatientAvatar({ patient }) {
   );
 }
 
+function PatientTableSkeleton({ isVisible }) {
+  return [0, 1, 2].map((rowIndex) => (
+    <tr
+      className={`doctor-patients-skeleton-row doctor-loading-shell${isVisible ? " is-visible" : ""}`}
+      key={`patient-loading-${rowIndex}`}
+      aria-hidden="true"
+    >
+      <td>
+        <span className="doctor-patients-skeleton-person">
+          <span className="doctor-loading-bar doctor-patients-skeleton-avatar" />
+          <span className="doctor-patients-skeleton-copy">
+            <span className="doctor-loading-bar" />
+            <span className="doctor-loading-bar" />
+          </span>
+        </span>
+      </td>
+      <td><span className="doctor-loading-bar" /></td>
+      <td><span className="doctor-loading-bar" /></td>
+      <td><span className="doctor-loading-bar" /></td>
+    </tr>
+  ));
+}
+
 function PatientListPage({
   patients,
   searchTerm,
   setSearchTerm,
   onViewRecord,
   statusMessage,
+  loadState,
   headerAction,
 }) {
+  const showLoadingSkeleton = useDoctorDelayedLoader(loadState === "loading");
   const filteredPatients = useMemo(() => {
     const value = searchTerm.trim().toLowerCase();
     if (!value) return patients;
@@ -171,8 +199,17 @@ function PatientListPage({
         />
       </label>
 
+      {loadState === "loading" ? (
+        <p className="app-sr-only" role="status">Loading patients...</p>
+      ) : null}
+
       {statusMessage ? (
-        <p className="doctor-patients-status-message">{statusMessage}</p>
+        <p
+          className="doctor-patients-status-message"
+          role={statusMessage.startsWith("Unable to load patients:") ? "alert" : "status"}
+        >
+          {statusMessage}
+        </p>
       ) : null}
 
       <div className="doctor-patients-table-card">
@@ -194,8 +231,8 @@ function PatientListPage({
             </thead>
 
             <tbody>
-              {filteredPatients.map((patient) => (
-                <tr key={patient.patientId}>
+              {loadState === "loaded" ? filteredPatients.map((patient) => (
+                <tr key={patient.recordId}>
                   <td>
                     <div className="doctor-patient-info-cell">
                       <PatientAvatar patient={patient} />
@@ -211,15 +248,19 @@ function PatientListPage({
                     <button
                       className="doctor-patient-view-btn"
                       type="button"
-                      onClick={() => onViewRecord(patient.patientId)}
+                      onClick={() => onViewRecord(patient.recordId)}
                     >
                       View
                     </button>
                   </td>
                 </tr>
-              ))}
+              )) : null}
 
-              {!filteredPatients.length ? (
+              {loadState === "loading" ? (
+                <PatientTableSkeleton isVisible={showLoadingSkeleton} />
+              ) : null}
+
+              {loadState === "loaded" && !filteredPatients.length ? (
                 <tr>
                   <td colSpan="4" className="doctor-patients-empty-cell">
                     No patient found.
@@ -234,11 +275,18 @@ function PatientListPage({
   );
 }
 
-function DoctorPatientsContent({ headerAction = null }) {
+function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
   const location = useLocation();
-  const [patients, setPatients] = useState([]);
+  const authenticatedDoctorId = doctorIdentity?.authUser?.id || "";
+  const patientSnapshot = authenticatedDoctorId
+    ? doctorPatientSnapshots.get(authenticatedDoctorId) || null
+    : null;
+  const [patients, setPatients] = useState(() => patientSnapshot || []);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusMessage, setStatusMessage] = useState("Loading patients...");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [loadState, setLoadState] = useState(() =>
+    patientSnapshot ? "loaded" : "loading"
+  );
   const dashboardPatientTargetRef = useRef("");
 
   const dashboardPatientTarget = useMemo(() => {
@@ -255,10 +303,18 @@ function DoctorPatientsContent({ headerAction = null }) {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (doctorIdentity?.loading || !authenticatedDoctorId) {
+      return undefined;
+    }
+
     let active = true;
 
     const loadPatients = async () => {
-      setStatusMessage("Loading patients...");
+      const hasSnapshot = doctorPatientSnapshots.has(authenticatedDoctorId);
+      if (!hasSnapshot) {
+        setLoadState("loading");
+      }
+      setStatusMessage("");
 
       const { data, error } = await supabase
         .rpc("get_doctor_patient_directory")
@@ -269,7 +325,12 @@ function DoctorPatientsContent({ headerAction = null }) {
 
       if (error) {
         console.error("Load doctor patients failed:", error);
-        setPatients([]);
+        if (!hasSnapshot) {
+          setPatients([]);
+          setLoadState("error");
+        } else {
+          setLoadState("loaded");
+        }
         setStatusMessage(`Unable to load patients: ${error.message}`);
         return;
       }
@@ -278,19 +339,23 @@ function DoctorPatientsContent({ headerAction = null }) {
         .filter(isActivePatientRow)
         .map(mapSupabasePatient);
 
+      doctorPatientSnapshots.set(authenticatedDoctorId, mappedPatients);
       setPatients(mappedPatients);
+      setLoadState("loaded");
       setStatusMessage("");
 
       const avatarMap = await fetchPatientAvatarMap(mappedPatients);
       if (!active || !avatarMap) return;
 
-      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
+      const patientsWithAvatars = mergePatientAvatarMap(mappedPatients, avatarMap);
+      doctorPatientSnapshots.set(authenticatedDoctorId, patientsWithAvatars);
+      setPatients(patientsWithAvatars);
     };
 
     loadPatients();
 
     const patientsChannel = supabase
-      .channel("doctor-patients-list")
+      .channel(`doctor-patients-list-${authenticatedDoctorId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "patients" },
@@ -302,7 +367,7 @@ function DoctorPatientsContent({ headerAction = null }) {
       active = false;
       supabase.removeChannel(patientsChannel);
     };
-  }, []);
+  }, [authenticatedDoctorId, doctorIdentity?.loading]);
 
   useEffect(() => {
     if (!patients.length) return undefined;
@@ -315,7 +380,9 @@ function DoctorPatientsContent({ headerAction = null }) {
       const avatarMap = await fetchPatientAvatarMap(patients);
       if (!active || !avatarMap) return;
 
-      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
+      const nextPatients = mergePatientAvatarMap(patients, avatarMap);
+      doctorPatientSnapshots.set(authenticatedDoctorId, nextPatients);
+      setPatients(nextPatients);
     };
 
     const handleVisibilityChange = () => {
@@ -332,41 +399,45 @@ function DoctorPatientsContent({ headerAction = null }) {
       window.removeEventListener("focus", refreshPatientAvatars);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [patients]);
+  }, [authenticatedDoctorId, patients]);
 
   useEffect(() => {
-    if (!dashboardPatientTarget) {
-      if (dashboardPatientTargetRef.current) {
-        dashboardPatientTargetRef.current = "";
-        setSearchTerm("");
+    if (loadState !== "loaded") return undefined;
+
+    const timer = window.setTimeout(() => {
+      if (!dashboardPatientTarget) {
+        if (dashboardPatientTargetRef.current) {
+          dashboardPatientTargetRef.current = "";
+          setSearchTerm("");
+        }
+        return;
       }
-      return;
-    }
 
-    if (patients.length === 0) return;
-
-    const target = patients.find(
-      (patient) =>
-        String(patient.recordId || "") === dashboardPatientTarget ||
-        String(patient.patientId || "") === dashboardPatientTarget
-    );
-
-    dashboardPatientTargetRef.current = dashboardPatientTarget;
-
-    if (!target) {
-      setSearchTerm("");
-      setStatusMessage(
-        `Patient ${dashboardPatientTarget} could not be found.`
+      const target = patients.find(
+        (patient) =>
+          String(patient.recordId || "") === dashboardPatientTarget ||
+          String(patient.patientId || "") === dashboardPatientTarget
       );
-      return;
-    }
 
-    setSearchTerm(target.patientId || target.name);
-    setStatusMessage("");
-  }, [dashboardPatientTarget, patients]);
+      dashboardPatientTargetRef.current = dashboardPatientTarget;
 
-  const handleViewRecord = (patientId) => {
-    const patient = patients.find((item) => item.patientId === patientId);
+      if (!target) {
+        setSearchTerm("");
+        setStatusMessage(
+          `Patient ${dashboardPatientTarget} could not be found.`
+        );
+        return;
+      }
+
+      setSearchTerm(target.patientId || target.name);
+      setStatusMessage("");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [dashboardPatientTarget, loadState, patients]);
+
+  const handleViewRecord = (recordId) => {
+    const patient = patients.find((item) => item.recordId === recordId);
     if (!patient?.recordId) return;
 
     window.dispatchEvent(
@@ -392,6 +463,7 @@ function DoctorPatientsContent({ headerAction = null }) {
         setSearchTerm={setSearchTerm}
         onViewRecord={handleViewRecord}
         statusMessage={statusMessage}
+        loadState={loadState}
         headerAction={headerAction}
       />
     </section>
