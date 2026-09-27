@@ -323,8 +323,6 @@ function PatientCreateAccount() {
         return;
       }
 
-      await ensurePatientProfile(data.user, details.patientId);
-
       const { data: linkData, error: linkError } = await supabase.rpc(
         "link_patient_auth_account",
         {

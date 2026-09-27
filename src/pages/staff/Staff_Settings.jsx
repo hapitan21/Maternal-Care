@@ -578,10 +578,9 @@ async function syncConfirmedStaffEmail(userId, email, settingsSnapshot) {
     ),
   });
 
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update({ email: confirmedEmail })
-    .eq("id", userId);
+  const { error: profileError } = await supabase.rpc(
+    "sync_current_profile_email"
+  );
 
   if (profileError) {
     throw profileError;

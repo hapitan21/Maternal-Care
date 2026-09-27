@@ -893,15 +893,18 @@ async function saveDoctorInformationRecords(
     .from("profiles")
     .update({
       full_name: personalPayload.full_name,
-      email: confirmedEmail,
       contact_number: professionalPayload.contact_number,
     })
     .eq("id", user.id);
 
-  if (sharedProfileError) {
+  const { error: sharedEmailError } = await supabase.rpc(
+    "sync_current_profile_email"
+  );
+
+  if (sharedProfileError || sharedEmailError) {
     console.warn(
       "Doctor information was saved, but the shared profile was not synchronized:",
-      sharedProfileError
+      sharedProfileError || sharedEmailError
     );
   }
 

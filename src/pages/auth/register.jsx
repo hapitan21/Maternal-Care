@@ -85,38 +85,6 @@ function Register() {
       const user = data.user;
 
       if (user) {
-        const profilePayload = {
-          id: user.id,
-          full_name: form.fullName,
-          email: form.email,
-          role: "patient",
-          date_of_birth: form.dateOfBirth || null,
-          age: form.age ? Number(form.age) : null,
-          address: form.address || null,
-          civil_status: form.civilStatus || null,
-          contact_number: form.contactNumber || null,
-        };
-
-        const { error: profileError } = await supabase.from("profiles").insert([
-          profilePayload,
-        ]);
-
-        if (profileError) {
-          const { error: fallbackError } = await supabase.from("profiles").insert([
-            {
-              id: user.id,
-              full_name: form.fullName,
-              email: form.email,
-              role: "patient",
-            },
-          ]);
-
-          if (fallbackError) {
-            alert(fallbackError.message);
-            return;
-          }
-        }
-
         await supabase.from("patients").insert([
           {
             full_name: form.fullName,

@@ -99,12 +99,8 @@ function PatientLogin() {
       // ============================================================
       // 2. Check whether this Auth account is already linked
       //
-      // IMPORTANT:
-      // Do NOT call:
-      //
-      // ensurePatientProfile(data.user, null)
-      //
-      // because that could overwrite profiles.patient_id with null.
+      // Profile creation/repair is allowed only after this authoritative
+      // linked-Patient lookup or a successful secure linking RPC below.
       // ============================================================
       const current = await getCurrentPatientAccountStatus();
 
@@ -116,8 +112,8 @@ function PatientLogin() {
           current.patient.patient_id
         );
 
-        // Repair / preserve profiles.patient_id using the canonical
-        // Patient record returned by the secure RPC.
+        // Repair the profile only after the canonical linked Patient
+        // record has been returned by the secure RPC.
         if (linkedPatientId) {
           await ensurePatientProfile(
             data.user,
@@ -212,7 +208,7 @@ function PatientLogin() {
       }
 
       // ============================================================
-      // 6. Synchronize profiles.patient_id
+      // 6. Create or repair the profile after secure linking
       // ============================================================
       await ensurePatientProfile(
         data.user,

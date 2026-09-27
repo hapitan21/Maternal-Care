@@ -184,8 +184,9 @@ export async function getCurrentPatientAccountStatus() {
 }
 
 /**
- * Ensure that the authenticated Patient has a
- * public.profiles row.
+ * Ensure that the authenticated, clinic-linked Patient has a
+ * public.profiles row. The RPC verifies the canonical patients.user_id
+ * relationship before it can create or repair the profile.
  *
  * IMPORTANT:
  *
@@ -215,85 +216,22 @@ export async function ensurePatientProfile(
   const linkedPatientId =
     normalizePatientAccessValue(patientId);
 
-  // ============================================================
-  // 1. Read existing profile
-  // ============================================================
-  const {
-    data: profile,
-    error: profileError,
-  } = await supabase
-    .from("profiles")
-    .select(
-      "id, role, full_name, email"
-    )
-    .eq("id", user.id)
-    .maybeSingle();
+  const { data: profile, error: profileError } = await supabase.rpc(
+    "ensure_current_patient_profile"
+  );
 
   if (profileError) {
     throw profileError;
   }
 
-  // ============================================================
-  // 2. Make sure this Auth account is a Patient
-  // ============================================================
-  const existingRole =
-    normalizePatientAccessValue(
-      profile?.role
-    ).toLowerCase();
-
-  if (
-    existingRole &&
-    existingRole !== "patient"
-  ) {
+  if (profile?.profile_id && profile.profile_id !== user.id) {
     throw new Error(
-      "This login is not a Patient account."
+      "The authenticated Patient profile did not match the current account."
     );
   }
 
-  // ============================================================
-  // 3. Build profile payload
-  //
-  // Notice that patient_id is intentionally NOT here.
-  // ============================================================
-  const profilePayload = {
-    id: user.id,
-
-    full_name:
-      normalizePatientAccessValue(
-        user.user_metadata?.full_name
-      ) ||
-      normalizePatientAccessValue(
-        profile?.full_name
-      ) ||
-      "Patient",
-
-    email:
-      user.email ||
-      profile?.email ||
-      null,
-
-    role: "patient",
-  };
-
-  // ============================================================
-  // 4. Insert or update the Patient profile
-  // ============================================================
-  const { error: upsertError } =
-    await supabase
-      .from("profiles")
-      .upsert(
-        [profilePayload],
-        {
-          onConflict: "id",
-        }
-      );
-
-  if (upsertError) {
-    throw upsertError;
-  }
-
   return {
-    profileId: user.id,
+    profileId: profile?.profile_id || user.id,
 
     // This is only returned to the caller.
     // It is NOT stored in profiles.patient_id.
