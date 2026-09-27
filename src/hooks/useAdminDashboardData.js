@@ -663,8 +663,7 @@ export function useAdminDashboardData(
     };
 
     /*
-     * Profiles and audit logs still use their existing background
-     * Postgres Changes refresh.
+     * Profiles retain their existing background Postgres Changes refresh.
      */
     const backgroundRefresh = () => {
       window.clearTimeout(
@@ -721,10 +720,51 @@ export function useAdminDashboardData(
         : null;
 
     /*
-     * Non-schedule Dashboard background refresh signals.
+     * Primary audit-log update path.
      *
-     * Schedule is intentionally excluded because schedule mutations now use
-     * the private Database Broadcast channel above.
+     * The database trigger broadcasts only an invalidation operation:
+     *
+     *   topic: admin:audit-logs
+     *   event: audit_log_changed
+     *   private: true
+     *
+     * Reuse the existing authoritative in-flight/trailing refresh so
+     * schedule and audit invalidations cannot create competing fetches.
+     */
+    const auditLogBroadcastChannel =
+      enabled && adminId
+        ? supabase
+            .channel("admin:audit-logs", {
+              config: {
+                private: true,
+              },
+            })
+            .on(
+              "broadcast",
+              {
+                event: "audit_log_changed",
+              },
+              scheduleRefresh
+            )
+            .subscribe((status) => {
+              if (
+                status === "SUBSCRIBED" &&
+                realtimeActive
+              ) {
+                /*
+                 * Recover audit events missed while disconnected by
+                 * performing one authoritative catch-up refresh.
+                 */
+                scheduleRefresh();
+              }
+            })
+        : null;
+
+    /*
+     * Non-Broadcast Dashboard background refresh signals.
+     *
+     * Schedule and audit logs are intentionally excluded because their
+     * mutations now use the private Database Broadcast channels above.
      */
     const backgroundChannel =
       enabled && adminId
@@ -738,15 +778,6 @@ export function useAdminDashboardData(
                 event: "*",
                 schema: "public",
                 table: "profiles",
-              },
-              backgroundRefresh
-            )
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "audit_logs",
               },
               backgroundRefresh
             )
@@ -785,6 +816,12 @@ export function useAdminDashboardData(
       if (scheduleBroadcastChannel) {
         supabase.removeChannel(
           scheduleBroadcastChannel
+        );
+      }
+
+      if (auditLogBroadcastChannel) {
+        supabase.removeChannel(
+          auditLogBroadcastChannel
         );
       }
 
