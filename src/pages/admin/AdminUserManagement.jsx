@@ -336,6 +336,17 @@ export default function AdminUserManagement() {
     activeTab,
     adminId: user?.id,
   });
+  const { notice, setNotice } = manager;
+
+  React.useEffect(() => {
+    if (!notice) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setNotice("");
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [notice, setNotice]);
 
   React.useEffect(() => {
     const close = (event) => {
@@ -388,7 +399,24 @@ export default function AdminUserManagement() {
       </section>
 
       {manager.error ? <div className="admin-user-message is-error" role="alert"><span>{manager.error}</span><button type="button" onClick={manager.refresh}>Retry</button></div> : null}
-      {manager.notice ? <div className="admin-user-message is-success" role="status"><span>{manager.notice}</span><button type="button" onClick={() => manager.setNotice("")}>Dismiss</button></div> : null}
+      {notice ? (
+        <div className="admin-user-toast admin-user-toast--success" role="status" aria-live="polite">
+          <span className="admin-user-toast__icon">
+            <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+          </span>
+          <div className="admin-user-toast__content">
+            <p>{notice}</p>
+          </div>
+          <button
+            type="button"
+            className="admin-user-toast__close"
+            onClick={() => setNotice("")}
+            aria-label="Close notification"
+          >
+            <Icon icon="solar:close-circle-linear" aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
 
       <section className="admin-user-card">
         <div className="admin-user-tabs" role="tablist" aria-label="User types">
