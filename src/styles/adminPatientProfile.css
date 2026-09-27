@@ -88,10 +88,10 @@
   text-transform: uppercase;
 }
 
-.admin-patient-status.is-temporary { border-color: #f7cc68; color: #b86700; background: #fff5dc; }
-.admin-patient-status.is-active,
-.admin-patient-status.is-registration { border-color: #9ce7c4; color: #008d59; background: #e9fff4; }
-.admin-patient-status.is-inactive { border-color: #dfe4ec; color: #747f94; background: #f0f2f6; }
+.admin-patient-status.is-not_linked { border-color: #f7cc68; color: #b86700; background: #fff5dc; }
+.admin-patient-status.is-active { border-color: #9ce7c4; color: #008d59; background: #e9fff4; }
+.admin-patient-status.is-inactive,
+.admin-patient-status.is-archived { border-color: #dfe4ec; color: #747f94; background: #f0f2f6; }
 
 .admin-patient-id { margin: 10px 0 0; color: #939daf; font-size: 14px; font-weight: 600; }
 .admin-patient-id strong { color: #30394b; letter-spacing: 0.03em; }
@@ -110,9 +110,10 @@
 .admin-patient-access > svg { width: 20px; height: 20px; margin-top: 2px; }
 .admin-patient-access strong { display: block; font-size: 13px; line-height: 1.35; }
 .admin-patient-access p { margin: 3px 0 0; color: inherit; font-size: 12px; line-height: 1.45; }
-.admin-patient-access.is-temporary { color: #a85400; background: #fff9e9; }
+.admin-patient-access.is-not_linked { color: #a85400; background: #fff9e9; }
 .admin-patient-access.is-active { color: #008f63; background: #eafbf4; }
 .admin-patient-access.is-inactive { color: #737e94; background: #f1f3f7; }
+.admin-patient-access.is-archived { color: #737e94; background: #f1f3f7; }
 
 .admin-patient-access button {
   min-height: 35px;
@@ -187,6 +188,8 @@
 .admin-patient-account-footer { border-top: 1px solid #dce3ee; color: #4054d8; background: #f3f5ff; font-size: 12px; font-weight: 600; padding: 13px 16px; }
 .admin-patient-account-footer.is-active { color: #08794f; background: #edfbf4; }
 .admin-patient-account-footer.is-inactive { color: #667085; background: #f2f4f7; }
+.admin-patient-account-footer.is-archived { color: #667085; background: #f2f4f7; }
+.admin-patient-account-footer.is-not_linked { color: #8a5a16; background: #fff9e9; }
 
 .admin-patient-medical-notice {
   display: flex;

@@ -36,17 +36,10 @@ function useDebouncedValue(value, delay = 300) {
 }
 
 function mapRow(row, type) {
-  const profileAccountStatus = normalizeStatus(row?.account_status);
+  const accountStatus = normalizeStatus(row?.account_status);
   const patientRecordAccountStatus = normalizeStatus(
     row?.patient_record_account_status
   );
-
-  // Patients use public.patients.account_status as the canonical access state.
-  // Doctor/Staff accounts continue to use public.profiles.account_status.
-  const accountStatus =
-    type === "patient" && patientRecordAccountStatus !== "unknown"
-      ? patientRecordAccountStatus
-      : profileAccountStatus;
 
   return {
     ...row,
@@ -57,7 +50,7 @@ function mapRow(row, type) {
     email: cleanText(row?.email || row?.linked_email),
     contact: cleanText(row?.contact_number),
     accountStatus,
-    profileAccountStatus,
+    profileAccountStatus: normalizeStatus(row?.profile_account_status),
     patientRecordAccountStatus,
     linkStatus: normalizeStatus(row?.link_status),
     recordStatus: normalizeStatus(row?.record_status),
@@ -404,28 +397,7 @@ export function useAdminUserManagement({
       };
     }
 
-    const detail = normalizeRpcPayload(data);
-
-    if (type === "patient") {
-      const profileAccountStatus = normalizeStatus(detail?.account_status);
-      const patientRecordAccountStatus = normalizeStatus(
-        detail?.patient_record_account_status
-      );
-
-      return {
-        ok: true,
-        detail: {
-          ...detail,
-          profile_account_status: profileAccountStatus,
-          account_status:
-            patientRecordAccountStatus !== "unknown"
-              ? patientRecordAccountStatus
-              : profileAccountStatus,
-        },
-      };
-    }
-
-    return { ok: true, detail };
+    return { ok: true, detail: normalizeRpcPayload(data) };
   }, []);
 
   const updateAccountStatus = useCallback(async (type, account, action) => {

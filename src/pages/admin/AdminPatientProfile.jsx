@@ -16,16 +16,6 @@ const INACTIVE_STATUSES = new Set([
   "blocked",
 ]);
 
-const TEMPORARY_STATUSES = new Set([
-  "pending",
-  "pending_activation",
-  "pending_registration",
-  "for_activation",
-  "awaiting_activation",
-  "temporary",
-  "not_linked",
-]);
-
 const patientColumns = [
   "id",
   "full_name",
@@ -152,8 +142,15 @@ function getAccountState(value) {
   const status = normalizeStatus(value);
   if (status === "active") return "active";
   if (INACTIVE_STATUSES.has(status)) return "inactive";
-  if (TEMPORARY_STATUSES.has(status)) return "temporary";
-  return "temporary";
+  if (status === "archived") return "archived";
+  return "not_linked";
+}
+
+function getAccountStatusLabel(accountState) {
+  if (accountState === "not_linked") return "Not Linked";
+  if (accountState === "inactive") return "Inactive";
+  if (accountState === "archived") return "Archived";
+  return "Active";
 }
 
 function getAccountCopy(accountState) {
@@ -177,12 +174,22 @@ function getAccountCopy(accountState) {
       icon: "solar:info-circle-bold",
     };
   }
+  if (accountState === "archived") {
+    return {
+      title: "This Patient record is archived.",
+      detail: "The record is retained, but account access cannot be changed while it is archived.",
+      footer: "Restore the Patient record before managing account access.",
+      action: "",
+      actionLabel: "",
+      icon: "solar:archive-bold",
+    };
+  }
   return {
-    title: "This account is pending activation.",
-    detail: "Activate the account to give full access to the patient.",
-    footer: "Activate the account after verifying the patient's information.",
-    action: "activate",
-    actionLabel: "Activate Account",
+    title: "This Patient does not have a linked login account.",
+    detail: "The Patient can link an account through the clinic-issued QR or control-number workflow.",
+    footer: "No Admin activation step is required before Patient account linking.",
+    action: "",
+    actionLabel: "",
     icon: "solar:info-circle-bold",
   };
 }
@@ -204,12 +211,7 @@ function getConfirmationCopy(action) {
       activateLabel: "Reactivate",
     };
   }
-  return {
-    title: "Activate Patient Account",
-    description: "This will activate the patient's account and grant them full access to the system.",
-    question: "Are you sure you want to activate this account?",
-    activateLabel: "Activate",
-  };
+  return { title: "", description: "", question: "", activateLabel: "" };
 }
 
 async function readOptionalRow(label, query) {
@@ -404,6 +406,7 @@ export default function AdminPatientProfile() {
   const obstetric = profile?.obstetric || null;
   const emergency = profile?.emergency || null;
   const accountState = getAccountState(detail?.account_status);
+  const accountStatusLabel = getAccountStatusLabel(accountState);
   const accountCopy = getAccountCopy(accountState);
   const fullName = present(firstPresent(personal?.full_name, detail?.full_name, patient?.full_name));
   const patientId = present(firstPresent(detail?.display_id, patient?.patient_id, patient?.control_number));
@@ -419,8 +422,7 @@ export default function AdminPatientProfile() {
   const dueDate = firstPresent(obstetric?.expected_delivery_date, patient?.expected_delivery_date);
   const pregnancyWeek = formatPregnancyWeek(patient?.gestational_age, dueDate);
   const avatarUrl = firstPresent(detail?.avatar_url, patient?.avatar_url, personal?.avatar_url);
-  const statusActionAvailable = detail?.link_status === "linked";
-  const registrationStatus = present(detail?.record_status);
+  const statusActionAvailable = detail?.link_status === "linked" && Boolean(accountCopy.action);
 
   const openStatusAction = () => {
     if (!detail || !statusActionAvailable) return;
@@ -493,8 +495,7 @@ export default function AdminPatientProfile() {
     { label: "Gestational Age", value: pregnancyWeek },
   ];
   const accountLeft = [
-    { label: "Account Status", node: <StatusBadge state={accountState}>{accountState}</StatusBadge> },
-    { label: "Registration Status", node: <StatusBadge state="registration">{registrationStatus}</StatusBadge> },
+    { label: "Account Status", node: <StatusBadge state={accountState}>{accountStatusLabel}</StatusBadge> },
   ];
   const accountRight = [
     { label: "Date Created", value: formatDate(firstPresent(detail?.created_at, patient?.created_at)) },
@@ -534,7 +535,7 @@ export default function AdminPatientProfile() {
             <div className="admin-patient-hero-main">
               <div className="admin-patient-name-row">
                 <h2>{fullName}</h2>
-                <StatusBadge state={accountState}>{accountState}</StatusBadge>
+                <StatusBadge state={accountState}>{accountStatusLabel}</StatusBadge>
               </div>
               <p className="admin-patient-id">Patient ID: <strong>{patientId}</strong></p>
               <div className={`admin-patient-access is-${accountState}`}>
@@ -550,8 +551,8 @@ export default function AdminPatientProfile() {
                   </button>
                 ) : null}
               </div>
-              {!statusActionAvailable ? (
-                <p className="admin-patient-action-unavailable">This Patient needs a linked login account before access can be activated.</p>
+              {accountState === "not_linked" ? (
+                <p className="admin-patient-action-unavailable">Account access becomes available after the Patient completes the clinic-issued linking flow.</p>
               ) : null}
             </div>
             <aside className="admin-patient-contacts" aria-label="Patient contact information">

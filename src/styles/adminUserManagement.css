@@ -145,7 +145,7 @@
 .admin-user-status.is-inactive,
 .admin-user-status.is-deactivated,
 .admin-user-status.is-archived { color: #687487; background: #edf0f4; }
-.admin-user-status.is-temporary { color: #97600e; background: #fff1d5; }
+.admin-user-status.is-not_linked { color: #97600e; background: #fff1d5; }
 .admin-user-status.is-unknown { color: #854d86; background: #f5e9f5; }
 
 .admin-user-action-wrap { position: relative; display: inline-flex; }

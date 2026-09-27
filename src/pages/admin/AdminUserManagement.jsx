@@ -79,9 +79,7 @@ function StatusBadge({ status }) {
   const sourceStatus = cleanText(status).toLowerCase().replaceAll("-", "_").replaceAll(" ", "_") || "unknown";
   const normalized = ["inactive", "deactivated", "suspended"].includes(sourceStatus)
     ? "inactive"
-    : ["pending", "pending_activation", "temporary", "not_linked"].includes(sourceStatus)
-      ? "temporary"
-      : sourceStatus;
+    : sourceStatus;
   return (
     <span className={`admin-user-status is-${normalized}`}>
       {titleCase(normalized)}
@@ -175,7 +173,6 @@ function getStatusAction(account, type) {
   if (type === "patient" && account.linkStatus !== "linked") return null;
   if (account.accountStatus === "active") return "deactivate";
   if (["inactive", "deactivated", "suspended"].includes(account.accountStatus)) return "reactivate";
-  if (type === "patient" && ["pending", "pending_activation"].includes(account.accountStatus)) return "activate";
   return null;
 }
 
