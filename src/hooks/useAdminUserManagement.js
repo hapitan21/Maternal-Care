@@ -1,15 +1,29 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   getAdminWorkspaceSnapshot,
   setAdminWorkspaceSnapshot,
 } from "../lib/adminWorkspaceSnapshots";
+
 import { supabase } from "../lib/supabaseClient";
 
-const PAGE_SIZES = [5, 10, 20];
+const PAGE_SIZES = [
+  5,
+  10,
+  20,
+];
 
-const userPageSnapshotNamespace = "user-management-page";
-const userSummarySnapshotNamespace = "user-management-summary";
+const userPageSnapshotNamespace =
+  "user-management-page";
+
+const userSummarySnapshotNamespace =
+  "user-management-summary";
 
 const EMPTY_SUMMARY = {
   patients: {
@@ -18,11 +32,13 @@ const EMPTY_SUMMARY = {
     inactive: 0,
     not_linked: 0,
   },
+
   doctors: {
     total: 0,
     active: 0,
     inactive: 0,
   },
+
   staff: {
     total: 0,
     active: 0,
@@ -31,34 +47,62 @@ const EMPTY_SUMMARY = {
 };
 
 function cleanText(value) {
-  return String(value ?? "").trim();
+  return String(
+    value ?? ""
+  ).trim();
 }
 
-function normalizeStatus(value) {
-  const status = cleanText(value).toLowerCase();
-  return status || "unknown";
+function normalizeStatus(
+  value
+) {
+  const status =
+    cleanText(
+      value
+    ).toLowerCase();
+
+  return (
+    status || "unknown"
+  );
 }
 
-function useDebouncedValue(value, delay = 300) {
-  const [debounced, setDebounced] = useState(value);
+function useDebouncedValue(
+  value,
+  delay = 300
+) {
+  const [
+    debounced,
+    setDebounced,
+  ] = useState(value);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebounced(value);
-    }, delay);
+    const timer =
+      window.setTimeout(
+        () => {
+          setDebounced(
+            value
+          );
+        },
+        delay
+      );
 
     return () => {
-      window.clearTimeout(timer);
+      window.clearTimeout(
+        timer
+      );
     };
   }, [delay, value]);
 
   return debounced;
 }
 
-function mapRow(row, type) {
-  const accountStatus = normalizeStatus(
-    row?.account_status
-  );
+function mapRow(
+  row,
+  type
+) {
+  const accountStatus =
+    normalizeStatus(
+      row?.account_status
+    );
 
   const patientRecordAccountStatus =
     normalizeStatus(
@@ -67,51 +111,87 @@ function mapRow(row, type) {
 
   return {
     ...row,
+
     id: row?.id,
+
     type,
+
     name:
-      cleanText(row?.full_name) ||
+      cleanText(
+        row?.full_name
+      ) ||
       `Unnamed ${type}`,
+
     displayId:
-      cleanText(row?.display_id) ||
-      cleanText(row?.id).slice(0, 8),
+      cleanText(
+        row?.display_id
+      ) ||
+      cleanText(
+        row?.id
+      ).slice(0, 8),
+
     email: cleanText(
-      row?.email || row?.linked_email
+      row?.email ||
+        row?.linked_email
     ),
+
     contact: cleanText(
       row?.contact_number
     ),
+
     accountStatus,
+
     profileAccountStatus:
       normalizeStatus(
         row?.profile_account_status
       ),
+
     patientRecordAccountStatus,
-    linkStatus: normalizeStatus(
-      row?.link_status
-    ),
-    recordStatus: normalizeStatus(
-      row?.record_status
-    ),
-    secondaryText: cleanText(
-      row?.secondary_text
-    ),
-    createdAt: row?.created_at || null,
-    archivedAt: row?.archived_at || null,
+
+    linkStatus:
+      normalizeStatus(
+        row?.link_status
+      ),
+
+    recordStatus:
+      normalizeStatus(
+        row?.record_status
+      ),
+
+    secondaryText:
+      cleanText(
+        row?.secondary_text
+      ),
+
+    createdAt:
+      row?.created_at ||
+      null,
+
+    archivedAt:
+      row?.archived_at ||
+      null,
   };
 }
 
-function normalizeRpcPayload(data) {
+function normalizeRpcPayload(
+  data
+) {
   if (
     data &&
-    typeof data === "object"
+    typeof data ===
+      "object"
   ) {
     return data;
   }
 
-  if (typeof data === "string") {
+  if (
+    typeof data ===
+    "string"
+  ) {
     try {
-      return JSON.parse(data);
+      return JSON.parse(
+        data
+      );
     } catch {
       return {};
     }
@@ -124,24 +204,32 @@ function getFriendlyError(
   error,
   fallback
 ) {
-  if (error?.code === "PGRST202") {
+  if (
+    error?.code ===
+    "PGRST202"
+  ) {
     return "The reviewed Admin User Management SQL must be installed before this control is available.";
   }
 
   return (
-    cleanText(error?.message) ||
-    fallback
+    cleanText(
+      error?.message
+    ) || fallback
   );
 }
 
-function getDefaultQuery(tab) {
+function getDefaultQuery(
+  tab
+) {
   return {
     search: "",
     status: "all",
-    secondary: "all",
+    secondary:
+      "all",
     sort: "date",
     page: 1,
-    pageSize: PAGE_SIZES[1],
+    pageSize:
+      PAGE_SIZES[1],
     tab,
   };
 }
@@ -161,13 +249,75 @@ function getPageSnapshotKey(
   ]);
 }
 
+function normalizeInitialQuery(
+  query,
+  tab
+) {
+  const fallback =
+    getDefaultQuery(tab);
+
+  const page =
+    Number(
+      query?.page
+    );
+
+  const pageSize =
+    Number(
+      query?.pageSize
+    );
+
+  return {
+    search:
+      cleanText(
+        query?.search
+      ),
+
+    status:
+      cleanText(
+        query?.status
+      ) ||
+      fallback.status,
+
+    secondary:
+      cleanText(
+        query?.secondary
+      ) ||
+      fallback.secondary,
+
+    sort:
+      cleanText(
+        query?.sort
+      ) || fallback.sort,
+
+    page:
+      Number.isInteger(
+        page
+      ) && page > 0
+        ? page
+        : fallback.page,
+
+    pageSize:
+      PAGE_SIZES.includes(
+        pageSize
+      )
+        ? pageSize
+        : fallback.pageSize,
+
+    tab,
+  };
+}
+
 export function useAdminUserManagement({
   enabled = true,
   activeTab = "patients",
   adminId = "",
+  initialQuery = null,
 } = {}) {
-  const pageRequestRef = useRef(0);
-  const summaryRequestRef = useRef(0);
+  const pageRequestRef =
+    useRef(0);
+
+  const summaryRequestRef =
+    useRef(0);
 
   /*
    * Synchronous mutation lock.
@@ -179,10 +329,18 @@ export function useAdminUserManagement({
   const accountMutationLockRef =
     useRef(false);
 
+  const [startingQuery] =
+  useState(() =>
+    normalizeInitialQuery(
+      initialQuery,
+      activeTab
+    )
+  );
+
   const initialPageSnapshotKey =
     getPageSnapshotKey(
       activeTab,
-      getDefaultQuery(activeTab)
+      startingQuery
     );
 
   const initialPageSnapshot =
@@ -199,64 +357,86 @@ export function useAdminUserManagement({
       "summary"
     );
 
-  const [rows, setRows] =
-    useState(() => ({
-      patients:
-        activeTab === "patients"
-          ? initialPageSnapshot?.rows ||
-            []
-          : [],
-      doctors:
-        activeTab === "doctors"
-          ? initialPageSnapshot?.rows ||
-            []
-          : [],
-      staff:
-        activeTab === "staff"
-          ? initialPageSnapshot?.rows ||
-            []
-          : [],
-    }));
+  const [
+    rows,
+    setRows,
+  ] = useState(() => ({
+    patients:
+      activeTab ===
+      "patients"
+        ? initialPageSnapshot
+            ?.rows || []
+        : [],
 
-  const [totals, setTotals] =
-    useState(() => ({
-      patients:
-        activeTab === "patients"
-          ? initialPageSnapshot?.total ||
-            0
-          : 0,
-      doctors:
-        activeTab === "doctors"
-          ? initialPageSnapshot?.total ||
-            0
-          : 0,
-      staff:
-        activeTab === "staff"
-          ? initialPageSnapshot?.total ||
-            0
-          : 0,
-    }));
+    doctors:
+      activeTab ===
+      "doctors"
+        ? initialPageSnapshot
+            ?.rows || []
+        : [],
 
-  const [summary, setSummary] =
-    useState(
-      () =>
-        initialSummarySnapshot?.summary ||
-        EMPTY_SUMMARY
-    );
+    staff:
+      activeTab ===
+      "staff"
+        ? initialPageSnapshot
+            ?.rows || []
+        : [],
+  }));
+
+  const [
+    totals,
+    setTotals,
+  ] = useState(() => ({
+    patients:
+      activeTab ===
+      "patients"
+        ? initialPageSnapshot
+            ?.total || 0
+        : 0,
+
+    doctors:
+      activeTab ===
+      "doctors"
+        ? initialPageSnapshot
+            ?.total || 0
+        : 0,
+
+    staff:
+      activeTab ===
+      "staff"
+        ? initialPageSnapshot
+            ?.total || 0
+        : 0,
+  }));
+
+  const [
+    summary,
+    setSummary,
+  ] = useState(
+    () =>
+      initialSummarySnapshot
+        ?.summary ||
+      EMPTY_SUMMARY
+  );
 
   const [
     filterOptions,
     setFilterOptions,
   ] = useState(() => ({
     doctors:
-      activeTab === "doctors"
+      activeTab ===
+      "doctors"
         ? initialPageSnapshot
-            ?.filterOptions || []
+            ?.filterOptions ||
+          []
         : [],
+
     staff:
-      activeTab === "staff"
+      activeTab ===
+      "staff"
         ? initialPageSnapshot
-            ?.filterOptions || []
+            ?.filterOptions ||
+          []
         : [],
   }));
 
@@ -272,14 +452,16 @@ export function useAdminUserManagement({
     setLoadedSummaryAdminId,
   ] = useState(adminId);
 
-  const [loading, setLoading] =
-    useState(() =>
-      Boolean(
-        enabled &&
-          adminId &&
-          !initialPageSnapshot
-      )
-    );
+  const [
+    loading,
+    setLoading,
+  ] = useState(() =>
+    Boolean(
+      enabled &&
+        adminId &&
+        !initialPageSnapshot
+    )
+  );
 
   const [
     summaryLoading,
@@ -292,80 +474,195 @@ export function useAdminUserManagement({
     )
   );
 
-  const [error, setError] =
-    useState("");
-  const [notice, setNotice] =
-    useState("");
-  const [saving, setSaving] =
-    useState(false);
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-  const [search, setSearchState] =
-    useState("");
+  const [
+    notice,
+    setNotice,
+  ] = useState("");
+
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
+
+  const [
+    search,
+    setSearchState,
+  ] = useState(
+    activeTab ===
+      "patients"
+      ? startingQuery.search
+      : ""
+  );
+
   const [
     statusFilter,
     setStatusFilterState,
-  ] = useState("all");
-  const [sortBy, setSortByState] =
-    useState("date");
-  const [page, setPage] =
-    useState(1);
+  ] = useState(
+    activeTab ===
+      "patients"
+      ? startingQuery.status
+      : "all"
+  );
+
+  const [
+    sortBy,
+    setSortByState,
+  ] = useState(
+    activeTab ===
+      "patients"
+      ? startingQuery.sort
+      : "date"
+  );
+
+  const [
+    page,
+    setPage,
+  ] = useState(
+    activeTab ===
+      "patients"
+      ? startingQuery.page
+      : 1
+  );
+
   const [
     pageSize,
     setPageSizeState,
-  ] = useState(PAGE_SIZES[1]);
+  ] = useState(
+    activeTab ===
+      "patients"
+      ? startingQuery.pageSize
+      : PAGE_SIZES[1]
+  );
 
   const [
     doctorSearch,
     setDoctorSearchState,
-  ] = useState("");
+  ] = useState(
+    activeTab ===
+      "doctors"
+      ? startingQuery.search
+      : ""
+  );
+
   const [
     doctorStatusFilter,
     setDoctorStatusFilterState,
-  ] = useState("all");
+  ] = useState(
+    activeTab ===
+      "doctors"
+      ? startingQuery.status
+      : "all"
+  );
+
   const [
     doctorSpecialtyFilter,
     setDoctorSpecialtyFilterState,
-  ] = useState("all");
+  ] = useState(
+    activeTab ===
+      "doctors"
+      ? startingQuery.secondary
+      : "all"
+  );
+
   const [
     doctorSortBy,
     setDoctorSortByState,
-  ] = useState("date");
+  ] = useState(
+    activeTab ===
+      "doctors"
+      ? startingQuery.sort
+      : "date"
+  );
+
   const [
     doctorPage,
     setDoctorPage,
-  ] = useState(1);
+  ] = useState(
+    activeTab ===
+      "doctors"
+      ? startingQuery.page
+      : 1
+  );
+
   const [
     doctorPageSize,
     setDoctorPageSizeState,
-  ] = useState(PAGE_SIZES[1]);
+  ] = useState(
+    activeTab ===
+      "doctors"
+      ? startingQuery.pageSize
+      : PAGE_SIZES[1]
+  );
 
   const [
     staffSearch,
     setStaffSearchState,
-  ] = useState("");
+  ] = useState(
+    activeTab ===
+      "staff"
+      ? startingQuery.search
+      : ""
+  );
+
   const [
     staffStatusFilter,
     setStaffStatusFilterState,
-  ] = useState("all");
+  ] = useState(
+    activeTab ===
+      "staff"
+      ? startingQuery.status
+      : "all"
+  );
+
   const [
     staffPositionFilter,
     setStaffPositionFilterState,
-  ] = useState("all");
+  ] = useState(
+    activeTab ===
+      "staff"
+      ? startingQuery.secondary
+      : "all"
+  );
+
   const [
     staffSortBy,
     setStaffSortByState,
-  ] = useState("date");
+  ] = useState(
+    activeTab ===
+      "staff"
+      ? startingQuery.sort
+      : "date"
+  );
+
   const [
     staffPage,
     setStaffPage,
-  ] = useState(1);
+  ] = useState(
+    activeTab ===
+      "staff"
+      ? startingQuery.page
+      : 1
+  );
+
   const [
     staffPageSize,
     setStaffPageSizeState,
-  ] = useState(PAGE_SIZES[1]);
+  ] = useState(
+    activeTab ===
+      "staff"
+      ? startingQuery.pageSize
+      : PAGE_SIZES[1]
+  );
 
   const debouncedPatientSearch =
-    useDebouncedValue(search);
+    useDebouncedValue(
+      search
+    );
 
   const debouncedDoctorSearch =
     useDebouncedValue(
@@ -377,66 +674,94 @@ export function useAdminUserManagement({
       staffSearch
     );
 
-  const activeQuery = useMemo(() => {
-    if (activeTab === "doctors") {
+  const activeQuery =
+    useMemo(() => {
+      if (
+        activeTab ===
+        "doctors"
+      ) {
+        return {
+          search:
+            debouncedDoctorSearch,
+
+          status:
+            doctorStatusFilter,
+
+          secondary:
+            doctorSpecialtyFilter,
+
+          sort:
+            doctorSortBy,
+
+          page:
+            doctorPage,
+
+          pageSize:
+            doctorPageSize,
+        };
+      }
+
+      if (
+        activeTab ===
+        "staff"
+      ) {
+        return {
+          search:
+            debouncedStaffSearch,
+
+          status:
+            staffStatusFilter,
+
+          secondary:
+            staffPositionFilter,
+
+          sort:
+            staffSortBy,
+
+          page:
+            staffPage,
+
+          pageSize:
+            staffPageSize,
+        };
+      }
+
       return {
         search:
-          debouncedDoctorSearch,
-        status:
-          doctorStatusFilter,
-        secondary:
-          doctorSpecialtyFilter,
-        sort: doctorSortBy,
-        page: doctorPage,
-        pageSize:
-          doctorPageSize,
-      };
-    }
+          debouncedPatientSearch,
 
-    if (activeTab === "staff") {
-      return {
-        search:
-          debouncedStaffSearch,
         status:
-          staffStatusFilter,
-        secondary:
-          staffPositionFilter,
-        sort: staffSortBy,
-        page: staffPage,
-        pageSize:
-          staffPageSize,
-      };
-    }
+          statusFilter,
 
-    return {
-      search:
-        debouncedPatientSearch,
-      status: statusFilter,
-      secondary: "all",
-      sort: sortBy,
+        secondary:
+          "all",
+
+        sort: sortBy,
+
+        page,
+
+        pageSize,
+      };
+    }, [
+      activeTab,
+      debouncedDoctorSearch,
+      debouncedPatientSearch,
+      debouncedStaffSearch,
+      doctorPage,
+      doctorPageSize,
+      doctorSortBy,
+      doctorSpecialtyFilter,
+      doctorStatusFilter,
       page,
       pageSize,
-    };
-  }, [
-    activeTab,
-    debouncedDoctorSearch,
-    debouncedPatientSearch,
-    debouncedStaffSearch,
-    doctorPage,
-    doctorPageSize,
-    doctorSortBy,
-    doctorSpecialtyFilter,
-    doctorStatusFilter,
-    page,
-    pageSize,
-    sortBy,
-    staffPage,
-    staffPageSize,
-    staffPositionFilter,
-    staffSortBy,
-    staffStatusFilter,
-    statusFilter,
-  ]);
+      sortBy,
+      staffPage,
+      staffPageSize,
+      staffPositionFilter,
+      staffSortBy,
+      staffStatusFilter,
+      statusFilter,
+    ]);
 
   const pageSnapshotKey =
     getPageSnapshotKey(
@@ -448,361 +773,455 @@ export function useAdminUserManagement({
     `${adminId}:${pageSnapshotKey}`;
 
   const loadSummary =
-    useCallback(async () => {
-      if (
-        !enabled ||
-        !adminId
-      ) {
-        setSummaryLoading(false);
-        return;
-      }
+    useCallback(
+      async () => {
+        if (
+          !enabled ||
+          !adminId
+        ) {
+          setSummaryLoading(
+            false
+          );
 
-      const requestId =
-        ++summaryRequestRef.current;
+          return;
+        }
 
-      setLoadedSummaryAdminId(
-        adminId
-      );
+        const requestId =
+          ++summaryRequestRef.current;
 
-      const cachedSnapshot =
-        getAdminWorkspaceSnapshot(
+        setLoadedSummaryAdminId(
+          adminId
+        );
+
+        const cachedSnapshot =
+          getAdminWorkspaceSnapshot(
+            userSummarySnapshotNamespace,
+            adminId,
+            "summary"
+          );
+
+        if (
+          cachedSnapshot
+        ) {
+          setSummary(
+            cachedSnapshot.summary
+          );
+        }
+
+        setSummaryLoading(
+          !cachedSnapshot
+        );
+
+        const {
+          data,
+          error: rpcError,
+        } = await supabase.rpc(
+          "admin_get_user_management_summary"
+        );
+
+        if (
+          requestId !==
+          summaryRequestRef.current
+        ) {
+          return;
+        }
+
+        if (rpcError) {
+          if (
+            !cachedSnapshot
+          ) {
+            setError(
+              (
+                current
+              ) =>
+                current ||
+                getFriendlyError(
+                  rpcError,
+                  "Unable to load User Management totals."
+                )
+            );
+          }
+
+          setSummaryLoading(
+            false
+          );
+
+          return;
+        }
+
+        const payload =
+          normalizeRpcPayload(
+            data
+          );
+
+        const nextSummary =
+          {
+            patients: {
+              ...EMPTY_SUMMARY.patients,
+              ...(payload.patients ||
+                {}),
+            },
+
+            doctors: {
+              ...EMPTY_SUMMARY.doctors,
+              ...(payload.doctors ||
+                {}),
+            },
+
+            staff: {
+              ...EMPTY_SUMMARY.staff,
+              ...(payload.staff ||
+                {}),
+            },
+          };
+
+        setSummary(
+          nextSummary
+        );
+
+        setAdminWorkspaceSnapshot(
           userSummarySnapshotNamespace,
           adminId,
-          "summary"
-        );
-
-      if (cachedSnapshot) {
-        setSummary(
-          cachedSnapshot.summary
-        );
-      }
-
-      setSummaryLoading(
-        !cachedSnapshot
-      );
-
-      const {
-        data,
-        error: rpcError,
-      } = await supabase.rpc(
-        "admin_get_user_management_summary"
-      );
-
-      if (
-        requestId !==
-        summaryRequestRef.current
-      ) {
-        return;
-      }
-
-      if (rpcError) {
-        if (!cachedSnapshot) {
-          setError(
-            (current) =>
-              current ||
-              getFriendlyError(
-                rpcError,
-                "Unable to load User Management totals."
-              )
-          );
-        }
-
-        setSummaryLoading(false);
-        return;
-      }
-
-      const payload =
-        normalizeRpcPayload(data);
-
-      const nextSummary = {
-        patients: {
-          ...EMPTY_SUMMARY.patients,
-          ...(payload.patients ||
-            {}),
-        },
-        doctors: {
-          ...EMPTY_SUMMARY.doctors,
-          ...(payload.doctors ||
-            {}),
-        },
-        staff: {
-          ...EMPTY_SUMMARY.staff,
-          ...(payload.staff ||
-            {}),
-        },
-      };
-
-      setSummary(nextSummary);
-
-      setAdminWorkspaceSnapshot(
-        userSummarySnapshotNamespace,
-        adminId,
-        "summary",
-        {
-          summary: nextSummary,
-        }
-      );
-
-      setSummaryLoading(false);
-    }, [adminId, enabled]);
-
-  const loadPage =
-    useCallback(async () => {
-      if (
-        !enabled ||
-        !adminId
-      ) {
-        setLoading(false);
-        return;
-      }
-
-      const requestId =
-        ++pageRequestRef.current;
-
-      const cachedSnapshot =
-        getAdminWorkspaceSnapshot(
-          userPageSnapshotNamespace,
-          adminId,
-          pageSnapshotKey
-        );
-
-      setLoadedPageKey(
-        pageStateKey
-      );
-
-      if (cachedSnapshot) {
-        setRows((current) => ({
-          ...current,
-          [activeTab]:
-            cachedSnapshot.rows,
-        }));
-
-        setTotals((current) => ({
-          ...current,
-          [activeTab]:
-            cachedSnapshot.total,
-        }));
-
-        if (
-          activeTab !== "patients"
-        ) {
-          setFilterOptions(
-            (current) => ({
-              ...current,
-              [activeTab]:
-                cachedSnapshot.filterOptions,
-            })
-          );
-        }
-      } else {
-        setRows((current) => ({
-          ...current,
-          [activeTab]: [],
-        }));
-
-        setTotals((current) => ({
-          ...current,
-          [activeTab]: 0,
-        }));
-
-        if (
-          activeTab !== "patients"
-        ) {
-          setFilterOptions(
-            (current) => ({
-              ...current,
-              [activeTab]: [],
-            })
-          );
-        }
-      }
-
-      setLoading(
-        !cachedSnapshot
-      );
-      setError("");
-
-      const {
-        data,
-        error: rpcError,
-      } = await supabase.rpc(
-        "admin_get_user_management_page",
-        {
-          p_user_type:
-            activeTab,
-          p_search:
-            activeQuery.search,
-          p_status:
-            activeQuery.status,
-          p_secondary_filter:
-            activeQuery.secondary,
-          p_sort:
-            activeQuery.sort,
-          p_page:
-            activeQuery.page,
-          p_page_size:
-            activeQuery.pageSize,
-        }
-      );
-
-      if (
-        requestId !==
-        pageRequestRef.current
-      ) {
-        return;
-      }
-
-      if (rpcError) {
-        if (!cachedSnapshot) {
-          setRows((current) => ({
-            ...current,
-            [activeTab]: [],
-          }));
-
-          setError(
-            getFriendlyError(
-              rpcError,
-              `Unable to load ${activeTab}.`
-            )
-          );
-        }
-
-        setLoading(false);
-        return;
-      }
-
-      const payload =
-        normalizeRpcPayload(data);
-
-      const nextRows =
-        Array.isArray(
-          payload.rows
-        )
-          ? payload.rows
-              .filter(
-                (row) =>
-                  row?.id
-              )
-              .map((row) =>
-                mapRow(
-                  row,
-                  activeTab.slice(
-                    0,
-                    -1
-                  )
-                )
-              )
-          : [];
-
-      const nextTotal =
-        Number(
-          payload.total
-        ) || 0;
-
-      const nextFilterOptions =
-        activeTab !==
-          "patients" &&
-        Array.isArray(
-          payload.filter_options
-        )
-          ? payload.filter_options.filter(
-              Boolean
-            )
-          : [];
-
-      setRows((current) => ({
-        ...current,
-        [activeTab]: nextRows,
-      }));
-
-      setTotals((current) => ({
-        ...current,
-        [activeTab]:
-          nextTotal,
-      }));
-
-      if (
-        activeTab !== "patients"
-      ) {
-        setFilterOptions(
-          (current) => ({
-            ...current,
-            [activeTab]:
-              nextFilterOptions,
-          })
-        );
-      }
-
-      const returnedPage =
-        Number(
-          payload.page
-        ) || 1;
-
-      const returnedSnapshotKey =
-        getPageSnapshotKey(
-          activeTab,
+          "summary",
           {
-            ...activeQuery,
-            page: returnedPage,
+            summary:
+              nextSummary,
           }
         );
 
-      setAdminWorkspaceSnapshot(
-        userPageSnapshotNamespace,
-        adminId,
-        returnedSnapshotKey,
-        {
-          rows: nextRows,
-          total: nextTotal,
-          filterOptions:
-            nextFilterOptions,
+        setSummaryLoading(
+          false
+        );
+      },
+      [adminId, enabled]
+    );
+
+  const loadPage =
+    useCallback(
+      async () => {
+        if (
+          !enabled ||
+          !adminId
+        ) {
+          setLoading(
+            false
+          );
+
+          return;
         }
-      );
 
-      if (
-        activeTab ===
-          "patients" &&
-        returnedPage !== page
-      ) {
-        setPage(
-          returnedPage
+        const requestId =
+          ++pageRequestRef.current;
+
+        const cachedSnapshot =
+          getAdminWorkspaceSnapshot(
+            userPageSnapshotNamespace,
+            adminId,
+            pageSnapshotKey
+          );
+
+        setLoadedPageKey(
+          pageStateKey
         );
-      }
 
-      if (
-        activeTab ===
-          "doctors" &&
-        returnedPage !==
-          doctorPage
-      ) {
-        setDoctorPage(
-          returnedPage
+        if (
+          cachedSnapshot
+        ) {
+          setRows(
+            (current) => ({
+              ...current,
+
+              [activeTab]:
+                cachedSnapshot.rows,
+            })
+          );
+
+          setTotals(
+            (current) => ({
+              ...current,
+
+              [activeTab]:
+                cachedSnapshot.total,
+            })
+          );
+
+          if (
+            activeTab !==
+            "patients"
+          ) {
+            setFilterOptions(
+              (
+                current
+              ) => ({
+                ...current,
+
+                [activeTab]:
+                  cachedSnapshot.filterOptions,
+              })
+            );
+          }
+        } else {
+          setRows(
+            (current) => ({
+              ...current,
+
+              [activeTab]:
+                [],
+            })
+          );
+
+          setTotals(
+            (current) => ({
+              ...current,
+
+              [activeTab]:
+                0,
+            })
+          );
+
+          if (
+            activeTab !==
+            "patients"
+          ) {
+            setFilterOptions(
+              (
+                current
+              ) => ({
+                ...current,
+
+                [activeTab]:
+                  [],
+              })
+            );
+          }
+        }
+
+        setLoading(
+          !cachedSnapshot
         );
-      }
 
-      if (
-        activeTab ===
-          "staff" &&
-        returnedPage !==
-          staffPage
-      ) {
-        setStaffPage(
-          returnedPage
+        setError("");
+
+        const {
+          data,
+          error: rpcError,
+        } = await supabase.rpc(
+          "admin_get_user_management_page",
+          {
+            p_user_type:
+              activeTab,
+
+            p_search:
+              activeQuery.search,
+
+            p_status:
+              activeQuery.status,
+
+            p_secondary_filter:
+              activeQuery.secondary,
+
+            p_sort:
+              activeQuery.sort,
+
+            p_page:
+              activeQuery.page,
+
+            p_page_size:
+              activeQuery.pageSize,
+          }
         );
-      }
 
-      setLoading(false);
-    }, [
-      activeQuery,
-      activeTab,
-      adminId,
-      doctorPage,
-      enabled,
-      page,
-      pageSnapshotKey,
-      pageStateKey,
-      staffPage,
-    ]);
+        if (
+          requestId !==
+          pageRequestRef.current
+        ) {
+          return;
+        }
+
+        if (rpcError) {
+          if (
+            !cachedSnapshot
+          ) {
+            setRows(
+              (
+                current
+              ) => ({
+                ...current,
+
+                [activeTab]:
+                  [],
+              })
+            );
+
+            setError(
+              getFriendlyError(
+                rpcError,
+                `Unable to load ${activeTab}.`
+              )
+            );
+          }
+
+          setLoading(
+            false
+          );
+
+          return;
+        }
+
+        const payload =
+          normalizeRpcPayload(
+            data
+          );
+
+        const nextRows =
+          Array.isArray(
+            payload.rows
+          )
+            ? payload.rows
+                .filter(
+                  (row) =>
+                    row?.id
+                )
+                .map(
+                  (row) =>
+                    mapRow(
+                      row,
+                      activeTab.slice(
+                        0,
+                        -1
+                      )
+                    )
+                )
+            : [];
+
+        const nextTotal =
+          Number(
+            payload.total
+          ) || 0;
+
+        const nextFilterOptions =
+          activeTab !==
+            "patients" &&
+          Array.isArray(
+            payload.filter_options
+          )
+            ? payload.filter_options.filter(
+                Boolean
+              )
+            : [];
+
+        setRows(
+          (current) => ({
+            ...current,
+
+            [activeTab]:
+              nextRows,
+          })
+        );
+
+        setTotals(
+          (current) => ({
+            ...current,
+
+            [activeTab]:
+              nextTotal,
+          })
+        );
+
+        if (
+          activeTab !==
+          "patients"
+        ) {
+          setFilterOptions(
+            (
+              current
+            ) => ({
+              ...current,
+
+              [activeTab]:
+                nextFilterOptions,
+            })
+          );
+        }
+
+        const returnedPage =
+          Number(
+            payload.page
+          ) || 1;
+
+        const returnedSnapshotKey =
+          getPageSnapshotKey(
+            activeTab,
+            {
+              ...activeQuery,
+              page:
+                returnedPage,
+            }
+          );
+
+        setAdminWorkspaceSnapshot(
+          userPageSnapshotNamespace,
+          adminId,
+          returnedSnapshotKey,
+          {
+            rows:
+              nextRows,
+
+            total:
+              nextTotal,
+
+            filterOptions:
+              nextFilterOptions,
+          }
+        );
+
+        if (
+          activeTab ===
+            "patients" &&
+          returnedPage !==
+            page
+        ) {
+          setPage(
+            returnedPage
+          );
+        }
+
+        if (
+          activeTab ===
+            "doctors" &&
+          returnedPage !==
+            doctorPage
+        ) {
+          setDoctorPage(
+            returnedPage
+          );
+        }
+
+        if (
+          activeTab ===
+            "staff" &&
+          returnedPage !==
+            staffPage
+        ) {
+          setStaffPage(
+            returnedPage
+          );
+        }
+
+        setLoading(false);
+      },
+      [
+        activeQuery,
+        activeTab,
+        adminId,
+        doctorPage,
+        enabled,
+        page,
+        pageSnapshotKey,
+        pageStateKey,
+        staffPage,
+      ]
+    );
 
   useEffect(() => {
     const timer =
@@ -812,7 +1231,9 @@ export function useAdminUserManagement({
       );
 
     return () => {
-      summaryRequestRef.current += 1;
+      summaryRequestRef.current +=
+        1;
+
       window.clearTimeout(
         timer
       );
@@ -827,7 +1248,9 @@ export function useAdminUserManagement({
       );
 
     return () => {
-      pageRequestRef.current += 1;
+      pageRequestRef.current +=
+        1;
+
       window.clearTimeout(
         timer
       );
@@ -835,33 +1258,43 @@ export function useAdminUserManagement({
   }, [loadPage]);
 
   const refresh =
-    useCallback(async () => {
-      await Promise.all([
-        loadSummary(),
-        loadPage(),
-      ]);
-    }, [
-      loadPage,
-      loadSummary,
-    ]);
+    useCallback(
+      async () => {
+        await Promise.all([
+          loadSummary(),
+          loadPage(),
+        ]);
+      },
+      [
+        loadPage,
+        loadSummary,
+      ]
+    );
 
   const loadDetails =
     useCallback(
-      async (type, id) => {
+      async (
+        type,
+        id
+      ) => {
         const {
           data,
           error: rpcError,
         } = await supabase.rpc(
           "admin_get_user_management_detail",
           {
-            p_user_type: type,
-            p_target_id: id,
+            p_user_type:
+              type,
+
+            p_target_id:
+              id,
           }
         );
 
         if (rpcError) {
           return {
             ok: false,
+
             error:
               getFriendlyError(
                 rpcError,
@@ -872,6 +1305,7 @@ export function useAdminUserManagement({
 
         return {
           ok: true,
+
           detail:
             normalizeRpcPayload(
               data
@@ -891,6 +1325,7 @@ export function useAdminUserManagement({
         if (!account?.id) {
           return {
             ok: false,
+
             error:
               "No account was selected.",
           };
@@ -906,18 +1341,21 @@ export function useAdminUserManagement({
         ) {
           return {
             ok: false,
+
             error:
               "An account update is already in progress.",
           };
         }
 
         if (
-          type === "patient" &&
+          type ===
+            "patient" &&
           account.linkStatus !==
             "linked"
         ) {
           return {
             ok: false,
+
             error:
               "This Patient does not have a linked login account.",
           };
@@ -926,8 +1364,10 @@ export function useAdminUserManagement({
         const rpcName = {
           patient:
             "admin_set_patient_account_status",
+
           doctor:
             "admin_set_doctor_account_status",
+
           staff:
             "admin_set_staff_account_status",
         }[type];
@@ -935,6 +1375,7 @@ export function useAdminUserManagement({
         if (!rpcName) {
           return {
             ok: false,
+
             error:
               "The selected account type is not supported.",
           };
@@ -949,6 +1390,7 @@ export function useAdminUserManagement({
           true;
 
         setSaving(true);
+
         setNotice("");
 
         try {
@@ -959,6 +1401,7 @@ export function useAdminUserManagement({
             {
               [idArgument]:
                 account.id,
+
               p_action:
                 action,
             }
@@ -967,6 +1410,7 @@ export function useAdminUserManagement({
           if (rpcError) {
             return {
               ok: false,
+
               error:
                 getFriendlyError(
                   rpcError,
@@ -1012,6 +1456,7 @@ export function useAdminUserManagement({
         ) {
           return {
             ok: false,
+
             error:
               getFriendlyError(
                 mutationError,
@@ -1037,24 +1482,29 @@ export function useAdminUserManagement({
     );
 
   const resetPageForTab =
-    useCallback((tab) => {
-      if (
-        tab === "doctors"
-      ) {
-        setDoctorPage(1);
-      } else if (
-        tab === "staff"
-      ) {
-        setStaffPage(1);
-      } else {
-        setPage(1);
-      }
-    }, []);
+    useCallback(
+      (tab) => {
+        if (
+          tab ===
+          "doctors"
+        ) {
+          setDoctorPage(1);
+        } else if (
+          tab === "staff"
+        ) {
+          setStaffPage(1);
+        } else {
+          setPage(1);
+        }
+      },
+      []
+    );
 
   const bindReset =
     (setter, reset) =>
     (value) => {
       setter(value);
+
       reset(1);
     };
 
@@ -1072,14 +1522,16 @@ export function useAdminUserManagement({
   const visibleRows =
     pageStateMatches
       ? rows[activeTab]
-      : renderPageSnapshot?.rows ||
-        [];
+      : renderPageSnapshot
+          ?.rows || [];
 
   const visibleTotal =
     pageStateMatches
-      ? totals[activeTab]
-      : renderPageSnapshot?.total ||
-        0;
+      ? totals[
+          activeTab
+        ]
+      : renderPageSnapshot
+          ?.total || 0;
 
   const visibleFilterOptions =
     pageStateMatches
@@ -1087,7 +1539,8 @@ export function useAdminUserManagement({
           activeTab
         ] || []
       : renderPageSnapshot
-          ?.filterOptions || [];
+          ?.filterOptions ||
+        [];
 
   const visibleLoading =
     pageStateMatches
@@ -1132,12 +1585,14 @@ export function useAdminUserManagement({
       : "";
 
   const visiblePatientTotal =
-    activeTab === "patients"
+    activeTab ===
+    "patients"
       ? visibleTotal
       : totals.patients;
 
   const visibleDoctorTotal =
-    activeTab === "doctors"
+    activeTab ===
+    "doctors"
       ? visibleTotal
       : totals.doctors;
 
@@ -1320,7 +1775,8 @@ export function useAdminUserManagement({
 
     doctorPageStart:
       visibleDoctorTotal
-        ? (doctorPage - 1) *
+        ? (doctorPage -
+            1) *
           doctorPageSize
         : 0,
 
@@ -1380,12 +1836,14 @@ export function useAdminUserManagement({
 
     staffPageStart:
       visibleStaffTotal
-        ? (staffPage - 1) *
+        ? (staffPage -
+            1) *
           staffPageSize
         : 0,
 
     staffPositionOptions:
-      activeTab === "staff"
+      activeTab ===
+      "staff"
         ? visibleFilterOptions
         : filterOptions.staff,
   };

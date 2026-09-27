@@ -1,0 +1,264 @@
+.admin-select-field {
+  min-width: 0;
+  position: relative;
+  display: grid;
+  gap: 6px;
+  color: #536074;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-select-label {
+  min-width: 0;
+}
+
+.admin-select-control {
+  position: relative;
+  min-width: 0;
+}
+
+.admin-select-trigger {
+  width: 100%;
+  height: 50px;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    18px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #dfe5ee;
+  border-radius: 12px;
+  color: #4f5d70;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 14px 0 15px;
+  text-align: left;
+  text-transform: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.admin-select-trigger:hover:not(:disabled) {
+  border-color: #f1a6c0;
+  background: #fffafd;
+}
+
+.admin-select-trigger[aria-expanded="true"] {
+  border-color: #fb6b9e;
+  box-shadow:
+    0 0 0 3px
+    rgba(251, 56, 126, 0.12);
+}
+
+.admin-select-trigger:focus-visible {
+  outline: 3px solid
+    rgba(251, 56, 126, 0.22);
+  outline-offset: 2px;
+}
+
+.admin-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-select-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-select-trigger
+  > span.is-placeholder {
+  color: #98a3b5;
+  font-weight: 600;
+}
+
+.admin-select-trigger > svg {
+  width: 18px;
+  height: 18px;
+  color: #617086;
+  transition:
+    transform 150ms ease,
+    color 150ms ease;
+}
+
+.admin-select-trigger
+  > svg.is-open {
+  color: var(
+    --admin-pink,
+    #fb387e
+  );
+  transform: rotate(180deg);
+}
+
+.admin-select-menu {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 75;
+
+  width: max-content;
+  min-width: 100%;
+  max-width: min(
+    320px,
+    calc(100vw - 32px)
+  );
+  max-height: 230px;
+
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  display: grid;
+  gap: 3px;
+
+  border: 1px solid #e3e7ef;
+  border-radius: 12px;
+  background: #fff;
+
+  box-shadow:
+    0 16px 38px
+    rgba(31, 39, 71, 0.16);
+
+  padding: 6px;
+
+  text-transform: none;
+
+  animation:
+    admin-select-menu-in
+    140ms ease-out both;
+}
+
+.admin-select-field[data-align="right"]
+  .admin-select-menu {
+  right: 0;
+  left: auto;
+}
+
+.admin-select-menu button {
+  min-width: 0;
+  min-height: 38px;
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    18px;
+  gap: 10px;
+  align-items: center;
+
+  border: 0;
+  border-radius: 8px;
+
+  color: #526077;
+  background: transparent;
+
+  cursor: pointer;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+
+  padding: 8px 10px;
+
+  text-align: left;
+  text-transform: none;
+
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.admin-select-menu button > span {
+  min-width: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-select-menu button > svg {
+  width: 17px;
+  height: 17px;
+  color: var(
+    --admin-pink,
+    #fb387e
+  );
+}
+
+.admin-select-menu button:hover,
+.admin-select-menu button:focus-visible {
+  color: #c31572;
+  background: #fff2f7;
+  outline: none;
+}
+
+.admin-select-menu button.is-selected {
+  color: #c31572;
+  background: #ffe8f1;
+  font-weight: 800;
+}
+
+.admin-select-menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.admin-select-menu::-webkit-scrollbar {
+  width: 7px;
+}
+
+.admin-select-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-select-menu::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #dce1e9;
+}
+
+.admin-select-menu::-webkit-scrollbar-thumb:hover {
+  background: #c7cfda;
+}
+
+@keyframes admin-select-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px)
+      scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0)
+      scale(1);
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-select-menu {
+    width: 100%;
+    max-width: none;
+  }
+
+  .admin-select-field[data-align="right"]
+    .admin-select-menu {
+    right: auto;
+    left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-select-menu {
+    animation: none;
+  }
+
+  .admin-select-trigger,
+  .admin-select-trigger > svg,
+  .admin-select-menu button {
+    transition: none;
+  }
+}

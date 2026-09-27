@@ -1,20 +1,43 @@
 import React from "react";
+
 import { Icon } from "@iconify/react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+
+import {
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
+
 import AdminAccountStatusDialog from "../../components/admin/AdminAccountStatusDialog";
+import AdminSelect from "../../components/admin/AdminSelect";
 import AdminPageHeader from "../../components/admin/AdminPageHeader";
+
 import { useAdminAuth } from "../../hooks/useAdminAuth";
 import { useAdminUserManagement } from "../../hooks/useAdminUserManagement";
+
 import "../../styles/adminDashboard.css";
 import "../../styles/adminUserManagement.css";
 
 const TABS = [
-  { key: "patients", label: "Patients", icon: "solar:users-group-rounded-linear" },
-  { key: "doctors", label: "Doctors", icon: "solar:stethoscope-linear" },
-  { key: "staff", label: "Staff", icon: "solar:user-rounded-linear" },
+  {
+    key: "patients",
+    label: "Patients",
+    icon: "solar:users-group-rounded-linear",
+  },
+  {
+    key: "doctors",
+    label: "Doctors",
+    icon: "solar:stethoscope-linear",
+  },
+  {
+    key: "staff",
+    label: "Staff",
+    icon: "solar:user-rounded-linear",
+  },
 ];
 
-const VALID_TABS = new Set(TABS.map((tab) => tab.key));
+const VALID_TABS = new Set(
+  TABS.map((tab) => tab.key)
+);
 
 const STATUS_OPTIONS = {
   patients: [
@@ -24,6 +47,7 @@ const STATUS_OPTIONS = {
     ["not_linked", "Not Linked"],
     ["archived", "Archived"],
   ],
+
   clinic: [
     ["all", "All"],
     ["active", "Active"],
@@ -42,126 +66,384 @@ function cleanText(value) {
 }
 
 function titleCase(value) {
-  const text = cleanText(value).replaceAll("_", " ").toLowerCase();
-  return text ? text.replace(/\b\w/g, (character) => character.toUpperCase()) : "Unknown";
+  const text = cleanText(value)
+    .replaceAll("_", " ")
+    .toLowerCase();
+
+  return text
+    ? text.replace(
+        /\b\w/g,
+        (character) =>
+          character.toUpperCase()
+      )
+    : "Unknown";
 }
 
 function formatManilaDate(value) {
-  if (!value) return "Not recorded";
+  if (!value) {
+    return "Not recorded";
+  }
+
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not recorded";
-  return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(date);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not recorded";
+  }
+
+  return new Intl.DateTimeFormat(
+    "en-PH",
+    {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }
+  ).format(date);
 }
 
 function initials(name) {
-  return cleanText(name)
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "UM";
+  return (
+    cleanText(name)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) =>
+        part[0]?.toUpperCase()
+      )
+      .join("") || "UM"
+  );
 }
 
-function AccountAvatar({ account }) {
+function AccountAvatar({
+  account,
+}) {
   return (
-    <span className="admin-user-avatar" aria-hidden="true">
-      {initials(account?.name || account?.full_name)}
+    <span
+      className="admin-user-avatar"
+      aria-hidden="true"
+    >
+      {initials(
+        account?.name ||
+          account?.full_name
+      )}
     </span>
   );
 }
 
-function StatusBadge({ status }) {
-  const sourceStatus = cleanText(status).toLowerCase().replaceAll("-", "_").replaceAll(" ", "_") || "unknown";
-  const normalized = ["inactive", "deactivated", "suspended"].includes(sourceStatus)
+function StatusBadge({
+  status,
+}) {
+  const sourceStatus =
+    cleanText(status)
+      .toLowerCase()
+      .replaceAll("-", "_")
+      .replaceAll(" ", "_") ||
+    "unknown";
+
+  const normalized = [
+    "inactive",
+    "deactivated",
+    "suspended",
+  ].includes(sourceStatus)
     ? "inactive"
     : sourceStatus;
+
   return (
-    <span className={`admin-user-status is-${normalized}`}>
+    <span
+      className={`admin-user-status is-${normalized}`}
+    >
       {titleCase(normalized)}
     </span>
   );
 }
 
-function SummaryCard({ icon, label, counts, loading }) {
+function SummaryCard({
+  icon,
+  label,
+  counts,
+  loading,
+}) {
   return (
-    <article className="admin-user-summary-card" aria-busy={loading}>
-      <span className="admin-user-summary-icon"><Icon icon={icon} /></span>
+    <article
+      className="admin-user-summary-card"
+      aria-busy={loading}
+    >
+      <span className="admin-user-summary-icon">
+        <Icon icon={icon} />
+      </span>
+
       <div>
         <p>{label}</p>
-        {loading ? <span className="admin-user-summary-skeleton" aria-hidden="true" /> : <strong>{counts.total}</strong>}
-        {loading ? <span className="admin-user-sr-only">Loading total</span> : null}
+
+        {loading ? (
+          <span
+            className="admin-user-summary-skeleton"
+            aria-hidden="true"
+          />
+        ) : (
+          <strong>
+            {counts.total}
+          </strong>
+        )}
+
+        {loading ? (
+          <span className="admin-user-sr-only">
+            Loading total
+          </span>
+        ) : null}
       </div>
     </article>
   );
 }
 
-function getPageItems(current, total) {
-  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
-  const values = new Set([1, total, current - 1, current, current + 1]);
-  const pages = [...values].filter((page) => page >= 1 && page <= total).sort((a, b) => a - b);
+function getPageItems(
+  current,
+  total
+) {
+  if (total <= 7) {
+    return Array.from(
+      {
+        length: total,
+      },
+      (_, index) =>
+        index + 1
+    );
+  }
+
+  const values = new Set([
+    1,
+    total,
+    current - 1,
+    current,
+    current + 1,
+  ]);
+
+  const pages = [...values]
+    .filter(
+      (page) =>
+        page >= 1 &&
+        page <= total
+    )
+    .sort(
+      (a, b) => a - b
+    );
+
   const result = [];
-  pages.forEach((page, index) => {
-    if (index && page - pages[index - 1] > 1) result.push(`ellipsis-${page}`);
-    result.push(page);
-  });
+
+  pages.forEach(
+    (page, index) => {
+      if (
+        index &&
+        page -
+          pages[index - 1] >
+          1
+      ) {
+        result.push(
+          `ellipsis-${page}`
+        );
+      }
+
+      result.push(page);
+    }
+  );
+
   return result;
 }
 
-function Pagination({ page, totalPages, pageSize, total, noun, onPage, onPageSize }) {
-  const safeTotal = Math.max(0, Number(total) || 0);
-  const safePage = Math.max(1, Number(page) || 1);
-  const safePageSize = Math.max(1, Number(pageSize) || 10);
-  const safeTotalPages = Math.max(1, Number(totalPages) || 1);
+function Pagination({
+  page,
+  totalPages,
+  pageSize,
+  total,
+  noun,
+  onPage,
+  onPageSize,
+}) {
+  const safeTotal =
+    Math.max(
+      0,
+      Number(total) || 0
+    );
+
+  const safePage =
+    Math.max(
+      1,
+      Number(page) || 1
+    );
+
+  const safePageSize =
+    Math.max(
+      1,
+      Number(pageSize) || 10
+    );
+
+  const safeTotalPages =
+    Math.max(
+      1,
+      Number(totalPages) || 1
+    );
 
   const firstRow =
-    safeTotal === 0 ? 0 : (safePage - 1) * safePageSize + 1;
+    safeTotal === 0
+      ? 0
+      : (safePage - 1) *
+          safePageSize +
+        1;
 
   const lastRow =
     safeTotal === 0
       ? 0
-      : Math.min(safePage * safePageSize, safeTotal);
+      : Math.min(
+          safePage *
+            safePageSize,
+          safeTotal
+        );
 
   return (
-    <footer className="admin-user-pagination" aria-label={`${noun} pagination`}>
-      <p>Showing {firstRow}-{lastRow} of {safeTotal} {noun}</p>
+    <footer
+      className="admin-user-pagination"
+      aria-label={`${noun} pagination`}
+    >
+      <p>
+        Showing {firstRow}-
+        {lastRow} of{" "}
+        {safeTotal} {noun}
+      </p>
+
       <label>
         Rows
-        <select value={safePageSize} onChange={(event) => onPageSize(Number(event.target.value))}>
-          {[5, 10, 20].map((size) => <option key={size} value={size}>{size}</option>)}
+
+        <select
+          value={
+            safePageSize
+          }
+          onChange={(
+            event
+          ) =>
+            onPageSize(
+              Number(
+                event.target
+                  .value
+              )
+            )
+          }
+        >
+          {[5, 10, 20].map(
+            (size) => (
+              <option
+                key={size}
+                value={size}
+              >
+                {size}
+              </option>
+            )
+          )}
         </select>
       </label>
-      <nav aria-label={`${noun} pages`}>
-        <button type="button" onClick={() => onPage(1)} disabled={safePage === 1} aria-label="First page">
+
+      <nav
+        aria-label={`${noun} pages`}
+      >
+        <button
+          type="button"
+          onClick={() =>
+            onPage(1)
+          }
+          disabled={
+            safePage === 1
+          }
+          aria-label="First page"
+        >
           <Icon icon="solar:rewind-back-linear" />
         </button>
-        <button type="button" onClick={() => onPage(safePage - 1)} disabled={safePage === 1} aria-label="Previous page">
+
+        <button
+          type="button"
+          onClick={() =>
+            onPage(
+              safePage - 1
+            )
+          }
+          disabled={
+            safePage === 1
+          }
+          aria-label="Previous page"
+        >
           <Icon icon="solar:alt-arrow-left-linear" />
         </button>
+
         <span className="admin-user-page-window">
-          {getPageItems(safePage, safeTotalPages).map((item) => typeof item === "string" ? (
-            <span className="admin-user-page-ellipsis" key={item} aria-hidden="true">…</span>
-          ) : (
-            <button
-              key={item}
-              type="button"
-              className={item === safePage ? "is-active" : ""}
-              aria-label={`Page ${item}`}
-              aria-current={item === safePage ? "page" : undefined}
-              onClick={() => onPage(item)}
-            >
-              {item}
-            </button>
-          ))}
+          {getPageItems(
+            safePage,
+            safeTotalPages
+          ).map((item) =>
+            typeof item ===
+            "string" ? (
+              <span
+                key={item}
+                className="admin-user-page-ellipsis"
+                aria-hidden="true"
+              >
+                …
+              </span>
+            ) : (
+              <button
+                key={item}
+                type="button"
+                className={
+                  item ===
+                  safePage
+                    ? "is-active"
+                    : ""
+                }
+                aria-label={`Page ${item}`}
+                aria-current={
+                  item ===
+                  safePage
+                    ? "page"
+                    : undefined
+                }
+                onClick={() =>
+                  onPage(
+                    item
+                  )
+                }
+              >
+                {item}
+              </button>
+            )
+          )}
         </span>
-        <button type="button" onClick={() => onPage(safePage + 1)} disabled={safePage === safeTotalPages} aria-label="Next page">
+
+        <button
+          type="button"
+          onClick={() =>
+            onPage(
+              safePage + 1
+            )
+          }
+          disabled={
+            safePage ===
+            safeTotalPages
+          }
+          aria-label="Next page"
+        >
           <Icon icon="solar:alt-arrow-right-linear" />
         </button>
-        <button type="button" onClick={() => onPage(safeTotalPages)} disabled={safePage === safeTotalPages} aria-label="Last page">
+
+        <button
+          type="button"
+          onClick={() =>
+            onPage(
+              safeTotalPages
+            )
+          }
+          disabled={
+            safePage ===
+            safeTotalPages
+          }
+          aria-label="Last page"
+        >
           <Icon icon="solar:rewind-forward-linear" />
         </button>
       </nav>
@@ -169,15 +451,54 @@ function Pagination({ page, totalPages, pageSize, total, noun, onPage, onPageSiz
   );
 }
 
-function getStatusAction(account, type) {
-  if (type === "patient" && account.linkStatus !== "linked") return null;
-  if (account.accountStatus === "active") return "deactivate";
-  if (["inactive", "deactivated", "suspended"].includes(account.accountStatus)) return "reactivate";
+function getStatusAction(
+  account,
+  type
+) {
+  if (
+    type === "patient" &&
+    account.linkStatus !==
+      "linked"
+  ) {
+    return null;
+  }
+
+  if (
+    account.accountStatus ===
+    "active"
+  ) {
+    return "deactivate";
+  }
+
+  if (
+    [
+      "inactive",
+      "deactivated",
+      "suspended",
+    ].includes(
+      account.accountStatus
+    )
+  ) {
+    return "reactivate";
+  }
+
   return null;
 }
 
-function ActionMenu({ account, type, open, onToggle, onAction, buttonRef }) {
-  const statusAction = getStatusAction(account, type);
+function ActionMenu({
+  account,
+  type,
+  open,
+  onToggle,
+  onAction,
+  buttonRef,
+}) {
+  const statusAction =
+    getStatusAction(
+      account,
+      type
+    );
+
   return (
     <div className="admin-user-action-wrap">
       <button
@@ -191,20 +512,66 @@ function ActionMenu({ account, type, open, onToggle, onAction, buttonRef }) {
       >
         <Icon icon="solar:menu-dots-bold" />
       </button>
+
       {open ? (
-        <div className="admin-user-action-menu" role="menu">
-          <button type="button" role="menuitem" onClick={() => onAction("details", account, type)}>
-            <Icon icon="solar:eye-linear" /> View Account
+        <div
+          className="admin-user-action-menu"
+          role="menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() =>
+              onAction(
+                "details",
+                account,
+                type
+              )
+            }
+          >
+            <Icon icon="solar:eye-linear" />
+
+            View Account
           </button>
+
           {statusAction ? (
-            <button type="button" role="menuitem" onClick={() => onAction(statusAction, account, type)}>
-              <Icon icon={statusAction === "deactivate" ? "solar:user-block-linear" : "solar:restart-linear"} />
-              {titleCase(statusAction)} Account
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() =>
+                onAction(
+                  statusAction,
+                  account,
+                  type
+                )
+              }
+            >
+              <Icon
+                icon={
+                  statusAction ===
+                  "deactivate"
+                    ? "solar:user-block-linear"
+                    : "solar:restart-linear"
+                }
+              />
+
+              {titleCase(
+                statusAction
+              )}{" "}
+              Account
             </button>
           ) : (
-            <span className="is-disabled" role="menuitem" aria-disabled="true">
+            <span
+              className="is-disabled"
+              role="menuitem"
+              aria-disabled="true"
+            >
               <Icon icon="solar:info-circle-linear" />
-              {type === "patient" && account.linkStatus !== "linked"
+
+              {type ===
+                "patient" &&
+              account.linkStatus !==
+                "linked"
                 ? "This Patient does not have a linked login account."
                 : "No account-status action is available."}
             </span>
@@ -215,241 +582,1352 @@ function ActionMenu({ account, type, open, onToggle, onAction, buttonRef }) {
   );
 }
 
-function FilterBar({ type, manager }) {
-  const isPatient = type === "patients";
-  const prefix = type === "doctors" ? "doctor" : type === "staff" ? "staff" : "";
-  const search = isPatient ? manager.search : manager[`${prefix}Search`];
-  const setSearch = isPatient ? manager.setSearch : manager[`set${titleCase(prefix)}Search`];
-  const status = isPatient ? manager.statusFilter : manager[`${prefix}StatusFilter`];
-  const setStatus = isPatient ? manager.setStatusFilter : manager[`set${titleCase(prefix)}StatusFilter`];
-  const sort = isPatient ? manager.sortBy : manager[`${prefix}SortBy`];
-  const setSort = isPatient ? manager.setSortBy : manager[`set${titleCase(prefix)}SortBy`];
-  const secondary = type === "doctors" ? manager.doctorSpecialtyFilter : manager.staffPositionFilter;
-  const setSecondary = type === "doctors" ? manager.setDoctorSpecialtyFilter : manager.setStaffPositionFilter;
-  const options = type === "doctors" ? manager.doctorSpecialtyOptions : manager.staffPositionOptions;
+/* ============================================================
+   User Management Filters
+   Uses the reusable custom AdminSelect instead of native selects.
+   Search remains a normal text input.
+   ============================================================ */
+
+function FilterBar({
+  type,
+  manager,
+}) {
+  const isPatient =
+    type === "patients";
+
+  const prefix =
+    type === "doctors"
+      ? "doctor"
+      : type === "staff"
+        ? "staff"
+        : "";
+
+  const search = isPatient
+    ? manager.search
+    : manager[
+        `${prefix}Search`
+      ];
+
+  const setSearch =
+    isPatient
+      ? manager.setSearch
+      : manager[
+          `set${titleCase(
+            prefix
+          )}Search`
+        ];
+
+  const status = isPatient
+    ? manager.statusFilter
+    : manager[
+        `${prefix}StatusFilter`
+      ];
+
+  const setStatus =
+    isPatient
+      ? manager.setStatusFilter
+      : manager[
+          `set${titleCase(
+            prefix
+          )}StatusFilter`
+        ];
+
+  const sort = isPatient
+    ? manager.sortBy
+    : manager[
+        `${prefix}SortBy`
+      ];
+
+  const setSort =
+    isPatient
+      ? manager.setSortBy
+      : manager[
+          `set${titleCase(
+            prefix
+          )}SortBy`
+        ];
+
+  const secondary =
+    type === "doctors"
+      ? manager.doctorSpecialtyFilter
+      : manager.staffPositionFilter;
+
+  const setSecondary =
+    type === "doctors"
+      ? manager.setDoctorSpecialtyFilter
+      : manager.setStaffPositionFilter;
+
+  const options =
+    type === "doctors"
+      ? manager.doctorSpecialtyOptions
+      : manager.staffPositionOptions;
+
+  const statusOptions = (
+    isPatient
+      ? STATUS_OPTIONS.patients
+      : STATUS_OPTIONS.clinic
+  ).map(
+    ([
+      value,
+      label,
+    ]) => ({
+      value,
+      label,
+    })
+  );
+
+  const secondaryOptions = [
+    {
+      value: "all",
+      label: "All",
+    },
+
+    ...options.map(
+      (option) => ({
+        value: option,
+        label: option,
+      })
+    ),
+  ];
+
+  const sortOptions =
+    SORT_OPTIONS.map(
+      ([
+        value,
+        label,
+      ]) => ({
+        value,
+        label,
+      })
+    );
+
   return (
-    <div className={`admin-user-toolbar is-${type}`}>
+    <div
+      className={`admin-user-toolbar is-${type}`}
+    >
       <label className="admin-user-search">
-        <span>Search</span>
+        <span>
+          Search
+        </span>
+
         <Icon icon="solar:magnifer-linear" />
+
         <input
           type="search"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder={isPatient
-            ? "Search patients by ID, name, contact, or email..."
-            : type === "doctors"
-              ? "Search doctors by ID, name, email, or certification..."
-              : "Search staff by ID, name, email, or position..."}
+          onChange={(
+            event
+          ) =>
+            setSearch(
+              event.target
+                .value
+            )
+          }
+          placeholder={
+            isPatient
+              ? "Search patients by ID, name, contact, or email..."
+              : type ===
+                  "doctors"
+                ? "Search doctors by ID, name, email, or certification..."
+                : "Search staff by ID, name, email, or position..."
+          }
         />
       </label>
-      <label><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}>
-        {(isPatient ? STATUS_OPTIONS.patients : STATUS_OPTIONS.clinic).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-      </select></label>
-      {!isPatient ? <label><span>{type === "doctors" ? "Board Certification" : "Position"}</span><select value={secondary} onChange={(event) => setSecondary(event.target.value)}>
-        <option value="all">All</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select></label> : null}
-      <label><span>Sort by</span><select value={sort} onChange={(event) => setSort(event.target.value)}>
-        {SORT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-      </select></label>
+
+      <AdminSelect
+        label="Status"
+        value={status}
+        onChange={
+          setStatus
+        }
+        options={
+          statusOptions
+        }
+      />
+
+      {!isPatient ? (
+        <AdminSelect
+          label={
+            type ===
+            "doctors"
+              ? "Board Certification"
+              : "Position"
+          }
+          value={
+            secondary
+          }
+          onChange={
+            setSecondary
+          }
+          options={
+            secondaryOptions
+          }
+        />
+      ) : null}
+
+      <AdminSelect
+        label="Sort by"
+        value={sort}
+        onChange={
+          setSort
+        }
+        options={
+          sortOptions
+        }
+        align="right"
+      />
     </div>
   );
 }
 
-function UserTable({ type, manager, openMenuId, setOpenMenuId, onAction, actionRefs }) {
-  const rows = manager[type];
-  const isPatient = type === "patients";
-  const singular = type === "staff" ? "staff" : type.slice(0, -1);
-  const columns = isPatient
-    ? ["Control No.", "Patient Name", "Contact Number", "Status", "Date Registered", "Actions"]
-    : [type === "doctors" ? "Doctor ID" : "Staff ID", titleCase(singular), type === "doctors" ? "Board Certification" : "Position", "Status", "Registered", "Actions"];
+function UserTable({
+  type,
+  manager,
+  openMenuId,
+  setOpenMenuId,
+  onAction,
+  actionRefs,
+}) {
+  const rows =
+    manager[type];
+
+  const isPatient =
+    type === "patients";
+
+  const singular =
+    type === "staff"
+      ? "staff"
+      : type.slice(
+          0,
+          -1
+        );
+
+  const columns =
+    isPatient
+      ? [
+          "Patient ID",
+          "Patient Name",
+          "Contact Number",
+          "Status",
+          "Date Registered",
+          "Actions",
+        ]
+      : [
+          type ===
+          "doctors"
+            ? "Doctor ID"
+            : "Staff ID",
+
+          titleCase(
+            singular
+          ),
+
+          type ===
+          "doctors"
+            ? "Board Certification"
+            : "Position",
+
+          "Status",
+          "Registered",
+          "Actions",
+        ];
+
   return (
     <>
-      <FilterBar type={type} manager={manager} />
-      <div className={`admin-user-table-scroll${openMenuId ? " has-open-menu" : ""}`}>
+      <FilterBar
+        type={type}
+        manager={
+          manager
+        }
+      />
+
+      <div
+        className={`admin-user-table-scroll${
+          openMenuId
+            ? " has-open-menu"
+            : ""
+        }`}
+      >
         <table className="admin-user-table">
-          <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+          <thead>
+            <tr>
+              {columns.map(
+                (
+                  column
+                ) => (
+                  <th
+                    key={
+                      column
+                    }
+                  >
+                    {
+                      column
+                    }
+                  </th>
+                )
+              )}
+            </tr>
+          </thead>
+
           <tbody>
-            {manager.loading ? <tr><td colSpan="6" className="admin-user-empty">Loading {type}…</td></tr> : null}
-            {!manager.loading && !rows.length ? <tr><td colSpan="6" className="admin-user-empty">No {type} match the current filters.</td></tr> : null}
-            {!manager.loading && rows.map((account) => (
-              <tr key={account.id}>
-                <td data-label={columns[0]}>{account.displayId}</td>
-                <td data-label={columns[1]}>
-                  <div className="admin-user-person">
-                    <AccountAvatar account={account} />
-                    <div>
-                      <button
-                        type="button"
-                        className="admin-user-name-button"
-                        onClick={() => onAction("details", account, singular)}
-                      >
-                        <strong>{account.name}</strong>
-                      </button>
-                      {!isPatient && account.email ? <small>{account.email}</small> : null}
-                    </div>
-                  </div>
-                </td>
-                <td data-label={columns[2]}>{isPatient ? account.contact || "Not recorded" : account.secondaryText || "Not recorded"}</td>
-                <td data-label={columns[3]}><StatusBadge status={account.accountStatus} /></td>
-                <td data-label={columns[4]}>{formatManilaDate(account.createdAt)}</td>
-                <td data-label="Actions">
-                  <ActionMenu
-                    account={account}
-                    type={singular}
-                    open={openMenuId === account.id}
-                    buttonRef={(node) => { if (node) actionRefs.current[account.id] = node; }}
-                    onToggle={() => setOpenMenuId((current) => current === account.id ? "" : account.id)}
-                    onAction={onAction}
-                  />
+            {manager.loading ? (
+              <tr>
+                <td
+                  colSpan="6"
+                  className="admin-user-empty"
+                >
+                  Loading{" "}
+                  {type}…
                 </td>
               </tr>
-            ))}
+            ) : null}
+
+            {!manager.loading &&
+            !rows.length ? (
+              <tr>
+                <td
+                  colSpan="6"
+                  className="admin-user-empty"
+                >
+                  No {type}{" "}
+                  match the
+                  current
+                  filters.
+                </td>
+              </tr>
+            ) : null}
+
+            {!manager.loading &&
+              rows.map(
+                (
+                  account
+                ) => (
+                  <tr
+                    key={
+                      account.id
+                    }
+                  >
+                    <td
+                      data-label={
+                        columns[0]
+                      }
+                    >
+                      {
+                        account.displayId
+                      }
+                    </td>
+
+                    <td
+                      data-label={
+                        columns[1]
+                      }
+                    >
+                      <div className="admin-user-person">
+                        <AccountAvatar
+                          account={
+                            account
+                          }
+                        />
+
+                        <div>
+                          <button
+                            type="button"
+                            className="admin-user-name-button"
+                            onClick={() =>
+                              onAction(
+                                "details",
+                                account,
+                                singular
+                              )
+                            }
+                          >
+                            <strong>
+                              {
+                                account.name
+                              }
+                            </strong>
+                          </button>
+
+                          {!isPatient &&
+                          account.email ? (
+                            <small>
+                              {
+                                account.email
+                              }
+                            </small>
+                          ) : null}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td
+                      data-label={
+                        columns[2]
+                      }
+                    >
+                      {isPatient
+                        ? account.contact ||
+                          "Not recorded"
+                        : account.secondaryText ||
+                          "Not recorded"}
+                    </td>
+
+                    <td
+                      data-label={
+                        columns[3]
+                      }
+                    >
+                      <StatusBadge
+                        status={
+                          account.accountStatus
+                        }
+                      />
+                    </td>
+
+                    <td
+                      data-label={
+                        columns[4]
+                      }
+                    >
+                      {formatManilaDate(
+                        account.createdAt
+                      )}
+                    </td>
+
+                    <td
+                      data-label="Actions"
+                    >
+                      <ActionMenu
+                        account={
+                          account
+                        }
+                        type={
+                          singular
+                        }
+                        open={
+                          openMenuId ===
+                          account.id
+                        }
+                        buttonRef={(
+                          node
+                        ) => {
+                          if (
+                            node
+                          ) {
+                            actionRefs.current[
+                              account.id
+                            ] =
+                              node;
+                          }
+                        }}
+                        onToggle={() =>
+                          setOpenMenuId(
+                            (
+                              current
+                            ) =>
+                              current ===
+                              account.id
+                                ? ""
+                                : account.id
+                          )
+                        }
+                        onAction={
+                          onAction
+                        }
+                      />
+                    </td>
+                  </tr>
+                )
+              )}
           </tbody>
         </table>
       </div>
+
       <Pagination
-        page={isPatient ? manager.page : manager[`${singular}Page`]}
-        totalPages={isPatient ? manager.totalPages : manager[`${singular}TotalPages`]}
-        pageSize={isPatient ? manager.pageSize : manager[`${singular}PageSize`]}
-        total={isPatient ? manager.totalFilteredPatients : manager[`totalFiltered${titleCase(type)}`]}
+        page={
+          isPatient
+            ? manager.page
+            : manager[
+                `${singular}Page`
+              ]
+        }
+        totalPages={
+          isPatient
+            ? manager.totalPages
+            : manager[
+                `${singular}TotalPages`
+              ]
+        }
+        pageSize={
+          isPatient
+            ? manager.pageSize
+            : manager[
+                `${singular}PageSize`
+              ]
+        }
+        total={
+          isPatient
+            ? manager.totalFilteredPatients
+            : manager[
+                `totalFiltered${titleCase(
+                  type
+                )}`
+              ]
+        }
         noun={type}
-        onPage={isPatient ? manager.setPage : manager[`set${titleCase(singular)}Page`]}
-        onPageSize={isPatient ? manager.setPageSize : manager[`set${titleCase(singular)}PageSize`]}
+        onPage={
+          isPatient
+            ? manager.setPage
+            : manager[
+                `set${titleCase(
+                  singular
+                )}Page`
+              ]
+        }
+        onPageSize={
+          isPatient
+            ? manager.setPageSize
+            : manager[
+                `set${titleCase(
+                  singular
+                )}PageSize`
+              ]
+        }
       />
     </>
   );
 }
 
+function parseUserManagementQuery(
+  searchParams,
+  tab
+) {
+  const statusOptions =
+    tab === "patients"
+      ? STATUS_OPTIONS.patients
+      : STATUS_OPTIONS.clinic;
+
+  const allowedStatuses =
+    new Set(
+      statusOptions.map(
+        ([value]) =>
+          value
+      )
+    );
+
+  const allowedSorts =
+    new Set(
+      SORT_OPTIONS.map(
+        ([value]) =>
+          value
+      )
+    );
+
+  const requestedStatus =
+    cleanText(
+      searchParams.get(
+        "status"
+      )
+    ).toLowerCase();
+
+  const requestedSort =
+    cleanText(
+      searchParams.get(
+        "sort"
+      )
+    ).toLowerCase();
+
+  const rawPage =
+    Number(
+      searchParams.get(
+        "page"
+      )
+    );
+
+  const rawPageSize =
+    Number(
+      searchParams.get(
+        "size"
+      )
+    );
+
+  return {
+    search:
+      cleanText(
+        searchParams.get(
+          "q"
+        )
+      ),
+
+    status:
+      allowedStatuses.has(
+        requestedStatus
+      )
+        ? requestedStatus
+        : "all",
+
+    secondary:
+      tab === "patients"
+        ? "all"
+        : cleanText(
+            searchParams.get(
+              "secondary"
+            )
+          ) || "all",
+
+    sort:
+      allowedSorts.has(
+        requestedSort
+      )
+        ? requestedSort
+        : "date",
+
+    page:
+      Number.isInteger(
+        rawPage
+      ) &&
+      rawPage > 0
+        ? rawPage
+        : 1,
+
+    pageSize: [
+      5,
+      10,
+      20,
+    ].includes(
+      rawPageSize
+    )
+      ? rawPageSize
+      : 10,
+  };
+}
+
+function buildUserManagementSearchParams(
+  tab,
+  query
+) {
+  const params =
+    new URLSearchParams();
+
+  if (
+    tab !== "patients"
+  ) {
+    params.set(
+      "tab",
+      tab
+    );
+  }
+
+  const search =
+    cleanText(
+      query?.search
+    );
+
+  const status =
+    cleanText(
+      query?.status
+    ) || "all";
+
+  const secondary =
+    cleanText(
+      query?.secondary
+    ) || "all";
+
+  const sort =
+    cleanText(
+      query?.sort
+    ) || "date";
+
+  const page =
+    Math.max(
+      1,
+      Number(
+        query?.page
+      ) || 1
+    );
+
+  const requestedPageSize =
+    Number(
+      query?.pageSize
+    );
+
+  const pageSize = [
+    5,
+    10,
+    20,
+  ].includes(
+    requestedPageSize
+  )
+    ? requestedPageSize
+    : 10;
+
+  if (search) {
+    params.set(
+      "q",
+      search
+    );
+  }
+
+  if (
+    status !== "all"
+  ) {
+    params.set(
+      "status",
+      status
+    );
+  }
+
+  if (
+    tab !==
+      "patients" &&
+    secondary !==
+      "all"
+  ) {
+    params.set(
+      "secondary",
+      secondary
+    );
+  }
+
+  if (
+    sort !== "date"
+  ) {
+    params.set(
+      "sort",
+      sort
+    );
+  }
+
+  if (page > 1) {
+    params.set(
+      "page",
+      String(page)
+    );
+  }
+
+  if (
+    pageSize !== 10
+  ) {
+    params.set(
+      "size",
+      String(
+        pageSize
+      )
+    );
+  }
+
+  return params;
+}
+
 export default function AdminUserManagement() {
-  const { isAdmin, user } = useAdminAuth();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const requestedTab = searchParams.get("tab");
-  const activeTab = VALID_TABS.has(requestedTab) ? requestedTab : "patients";
-  const [openMenuId, setOpenMenuId] = React.useState("");
-  const [confirmState, setConfirmState] = React.useState(null);
-  const [modalError, setModalError] = React.useState("");
-  const actionRefs = React.useRef({});
-  const manager = useAdminUserManagement({
-    enabled: isAdmin,
+  const {
+    isAdmin,
+    user,
+  } =
+    useAdminAuth();
+
+  const navigate =
+    useNavigate();
+
+  const [
+    searchParams,
+    setSearchParams,
+  ] =
+    useSearchParams();
+
+  const requestedTab =
+    searchParams.get(
+      "tab"
+    );
+
+  const activeTab =
+    VALID_TABS.has(
+      requestedTab
+    )
+      ? requestedTab
+      : "patients";
+
+  /*
+   * Preserve the query that existed when the page mounted.
+   *
+   * This allows:
+   *
+   * User Management
+   * → View Account
+   * → Back
+   *
+   * to restore the previous search, filters, sorting,
+   * page, and rows-per-page.
+   */
+  const [initialQuery] =
+  React.useState(() =>
+    parseUserManagementQuery(
+      searchParams,
+      activeTab
+    )
+  );
+
+  const [
+    openMenuId,
+    setOpenMenuId,
+  ] =
+    React.useState("");
+
+  const [
+    confirmState,
+    setConfirmState,
+  ] =
+    React.useState(null);
+
+  const [
+    modalError,
+    setModalError,
+  ] =
+    React.useState("");
+
+  const actionRefs =
+    React.useRef({});
+
+  const manager =
+  useAdminUserManagement({
+    enabled:
+      isAdmin,
+
     activeTab,
-    adminId: user?.id,
+
+    adminId:
+      user?.id,
+
+    initialQuery,
   });
-  const { notice, setNotice } = manager;
 
+  const {
+    notice,
+    setNotice,
+  } = manager;
+
+  const currentQuery =
+    React.useMemo(
+      () => {
+        if (
+          activeTab ===
+          "doctors"
+        ) {
+          return {
+            search:
+              manager.doctorSearch,
+
+            status:
+              manager.doctorStatusFilter,
+
+            secondary:
+              manager.doctorSpecialtyFilter,
+
+            sort:
+              manager.doctorSortBy,
+
+            page:
+              manager.doctorPage,
+
+            pageSize:
+              manager.doctorPageSize,
+          };
+        }
+
+        if (
+          activeTab ===
+          "staff"
+        ) {
+          return {
+            search:
+              manager.staffSearch,
+
+            status:
+              manager.staffStatusFilter,
+
+            secondary:
+              manager.staffPositionFilter,
+
+            sort:
+              manager.staffSortBy,
+
+            page:
+              manager.staffPage,
+
+            pageSize:
+              manager.staffPageSize,
+          };
+        }
+
+        return {
+          search:
+            manager.search,
+
+          status:
+            manager.statusFilter,
+
+          secondary:
+            "all",
+
+          sort:
+            manager.sortBy,
+
+          page:
+            manager.page,
+
+          pageSize:
+            manager.pageSize,
+        };
+      },
+      [
+        activeTab,
+        manager.doctorPage,
+        manager.doctorPageSize,
+        manager.doctorSearch,
+        manager.doctorSortBy,
+        manager.doctorSpecialtyFilter,
+        manager.doctorStatusFilter,
+        manager.page,
+        manager.pageSize,
+        manager.search,
+        manager.sortBy,
+        manager.staffPage,
+        manager.staffPageSize,
+        manager.staffPositionFilter,
+        manager.staffSearch,
+        manager.staffSortBy,
+        manager.staffStatusFilter,
+        manager.statusFilter,
+      ]
+    );
+
+  /*
+   * Keep User Management state reflected in the URL.
+   *
+   * replace:true prevents each search keystroke/filter change
+   * from filling browser history with unnecessary entries.
+   */
   React.useEffect(() => {
-    if (!notice) return undefined;
+    const nextParams =
+      buildUserManagementSearchParams(
+        activeTab,
+        currentQuery
+      );
 
-    const timer = window.setTimeout(() => {
-      setNotice("");
-    }, 4000);
+    if (
+      nextParams.toString() !==
+      searchParams.toString()
+    ) {
+      setSearchParams(
+        nextParams,
+        {
+          replace: true,
+        }
+      );
+    }
+  }, [
+    activeTab,
+    currentQuery,
+    searchParams,
+    setSearchParams,
+  ]);
 
-    return () => window.clearTimeout(timer);
-  }, [notice, setNotice]);
-
+  /*
+   * Success toast auto-dismiss.
+   */
   React.useEffect(() => {
-    const close = (event) => {
-      if (!event.target.closest?.(".admin-user-action-wrap")) setOpenMenuId("");
+    if (!notice) {
+      return undefined;
+    }
+
+    const timer =
+      window.setTimeout(
+        () => {
+          setNotice("");
+        },
+        4000
+      );
+
+    return () =>
+      window.clearTimeout(
+        timer
+      );
+  }, [
+    notice,
+    setNotice,
+  ]);
+
+  /*
+   * Close the three-dot Action menu when the user clicks elsewhere.
+   */
+  React.useEffect(() => {
+    const close = (
+      event
+    ) => {
+      if (
+        !event.target.closest?.(
+          ".admin-user-action-wrap"
+        )
+      ) {
+        setOpenMenuId(
+          ""
+        );
+      }
     };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+
+    document.addEventListener(
+      "mousedown",
+      close
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        close
+      );
+    };
   }, []);
 
-  const returnFocus = React.useCallback((id) => {
-    window.setTimeout(() => actionRefs.current[id]?.focus(), 0);
-  }, []);
+  const returnFocus =
+    React.useCallback(
+      (id) => {
+        window.setTimeout(
+          () =>
+            actionRefs
+              .current[
+                id
+              ]?.focus(),
+          0
+        );
+      },
+      []
+    );
 
-  const closeConfirm = React.useCallback(() => {
-    if (manager.saving) return;
-    const id = confirmState?.account?.id;
-    setConfirmState(null);
-    setModalError("");
-    if (id) returnFocus(id);
-  }, [confirmState?.account?.id, manager.saving, returnFocus]);
+  const closeConfirm =
+    React.useCallback(
+      () => {
+        if (
+          manager.saving
+        ) {
+          return;
+        }
 
-  const onAction = (action, account, type) => {
+        const id =
+          confirmState
+            ?.account
+            ?.id;
+
+        setConfirmState(
+          null
+        );
+
+        setModalError("");
+
+        if (id) {
+          returnFocus(
+            id
+          );
+        }
+      },
+      [
+        confirmState
+          ?.account
+          ?.id,
+        manager.saving,
+        returnFocus,
+      ]
+    );
+
+  const onAction = (
+    action,
+    account,
+    type
+  ) => {
     setOpenMenuId("");
+
     setModalError("");
-    if (action !== "details") {
-      setConfirmState({ action, account, type });
+
+    if (
+      action !==
+      "details"
+    ) {
+      setConfirmState({
+        action,
+        account,
+        type,
+      });
+
       return;
     }
-    navigate(`/admin/user-management/${type}/${account.id}`);
+
+    /*
+     * Carry the exact current User Management state into
+     * the profile page so its Back link can restore it.
+     */
+    const returnParams =
+      buildUserManagementSearchParams(
+        activeTab,
+        currentQuery
+      );
+
+    const returnSearch =
+      returnParams.toString();
+
+    const returnTo =
+      `/admin/user-management${
+        returnSearch
+          ? `?${returnSearch}`
+          : ""
+      }`;
+
+    navigate(
+      `/admin/user-management/${type}/${account.id}`,
+      {
+        state: {
+          userManagementReturnTo:
+            returnTo,
+        },
+      }
+    );
   };
 
-  const confirmAction = async () => {
-    if (!confirmState || manager.saving) return;
-    setModalError("");
-    const result = await manager.updateAccountStatus(confirmState.type, confirmState.account, confirmState.action);
-    if (!result.ok) {
-      setModalError(result.error || "Unable to change account access.");
-      return;
-    }
-    closeConfirm();
-  };
+  const confirmAction =
+    async () => {
+      if (
+        !confirmState ||
+        manager.saving
+      ) {
+        return;
+      }
+
+      setModalError("");
+
+      const result =
+        await manager.updateAccountStatus(
+          confirmState.type,
+          confirmState.account,
+          confirmState.action
+        );
+
+      if (!result.ok) {
+        setModalError(
+          result.error ||
+            "Unable to change account access."
+        );
+
+        return;
+      }
+
+      closeConfirm();
+    };
 
   return (
     <div className="admin-user-page">
-      <AdminPageHeader title="User Management" subtitle="Manage patient, doctor, and staff accounts" />
-      <section className="admin-user-summary-grid" aria-label="User Management totals">
-        <SummaryCard icon="solar:users-group-rounded-bold" label="Total Patients" counts={manager.summary.patients} loading={manager.summaryLoading} />
-        <SummaryCard icon="solar:stethoscope-bold" label="Total Doctors" counts={manager.summary.doctors} loading={manager.summaryLoading} />
-        <SummaryCard icon="solar:user-bold" label="Total Staff" counts={manager.summary.staff} loading={manager.summaryLoading} />
+      <AdminPageHeader
+        title="User Management"
+        subtitle="Manage patient, doctor, and staff accounts"
+      />
+
+      <section
+        className="admin-user-summary-grid"
+        aria-label="User Management totals"
+      >
+        <SummaryCard
+          icon="solar:users-group-rounded-bold"
+          label="Total Patients"
+          counts={
+            manager.summary
+              .patients
+          }
+          loading={
+            manager.summaryLoading
+          }
+        />
+
+        <SummaryCard
+          icon="solar:stethoscope-bold"
+          label="Total Doctors"
+          counts={
+            manager.summary
+              .doctors
+          }
+          loading={
+            manager.summaryLoading
+          }
+        />
+
+        <SummaryCard
+          icon="solar:user-bold"
+          label="Total Staff"
+          counts={
+            manager.summary
+              .staff
+          }
+          loading={
+            manager.summaryLoading
+          }
+        />
       </section>
 
-      {manager.error ? <div className="admin-user-message is-error" role="alert"><span>{manager.error}</span><button type="button" onClick={manager.refresh}>Retry</button></div> : null}
-      {notice ? (
-        <div className="admin-user-toast admin-user-toast--success" role="status" aria-live="polite">
-          <span className="admin-user-toast__icon">
-            <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+      {manager.error ? (
+        <div
+          className="admin-user-message is-error"
+          role="alert"
+        >
+          <span>
+            {manager.error}
           </span>
+
+          <button
+            type="button"
+            onClick={
+              manager.refresh
+            }
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {notice ? (
+        <div
+          className="admin-user-toast admin-user-toast--success"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="admin-user-toast__icon">
+            <Icon
+              icon="solar:check-circle-bold"
+              aria-hidden="true"
+            />
+          </span>
+
           <div className="admin-user-toast__content">
-            <p>{notice}</p>
+            <p>
+              {notice}
+            </p>
           </div>
+
           <button
             type="button"
             className="admin-user-toast__close"
-            onClick={() => setNotice("")}
+            onClick={() =>
+              setNotice("")
+            }
             aria-label="Close notification"
           >
-            <Icon icon="solar:close-circle-linear" aria-hidden="true" />
+            <Icon
+              icon="solar:close-circle-linear"
+              aria-hidden="true"
+            />
           </button>
         </div>
       ) : null}
 
       <section className="admin-user-card">
-        <div className="admin-user-tabs" role="tablist" aria-label="User types">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.key}
-              className={activeTab === tab.key ? "is-active" : ""}
-              onClick={() => {
-                manager.resetPageForTab(tab.key);
-                const nextParams = new URLSearchParams(searchParams);
-                if (tab.key === "patients") nextParams.delete("tab");
-                else nextParams.set("tab", tab.key);
-                setSearchParams(nextParams);
-                setOpenMenuId("");
-              }}
-            >
-              <Icon icon={tab.icon} /> {tab.label}
-            </button>
-          ))}
+        <div
+          className="admin-user-tabs"
+          role="tablist"
+          aria-label="User types"
+        >
+          {TABS.map(
+            (tab) => (
+              <button
+                key={
+                  tab.key
+                }
+                type="button"
+                role="tab"
+                aria-selected={
+                  activeTab ===
+                  tab.key
+                }
+                className={
+                  activeTab ===
+                  tab.key
+                    ? "is-active"
+                    : ""
+                }
+                onClick={() => {
+                  manager.resetPageForTab(
+                    tab.key
+                  );
+
+                  const nextParams =
+                    new URLSearchParams();
+
+                  if (
+                    tab.key !==
+                    "patients"
+                  ) {
+                    nextParams.set(
+                      "tab",
+                      tab.key
+                    );
+                  }
+
+                  setSearchParams(
+                    nextParams
+                  );
+
+                  setOpenMenuId(
+                    ""
+                  );
+                }}
+              >
+                <Icon
+                  icon={
+                    tab.icon
+                  }
+                />{" "}
+
+                {
+                  tab.label
+                }
+              </button>
+            )
+          )}
         </div>
-        <UserTable type={activeTab} manager={manager} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} onAction={onAction} actionRefs={actionRefs} />
+
+        <UserTable
+          type={
+            activeTab
+          }
+          manager={
+            manager
+          }
+          openMenuId={
+            openMenuId
+          }
+          setOpenMenuId={
+            setOpenMenuId
+          }
+          onAction={
+            onAction
+          }
+          actionRefs={
+            actionRefs
+          }
+        />
       </section>
 
       {confirmState ? (
         <AdminAccountStatusDialog
-          state={confirmState}
-          saving={manager.saving}
-          error={modalError}
-          onCancel={closeConfirm}
-          onConfirm={confirmAction}
+          state={
+            confirmState
+          }
+          saving={
+            manager.saving
+          }
+          error={
+            modalError
+          }
+          onCancel={
+            closeConfirm
+          }
+          onConfirm={
+            confirmAction
+          }
         />
       ) : null}
     </div>
