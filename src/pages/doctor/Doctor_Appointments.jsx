@@ -1316,9 +1316,11 @@ export function DoctorAppointmentsContent({
   const visitRoutingLockRef = useRef("");
   const appointmentsRequestRef = useRef(null);
   const appointmentsMountedRef = useRef(true);
+  const appointmentsMutationVersionRef = useRef(0);
   const appointmentsLoadedRef = useRef(Boolean(appointmentSnapshot));
   const patientsRequestRef = useRef(null);
   const successTimerRef = useRef(null);
+  const automaticNotificationDispatchesRef = useRef(new Set());
   const dashboardStatusTargetAppliedRef = useRef(Boolean(dashboardStatusTarget));
   const showAppointmentsLoading = useDoctorDelayedLoader(
     isLoadingAppointments && !isVisitFormRoute
@@ -1344,6 +1346,43 @@ export function DoctorAppointmentsContent({
       }, 4000);
     },
     [clearSuccessTimer]
+  );
+
+  const dispatchAutomaticAppointmentNotification = useCallback(
+    ({ patientId, scheduleId, notificationType, appointmentEventId = null }, onSettled) => {
+      const dispatchKey = [
+        notificationType,
+        scheduleId,
+        appointmentEventId || "schedule",
+      ].join(":");
+
+      if (automaticNotificationDispatchesRef.current.has(dispatchKey)) return;
+      automaticNotificationDispatchesRef.current.add(dispatchKey);
+
+      const surfaceResult = (result) => {
+        if (!appointmentsMountedRef.current || typeof onSettled !== "function") return;
+        try {
+          onSettled(result);
+        } catch {
+          // Notification delivery has completed; feedback must never reject the task.
+        }
+      };
+
+      void Promise.resolve()
+        .then(() =>
+          sendAutomaticAppointmentNotification({
+            patientId,
+            scheduleId,
+            notificationType,
+            appointmentEventId,
+          })
+        )
+        .then(
+          surfaceResult,
+          (error) => surfaceResult({ ok: false, skipped: false, error })
+        );
+    },
+    []
   );
 
   useEffect(
@@ -1540,6 +1579,7 @@ export function DoctorAppointmentsContent({
       return appointmentsRequestRef.current;
     }
 
+    const requestMutationVersion = appointmentsMutationVersionRef.current;
     const request = (async () => {
       if (appointmentsMountedRef.current && !appointmentsLoadedRef.current) {
         setIsLoadingAppointments(true);
@@ -1587,6 +1627,9 @@ export function DoctorAppointmentsContent({
       const nextSchedules = (data ?? []).filter(
         (schedule) => !isLegacyPendingBookingSchedule(schedule)
       );
+      if (requestMutationVersion !== appointmentsMutationVersionRef.current) {
+        return { ok: false, count: nextSchedules.length, stale: true };
+      }
       if (appointmentsMountedRef.current) {
         appointmentsLoadedRef.current = true;
         setHasLoadedAppointments(true);
@@ -1616,6 +1659,25 @@ export function DoctorAppointmentsContent({
     request.then(clearPendingAppointmentRequest, clearPendingAppointmentRequest);
     return request;
   }, [authenticatedDoctorId]);
+
+  const revalidateAppointmentsInBackground = useCallback(() => {
+    const pendingRequest = appointmentsRequestRef.current || Promise.resolve();
+
+    void pendingRequest
+      .then(
+        () => {
+          if (!appointmentsMountedRef.current) return null;
+          return loadAppointments();
+        },
+        () => {
+          if (!appointmentsMountedRef.current) return null;
+          return loadAppointments();
+        }
+      )
+      .catch(() => {
+        // loadAppointments owns the existing non-blocking refresh error state.
+      });
+  }, [loadAppointments]);
 
   useEffect(() => {
     if (authenticatedDoctorId && appointmentsLoadedRef.current) {
@@ -2029,12 +2091,7 @@ export function DoctorAppointmentsContent({
       return;
     }
 
-    const notificationResult = await sendAutomaticAppointmentNotification({
-      patientId: data?.patient_id,
-      scheduleId: data?.id,
-      notificationType: "appointment_created",
-    });
-
+    appointmentsMutationVersionRef.current += 1;
     setSchedules((current) => {
       if (!data?.id) return current;
 
@@ -2048,21 +2105,32 @@ export function DoctorAppointmentsContent({
     setIsAdding(false);
     setActiveTab("All");
     selectCalendarDate(toDateInputValue(payload.start_time));
-    const appointmentMessage = getAutomaticNotificationStatusMessage(
-      notificationResult,
+    showSuccessMessage("Appointment created successfully.");
+    revalidateAppointmentsInBackground();
+    dispatchAutomaticAppointmentNotification(
       {
-        sentMessage: "Appointment created and Patient notified.",
-        skippedMessage:
-          "Appointment created successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
-        failedMessage:
-          "Appointment was saved, but the Patient notification could not be sent.",
+        patientId: data?.patient_id,
+        scheduleId: data?.id,
+        notificationType: "appointment_created",
+      },
+      (notificationResult) => {
+        const appointmentMessage = getAutomaticNotificationStatusMessage(
+          notificationResult,
+          {
+            sentMessage: "Appointment created and Patient notified.",
+            skippedMessage:
+              "Appointment created successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
+            failedMessage:
+              "Appointment was saved, but the Patient notification could not be sent.",
+          }
+        );
+        if (notificationResult?.ok || notificationResult?.skipped) {
+          showSuccessMessage(appointmentMessage);
+        } else {
+          setStatusMessage(appointmentMessage);
+        }
       }
     );
-    if (notificationResult?.ok || notificationResult?.skipped) {
-      showSuccessMessage(appointmentMessage);
-    } else {
-      setStatusMessage(appointmentMessage);
-    }
     } finally {
       appointmentSaveLockRef.current = false;
       setIsSaving(false);
@@ -2123,14 +2191,7 @@ export function DoctorAppointmentsContent({
       }
 
       const updatedSchedule = data;
-      const notificationResult = options.notificationType
-        ? await sendAutomaticAppointmentNotification({
-            patientId: updatedSchedule.patient_id,
-            scheduleId: updatedSchedule.id,
-            notificationType: options.notificationType,
-          })
-        : null;
-
+      appointmentsMutationVersionRef.current += 1;
       setSchedules((current) =>
         current.map((item) => (item.id === schedule.id ? updatedSchedule : item))
       );
@@ -2138,15 +2199,15 @@ export function DoctorAppointmentsContent({
         current?.id === schedule.id ? updatedSchedule : current
       );
 
-      const refreshResult = await loadAppointments();
+      revalidateAppointmentsInBackground();
       logDoctorAppointmentDetailDebug("status update succeeded", {
         scheduleId: schedule.id,
         displayedAppointmentId: getVisibleAppointmentId(updatedSchedule),
         currentStatus: updatedSchedule.status,
         selectedAction: options.actionLabel || nextStatus,
-        refreshResult,
+        refreshResult: "scheduled in background",
       });
-      return { updatedSchedule, notificationResult };
+      return { updatedSchedule };
     } catch (error) {
       const message = getReadableScheduleError(error);
       logDoctorAppointmentDetailDebug("status update failed unexpectedly", {
@@ -2373,7 +2434,6 @@ export function DoctorAppointmentsContent({
       {
         actionLabel: "cancel",
         silentAlert: true,
-        notificationType: "appointment_cancelled",
         scheduleUpdates: { description: nextDescription },
       }
     );
@@ -2386,24 +2446,35 @@ export function DoctorAppointmentsContent({
     setCancelConfirmationSchedule(null);
     setCancelReason("");
     setCancelReasonError("");
-    const cancellationMessage = saved === true
-        ? "Appointment cancelled successfully."
-        : getAutomaticNotificationStatusMessage(saved.notificationResult, {
+    showSuccessMessage("Appointment cancelled successfully.");
+
+    const updatedSchedule = saved === true
+      ? cancelConfirmationSchedule
+      : saved.updatedSchedule;
+    dispatchAutomaticAppointmentNotification(
+      {
+        patientId: updatedSchedule?.patient_id,
+        scheduleId: updatedSchedule?.id,
+        notificationType: "appointment_cancelled",
+      },
+      (notificationResult) => {
+        const cancellationMessage = getAutomaticNotificationStatusMessage(
+          notificationResult,
+          {
             sentMessage: "Appointment cancelled and Patient notified.",
             skippedMessage:
               "Appointment cancelled successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
             failedMessage:
               "Appointment cancelled successfully, but the Patient notification could not be sent.",
-          });
-    if (
-      saved === true ||
-      saved.notificationResult?.ok ||
-      saved.notificationResult?.skipped
-    ) {
-      showSuccessMessage(cancellationMessage);
-    } else {
-      setStatusMessage(cancellationMessage);
-    }
+          }
+        );
+        if (notificationResult?.ok || notificationResult?.skipped) {
+          showSuccessMessage(cancellationMessage);
+        } else {
+          setStatusMessage(cancellationMessage);
+        }
+      }
+    );
   };
 
   const confirmNoShowAppointment = async () => {
