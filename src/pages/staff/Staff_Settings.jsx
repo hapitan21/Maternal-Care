@@ -1,4 +1,5 @@
 import React from "react";
+import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import PasswordSecurityFeedback from "../../components/common/PasswordSecurityFeedback";
 import "../../styles/doctor-settings.css";
@@ -722,8 +723,40 @@ function StaffSettingsContent({ headerAction }) {
   const [settingsMessage, setSettingsMessage] =
     React.useState("");
 
+  const [successMessage, setSuccessMessage] =
+    React.useState("");
+
+  const [successMessageVersion, setSuccessMessageVersion] =
+    React.useState(0);
+
   const [settingsError, setSettingsError] =
     React.useState("");
+
+  const successTimerRef = React.useRef(null);
+
+  const showSuccessMessage = (message) => {
+    if (successTimerRef.current !== null) {
+      window.clearTimeout(successTimerRef.current);
+    }
+
+    setSuccessMessage(message);
+    setSuccessMessageVersion((current) => current + 1);
+    successTimerRef.current = window.setTimeout(() => {
+      successTimerRef.current = null;
+      setSuccessMessage((current) =>
+        current === message ? "" : current
+      );
+    }, 4000);
+  };
+
+  React.useEffect(
+    () => () => {
+      if (successTimerRef.current !== null) {
+        window.clearTimeout(successTimerRef.current);
+      }
+    },
+    []
+  );
 
   const passwordResult = validatePassword(passwordForm.newPassword);
   const passwordMatch = passwordsMatch(
@@ -1218,8 +1251,8 @@ function StaffSettingsContent({ headerAction }) {
       setDraftSettings(nextSettings);
       saveStaffSettings(nextSettings);
 
-      setSettingsMessage(
-        "Staff information was saved to Supabase."
+      showSuccessMessage(
+        "Staff information saved successfully."
       );
     } catch (error) {
       console.error(
@@ -1229,7 +1262,7 @@ function StaffSettingsContent({ headerAction }) {
 
       setSettingsError(
         error?.message ||
-          "Staff information could not be saved to Supabase."
+          "Staff information could not be saved."
       );
 
       throw error;
@@ -1323,7 +1356,9 @@ function StaffSettingsContent({ headerAction }) {
       setDraftSettings(nextSettings);
       saveStaffSettings(nextSettings);
 
-      setSettingsMessage("Contact number saved successfully.");
+      showSuccessMessage(
+        "Account settings saved successfully."
+      );
     } catch (error) {
       console.error(
         "Account settings Supabase save failed:",
@@ -1332,7 +1367,7 @@ function StaffSettingsContent({ headerAction }) {
 
       setSettingsError(
         error?.message ||
-          "Account settings could not be saved to Supabase."
+          "Account settings could not be saved."
       );
     } finally {
       setIsSavingSettings(false);
@@ -1914,6 +1949,18 @@ function StaffSettingsContent({ headerAction }) {
 
         {headerAction}
       </header>
+
+      {successMessage ? (
+        <div
+          key={successMessageVersion}
+          className="staff-settings-success-toast"
+          role="status"
+          aria-live="polite"
+        >
+          <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+          <span>{successMessage}</span>
+        </div>
+      ) : null}
 
       <div
         className="doctor-settings-shell"

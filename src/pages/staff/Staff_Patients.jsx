@@ -1641,7 +1641,12 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
   );
   const [query, setQuery] = useState("");
   const [activeModal, setActiveModal] = useState(null);
+  const [confirmationPatient, setConfirmationPatient] = useState(null);
+  const [confirmationAction, setConfirmationAction] = useState(null);
+  const [isConfirmationSubmitting, setIsConfirmationSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [successMessageVersion, setSuccessMessageVersion] = useState(0);
   const [registrationNotice, setRegistrationNotice] = useState(null);
   const [isLoadingPatients, setIsLoadingPatients] = useState(
     !initialPatientsSnapshot
@@ -1682,7 +1687,31 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
   const [walkInRefreshKey, setWalkInRefreshKey] = useState(0);
   const [reservationClock, setReservationClock] = useState(() => Date.now());
   const finishRegistrationLockRef = useRef(false);
+  const confirmationSubmissionLockRef = useRef(false);
   const registrationNoticeTimerRef = useRef(null);
+  const successTimerRef = useRef(null);
+
+  const showSuccessMessage = (message) => {
+    if (successTimerRef.current !== null) {
+      window.clearTimeout(successTimerRef.current);
+    }
+
+    setSuccessMessage(message);
+    setSuccessMessageVersion((current) => current + 1);
+    successTimerRef.current = window.setTimeout(() => {
+      successTimerRef.current = null;
+      setSuccessMessage((current) => (current === message ? "" : current));
+    }, 4000);
+  };
+
+  useEffect(
+    () => () => {
+      if (successTimerRef.current !== null) {
+        window.clearTimeout(successTimerRef.current);
+      }
+    },
+    []
+  );
 
   const clearRegistrationNotice = () => {
     if (registrationNoticeTimerRef.current) {
@@ -1764,6 +1793,19 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
       window.removeEventListener("scroll", closeActionMenu, true);
     };
   }, [patientActionMenu]);
+
+  useEffect(() => {
+    if (!confirmationPatient || !confirmationAction) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape" || confirmationSubmissionLockRef.current) return;
+      setConfirmationPatient(null);
+      setConfirmationAction(null);
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [confirmationAction, confirmationPatient]);
 
   useEffect(() => {
     let active = true;
@@ -2634,14 +2676,28 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     window.requestAnimationFrame(() => trigger.click());
   };
 
+  const openPatientConfirmation = (patient, action) => {
+    if (
+      !patient?.recordId ||
+      !["archive", "restore"].includes(action) ||
+      confirmationSubmissionLockRef.current
+    ) {
+      return;
+    }
+
+    setPatientActionMenu(null);
+    setConfirmationPatient(patient);
+    setConfirmationAction(action);
+  };
+
+  const closePatientConfirmation = () => {
+    if (confirmationSubmissionLockRef.current) return;
+    setConfirmationPatient(null);
+    setConfirmationAction(null);
+  };
+
   const archivePatient = async (patient) => {
-    if (!patient?.recordId) return;
-
-    const confirmed = window.confirm(
-      `Archive ${patient.name}? This hides the patient from the active list but keeps all linked clinical records.`
-    );
-
-    if (!confirmed) return;
+    if (!patient?.recordId) return false;
 
     setStatusMessage("");
 
@@ -2652,7 +2708,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
 
     if (userError || !user?.id) {
       setStatusMessage("Unable to identify the logged-in account. Please sign in again.");
-      return;
+      return false;
     }
 
     const { data, error } = await supabase.rpc("set_staff_patient_archive_state", {
@@ -2663,7 +2719,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     if (error) {
       console.error("Archive patient failed:", error);
       setStatusMessage(`Unable to archive patient: ${error.message}`);
-      return;
+      return false;
     }
 
     const result = Array.isArray(data) ? data[0] : data;
@@ -2679,15 +2735,12 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
           : item
       )
     );
-    setStatusMessage(`${patient.name} was archived. Linked clinical records were preserved.`);
+    showSuccessMessage(`${patient.name} was archived successfully.`);
+    return true;
   };
 
   const restorePatient = async (patient) => {
-    if (!patient?.recordId) return;
-
-    const confirmed = window.confirm(`Restore ${patient.name} to the active patient list?`);
-
-    if (!confirmed) return;
+    if (!patient?.recordId) return false;
 
     setStatusMessage("");
 
@@ -2699,7 +2752,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     if (error) {
       console.error("Restore patient failed:", error);
       setStatusMessage(`Unable to restore patient: ${error.message}`);
-      return;
+      return false;
     }
 
     const result = Array.isArray(data) ? data[0] : data;
@@ -2716,7 +2769,38 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
           : item
       )
     );
-    setStatusMessage(`${patient.name} was restored with the previous account status preserved.`);
+    showSuccessMessage(`${patient.name} was restored successfully.`);
+    return true;
+  };
+
+  const confirmPatientAction = async () => {
+    if (
+      !confirmationPatient?.recordId ||
+      !confirmationAction ||
+      confirmationSubmissionLockRef.current
+    ) {
+      return;
+    }
+
+    const patient = confirmationPatient;
+    const action = confirmationAction;
+    confirmationSubmissionLockRef.current = true;
+    setIsConfirmationSubmitting(true);
+
+    try {
+      const wasSuccessful =
+        action === "archive"
+          ? await archivePatient(patient)
+          : await restorePatient(patient);
+
+      if (wasSuccessful) {
+        setConfirmationPatient(null);
+        setConfirmationAction(null);
+      }
+    } finally {
+      confirmationSubmissionLockRef.current = false;
+      setIsConfirmationSubmitting(false);
+    }
   };
 
   const savePatientLoginCredential = async (payload) => {
@@ -5052,56 +5136,70 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
         ) : null}
       </div>
 
-      <PatientDirectoryToolbar className="staff-patients-actions">
-        <PatientDirectorySearch
-          value={query}
-          onChange={(value) => {
-            setQuery(value);
-            setPatientActionMenu(null);
-          }}
-          className="staff-patients-search"
-        />
+      <div className="staff-patients-actions-wrap">
+        <PatientDirectoryToolbar className="staff-patients-actions">
+          <PatientDirectorySearch
+            value={query}
+            onChange={(value) => {
+              setQuery(value);
+              setPatientActionMenu(null);
+            }}
+            className="staff-patients-search"
+          />
 
-        <div className="staff-patients-toolbar-right">
-          <label className="staff-patients-status-select">
-            <Icon
-              className="staff-patients-status-select-icon"
-              icon="solar:filter-linear"
-              aria-hidden="true"
-            />
+          <div className="staff-patients-toolbar-right">
+            <label className="staff-patients-status-select">
+              <Icon
+                className="staff-patients-status-select-icon"
+                icon="solar:filter-linear"
+                aria-hidden="true"
+              />
 
-            <select
-              value={patientStatusFilter}
-              onChange={(event) => {
-                setPatientStatusFilter(event.target.value);
-                setPatientActionMenu(null);
-              }}
-              aria-label="Filter patients by account status"
+              <select
+                value={patientStatusFilter}
+                onChange={(event) => {
+                  setPatientStatusFilter(event.target.value);
+                  setPatientActionMenu(null);
+                }}
+                aria-label="Filter patients by account status"
+              >
+                {patientStatusFilters.map((filter) => (
+                  <option value={filter} key={filter}>
+                    {filter === "All" ? "All Status" : filter}
+                  </option>
+                ))}
+              </select>
+
+              <Icon
+                className="staff-patients-status-select-arrow"
+                icon="solar:alt-arrow-down-linear"
+                aria-hidden="true"
+              />
+            </label>
+
+            <button
+              type="button"
+              className="staff-register-patient-btn"
+              onClick={openRegister}
             >
-              {patientStatusFilters.map((filter) => (
-                <option value={filter} key={filter}>
-                  {filter === "All" ? "All Status" : filter}
-                </option>
-              ))}
-            </select>
+              <Icon icon="solar:add-circle-linear" aria-hidden="true" />
+              <span>Register Patient</span>
+            </button>
+          </div>
+        </PatientDirectoryToolbar>
 
-            <Icon
-              className="staff-patients-status-select-arrow"
-              icon="solar:alt-arrow-down-linear"
-              aria-hidden="true"
-            />
-          </label>
-
-          <button
-            type="button"
-            className="staff-register-patient-btn"
-            onClick={openRegister}
+        {successMessage ? (
+          <div
+            key={successMessageVersion}
+            className="staff-patients-success-toast"
+            role="status"
+            aria-live="polite"
           >
-            <Icon icon="solar:add-circle-linear" aria-hidden="true" />
-            <span>Register Patient</span>
-          </button>
-        </div>
-      </PatientDirectoryToolbar>
+            <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+            <span>{successMessage}</span>
+          </div>
+        ) : null}
+      </div>
 
       {isLoadingPatients || statusMessage ? (
         <p className="staff-patients-status-message">
@@ -5294,12 +5392,12 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             className="staff-patient-action-menu-item"
             role="menuitem"
             onClick={() => {
-              setPatientActionMenu(null);
-              if (getPatientStatusGroup(activeActionPatient) === "Archived") {
-                restorePatient(activeActionPatient);
-              } else {
-                archivePatient(activeActionPatient);
-              }
+              openPatientConfirmation(
+                activeActionPatient,
+                getPatientStatusGroup(activeActionPatient) === "Archived"
+                  ? "restore"
+                  : "archive"
+              );
             }}
           >
             <Icon
@@ -5316,6 +5414,84 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                 : "Archive"}
             </span>
           </button>
+        </div>
+      ) : null}
+
+      {confirmationPatient && confirmationAction ? (
+        <div
+          className="staff-patients-modal-backdrop staff-patient-confirmation-backdrop"
+          role="presentation"
+          onClick={closePatientConfirmation}
+        >
+          <section
+            className={`staff-patients-modal staff-patient-confirmation-modal is-${confirmationAction}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="staff-patient-confirmation-title"
+            aria-describedby="staff-patient-confirmation-description"
+            aria-busy={isConfirmationSubmitting}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              className="staff-patient-confirmation-close"
+              type="button"
+              aria-label={`Close ${confirmationAction} patient confirmation`}
+              disabled={isConfirmationSubmitting}
+              onClick={closePatientConfirmation}
+            >
+              <Icon icon="solar:close-circle-linear" aria-hidden="true" />
+            </button>
+
+            <div className="staff-patients-modal-icon staff-patient-confirmation-icon">
+              <Icon
+                icon={
+                  confirmationAction === "archive"
+                    ? "solar:danger-triangle-bold"
+                    : "solar:restart-linear"
+                }
+                aria-hidden="true"
+              />
+            </div>
+            <h3 id="staff-patient-confirmation-title">
+              {confirmationAction === "archive"
+                ? "Archive Patient"
+                : "Restore Patient"}
+            </h3>
+            <strong className="staff-patient-confirmation-name">
+              {confirmationPatient.name}
+            </strong>
+            <p id="staff-patient-confirmation-description">
+              {confirmationAction === "archive"
+                ? "This patient will be hidden from the active patient list. Linked clinical records will remain preserved."
+                : "This patient will be restored to the active patient list with the previous account status preserved."}
+            </p>
+
+            <div className="staff-patient-confirmation-actions">
+              <button
+                className="staff-patient-confirmation-cancel"
+                type="button"
+                disabled={isConfirmationSubmitting}
+                onClick={closePatientConfirmation}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                className="staff-patient-confirmation-submit"
+                type="button"
+                disabled={isConfirmationSubmitting}
+                onClick={confirmPatientAction}
+              >
+                {isConfirmationSubmitting
+                  ? confirmationAction === "archive"
+                    ? "Archiving..."
+                    : "Restoring..."
+                  : confirmationAction === "archive"
+                    ? "Archive Patient"
+                    : "Restore Patient"}
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
 

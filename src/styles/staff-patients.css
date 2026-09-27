@@ -115,6 +115,69 @@
   display: none;
 }
 
+.staff-patients-actions-wrap {
+  position: relative;
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.staff-patients-page .staff-patients-actions-wrap .staff-patients-actions {
+  margin-bottom: 0 !important;
+}
+
+.staff-patients-success-toast {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 800;
+  width: min(360px, calc(100vw - 24px));
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #f3cbd9;
+  border-radius: 12px;
+  background: rgba(255, 251, 252, 0.98);
+  box-shadow: 0 12px 30px rgba(40, 26, 33, 0.13);
+  color: #713147;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  animation: staff-patients-success-toast-in 180ms ease-out both;
+}
+
+.staff-patients-success-toast > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--patients-pink-dark);
+}
+
+@keyframes staff-patients-success-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-patients-success-toast {
+    width: min(360px, calc(100vw - 24px));
+  }
+}
+
+@media (max-width: 900px) {
+  .staff-patients-actions-wrap {
+    margin-bottom: 18px;
+  }
+}
+
 .staff-patients-access-note {
   display: inline-flex;
   align-items: center;
@@ -227,7 +290,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .staff-patients-notice {
+  .staff-patients-notice,
+  .staff-patients-success-toast {
     animation: none;
   }
 }
@@ -1686,6 +1750,172 @@
 .staff-patients-modal button:hover {
   background: #d8175a;
   box-shadow: 0 18px 32px rgba(233, 30, 99, 0.3);
+}
+
+.staff-patient-confirmation-backdrop {
+  padding: 12px;
+}
+
+.staff-patients-modal.staff-patient-confirmation-modal {
+  position: relative;
+  width: min(440px, calc(100vw - 24px));
+  padding: 32px;
+  border: 1px solid #f1e5ea;
+  border-radius: 20px;
+  text-align: left;
+  box-shadow: 0 24px 64px rgba(39, 24, 31, 0.22);
+}
+
+.staff-patient-confirmation-modal.is-archive {
+  border-top: 4px solid #dc3f5f;
+}
+
+.staff-patient-confirmation-modal.is-restore {
+  border-top: 4px solid var(--patients-pink);
+}
+
+.staff-patients-modal .staff-patient-confirmation-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #7a8498;
+  box-shadow: none;
+}
+
+.staff-patients-modal .staff-patient-confirmation-close:hover {
+  background: #f8f3f5;
+  color: #31394a;
+  box-shadow: none;
+}
+
+.staff-patient-confirmation-close svg {
+  width: 23px;
+  height: 23px;
+}
+
+.staff-patients-modal-icon.staff-patient-confirmation-icon {
+  width: 54px;
+  height: 54px;
+  margin: 0 0 20px;
+}
+
+.staff-patient-confirmation-modal.is-archive .staff-patient-confirmation-icon {
+  background: #fff0f2;
+  color: #d92d52;
+}
+
+.staff-patient-confirmation-modal.is-restore .staff-patient-confirmation-icon {
+  background: #ffeaf2;
+  color: var(--patients-pink);
+}
+
+.staff-patients-modal.staff-patient-confirmation-modal h3 {
+  margin: 0 44px 10px 0;
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+.staff-patient-confirmation-name {
+  display: block;
+  margin-bottom: 10px;
+  color: #3b4353;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.staff-patients-modal.staff-patient-confirmation-modal p {
+  max-width: none;
+  margin: 0;
+  color: #6b7485;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.staff-patient-confirmation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.staff-patients-modal .staff-patient-confirmation-actions button {
+  width: auto;
+  min-width: 132px;
+  height: 46px;
+  margin: 0;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  box-shadow: none;
+}
+
+.staff-patients-modal .staff-patient-confirmation-cancel {
+  border: 1px solid #e2dce0;
+  background: #fff;
+  color: #4f5869;
+}
+
+.staff-patients-modal .staff-patient-confirmation-cancel:hover {
+  background: #f8f5f6;
+  box-shadow: none;
+}
+
+.staff-patient-confirmation-modal.is-archive .staff-patient-confirmation-submit {
+  background: #d92d52;
+  box-shadow: 0 10px 20px rgba(217, 45, 82, 0.2);
+}
+
+.staff-patient-confirmation-modal.is-archive .staff-patient-confirmation-submit:hover {
+  background: #c52447;
+  box-shadow: 0 12px 24px rgba(217, 45, 82, 0.26);
+}
+
+.staff-patient-confirmation-modal.is-restore .staff-patient-confirmation-submit {
+  background: var(--patients-pink);
+  box-shadow: 0 10px 20px rgba(233, 30, 99, 0.2);
+}
+
+.staff-patient-confirmation-modal.is-restore .staff-patient-confirmation-submit:hover {
+  background: #d8175a;
+  box-shadow: 0 12px 24px rgba(233, 30, 99, 0.26);
+}
+
+.staff-patients-modal .staff-patient-confirmation-actions button:disabled,
+.staff-patients-modal .staff-patient-confirmation-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+  box-shadow: none;
+}
+
+.staff-patients-modal .staff-patient-confirmation-actions button:focus-visible,
+.staff-patients-modal .staff-patient-confirmation-close:focus-visible {
+  outline: 3px solid rgba(233, 30, 99, 0.22);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .staff-patients-modal.staff-patient-confirmation-modal {
+    padding: 28px 22px 22px;
+  }
+
+  .staff-patient-confirmation-actions {
+    flex-direction: column-reverse;
+  }
+
+  .staff-patients-modal .staff-patient-confirmation-actions button {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 @keyframes staffPatientsFade {

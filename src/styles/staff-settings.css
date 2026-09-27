@@ -1,5 +1,75 @@
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap");
 
+.staff-settings-success-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 112px);
+  right: clamp(18px, 3vw, 42px);
+  z-index: 800;
+  width: min(360px, calc(100vw - 24px));
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #f3cbd9;
+  border-radius: 12px;
+  background: rgba(255, 251, 252, 0.98);
+  box-shadow: 0 12px 30px rgba(40, 26, 33, 0.13);
+  color: #713147;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  animation: staff-settings-success-toast-in 180ms ease-out both;
+}
+
+.staff-settings-success-toast > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #ee1768;
+}
+
+@keyframes staff-settings-success-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .staff-settings-success-toast {
+    top: calc(env(safe-area-inset-top, 0px) + 84px);
+    right: auto;
+    left: 50%;
+    width: calc(100% - 24px);
+    transform: translateX(-50%);
+    animation-name: staff-settings-success-toast-mobile-in;
+  }
+}
+
+@keyframes staff-settings-success-toast-mobile-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-settings-success-toast {
+    animation: none;
+  }
+}
+
 .staff-patients-page {
   --patients-pink: #ff2f7d;
   --patients-pink-dark: #ee1768;

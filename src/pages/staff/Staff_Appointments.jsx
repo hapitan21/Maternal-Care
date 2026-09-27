@@ -1814,10 +1814,39 @@ function StaffAppointmentRequestDetails({
   onApprove,
   onDecline,
 }) {
-  const requestNotes = String(request?.description || "No additional notes were provided.").trim();
+  const [isDoctorMenuOpen, setIsDoctorMenuOpen] = useState(false);
+  const doctorDropdownRef = useRef(null);
+  const doctorDropdownButtonRef = useRef(null);
+  const selectedDoctor = doctors.find(
+    (doctor) => String(doctor.id) === String(selectedDoctorId)
+  );
   const requestedAt = request?.created_at
     ? `${formatRequestDate(request.created_at)} at ${formatAppointmentTime(request.created_at)}`
     : "Not recorded";
+
+  useEffect(() => {
+    if (!isDoctorMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!doctorDropdownRef.current?.contains(event.target)) {
+        setIsDoctorMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      setIsDoctorMenuOpen(false);
+      doctorDropdownButtonRef.current?.focus();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isDoctorMenuOpen]);
 
   return (
     <section className="doctor-request-details-page">
@@ -1909,31 +1938,91 @@ function StaffAppointmentRequestDetails({
             </dd>
           </div>
 
-          <div className="is-notes">
+          <div className="staff-request-doctor-row">
             <dt>Assign Doctor</dt>
             <dd>
-              <select
-                className="staff-request-doctor-select"
-                value={selectedDoctorId}
-                onChange={(event) => onDoctorChange(event.target.value)}
-                disabled={isUpdating}
-                aria-label="Assign Doctor"
+              <div
+                ref={doctorDropdownRef}
+                className="staff-request-doctor-dropdown"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setIsDoctorMenuOpen(false);
+                  }
+                }}
               >
-                <option value="">Select Doctor</option>
-                {doctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>
-                    {doctor.name}
-                  </option>
-                ))}
-              </select>
-            </dd>
-          </div>
+                <button
+                  ref={doctorDropdownButtonRef}
+                  className={`staff-request-doctor-trigger${isDoctorMenuOpen ? " is-open" : ""}`}
+                  type="button"
+                  disabled={isUpdating}
+                  aria-label="Assign Doctor"
+                  aria-haspopup="menu"
+                  aria-expanded={isDoctorMenuOpen}
+                  aria-controls="staff-request-doctor-menu"
+                  onClick={() => setIsDoctorMenuOpen((current) => !current)}
+                >
+                  <Icon icon="solar:user-id-linear" aria-hidden="true" />
+                  <span>{selectedDoctor?.name || "Select Doctor"}</span>
+                  <Icon
+                    className="staff-request-doctor-chevron"
+                    icon="solar:alt-arrow-down-linear"
+                    aria-hidden="true"
+                  />
+                </button>
 
-          <div className="is-notes">
-            <dt>Reason / Notes</dt>
-            <dd>
-              <Icon icon="solar:document-text-linear" aria-hidden="true" />
-              <span>{requestNotes}</span>
+                {isDoctorMenuOpen && !isUpdating ? (
+                  <div
+                    id="staff-request-doctor-menu"
+                    className="staff-request-doctor-menu"
+                    role="menu"
+                    aria-label="Available Doctors"
+                  >
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={!selectedDoctorId}
+                      className={!selectedDoctorId ? "is-selected" : ""}
+                      onClick={() => {
+                        onDoctorChange("");
+                        setIsDoctorMenuOpen(false);
+                        doctorDropdownButtonRef.current?.focus();
+                      }}
+                    >
+                      <Icon icon="solar:user-id-linear" aria-hidden="true" />
+                      <span>Select Doctor</span>
+                      {!selectedDoctorId ? (
+                        <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+                      ) : null}
+                    </button>
+
+                    {doctors.map((doctor) => {
+                      const isSelected =
+                        String(doctor.id) === String(selectedDoctorId);
+
+                      return (
+                        <button
+                          key={doctor.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={isSelected}
+                          className={isSelected ? "is-selected" : ""}
+                          onClick={() => {
+                            onDoctorChange(String(doctor.id));
+                            setIsDoctorMenuOpen(false);
+                            doctorDropdownButtonRef.current?.focus();
+                          }}
+                        >
+                          <Icon icon="solar:user-rounded-linear" aria-hidden="true" />
+                          <span>{doctor.name}</span>
+                          {isSelected ? (
+                            <Icon icon="solar:check-circle-bold" aria-hidden="true" />
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             </dd>
           </div>
         </dl>
@@ -1985,7 +2074,10 @@ function StaffAppointmentRequestDetails({
             <button
               type="button"
               className="doctor-request-decline-button"
-              onClick={() => onDecline(request)}
+              onClick={() => {
+                setIsDoctorMenuOpen(false);
+                onDecline(request);
+              }}
               disabled={isUpdating}
             >
               {isUpdating ? "Updating..." : "Decline"}
@@ -1994,7 +2086,10 @@ function StaffAppointmentRequestDetails({
             <button
               type="button"
               className="doctor-request-approve-button"
-              onClick={() => onApprove(request)}
+              onClick={() => {
+                setIsDoctorMenuOpen(false);
+                onApprove(request);
+              }}
               disabled={isUpdating || !selectedDoctorId}
             >
               <Icon icon="solar:check-read-linear" aria-hidden="true" />

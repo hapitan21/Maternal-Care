@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar } from "lucide-react";
+import { Calendar, Info } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import {
   getManilaDateKey,
@@ -630,14 +630,15 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
         </aside>
       </header>
 
+      {intake?.staff_completed_at ? (
+        <p className="staff-preconsult-message is-info">
+          <Info aria-hidden="true" />
+          <span>Saved intake loaded. You can continue updating this form while the visit is still open.</span>
+        </p>
+      ) : null}
       {schemaWarning ? <p className="staff-preconsult-warning">{schemaWarning}</p> : null}
       {error ? <p className="staff-preconsult-message is-error" role="alert">{error}</p> : null}
       {message ? <p className="staff-preconsult-message is-success">{message}</p> : null}
-      {intake?.staff_completed_at ? (
-        <p className="staff-preconsult-message">
-          Saved intake loaded. Saving again updates the Staff intake only while the Doctor record is still open.
-        </p>
-      ) : null}
       {isFollowUp && !intake?.staff_completed_at && previousDoctorRecord ? (
         <p className="staff-preconsult-message">
           Pregnancy baseline was prefilled from the Patient&apos;s latest completed Doctor visit. Record today&apos;s vital signs as new measurements.

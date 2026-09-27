@@ -105,6 +105,26 @@
   color: #2f5477;
 }
 
+.staff-preconsult-message.is-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid #d7e9fb;
+  border-radius: 9px;
+  background: #f2f8ff;
+  color: #365f83;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.staff-preconsult-message.is-info svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: #4f8fc5;
+}
+
 .staff-preconsult-message.is-error {
   background: #fff0f4;
   color: #c81e59;
