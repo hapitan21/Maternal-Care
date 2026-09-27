@@ -112,6 +112,29 @@ function mergePatientAvatarMap(patientRows, avatarMap) {
   return changed ? nextRows : patientRows;
 }
 
+function mergePatientDirectoryRows(currentRows, incomingRows) {
+  if (!Array.isArray(incomingRows)) return [];
+  if (!Array.isArray(currentRows) || !currentRows.length) return incomingRows;
+
+  const currentByRecordId = new Map(
+    currentRows.map((patient) => [
+      String(patient?.recordId || ""),
+      patient,
+    ])
+  );
+
+  return incomingRows.map((patient) => {
+    const currentPatient = currentByRecordId.get(
+      String(patient?.recordId || "")
+    );
+    const currentPhoto = String(currentPatient?.photo || "").trim();
+
+    return currentPhoto && !patient.photo
+      ? { ...patient, photo: currentPhoto }
+      : patient;
+  });
+}
+
 function PatientAvatar({ patient }) {
   return (
     <span className={`doctor-patient-avatar ${patient.avatarClass}`}>
@@ -289,6 +312,11 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
   );
   const dashboardPatientTargetRef = useRef("");
 
+  useEffect(() => {
+    if (!authenticatedDoctorId || loadState !== "loaded") return;
+    doctorPatientSnapshots.set(authenticatedDoctorId, patients);
+  }, [authenticatedDoctorId, loadState, patients]);
+
   const dashboardPatientTarget = useMemo(() => {
     const match = location.pathname.match(
       /^\/doctor\/patients\/([^/?#]+)\/?$/i
@@ -339,17 +367,16 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
         .filter(isActivePatientRow)
         .map(mapSupabasePatient);
 
-      doctorPatientSnapshots.set(authenticatedDoctorId, mappedPatients);
-      setPatients(mappedPatients);
+      setPatients((current) =>
+        mergePatientDirectoryRows(current, mappedPatients)
+      );
       setLoadState("loaded");
       setStatusMessage("");
 
       const avatarMap = await fetchPatientAvatarMap(mappedPatients);
       if (!active || !avatarMap) return;
 
-      const patientsWithAvatars = mergePatientAvatarMap(mappedPatients, avatarMap);
-      doctorPatientSnapshots.set(authenticatedDoctorId, patientsWithAvatars);
-      setPatients(patientsWithAvatars);
+      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
     };
 
     loadPatients();
@@ -380,9 +407,7 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
       const avatarMap = await fetchPatientAvatarMap(patients);
       if (!active || !avatarMap) return;
 
-      const nextPatients = mergePatientAvatarMap(patients, avatarMap);
-      doctorPatientSnapshots.set(authenticatedDoctorId, nextPatients);
-      setPatients(nextPatients);
+      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
     };
 
     const handleVisibilityChange = () => {
