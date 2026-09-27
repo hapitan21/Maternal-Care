@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  getAdminWorkspaceSnapshot,
+  setAdminWorkspaceSnapshot,
+} from "../lib/adminWorkspaceSnapshots";
 import { isMissingAuditInfrastructure } from "../lib/auditLog";
 import { supabase } from "../lib/supabaseClient";
 
 const PAGE_SIZE = 10;
 const ANALYTICS_LIMIT = 5000;
+const auditPageSnapshotNamespace = "audit-logs-page";
+const auditAnalyticsSnapshotNamespace = "audit-logs-analytics";
+const auditActorsSnapshotNamespace = "audit-logs-actors";
 const pageColumns =
   "id, actor_user_id, actor_name, actor_role, module, action, status, entity_type, entity_id, description, ip_address, created_at";
 
@@ -46,7 +53,7 @@ function createQueryState(extra = {}) {
   };
 }
 
-export function useAdminAuditLogs(filters, enabled) {
+export function useAdminAuditLogs(filters, enabled, adminId = "") {
   const { startIso, endIso, user, module, action, page } = filters;
   const pageRequestIdRef = useRef(0);
   const analyticsRequestIdRef = useRef(0);
@@ -67,25 +74,72 @@ export function useAdminAuditLogs(filters, enabled) {
     startIso,
     user,
   ]);
+  const pageSnapshotKey = `${filterKey}|page:${page}`;
+  const actorSnapshotKey = `${startIso}|${endIso}`;
+  const pageStateKey = `${adminId}:${pageSnapshotKey}`;
+  const analyticsStateKey = `${adminId}:${filterKey}`;
+  const actorStateKey = `${adminId}:${actorSnapshotKey}`;
+  const initialPageSnapshot = getAdminWorkspaceSnapshot(
+    auditPageSnapshotNamespace,
+    adminId,
+    pageSnapshotKey
+  );
+  const initialAnalyticsSnapshot = getAdminWorkspaceSnapshot(
+    auditAnalyticsSnapshotNamespace,
+    adminId,
+    filterKey
+  );
+  const initialActorSnapshot = getAdminWorkspaceSnapshot(
+    auditActorsSnapshotNamespace,
+    adminId,
+    actorSnapshotKey
+  );
 
   const [pageState, setPageState] = useState(() => createQueryState({
-    rows: [],
-    count: 0,
-    filterKey: "",
+    rows: initialPageSnapshot?.rows || [],
+    count: initialPageSnapshot?.count || 0,
+    filterKey: initialPageSnapshot ? filterKey : "",
+    snapshotKey: pageStateKey,
+    loading: Boolean(enabled && adminId && !initialPageSnapshot),
   }));
   const [analyticsState, setAnalyticsState] = useState(() => createQueryState({
-    rows: [],
-    filterKey: "",
+    rows: initialAnalyticsSnapshot?.rows || [],
+    filterKey: initialAnalyticsSnapshot ? filterKey : "",
+    snapshotKey: analyticsStateKey,
+    loading: Boolean(enabled && adminId && !initialAnalyticsSnapshot),
   }));
-  const [actorState, setActorState] = useState(() => createQueryState({ rows: [] }));
+  const [actorState, setActorState] = useState(() => createQueryState({
+    rows: initialActorSnapshot?.rows || [],
+    snapshotKey: actorStateKey,
+    loading: Boolean(enabled && adminId && !initialActorSnapshot),
+  }));
 
   const loadPage = useCallback(async ({ force = false } = {}) => {
-    if (!enabled || !startIso || !endIso) return;
-    if (pageMissingRef.current && !force) return;
+    if (!enabled || !adminId || !startIso || !endIso) return;
+    if (pageMissingRef.current && !force) {
+      setPageState((current) => ({
+        ...current,
+        filterKey,
+        snapshotKey: pageStateKey,
+        loading: false,
+      }));
+      return;
+    }
 
     const requestId = pageRequestIdRef.current + 1;
     pageRequestIdRef.current = requestId;
-    setPageState((current) => ({ ...current, loading: true, error: null }));
+    const cachedSnapshot = getAdminWorkspaceSnapshot(
+      auditPageSnapshotNamespace,
+      adminId,
+      pageSnapshotKey
+    );
+    setPageState(createQueryState({
+      rows: cachedSnapshot?.rows || [],
+      count: cachedSnapshot?.count || 0,
+      filterKey: cachedSnapshot ? filterKey : "",
+      snapshotKey: pageStateKey,
+      loading: !cachedSnapshot,
+    }));
 
     const offset = (page - 1) * PAGE_SIZE;
     const query = applyFilters(
@@ -105,33 +159,65 @@ export function useAdminAuditLogs(filters, enabled) {
 
       pageMissingRef.current = false;
       lastLoggedErrorRef.current = "";
+      const nextSnapshot = { rows: data || [], count: count || 0 };
+      setAdminWorkspaceSnapshot(
+        auditPageSnapshotNamespace,
+        adminId,
+        pageSnapshotKey,
+        nextSnapshot
+      );
       setPageState(createQueryState({
-        rows: data || [],
-        count: count || 0,
+        ...nextSnapshot,
         filterKey,
+        snapshotKey: pageStateKey,
       }));
     } catch (error) {
       if (pageRequestIdRef.current !== requestId) return;
       const migrationRequired = isMissingAuditInfrastructure(error);
       pageMissingRef.current = migrationRequired;
       logLoadError(error, lastLoggedErrorRef);
-      setPageState(createQueryState({
-        rows: [],
-        count: 0,
-        filterKey,
-        error,
-        migrationRequired,
-      }));
+      setPageState(cachedSnapshot
+        ? createQueryState({
+            ...cachedSnapshot,
+            filterKey,
+            snapshotKey: pageStateKey,
+          })
+        : createQueryState({
+            rows: [],
+            count: 0,
+            filterKey,
+            snapshotKey: pageStateKey,
+            error,
+            migrationRequired,
+          }));
     }
-  }, [analyticsFilters, enabled, endIso, filterKey, page, startIso]);
+  }, [adminId, analyticsFilters, enabled, endIso, filterKey, page, pageSnapshotKey, pageStateKey, startIso]);
 
   const loadAnalytics = useCallback(async ({ force = false } = {}) => {
-    if (!enabled || !startIso || !endIso) return;
-    if (analyticsMissingRef.current && !force) return;
+    if (!enabled || !adminId || !startIso || !endIso) return;
+    if (analyticsMissingRef.current && !force) {
+      setAnalyticsState((current) => ({
+        ...current,
+        filterKey,
+        snapshotKey: analyticsStateKey,
+        loading: false,
+      }));
+      return;
+    }
 
     const requestId = analyticsRequestIdRef.current + 1;
     analyticsRequestIdRef.current = requestId;
-    setAnalyticsState((current) => ({ ...current, loading: true, error: null }));
+    const cachedSnapshot = getAdminWorkspaceSnapshot(
+      auditAnalyticsSnapshotNamespace,
+      adminId,
+      filterKey
+    );
+    setAnalyticsState(createQueryState({
+      rows: cachedSnapshot?.rows || [],
+      filterKey: cachedSnapshot ? filterKey : "",
+      snapshotKey: analyticsStateKey,
+      loading: !cachedSnapshot,
+    }));
 
     const query = applyFilters(
       supabase
@@ -150,28 +236,62 @@ export function useAdminAuditLogs(filters, enabled) {
 
       analyticsMissingRef.current = false;
       lastLoggedErrorRef.current = "";
-      setAnalyticsState(createQueryState({ rows: data || [], filterKey }));
+      const nextSnapshot = { rows: data || [] };
+      setAdminWorkspaceSnapshot(
+        auditAnalyticsSnapshotNamespace,
+        adminId,
+        filterKey,
+        nextSnapshot
+      );
+      setAnalyticsState(createQueryState({
+        ...nextSnapshot,
+        filterKey,
+        snapshotKey: analyticsStateKey,
+      }));
     } catch (error) {
       if (analyticsRequestIdRef.current !== requestId) return;
       const migrationRequired = isMissingAuditInfrastructure(error);
       analyticsMissingRef.current = migrationRequired;
       logLoadError(error, lastLoggedErrorRef);
-      setAnalyticsState(createQueryState({
-        rows: [],
-        filterKey,
-        error,
-        migrationRequired,
-      }));
+      setAnalyticsState(cachedSnapshot
+        ? createQueryState({
+            ...cachedSnapshot,
+            filterKey,
+            snapshotKey: analyticsStateKey,
+          })
+        : createQueryState({
+            rows: [],
+            filterKey,
+            snapshotKey: analyticsStateKey,
+            error,
+            migrationRequired,
+          }));
     }
-  }, [analyticsFilters, enabled, endIso, filterKey, startIso]);
+  }, [adminId, analyticsFilters, analyticsStateKey, enabled, endIso, filterKey, startIso]);
 
   const loadActors = useCallback(async ({ force = false } = {}) => {
-    if (!enabled || !startIso || !endIso) return;
-    if (actorMissingRef.current && !force) return;
+    if (!enabled || !adminId || !startIso || !endIso) return;
+    if (actorMissingRef.current && !force) {
+      setActorState((current) => ({
+        ...current,
+        snapshotKey: actorStateKey,
+        loading: false,
+      }));
+      return;
+    }
 
     const requestId = actorRequestIdRef.current + 1;
     actorRequestIdRef.current = requestId;
-    setActorState((current) => ({ ...current, loading: true, error: null }));
+    const cachedSnapshot = getAdminWorkspaceSnapshot(
+      auditActorsSnapshotNamespace,
+      adminId,
+      actorSnapshotKey
+    );
+    setActorState(createQueryState({
+      rows: cachedSnapshot?.rows || [],
+      snapshotKey: actorStateKey,
+      loading: !cachedSnapshot,
+    }));
 
     try {
       const { data, error } = await supabase
@@ -187,19 +307,42 @@ export function useAdminAuditLogs(filters, enabled) {
 
       actorMissingRef.current = false;
       lastLoggedErrorRef.current = "";
-      setActorState(createQueryState({ rows: data || [] }));
+      const nextSnapshot = { rows: data || [] };
+      setAdminWorkspaceSnapshot(
+        auditActorsSnapshotNamespace,
+        adminId,
+        actorSnapshotKey,
+        nextSnapshot
+      );
+      setActorState(createQueryState({
+        ...nextSnapshot,
+        snapshotKey: actorStateKey,
+      }));
     } catch (error) {
       if (actorRequestIdRef.current !== requestId) return;
       const migrationRequired = isMissingAuditInfrastructure(error);
       actorMissingRef.current = migrationRequired;
       logLoadError(error, lastLoggedErrorRef);
-      setActorState(createQueryState({
-        rows: [],
-        error,
-        migrationRequired,
-      }));
+      setActorState(cachedSnapshot
+        ? createQueryState({
+            ...cachedSnapshot,
+            snapshotKey: actorStateKey,
+          })
+        : createQueryState({
+            rows: [],
+            snapshotKey: actorStateKey,
+            error,
+            migrationRequired,
+          }));
     }
-  }, [enabled, endIso, startIso]);
+  }, [actorSnapshotKey, actorStateKey, adminId, enabled, endIso, startIso]);
+
+  useEffect(() => {
+    pageMissingRef.current = false;
+    analyticsMissingRef.current = false;
+    actorMissingRef.current = false;
+    lastLoggedErrorRef.current = "";
+  }, [adminId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => loadPage(), 0);
@@ -231,23 +374,65 @@ export function useAdminAuditLogs(filters, enabled) {
     loadActors({ force: true }),
   ]), [loadActors, loadAnalytics, loadPage]);
 
-  const error = pageState.error || analyticsState.error || actorState.error;
-  const migrationRequired = pageState.migrationRequired
-    || analyticsState.migrationRequired
-    || actorState.migrationRequired;
-  const analyticsMatchesPage = pageState.filterKey === filterKey
-    && analyticsState.filterKey === filterKey;
+  const renderPageSnapshot = getAdminWorkspaceSnapshot(
+    auditPageSnapshotNamespace,
+    adminId,
+    pageSnapshotKey
+  );
+  const renderAnalyticsSnapshot = getAdminWorkspaceSnapshot(
+    auditAnalyticsSnapshotNamespace,
+    adminId,
+    filterKey
+  );
+  const renderActorSnapshot = getAdminWorkspaceSnapshot(
+    auditActorsSnapshotNamespace,
+    adminId,
+    actorSnapshotKey
+  );
+  const visiblePageState = pageState.snapshotKey === pageStateKey
+    ? pageState
+    : createQueryState({
+        rows: renderPageSnapshot?.rows || [],
+        count: renderPageSnapshot?.count || 0,
+        filterKey: renderPageSnapshot ? filterKey : "",
+        snapshotKey: pageStateKey,
+        loading: Boolean(enabled && adminId && !renderPageSnapshot),
+      });
+  const visibleAnalyticsState = analyticsState.snapshotKey === analyticsStateKey
+    ? analyticsState
+    : createQueryState({
+        rows: renderAnalyticsSnapshot?.rows || [],
+        filterKey: renderAnalyticsSnapshot ? filterKey : "",
+        snapshotKey: analyticsStateKey,
+        loading: Boolean(enabled && adminId && !renderAnalyticsSnapshot),
+      });
+  const visibleActorState = actorState.snapshotKey === actorStateKey
+    ? actorState
+    : createQueryState({
+        rows: renderActorSnapshot?.rows || [],
+        snapshotKey: actorStateKey,
+        loading: Boolean(enabled && adminId && !renderActorSnapshot),
+      });
+  const error = visiblePageState.error
+    || visibleAnalyticsState.error
+    || visibleActorState.error;
+  const migrationRequired = visiblePageState.migrationRequired
+    || visibleAnalyticsState.migrationRequired
+    || visibleActorState.migrationRequired;
+  const analyticsMatchesPage = visiblePageState.filterKey === filterKey
+    && visibleAnalyticsState.filterKey === filterKey;
 
   return {
-    rows: pageState.rows,
-    analyticsRows: analyticsState.rows,
-    actorRows: actorState.rows,
-    count: pageState.count,
-    pageLoading: pageState.loading,
-    analyticsLoading: analyticsState.loading,
+    rows: visiblePageState.rows,
+    analyticsRows: visibleAnalyticsState.rows,
+    actorRows: visibleActorState.rows,
+    count: visiblePageState.count,
+    pageLoading: visiblePageState.loading,
+    analyticsLoading: visibleAnalyticsState.loading,
     error,
     migrationRequired,
-    truncated: analyticsMatchesPage && pageState.count > analyticsState.rows.length,
+    truncated: analyticsMatchesPage
+      && visiblePageState.count > visibleAnalyticsState.rows.length,
     refresh,
     pageSize: PAGE_SIZE,
   };

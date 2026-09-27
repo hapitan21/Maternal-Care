@@ -442,7 +442,7 @@ function AuditTable({ rows, count, page, pageSize, onPageChange, onViewDetails }
 }
 
 export default function AdminAuditLogs() {
-  const { isAdmin } = useAdminAuth();
+  const { isAdmin, user: adminUser } = useAdminAuth();
   const [range, setRange] = React.useState(getDefaultRange);
   const [user, setUser] = React.useState("all");
   const [module, setModule] = React.useState("all");
@@ -458,7 +458,7 @@ export default function AdminAuditLogs() {
     action,
     page,
   }), [action, module, page, range.from, range.to, user]);
-  const audit = useAdminAuditLogs(filters, isAdmin);
+  const audit = useAdminAuditLogs(filters, isAdmin, adminUser?.id);
 
   const actorOptions = React.useMemo(() => getActorOptions(audit.actorRows), [audit.actorRows]);
   const moduleOptions = React.useMemo(() => uniqueSorted([...canonicalModules, ...audit.analyticsRows.map((row) => row.module)]), [audit.analyticsRows]);

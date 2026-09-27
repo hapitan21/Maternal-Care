@@ -1,6 +1,11 @@
 import React from "react";
 import { Icon } from "@iconify/react";
 import AdminPageHeader from "../../components/admin/AdminPageHeader";
+import { useAdminAuth } from "../../hooks/useAdminAuth";
+import {
+  getAdminWorkspaceSnapshot,
+  setAdminWorkspaceSnapshot,
+} from "../../lib/adminWorkspaceSnapshots";
 import {
   hasSettingsSectionChanges,
   loadAdminSystemSettings,
@@ -10,6 +15,8 @@ import {
   validateSettingsSection,
 } from "../../lib/adminSystemSettings";
 import "../../styles/adminSystemSettings.css";
+
+const settingsSnapshotNamespace = "system-settings";
 
 const settingsSections = [
   { id: "general", label: "General / Clinic", icon: "solar:settings-linear", description: "Clinic identity and general configuration." },
@@ -121,10 +128,22 @@ function SettingsCard({ icon, title, description, children, actionLabel, onSubmi
 }
 
 export default function AdminSystemSettings() {
+  const { user } = useAdminAuth();
+  const adminId = user?.id || "";
+  const initialSnapshot = getAdminWorkspaceSnapshot(
+    settingsSnapshotNamespace,
+    adminId,
+    "settings"
+  );
   const [activeSection, setActiveSection] = React.useState("general");
-  const [values, setValues] = React.useState(initialValues);
-  const [baselineValues, setBaselineValues] = React.useState(initialValues);
-  const [loading, setLoading] = React.useState(true);
+  const [values, setValues] = React.useState(
+    () => initialSnapshot?.settings || initialValues
+  );
+  const [baselineValues, setBaselineValues] = React.useState(
+    () => initialSnapshot?.settings || initialValues
+  );
+  const [loadedAdminId, setLoadedAdminId] = React.useState(adminId);
+  const [loading, setLoading] = React.useState(() => !initialSnapshot);
   const [loadError, setLoadError] = React.useState("");
   const [savingSection, setSavingSection] = React.useState("");
   const [feedback, setFeedback] = React.useState(null);
@@ -133,21 +152,42 @@ export default function AdminSystemSettings() {
   const loadSettings = React.useCallback(async () => {
     const requestId = loadRequestRef.current + 1;
     loadRequestRef.current = requestId;
-    setLoading(true);
+    setLoadedAdminId(adminId);
+    const cachedSnapshot = getAdminWorkspaceSnapshot(
+      settingsSnapshotNamespace,
+      adminId,
+      "settings"
+    );
+    if (cachedSnapshot) {
+      setValues(cachedSnapshot.settings);
+      setBaselineValues(cachedSnapshot.settings);
+    }
+    setLoading(!cachedSnapshot);
     setLoadError("");
     setFeedback(null);
+
+    if (!adminId) {
+      setLoading(false);
+      return;
+    }
 
     const result = await loadAdminSystemSettings(initialValues);
     if (requestId !== loadRequestRef.current) return;
 
     if (result.error) {
-      setLoadError(result.error);
+      if (!cachedSnapshot) setLoadError(result.error);
     } else {
       setValues(result.settings);
       setBaselineValues(result.settings);
+      setAdminWorkspaceSnapshot(
+        settingsSnapshotNamespace,
+        adminId,
+        "settings",
+        { settings: result.settings }
+      );
     }
     setLoading(false);
-  }, []);
+  }, [adminId]);
 
   React.useEffect(() => {
     const loadTimer = window.setTimeout(loadSettings, 0);
@@ -180,6 +220,7 @@ export default function AdminSystemSettings() {
       || !hasSettingsSectionChanges(values, baselineValues, activeSection)) return;
 
     const sectionBeingSaved = activeSection;
+    loadRequestRef.current += 1;
     setSavingSection(sectionBeingSaved);
     setFeedback(null);
     const result = await updateAdminSystemSettings(sectionBeingSaved, values);
@@ -187,8 +228,20 @@ export default function AdminSystemSettings() {
     if (result.error) {
       setFeedback({ section: sectionBeingSaved, tone: "error", message: result.error });
     } else {
-      setValues((current) => mergeSettingsSection(current, result.settings, sectionBeingSaved));
-      setBaselineValues((current) => mergeSettingsSection(current, result.settings, sectionBeingSaved));
+      const nextValues = mergeSettingsSection(values, result.settings, sectionBeingSaved);
+      const nextBaselineValues = mergeSettingsSection(
+        baselineValues,
+        result.settings,
+        sectionBeingSaved
+      );
+      setValues(nextValues);
+      setBaselineValues(nextBaselineValues);
+      setAdminWorkspaceSnapshot(
+        settingsSnapshotNamespace,
+        adminId,
+        "settings",
+        { settings: nextBaselineValues }
+      );
       setFeedback({
         section: sectionBeingSaved,
         tone: "success",
@@ -205,10 +258,11 @@ export default function AdminSystemSettings() {
   }, [feedback]);
 
   const status = feedback?.section === activeSection ? feedback : null;
+  const settingsLoading = loading || loadedAdminId !== adminId;
   const activeSectionIsPersistent = persistentSettingsSections.has(activeSection);
   const activeSectionIsDirty = activeSectionIsPersistent
     && hasSettingsSectionChanges(values, baselineValues, activeSection);
-  const saveDisabled = loading
+  const saveDisabled = settingsLoading
     || Boolean(savingSection)
     || (activeSectionIsPersistent && !activeSectionIsDirty);
 
@@ -235,7 +289,7 @@ export default function AdminSystemSettings() {
                 type="button"
                 className={activeSection === section.id ? "is-active" : ""}
                 aria-pressed={activeSection === section.id}
-                disabled={loading || Boolean(savingSection)}
+                disabled={settingsLoading || Boolean(savingSection)}
                 onClick={() => selectSection(section.id)}
               >
                 <Icon icon={section.icon} aria-hidden="true" />
@@ -250,7 +304,7 @@ export default function AdminSystemSettings() {
         </nav>
 
         <div className="admin-settings-content" id={`admin-settings-panel-${activeSection}`}>
-          {loading ? (
+          {settingsLoading ? (
             <section className="admin-settings-state-card" role="status" aria-live="polite">
               <Icon className="is-spinning" icon="solar:refresh-linear" aria-hidden="true" />
               <h2>Loading system settings</h2>

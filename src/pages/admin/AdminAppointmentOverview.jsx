@@ -240,7 +240,7 @@ function Pagination({ page, pageCount, onChange }) {
 }
 
 export default function AdminAppointmentOverview() {
-  const { isAdmin } = useAdminAuth();
+  const { isAdmin, user } = useAdminAuth();
   const [selectedDateKey, setSelectedDateKey] = React.useState(() => getManilaDateKey(new Date()));
   const initialDateParts = getDateParts(selectedDateKey);
   const [calendarMonth, setCalendarMonth] = React.useState(
@@ -253,7 +253,8 @@ export default function AdminAppointmentOverview() {
   const [page, setPage] = React.useState(1);
   const { appointments, loading, error, refresh } = useAdminAppointmentOverview(
     selectedDateKey,
-    isAdmin
+    isAdmin,
+    user?.id
   );
 
   const doctorOptions = React.useMemo(() => {

@@ -348,9 +348,9 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { identity, isAdmin } = useAdminAuth();
+  const { identity, isAdmin, user } = useAdminAuth();
   const [dateRange, setDateRange] = React.useState("month");
-  const dashboardData = useAdminDashboardData(dateRange, isAdmin);
+  const dashboardData = useAdminDashboardData(dateRange, isAdmin, user?.id);
 
   const navigateAdmin = React.useCallback(
     (page) => {

@@ -325,7 +325,7 @@ function UserTable({ type, manager, openMenuId, setOpenMenuId, onAction, actionR
 }
 
 export default function AdminUserManagement() {
-  const { isAdmin } = useAdminAuth();
+  const { isAdmin, user } = useAdminAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -334,7 +334,11 @@ export default function AdminUserManagement() {
   const [confirmState, setConfirmState] = React.useState(null);
   const [modalError, setModalError] = React.useState("");
   const actionRefs = React.useRef({});
-  const manager = useAdminUserManagement({ enabled: isAdmin, activeTab });
+  const manager = useAdminUserManagement({
+    enabled: isAdmin,
+    activeTab,
+    adminId: user?.id,
+  });
 
   React.useEffect(() => {
     const close = (event) => {

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  clearAdminWorkspaceSnapshots,
+  getAdminWorkspaceSnapshot,
+  setAdminWorkspaceSnapshot,
+} from "../lib/adminWorkspaceSnapshots";
 import { supabase } from "../lib/supabaseClient";
 
 const PAGE_SIZES = [5, 10, 20];
+const userPageSnapshotNamespace = "user-management-page";
+const userSummarySnapshotNamespace = "user-management-summary";
 const EMPTY_SUMMARY = {
   patients: { total: 0, active: 0, inactive: 0, not_linked: 0 },
   doctors: { total: 0, active: 0, inactive: 0 },
@@ -79,15 +86,78 @@ function getFriendlyError(error, fallback) {
   return cleanText(error?.message) || fallback;
 }
 
-export function useAdminUserManagement({ enabled = true, activeTab = "patients" } = {}) {
+function getDefaultQuery(tab) {
+  return {
+    search: "",
+    status: "all",
+    secondary: "all",
+    sort: "date",
+    page: 1,
+    pageSize: PAGE_SIZES[1],
+    tab,
+  };
+}
+
+function getPageSnapshotKey(tab, query) {
+  return JSON.stringify([
+    tab,
+    query.search,
+    query.status,
+    query.secondary,
+    query.sort,
+    query.page,
+    query.pageSize,
+  ]);
+}
+
+export function useAdminUserManagement({
+  enabled = true,
+  activeTab = "patients",
+  adminId = "",
+} = {}) {
   const pageRequestRef = useRef(0);
   const summaryRequestRef = useRef(0);
-  const [rows, setRows] = useState({ patients: [], doctors: [], staff: [] });
-  const [totals, setTotals] = useState({ patients: 0, doctors: 0, staff: 0 });
-  const [summary, setSummary] = useState(EMPTY_SUMMARY);
-  const [filterOptions, setFilterOptions] = useState({ doctors: [], staff: [] });
-  const [loading, setLoading] = useState(Boolean(enabled));
-  const [summaryLoading, setSummaryLoading] = useState(Boolean(enabled));
+  const initialPageSnapshotKey = getPageSnapshotKey(
+    activeTab,
+    getDefaultQuery(activeTab)
+  );
+  const initialPageSnapshot = getAdminWorkspaceSnapshot(
+    userPageSnapshotNamespace,
+    adminId,
+    initialPageSnapshotKey
+  );
+  const initialSummarySnapshot = getAdminWorkspaceSnapshot(
+    userSummarySnapshotNamespace,
+    adminId,
+    "summary"
+  );
+  const [rows, setRows] = useState(() => ({
+    patients: activeTab === "patients" ? initialPageSnapshot?.rows || [] : [],
+    doctors: activeTab === "doctors" ? initialPageSnapshot?.rows || [] : [],
+    staff: activeTab === "staff" ? initialPageSnapshot?.rows || [] : [],
+  }));
+  const [totals, setTotals] = useState(() => ({
+    patients: activeTab === "patients" ? initialPageSnapshot?.total || 0 : 0,
+    doctors: activeTab === "doctors" ? initialPageSnapshot?.total || 0 : 0,
+    staff: activeTab === "staff" ? initialPageSnapshot?.total || 0 : 0,
+  }));
+  const [summary, setSummary] = useState(
+    () => initialSummarySnapshot?.summary || EMPTY_SUMMARY
+  );
+  const [filterOptions, setFilterOptions] = useState(() => ({
+    doctors: activeTab === "doctors" ? initialPageSnapshot?.filterOptions || [] : [],
+    staff: activeTab === "staff" ? initialPageSnapshot?.filterOptions || [] : [],
+  }));
+  const [loadedPageKey, setLoadedPageKey] = useState(
+    `${adminId}:${initialPageSnapshotKey}`
+  );
+  const [loadedSummaryAdminId, setLoadedSummaryAdminId] = useState(adminId);
+  const [loading, setLoading] = useState(
+    () => Boolean(enabled && adminId && !initialPageSnapshot)
+  );
+  const [summaryLoading, setSummaryLoading] = useState(
+    () => Boolean(enabled && adminId && !initialSummarySnapshot)
+  );
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -165,39 +235,82 @@ export function useAdminUserManagement({ enabled = true, activeTab = "patients" 
     staffStatusFilter,
     statusFilter,
   ]);
+  const pageSnapshotKey = getPageSnapshotKey(activeTab, activeQuery);
+  const pageStateKey = `${adminId}:${pageSnapshotKey}`;
 
   const loadSummary = useCallback(async () => {
-    if (!enabled) {
+    if (!enabled || !adminId) {
       setSummaryLoading(false);
       return;
     }
     const requestId = ++summaryRequestRef.current;
-    setSummaryLoading(true);
+    setLoadedSummaryAdminId(adminId);
+    const cachedSnapshot = getAdminWorkspaceSnapshot(
+      userSummarySnapshotNamespace,
+      adminId,
+      "summary"
+    );
+    if (cachedSnapshot) setSummary(cachedSnapshot.summary);
+    setSummaryLoading(!cachedSnapshot);
     const { data, error: rpcError } = await supabase.rpc(
       "admin_get_user_management_summary"
     );
     if (requestId !== summaryRequestRef.current) return;
     if (rpcError) {
-      setError((current) => current || getFriendlyError(rpcError, "Unable to load User Management totals."));
+      if (!cachedSnapshot) {
+        setError((current) => current || getFriendlyError(
+          rpcError,
+          "Unable to load User Management totals."
+        ));
+      }
       setSummaryLoading(false);
       return;
     }
     const payload = normalizeRpcPayload(data);
-    setSummary({
+    const nextSummary = {
       patients: { ...EMPTY_SUMMARY.patients, ...(payload.patients || {}) },
       doctors: { ...EMPTY_SUMMARY.doctors, ...(payload.doctors || {}) },
       staff: { ...EMPTY_SUMMARY.staff, ...(payload.staff || {}) },
-    });
+    };
+    setSummary(nextSummary);
+    setAdminWorkspaceSnapshot(
+      userSummarySnapshotNamespace,
+      adminId,
+      "summary",
+      { summary: nextSummary }
+    );
     setSummaryLoading(false);
-  }, [enabled]);
+  }, [adminId, enabled]);
 
   const loadPage = useCallback(async () => {
-    if (!enabled) {
+    if (!enabled || !adminId) {
       setLoading(false);
       return;
     }
     const requestId = ++pageRequestRef.current;
-    setLoading(true);
+    const cachedSnapshot = getAdminWorkspaceSnapshot(
+      userPageSnapshotNamespace,
+      adminId,
+      pageSnapshotKey
+    );
+    setLoadedPageKey(pageStateKey);
+    if (cachedSnapshot) {
+      setRows((current) => ({ ...current, [activeTab]: cachedSnapshot.rows }));
+      setTotals((current) => ({ ...current, [activeTab]: cachedSnapshot.total }));
+      if (activeTab !== "patients") {
+        setFilterOptions((current) => ({
+          ...current,
+          [activeTab]: cachedSnapshot.filterOptions,
+        }));
+      }
+    } else {
+      setRows((current) => ({ ...current, [activeTab]: [] }));
+      setTotals((current) => ({ ...current, [activeTab]: 0 }));
+      if (activeTab !== "patients") {
+        setFilterOptions((current) => ({ ...current, [activeTab]: [] }));
+      }
+    }
+    setLoading(!cachedSnapshot);
     setError("");
     const { data, error: rpcError } = await supabase.rpc(
       "admin_get_user_management_page",
@@ -213,8 +326,10 @@ export function useAdminUserManagement({ enabled = true, activeTab = "patients" 
     );
     if (requestId !== pageRequestRef.current) return;
     if (rpcError) {
-      setRows((current) => ({ ...current, [activeTab]: [] }));
-      setError(getFriendlyError(rpcError, `Unable to load ${activeTab}.`));
+      if (!cachedSnapshot) {
+        setRows((current) => ({ ...current, [activeTab]: [] }));
+        setError(getFriendlyError(rpcError, `Unable to load ${activeTab}.`));
+      }
       setLoading(false);
       return;
     }
@@ -223,20 +338,39 @@ export function useAdminUserManagement({ enabled = true, activeTab = "patients" 
     const nextRows = Array.isArray(payload.rows)
       ? payload.rows.filter((row) => row?.id).map((row) => mapRow(row, activeTab.slice(0, -1)))
       : [];
+    const nextTotal = Number(payload.total) || 0;
+    const nextFilterOptions = activeTab !== "patients"
+      && Array.isArray(payload.filter_options)
+      ? payload.filter_options.filter(Boolean)
+      : [];
     setRows((current) => ({ ...current, [activeTab]: nextRows }));
-    setTotals((current) => ({ ...current, [activeTab]: Number(payload.total) || 0 }));
+    setTotals((current) => ({ ...current, [activeTab]: nextTotal }));
     if (activeTab !== "patients") {
       setFilterOptions((current) => ({
         ...current,
-        [activeTab]: Array.isArray(payload.filter_options) ? payload.filter_options.filter(Boolean) : [],
+        [activeTab]: nextFilterOptions,
       }));
     }
     const returnedPage = Number(payload.page) || 1;
+    const returnedSnapshotKey = getPageSnapshotKey(activeTab, {
+      ...activeQuery,
+      page: returnedPage,
+    });
+    setAdminWorkspaceSnapshot(
+      userPageSnapshotNamespace,
+      adminId,
+      returnedSnapshotKey,
+      {
+        rows: nextRows,
+        total: nextTotal,
+        filterOptions: nextFilterOptions,
+      }
+    );
     if (activeTab === "patients" && returnedPage !== page) setPage(returnedPage);
     if (activeTab === "doctors" && returnedPage !== doctorPage) setDoctorPage(returnedPage);
     if (activeTab === "staff" && returnedPage !== staffPage) setStaffPage(returnedPage);
     setLoading(false);
-  }, [activeQuery, activeTab, doctorPage, enabled, page, staffPage]);
+  }, [activeQuery, activeTab, adminId, doctorPage, enabled, page, pageSnapshotKey, pageStateKey, staffPage]);
 
   useEffect(() => {
     const timer = window.setTimeout(loadSummary, 0);
@@ -317,12 +451,14 @@ export function useAdminUserManagement({ enabled = true, activeTab = "patients" 
       return { ok: false, error: getFriendlyError(rpcError, "Unable to change account access.") };
     }
 
+    clearAdminWorkspaceSnapshots(userSummarySnapshotNamespace, adminId);
+    clearAdminWorkspaceSnapshots(userPageSnapshotNamespace, adminId);
     await Promise.all([loadSummary(), loadPage()]);
     const verb = action === "deactivate" ? "deactivated" : action === "activate" ? "activated" : "reactivated";
     setNotice(`${account.name} was ${verb}.`);
     setSaving(false);
     return { ok: true };
-  }, [loadPage, loadSummary, saving]);
+  }, [adminId, loadPage, loadSummary, saving]);
 
   const resetPageForTab = useCallback((tab) => {
     if (tab === "doctors") setDoctorPage(1);
@@ -335,19 +471,53 @@ export function useAdminUserManagement({ enabled = true, activeTab = "patients" 
     reset(1);
   };
 
-  const patientTotalPages = Math.max(1, Math.ceil(totals.patients / pageSize));
-  const doctorTotalPages = Math.max(1, Math.ceil(totals.doctors / doctorPageSize));
-  const staffTotalPages = Math.max(1, Math.ceil(totals.staff / staffPageSize));
+  const renderPageSnapshot = getAdminWorkspaceSnapshot(
+    userPageSnapshotNamespace,
+    adminId,
+    pageSnapshotKey
+  );
+  const pageStateMatches = loadedPageKey === pageStateKey;
+  const visibleRows = pageStateMatches
+    ? rows[activeTab]
+    : renderPageSnapshot?.rows || [];
+  const visibleTotal = pageStateMatches
+    ? totals[activeTab]
+    : renderPageSnapshot?.total || 0;
+  const visibleFilterOptions = pageStateMatches
+    ? filterOptions[activeTab] || []
+    : renderPageSnapshot?.filterOptions || [];
+  const visibleLoading = pageStateMatches
+    ? loading
+    : Boolean(enabled && adminId && !renderPageSnapshot);
+  const renderSummarySnapshot = getAdminWorkspaceSnapshot(
+    userSummarySnapshotNamespace,
+    adminId,
+    "summary"
+  );
+  const summaryStateMatches = loadedSummaryAdminId === adminId;
+  const visibleSummary = summaryStateMatches
+    ? summary
+    : renderSummarySnapshot?.summary || EMPTY_SUMMARY;
+  const visibleSummaryLoading = summaryStateMatches
+    ? summaryLoading
+    : Boolean(enabled && adminId && !renderSummarySnapshot);
+  const visibleError = pageStateMatches && summaryStateMatches ? error : "";
+  const visiblePatientTotal = activeTab === "patients" ? visibleTotal : totals.patients;
+  const visibleDoctorTotal = activeTab === "doctors" ? visibleTotal : totals.doctors;
+  const visibleStaffTotal = activeTab === "staff" ? visibleTotal : totals.staff;
+  const patientTotalPages = Math.max(1, Math.ceil(visiblePatientTotal / pageSize));
+  const doctorTotalPages = Math.max(1, Math.ceil(visibleDoctorTotal / doctorPageSize));
+  const staffTotalPages = Math.max(1, Math.ceil(visibleStaffTotal / staffPageSize));
 
   return {
-    patients: rows.patients,
-    doctors: rows.doctors,
-    staff: rows.staff,
-    summary,
-    summaryLoading,
-    totals,
-    loading,
-    error,
+    patients: activeTab === "patients" ? visibleRows : rows.patients,
+    doctors: activeTab === "doctors" ? visibleRows : rows.doctors,
+    staff: activeTab === "staff" ? visibleRows : rows.staff,
+    summary: visibleSummary,
+    summaryLoading: visibleSummaryLoading,
+    totals: { ...totals, [activeTab]: visibleTotal },
+    loading: visibleLoading,
+    error: visibleError,
     notice,
     setNotice,
     saving,
@@ -367,8 +537,10 @@ export function useAdminUserManagement({ enabled = true, activeTab = "patients" 
     pageSize,
     setPageSize: bindReset(setPageSizeState, setPage),
     totalPages: patientTotalPages,
-    totalFilteredPatients: totals.patients,
-    pageStart: totals.patients ? (page - 1) * pageSize : 0,
+    totalFilteredPatients: visiblePatientTotal,
+    pageStart: visiblePatientTotal
+      ? (page - 1) * pageSize
+      : 0,
     doctorSearch,
     setDoctorSearch: bindReset(setDoctorSearchState, setDoctorPage),
     doctorStatusFilter,
@@ -382,9 +554,13 @@ export function useAdminUserManagement({ enabled = true, activeTab = "patients" 
     doctorPageSize,
     setDoctorPageSize: bindReset(setDoctorPageSizeState, setDoctorPage),
     doctorTotalPages,
-    totalFilteredDoctors: totals.doctors,
-    doctorPageStart: totals.doctors ? (doctorPage - 1) * doctorPageSize : 0,
-    doctorSpecialtyOptions: filterOptions.doctors,
+    totalFilteredDoctors: visibleDoctorTotal,
+    doctorPageStart: visibleDoctorTotal
+      ? (doctorPage - 1) * doctorPageSize
+      : 0,
+    doctorSpecialtyOptions: activeTab === "doctors"
+      ? visibleFilterOptions
+      : filterOptions.doctors,
     staffSearch,
     setStaffSearch: bindReset(setStaffSearchState, setStaffPage),
     staffStatusFilter,
@@ -398,8 +574,12 @@ export function useAdminUserManagement({ enabled = true, activeTab = "patients" 
     staffPageSize,
     setStaffPageSize: bindReset(setStaffPageSizeState, setStaffPage),
     staffTotalPages,
-    totalFilteredStaff: totals.staff,
-    staffPageStart: totals.staff ? (staffPage - 1) * staffPageSize : 0,
-    staffPositionOptions: filterOptions.staff,
+    totalFilteredStaff: visibleStaffTotal,
+    staffPageStart: visibleStaffTotal
+      ? (staffPage - 1) * staffPageSize
+      : 0,
+    staffPositionOptions: activeTab === "staff"
+      ? visibleFilterOptions
+      : filterOptions.staff,
   };
 }
