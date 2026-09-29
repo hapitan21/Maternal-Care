@@ -11,9 +11,6 @@ const activeAppointmentStatuses = new Set([
   "pending",
   "accepted",
   "upcoming",
-  "checked_in",
-  "check_in",
-  "checkedin",
   "rescheduled",
   "reschedule",
 ]);

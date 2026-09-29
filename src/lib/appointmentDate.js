@@ -246,6 +246,9 @@ export function classifyAppointment(appointment, nowValue = new Date()) {
   else if (start && end && end.getTime() >= now.getTime()) category = "current";
   else if (start) category = "overdue";
 
+  // A checked-in appointment remains checked in until its stored status changes.
+  if (isCheckedIn && category === "overdue") category = "checked_in";
+
   const isUpcoming = category === "upcoming" || category === "current";
   const isHistory = !isUpcoming;
 
