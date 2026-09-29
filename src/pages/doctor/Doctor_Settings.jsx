@@ -667,6 +667,7 @@ const settingsSections = [
 const OTP_COOLDOWN_SECONDS = 60;
 const AUTH_REQUEST_TIMEOUT_MS = 45000;
 const EMAIL_CHANGE_SEND_FALLBACK_MS = 6000;
+const SETTINGS_TOAST_DURATION_MS = 4000;
 const CHANGE_EMAIL_INITIAL_STATE = {
   isOpen: false,
   step: "details",
@@ -781,7 +782,7 @@ function getFriendlyAuthError(error) {
     return "Too many attempts. Please wait before trying again.";
   }
 
-  return error?.message || "The request could not be completed.";
+  return "The request could not be completed. Please try again.";
 }
 
 
@@ -922,6 +923,9 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     createDoctorSettingsSnapshot(doctorIdentity, [])
   );
   const [message, setMessage] = React.useState("");
+  const [toast, setToast] = React.useState(null);
+  const [passwordFieldError, setPasswordFieldError] = React.useState("");
+  const [scheduleFieldError, setScheduleFieldError] = React.useState("");
   const [passwordForm, setPasswordForm] = React.useState({
     currentPassword: "",
     newPassword: "",
@@ -944,6 +948,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const [changePasswordOtp, setChangePasswordOtp] = React.useState(
     CHANGE_PASSWORD_INITIAL_STATE
   );
+  const toastTimerRef = React.useRef(null);
+  const toastVersionRef = React.useRef(0);
   const identityUnavailable = Boolean(
     doctorIdentity?.loading || doctorIdentity?.error
   );
@@ -956,6 +962,42 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     Boolean(passwordForm.currentPassword) &&
     passwordResult.valid &&
     passwordMatch;
+
+  const dismissToast = React.useCallback(() => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+
+    setToast(null);
+  }, []);
+
+  const showToast = React.useCallback((type, toastMessage) => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+
+    toastVersionRef.current += 1;
+    setToast({
+      type,
+      message: toastMessage,
+      version: toastVersionRef.current,
+    });
+
+    toastTimerRef.current = window.setTimeout(() => {
+      toastTimerRef.current = null;
+      setToast(null);
+    }, SETTINGS_TOAST_DURATION_MS);
+  }, []);
+
+  React.useEffect(
+    () => () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    },
+    []
+  );
 
   const notifyDoctorProfileUpdated = React.useCallback(() => {
     if (typeof window !== "undefined") {
@@ -1006,10 +1048,10 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
       try {
         authenticatedDoctor = await loadAuthenticatedDoctor();
-      } catch (identityError) {
+      } catch {
         if (!isCancelled) {
           setIsLoading(false);
-          setMessage(identityError.message);
+          setMessage("Doctor settings could not be loaded. Please refresh and try again.");
         }
         return;
       }
@@ -1064,11 +1106,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       const secondaryErrors = [availabilityResult.error].filter(Boolean);
 
       if (secondaryErrors.length > 0) {
-        setMessage(
-          `Some Doctor settings could not be loaded: ${secondaryErrors
-            .map((error) => error.message)
-            .join(" ")}`
-        );
+        setMessage("Some Doctor settings could not be loaded. Please refresh and try again.");
       }
     };
 
@@ -1176,14 +1214,14 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
         if (profileError) {
           setMessage(
-            `The login email changed, but profile sync failed: ${profileError.message}`
+            "The login email changed, but the Doctor profile could not be synchronized."
           );
           return;
         }
 
         setSettings(nextSettings);
         notifyDoctorProfileUpdated();
-        setMessage("Email changed successfully. Please log in again.");
+        showToast("success", "Account information updated successfully.");
         redirectToLoginAfterEmailChange();
       }, 0);
     });
@@ -1194,6 +1232,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     changeEmailState.pendingEmail,
     redirectToLoginAfterEmailChange,
     notifyDoctorProfileUpdated,
+    showToast,
     settings,
   ]);
 
@@ -1232,10 +1271,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
     if (userError || !user) {
       setIsSaving(false);
-      setMessage(
-        userError?.message ||
-          "No authenticated account was found."
-      );
+      showToast("error", "Your account could not be verified. Please try again.");
       return;
     }
 
@@ -1265,7 +1301,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     setIsSaving(false);
 
     if (profileError) {
-      setMessage(`Unable to save profile: ${profileError.message}`);
+      showToast("error", "Profile information could not be updated. Please try again.");
       return;
     }
 
@@ -1275,9 +1311,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       personal: false,
       professional: false,
     });
-    setMessage(
-      "Personal and professional information saved to Supabase."
-    );
+    showToast("success", "Profile updated successfully.");
   };
 
   const saveAccountSettings = async (event) => {
@@ -1288,10 +1322,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      setMessage(
-        userError?.message ||
-          "No authenticated account was found."
-      );
+      showToast("error", "Your account could not be verified. Please try again.");
       return;
     }
 
@@ -1318,17 +1349,13 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     setIsSaving(false);
 
     if (profileError) {
-      setMessage(
-        `Unable to save account information: ${profileError.message}`
-      );
+      showToast("error", "Account information could not be updated. Please try again.");
       return;
     }
 
     setSettings(nextSettings);
     notifyDoctorProfileUpdated();
-    setMessage(
-      "Account information and Doctor contact details saved to Supabase."
-    );
+    showToast("success", "Account information updated successfully.");
   };
 
   const setChangeEmailField = (field, value) => {
@@ -1358,7 +1385,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     } = await supabase.auth.getUser();
 
     if (error || !user) {
-      setMessage(error?.message || "No authenticated account was found.");
+      showToast("error", "Your account could not be verified. Please try again.");
       return;
     }
 
@@ -1545,7 +1572,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
       setSettings(nextSettings);
       notifyDoctorProfileUpdated();
-      setMessage("Email changed successfully. Please log in again.");
+      showToast("success", "Account information updated successfully.");
       setChangeEmailState((current) => ({
         ...current,
         step: "complete",
@@ -1620,6 +1647,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
   const handlePasswordSubmit = async (event) => {
     event.preventDefault();
+    setPasswordFieldError("");
 
     if (
       !passwordForm.currentPassword ||
@@ -1652,10 +1680,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
     if (userError || !user) {
       setIsSaving(false);
-      setMessage(
-        userError?.message ||
-          "No authenticated account was found."
-      );
+      showToast("error", "Your account could not be verified. Please try again.");
       return;
     }
 
@@ -1671,7 +1696,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
       if (signInError) {
         setIsSaving(false);
-        setMessage("Current password is incorrect.");
+        setPasswordFieldError("Current password is incorrect.");
         return;
       }
     }
@@ -1691,7 +1716,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     setIsSaving(false);
 
     if (error) {
-      setMessage(getFriendlyAuthError(error));
+      showToast("error", getFriendlyAuthError(error));
       return;
     }
 
@@ -1850,7 +1875,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         success: "Password updated successfully. Signing you out now.",
       }));
 
-      setMessage("Password updated successfully. Please log in again.");
+      showToast("success", "Password changed successfully.");
       redirectToLoginAfterPasswordChange();
     } catch (error) {
       console.error("Doctor password OTP verification failed:", error);
@@ -1877,13 +1902,15 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         : createScheduleDraft()
     );
     setMessage("");
+    setScheduleFieldError("");
   };
 
   const saveScheduleDraft = async (event) => {
     event.preventDefault();
+    setScheduleFieldError("");
 
     if (!scheduleDraft?.day || !scheduleDraft?.status) {
-      setMessage("Complete the schedule details.");
+      setScheduleFieldError("Complete the schedule details.");
       return;
     }
 
@@ -1894,7 +1921,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       : null;
 
     if (isAvailable && !parsedTimeRange) {
-      setMessage(
+      setScheduleFieldError(
         'Enter a valid time range such as "8:00 AM - 12:00 PM".'
       );
       return;
@@ -1903,7 +1930,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     const dayOfWeek = getAvailabilityDayIndex(scheduleDraft.day);
 
     if (dayOfWeek < 0) {
-      setMessage("Select a valid day.");
+      setScheduleFieldError("Select a valid day.");
       return;
     }
 
@@ -1917,10 +1944,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
     if (userError || !user) {
       setIsSaving(false);
-      setMessage(
-        userError?.message ||
-          "No authenticated account was found."
-      );
+      showToast("error", "Your account could not be verified. Please try again.");
       return;
     }
 
@@ -1945,9 +1969,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     setIsSaving(false);
 
     if (error) {
-      setMessage(
-        `Unable to save availability: ${error.message}`
-      );
+      showToast("error", "Schedule availability could not be updated. Please try again.");
       return;
     }
 
@@ -1992,7 +2014,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
     setSettings(nextSettings);
     setScheduleDraft(null);
-    setMessage("Schedule availability saved to Supabase.");
+    showToast("success", "Schedule availability updated successfully.");
   };
 
   const activeSectionLabel = settingsSections.find((section) => section.id === activePanel)?.label || "Profile";
@@ -2048,10 +2070,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
     if (userError || !user) {
       setIsSaving(false);
-      setMessage(
-        userError?.message ||
-          "No authenticated account was found."
-      );
+      showToast("error", "Your account could not be verified. Please try again.");
       return;
     }
 
@@ -2081,7 +2100,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     setIsSaving(false);
 
     if (profileError) {
-      setMessage(`Unable to save profile: ${profileError.message}`);
+      showToast("error", "Profile information could not be updated. Please try again.");
       return;
     }
 
@@ -2091,9 +2110,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       ...current,
       [card]: false,
     }));
-    setMessage(
-      `${card === "personal" ? "Personal" : "Professional"} information saved to Supabase.`
-    );
+    showToast("success", "Profile updated successfully.");
   };
 
   const renderProfileSettingsField = (field, isEditing) => (
@@ -2128,6 +2145,28 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         </div>
         {headerAction ?? <SettingsHeaderAction settings={settings} />}
       </header>
+
+      {toast ? (
+        <aside
+          key={toast.version}
+          className={`doctor-settings-toast is-${toast.type}`}
+          role={toast.type === "error" ? "alert" : "status"}
+          aria-live={toast.type === "error" ? "assertive" : "polite"}
+          aria-atomic="true"
+        >
+          <span className="doctor-settings-toast__icon">
+            <DoctorIcon name={toast.type === "error" ? "info" : "checkCircle"} />
+          </span>
+          <p>{toast.message}</p>
+          <button
+            type="button"
+            onClick={dismissToast}
+            aria-label="Close notification"
+          >
+            <DoctorIcon name="cancelCircle" />
+          </button>
+        </aside>
+      ) : null}
 
       <div className="doctor-settings-shell" data-panel={activePanel}>
         <aside className="doctor-settings-sidebar" aria-label="Settings sections">
@@ -2293,55 +2332,78 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                 <section className="doctor-settings-security-card doctor-settings-password-card">
                   <h3><DoctorIcon name="key" /> <span>Change Password</span></h3>
                   {["currentPassword", "newPassword", "confirmPassword"].map((field) => (
-                    <label className="doctor-settings-password-field" key={field}>
-                      {field === "currentPassword" ? "Current Password" : field === "newPassword" ? "New Password" : "Confirm New Password"}
-                      <input
-                        type={passwordVisible[field] ? "text" : "password"}
-                        placeholder={
-                          field === "currentPassword"
-                            ? "Enter your current password"
-                            : field === "newPassword"
-                              ? "Enter new password"
-                              : "Confirm new password"
-                        }
-                        value={passwordForm[field]}
-                        onChange={(event) => {
-                          if (field === "confirmPassword") {
-                            setConfirmPasswordInteracted(true);
+                    <React.Fragment key={field}>
+                      <label className="doctor-settings-password-field">
+                        {field === "currentPassword" ? "Current Password" : field === "newPassword" ? "New Password" : "Confirm New Password"}
+                        <input
+                          type={passwordVisible[field] ? "text" : "password"}
+                          placeholder={
+                            field === "currentPassword"
+                              ? "Enter your current password"
+                              : field === "newPassword"
+                                ? "Enter new password"
+                                : "Confirm new password"
                           }
-                          setPasswordForm((current) => ({ ...current, [field]: event.target.value }));
-                        }}
-                        onBlur={() => {
-                          if (field === "confirmPassword") {
-                            setConfirmPasswordInteracted(true);
+                          value={passwordForm[field]}
+                          onChange={(event) => {
+                            if (field === "confirmPassword") {
+                              setConfirmPasswordInteracted(true);
+                            }
+                            setPasswordFieldError("");
+                            setMessage("");
+                            setPasswordForm((current) => ({ ...current, [field]: event.target.value }));
+                          }}
+                          onBlur={() => {
+                            if (field === "confirmPassword") {
+                              setConfirmPasswordInteracted(true);
+                            }
+                          }}
+                          autoComplete={field === "currentPassword" ? "current-password" : "new-password"}
+                          minLength={
+                            field === "currentPassword"
+                              ? undefined
+                              : PASSWORD_MIN_LENGTH
                           }
-                        }}
-                        autoComplete={field === "currentPassword" ? "current-password" : "new-password"}
-                        minLength={
-                          field === "currentPassword"
-                            ? undefined
-                            : PASSWORD_MIN_LENGTH
-                        }
-                        required
-                        disabled={isSaving || changePasswordOtp.isOpen}
-                      />
-                      <button
-                        type="button"
-                        aria-label={`${passwordVisible[field] ? "Hide" : "Show"} ${
-                          field === "currentPassword"
-                            ? "current password"
-                            : field === "newPassword"
-                              ? "new password"
-                              : "password confirmation"
-                        }`}
-                        aria-pressed={passwordVisible[field]}
-                        onClick={() =>
-                          setPasswordVisible((current) => ({ ...current, [field]: !current[field] }))
-                        }
-                      >
-                        <DoctorIcon name={passwordVisible[field] ? "eye" : "eyeOff"} />
-                      </button>
-                    </label>
+                          aria-describedby={
+                            field === "currentPassword" && passwordFieldError
+                              ? "doctor-current-password-error"
+                              : undefined
+                          }
+                          aria-invalid={
+                            field === "currentPassword" && passwordFieldError
+                              ? "true"
+                              : undefined
+                          }
+                          required
+                          disabled={isSaving || changePasswordOtp.isOpen}
+                        />
+                        <button
+                          type="button"
+                          aria-label={`${passwordVisible[field] ? "Hide" : "Show"} ${
+                            field === "currentPassword"
+                              ? "current password"
+                              : field === "newPassword"
+                                ? "new password"
+                                : "password confirmation"
+                          }`}
+                          aria-pressed={passwordVisible[field]}
+                          onClick={() =>
+                            setPasswordVisible((current) => ({ ...current, [field]: !current[field] }))
+                          }
+                        >
+                          <DoctorIcon name={passwordVisible[field] ? "eye" : "eyeOff"} />
+                        </button>
+                      </label>
+                      {field === "currentPassword" && passwordFieldError ? (
+                        <p
+                          id="doctor-current-password-error"
+                          className="doctor-settings-field-error"
+                          role="alert"
+                        >
+                          {passwordFieldError}
+                        </p>
+                      ) : null}
+                    </React.Fragment>
                   ))}
                   <PasswordSecurityFeedback
                     password={passwordForm.newPassword}
@@ -2760,6 +2822,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
               <select
                 value={scheduleDraft.day}
                 onChange={(event) => {
+                  setScheduleFieldError("");
                   const selected = availability.find((item) => item.day === event.target.value);
                   setScheduleDraft(
                     selected
@@ -2780,7 +2843,12 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                 type="text"
                 placeholder="8:00 AM - 12:00 PM"
                 value={scheduleDraft.time}
-                onChange={(event) => setScheduleDraft((current) => ({ ...current, time: event.target.value }))}
+                onChange={(event) => {
+                  setScheduleFieldError("");
+                  setScheduleDraft((current) => ({ ...current, time: event.target.value }));
+                }}
+                aria-describedby={scheduleFieldError ? "doctor-schedule-error" : undefined}
+                aria-invalid={scheduleFieldError ? "true" : undefined}
               />
             </label>
 
@@ -2788,12 +2856,25 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
               Status
               <select
                 value={scheduleDraft.status}
-                onChange={(event) => setScheduleDraft((current) => ({ ...current, status: event.target.value }))}
+                onChange={(event) => {
+                  setScheduleFieldError("");
+                  setScheduleDraft((current) => ({ ...current, status: event.target.value }));
+                }}
               >
                 <option>Available</option>
                 <option>Closed</option>
               </select>
             </label>
+
+            {scheduleFieldError ? (
+              <p
+                id="doctor-schedule-error"
+                className="doctor-settings-field-error"
+                role="alert"
+              >
+                {scheduleFieldError}
+              </p>
+            ) : null}
 
             <div>
               <button type="submit">Save</button>

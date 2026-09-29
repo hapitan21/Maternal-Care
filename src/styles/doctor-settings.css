@@ -21,6 +21,101 @@
   font-family: "Poppins", sans-serif;
 }
 
+.doctor-settings-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 112px);
+  right: clamp(18px, 3vw, 42px);
+  z-index: 2200;
+  width: min(360px, calc(100vw - 24px));
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #b8e5cd;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 30px rgba(40, 26, 33, 0.14);
+  color: #176a43;
+  padding: 10px 11px 10px 13px;
+  animation: doctor-settings-toast-in 180ms ease-out both;
+}
+
+.doctor-settings-toast.is-error {
+  border-color: #f2becd;
+  color: #b4234d;
+}
+
+.doctor-settings-toast__icon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: #168653;
+}
+
+.doctor-settings-toast.is-error .doctor-settings-toast__icon {
+  color: #d92d5d;
+}
+
+.doctor-settings-toast__icon .doctor-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.doctor-settings-toast p {
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.doctor-settings-toast button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6c7b72;
+  cursor: pointer;
+  padding: 0;
+}
+
+.doctor-settings-toast button:hover {
+  background: #eef8f2;
+  color: #176a43;
+}
+
+.doctor-settings-toast.is-error button:hover {
+  background: #fff0f4;
+  color: #b4234d;
+}
+
+.doctor-settings-toast button:focus-visible {
+  outline: 3px solid rgba(251, 54, 123, 0.2);
+  outline-offset: 1px;
+}
+
+.doctor-settings-toast button .doctor-icon {
+  width: 17px;
+  height: 17px;
+}
+
+@keyframes doctor-settings-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Doctor account/password OTP modal */
 .doctor-settings-page .doctor-otp-modal-backdrop {
   position: fixed;
@@ -1157,6 +1252,18 @@
   stroke-width: 2.4;
 }
 
+.doctor-settings-field-error {
+  margin: -14px 0 16px;
+  color: #cf2458;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.doctor-settings-edit-modal > .doctor-settings-field-error {
+  margin: -4px 0 0;
+}
+
 .doctor-settings-password-note {
   min-height: 64px;
   display: grid;
@@ -1601,6 +1708,15 @@
 }
 
 @media (max-width: 640px) {
+  .doctor-settings-toast {
+    top: calc(env(safe-area-inset-top, 0px) + 84px);
+    right: auto;
+    left: 50%;
+    width: calc(100% - 24px);
+    transform: translateX(-50%);
+    animation-name: doctor-settings-toast-mobile-in;
+  }
+
   .doctor-settings-page > .doctor-dashboard-header h1 {
     font-size: 30px;
     line-height: 38px;
@@ -1669,6 +1785,24 @@
 
   .doctor-settings-edit-modal {
     padding: 54px 22px 30px;
+  }
+}
+
+@keyframes doctor-settings-toast-mobile-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doctor-settings-toast {
+    animation: none;
   }
 }
 
