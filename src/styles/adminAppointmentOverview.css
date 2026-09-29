@@ -121,6 +121,16 @@
   background: #fff3e6;
 }
 
+.admin-appointment-summary--checkedIn .admin-appointment-summary__icon {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.admin-appointment-summary--overdue .admin-appointment-summary__icon {
+  color: #c92a58;
+  background: #fff0f4;
+}
+
 .admin-appointment-summary--canceled .admin-appointment-summary__icon {
   color: #6575f5;
   background: #eef0ff;
@@ -165,7 +175,7 @@
 
 .admin-appointment-filters {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 88px 112px 88px auto;
+  grid-template-columns: minmax(260px, 1fr) 120px 112px 88px auto;
   gap: 12px;
   align-items: end;
   border: 1px solid #e1e5ee;
@@ -535,6 +545,12 @@
   background: #fff6eb;
 }
 
+.admin-appointment-status--checkedIn {
+  border-color: #bfdbfe;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
 .admin-appointment-status--overdue {
   border-color: #f5b8c8;
   color: #c92a58;
@@ -686,7 +702,7 @@
   }
 
   .admin-appointment-filters {
-    grid-template-columns: minmax(240px, 1fr) 100px 130px 100px;
+    grid-template-columns: minmax(240px, 1fr) 120px 130px 100px;
   }
 
   .admin-appointment-clear {

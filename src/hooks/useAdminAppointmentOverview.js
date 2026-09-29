@@ -68,6 +68,7 @@ function getStatusLabel(status) {
     {
       [appointmentOverviewStatuses.completed]: "Completed",
       [appointmentOverviewStatuses.upcoming]: "Upcoming",
+      [appointmentOverviewStatuses.checkedIn]: "Checked In",
       [appointmentOverviewStatuses.overdue]: "Overdue",
       [appointmentOverviewStatuses.canceled]: "Canceled",
       [appointmentOverviewStatuses.missed]: "Missed",

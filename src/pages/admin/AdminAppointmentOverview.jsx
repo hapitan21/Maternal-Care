@@ -19,6 +19,7 @@ const statusOptions = [
   { value: "all", label: "All" },
   { value: appointmentOverviewStatuses.completed, label: "Completed" },
   { value: appointmentOverviewStatuses.upcoming, label: "Upcoming" },
+  { value: appointmentOverviewStatuses.checkedIn, label: "Checked In" },
   { value: appointmentOverviewStatuses.overdue, label: "Overdue" },
   { value: appointmentOverviewStatuses.canceled, label: "Canceled" },
   { value: appointmentOverviewStatuses.missed, label: "Missed" },
@@ -49,6 +50,16 @@ const summaryDefinitions = [
     icon: "solar:clock-circle-linear",
   },
   {
+    key: appointmentOverviewStatuses.checkedIn,
+    label: "Checked In",
+    icon: "solar:check-circle-linear",
+  },
+  {
+    key: appointmentOverviewStatuses.overdue,
+    label: "Overdue",
+    icon: "solar:danger-circle-linear",
+  },
+  {
     key: appointmentOverviewStatuses.canceled,
     label: "Canceled",
     icon: "solar:close-circle-linear",
@@ -66,10 +77,11 @@ function cleanText(value) {
 
 function getStatusFilterFromSearchParams(searchParams) {
   const requestedStatus = cleanText(searchParams.get("status")).toLowerCase();
+  const matchingOption = statusOptions.find(
+    (option) => option.value.toLowerCase() === requestedStatus
+  );
 
-  return statusOptions.some((option) => option.value === requestedStatus)
-    ? requestedStatus
-    : "all";
+  return matchingOption?.value || "all";
 }
 
 function getInitials(name) {
@@ -125,10 +137,12 @@ function matchesTimeFilter(timeKey, filter) {
   return hour >= 17;
 }
 
-function SummaryCard({ definition, value, total, loading }) {
+function SummaryCard({ definition, value, total, loading, totalHelper }) {
   const percentage = total ? ((value / total) * 100).toFixed(2) : "0.00";
   const helper =
-    definition.helper || `${percentage}% of total`;
+    definition.key === "total"
+      ? totalHelper
+      : definition.helper || `${percentage}% of total`;
 
   return (
     <article className={`admin-appointment-summary admin-appointment-summary--${definition.key}`}>
@@ -297,6 +311,8 @@ export default function AdminAppointmentOverview() {
       total: appointments.length,
       [appointmentOverviewStatuses.completed]: 0,
       [appointmentOverviewStatuses.upcoming]: 0,
+      [appointmentOverviewStatuses.checkedIn]: 0,
+      [appointmentOverviewStatuses.overdue]: 0,
       [appointmentOverviewStatuses.canceled]: 0,
       [appointmentOverviewStatuses.missed]: 0,
     };
@@ -378,6 +394,11 @@ export default function AdminAppointmentOverview() {
               value={summaryCounts[definition.key]}
               total={summaryCounts.total}
               loading={loading}
+              totalHelper={
+                overdueOnly
+                  ? "Overdue appointments across all dates"
+                  : "All appointments for the day"
+              }
             />
           ))}
         </section>

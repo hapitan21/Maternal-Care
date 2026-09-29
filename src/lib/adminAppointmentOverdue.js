@@ -1,4 +1,4 @@
-import { getAppointmentStart } from "./appointmentDate";
+import { getAppointmentEnd } from "./appointmentDate";
 import { supabase } from "./supabaseClient";
 
 const overdueScheduleColumns =
@@ -26,14 +26,14 @@ export function isUnresolvedOverdueAppointment(
   appointment,
   nowValue = new Date()
 ) {
-  const start = getAppointmentStart(appointment);
+  const end = getAppointmentEnd(appointment);
   const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
 
   return Boolean(
-    start &&
+    end &&
       !Number.isNaN(now.getTime()) &&
       activeAppointmentStatuses.has(normalizeStatusToken(appointment?.status)) &&
-      start.getTime() < now.getTime()
+      end.getTime() < now.getTime()
   );
 }
 

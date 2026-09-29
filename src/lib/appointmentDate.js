@@ -20,6 +20,7 @@ const CHECKED_IN_STATUSES = new Set([appointmentStatuses.checkedIn]);
 export const appointmentOverviewStatuses = {
   completed: "completed",
   upcoming: "upcoming",
+  checkedIn: "checkedIn",
   overdue: "overdue",
   canceled: "canceled",
   missed: "missed",
@@ -113,6 +114,9 @@ export function normalizeAppointmentOverviewStatus(status) {
   }
   if (normalized === appointmentStatuses.missed) {
     return appointmentOverviewStatuses.missed;
+  }
+  if (normalized === appointmentStatuses.checkedIn) {
+    return appointmentOverviewStatuses.checkedIn;
   }
   return appointmentOverviewStatuses.upcoming;
 }
