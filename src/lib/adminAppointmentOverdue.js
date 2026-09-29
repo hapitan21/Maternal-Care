@@ -15,6 +15,44 @@ const activeAppointmentStatuses = new Set([
   "reschedule",
 ]);
 
+// Conservative server-side exclusions.
+//
+// These are exact raw values that can never be considered overdue.
+// The final client-side predicate remains authoritative so unusual casing
+// or whitespace variants are still handled using the existing normalization.
+const serverExcludedOverdueStatuses = [
+  "completed",
+  "complete",
+  "done",
+
+  "cancelled",
+  "canceled",
+  "cancel",
+
+  "missed",
+  "no_show",
+  "no-show",
+  "no show",
+  "noshow",
+  "absent",
+
+  "checked_in",
+  "checked-in",
+  "checked in",
+  "check_in",
+  "check-in",
+  "check in",
+  "checkedin",
+  "checkedIn",
+
+  "archived",
+  "deleted",
+];
+
+const serverExcludedOverdueStatusFilter = `(${serverExcludedOverdueStatuses
+  .map((status) => `"${status}"`)
+  .join(",")})`;
+
 function normalizeStatusToken(status) {
   return String(status || "")
     .trim()
@@ -54,6 +92,7 @@ export async function queryAdminOverdueScheduleRows(nowValue = new Date()) {
       .from("schedule")
       .select(overdueScheduleColumns)
       .lt("start_time", now.toISOString())
+      .not("status", "in", serverExcludedOverdueStatusFilter)
       .order("start_time", { ascending: true })
       .order("id", { ascending: true })
       .range(offset, offset + overdueQueryPageSize - 1);
