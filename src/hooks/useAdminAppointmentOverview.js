@@ -530,57 +530,124 @@ export function useAdminAppointmentOverview(
 
   useEffect(() => {
     mountedRef.current = true;
+    let realtimeActive = true;
+    let scheduledRefreshPromise = null;
+    let trailingRefreshPending = false;
 
-    const timer =
+    const scheduleRefresh = () => {
+      if (!realtimeActive) return;
+
+      if (scheduledRefreshPromise) {
+        trailingRefreshPending = true;
+        return;
+      }
+
+      const requestKey =
+        `${adminId}:${snapshotKey}`;
+
+      const pendingPromise =
+        pendingRequestRef.current?.key === requestKey
+          ? pendingRequestRef.current.promise
+          : null;
+
+      if (pendingPromise) {
+        trailingRefreshPending = true;
+      }
+
+      const promise = pendingPromise || refresh();
+      scheduledRefreshPromise = promise;
+
+      void promise.finally(() => {
+        if (scheduledRefreshPromise !== promise) {
+          return;
+        }
+
+        scheduledRefreshPromise = null;
+
+        if (
+          !realtimeActive ||
+          !trailingRefreshPending
+        ) {
+          return;
+        }
+
+        trailingRefreshPending = false;
+        scheduleRefresh();
+      });
+    };
+
+    const initialTimer =
       window.setTimeout(
-        refresh,
+        scheduleRefresh,
         0
       );
 
-    const channel =
+    const pollingTimer =
       enabled && adminId
-        ? supabase
-            .channel(
-              `admin-appointment-overview-${snapshotKey}`
-            )
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "schedule",
-              },
-              (payload) => {
-                const affectedDates = [
-                  payload.new?.start_time,
-                  payload.old?.start_time,
-                ]
-                  .map((value) =>
-                    getManilaDateKey(value)
-                  )
-                  .filter(Boolean);
-
-                if (
-                  overdueOnly ||
-                  affectedDates.includes(
-                    selectedDateKey
-                  )
-                ) {
-                  refresh();
-                }
-              }
-            )
-            .subscribe()
+        ? window.setInterval(
+            scheduleRefresh,
+            60_000
+          )
         : null;
 
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        scheduleRefresh();
+      }
+    };
+
+    const scheduleBroadcastChannel =
+      enabled && adminId
+        ? supabase
+            .channel("admin:schedule", {
+              config: {
+                private: true,
+              },
+            })
+            .on(
+              "broadcast",
+              {
+                event: "schedule_changed",
+              },
+              scheduleRefresh
+            )
+            .subscribe((status) => {
+              if (
+                status === "SUBSCRIBED" &&
+                realtimeActive
+              ) {
+                scheduleRefresh();
+              }
+            })
+        : null;
+
+    window.addEventListener(
+      "focus",
+      handleFocus
+    );
+
     return () => {
+      realtimeActive = false;
+      trailingRefreshPending = false;
+      scheduledRefreshPromise = null;
       mountedRef.current = false;
       requestIdRef.current += 1;
 
-      window.clearTimeout(timer);
+      window.clearTimeout(initialTimer);
 
-      if (channel) {
-        supabase.removeChannel(channel);
+      if (pollingTimer) {
+        window.clearInterval(pollingTimer);
+      }
+
+      window.removeEventListener(
+        "focus",
+        handleFocus
+      );
+
+      if (scheduleBroadcastChannel) {
+        supabase.removeChannel(
+          scheduleBroadcastChannel
+        );
       }
     };
   }, [

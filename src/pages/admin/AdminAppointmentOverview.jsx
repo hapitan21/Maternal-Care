@@ -98,11 +98,33 @@ function getInitials(name) {
 function getDateParts(dateKey) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cleanText(dateKey));
   if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const validationDate = new Date(`${match[1]}-${match[2]}-${match[3]}T12:00:00Z`);
+
+  if (
+    Number.isNaN(validationDate.getTime()) ||
+    validationDate.getUTCFullYear() !== year ||
+    validationDate.getUTCMonth() !== month ||
+    validationDate.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
   return {
-    year: Number(match[1]),
-    month: Number(match[2]) - 1,
-    day: Number(match[3]),
+    year,
+    month,
+    day,
   };
+}
+
+function getSelectedDateFromSearchParams(searchParams) {
+  const requestedDate = cleanText(searchParams.get("date"));
+  return getDateParts(requestedDate)
+    ? requestedDate
+    : getManilaDateKey(new Date());
 }
 
 function toDateKey(year, monthIndex, day) {
@@ -266,7 +288,9 @@ function Pagination({ page, pageCount, onChange }) {
 export default function AdminAppointmentOverview() {
   const { isAdmin, user } = useAdminAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedDateKey, setSelectedDateKey] = React.useState(() => getManilaDateKey(new Date()));
+  const [selectedDateKey, setSelectedDateKey] = React.useState(
+    () => getSelectedDateFromSearchParams(searchParams)
+  );
   const initialDateParts = getDateParts(selectedDateKey);
   const [calendarMonth, setCalendarMonth] = React.useState(
     () => new Date(initialDateParts.year, initialDateParts.month, 1, 12)
@@ -339,11 +363,10 @@ export default function AdminAppointmentOverview() {
     if (!parts) return;
     setSelectedDateKey(dateKey);
     setCalendarMonth(new Date(parts.year, parts.month, 1, 12));
-    if (overdueOnly) {
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete("status");
-      setSearchParams(nextParams, { replace: true });
-    }
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("date", dateKey);
+    if (overdueOnly) nextParams.delete("status");
+    setSearchParams(nextParams, { replace: true });
     setPage(1);
   };
 
@@ -358,8 +381,14 @@ export default function AdminAppointmentOverview() {
 
     setPage(1);
 
-    if (nextStatus === "all") nextParams.delete("status");
-    else nextParams.set("status", nextStatus);
+    if (nextStatus === appointmentOverviewStatuses.overdue) {
+      nextParams.delete("date");
+      nextParams.set("status", nextStatus);
+    } else {
+      nextParams.set("date", selectedDateKey);
+      if (nextStatus === "all") nextParams.delete("status");
+      else nextParams.set("status", nextStatus);
+    }
 
     setSearchParams(nextParams, { replace: true });
   };
@@ -371,6 +400,7 @@ export default function AdminAppointmentOverview() {
     setPage(1);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("status");
+    nextParams.set("date", selectedDateKey);
     setSearchParams(nextParams, { replace: true });
   };
 
