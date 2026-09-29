@@ -315,6 +315,8 @@ export function useAdminAppointmentOverview(
     ),
 
     error: null,
+
+    refreshWarning: false,
   }));
 
   const refresh = useCallback(() => {
@@ -328,6 +330,7 @@ export function useAdminAppointmentOverview(
         snapshotKey: stateKey,
         loading: false,
         error: null,
+        refreshWarning: false,
       });
 
       return Promise.resolve({
@@ -358,7 +361,7 @@ export function useAdminAppointmentOverview(
         snapshotKey
       );
 
-    setState({
+    setState((current) => ({
       appointments:
         cachedSnapshot?.appointments || [],
 
@@ -368,7 +371,13 @@ export function useAdminAppointmentOverview(
         !cachedSnapshot,
 
       error: null,
-    });
+
+      refreshWarning:
+        current.snapshotKey === stateKey &&
+        cachedSnapshot
+          ? current.refreshWarning
+          : false,
+    }));
 
     const promise = (async () => {
       try {
@@ -467,6 +476,7 @@ export function useAdminAppointmentOverview(
             snapshotKey: stateKey,
             loading: false,
             error: null,
+            refreshWarning: false,
           });
         }
 
@@ -493,6 +503,9 @@ export function useAdminAppointmentOverview(
               cachedSnapshot
                 ? null
                 : nextError,
+
+            refreshWarning:
+              Boolean(cachedSnapshot),
           });
         }
 
@@ -688,6 +701,11 @@ export function useAdminAppointmentOverview(
       stateMatches
         ? state.error
         : null,
+
+    refreshWarning:
+      stateMatches
+        ? state.refreshWarning
+        : false,
 
     refresh,
   };

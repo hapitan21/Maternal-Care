@@ -175,7 +175,7 @@
 
 .admin-appointment-filters {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 120px 112px 88px auto;
+  grid-template-columns: minmax(260px, 1fr) 120px 130px 100px auto;
   gap: 12px;
   align-items: end;
   border: 1px solid #e1e5ee;
@@ -271,6 +271,7 @@
 
 .admin-appointment-calendar > header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -285,7 +286,13 @@
   font-weight: 800;
 }
 
-.admin-appointment-calendar > header > div {
+.admin-appointment-calendar__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-appointment-calendar__month-navigation {
   min-width: 0;
   display: grid;
   grid-template-columns: 22px minmax(72px, 1fr) 22px;
@@ -321,6 +328,17 @@
 
 .admin-appointment-calendar > header button:hover {
   color: var(--admin-pink);
+}
+
+.admin-appointment-calendar > header .admin-appointment-calendar__today {
+  width: auto;
+  border: 1px solid #f8b2cc;
+  border-radius: 6px;
+  color: var(--admin-pink);
+  background: #fff8fb;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 0 7px;
 }
 
 .admin-appointment-calendar__weekdays,
@@ -644,6 +662,40 @@
   padding: 0 16px;
 }
 
+.admin-appointment-refresh-warning {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid #f5d38b;
+  border-bottom: 1px solid #f5d38b;
+  color: #7a5a13;
+  background: #fff9e9;
+  padding: 8px 22px;
+}
+
+.admin-appointment-refresh-warning svg {
+  width: 18px;
+  height: 18px;
+}
+
+.admin-appointment-refresh-warning p {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.admin-appointment-refresh-warning button {
+  border: 0;
+  color: #7a5a13;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
 .admin-appointment-table-card > footer {
   min-height: 74px;
   display: flex;
@@ -824,5 +876,16 @@
 
   .admin-appointment-message {
     grid-template-columns: 1fr;
+  }
+
+  .admin-appointment-refresh-warning {
+    grid-template-columns: 18px minmax(0, 1fr);
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .admin-appointment-refresh-warning button {
+    grid-column: 2;
+    justify-self: start;
   }
 }

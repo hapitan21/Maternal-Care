@@ -206,8 +206,17 @@ function AppointmentCalendar({ monthDate, selectedDateKey, onChangeMonth, onSele
   return (
     <section className="admin-appointment-calendar" aria-label="Appointment calendar">
       <header>
-        <h2>Calendar</h2>
-        <div>
+        <div className="admin-appointment-calendar__heading">
+          <h2>Calendar</h2>
+          <button
+            className="admin-appointment-calendar__today"
+            type="button"
+            onClick={() => onSelectDate(getManilaDateKey(new Date()))}
+          >
+            Today
+          </button>
+        </div>
+        <div className="admin-appointment-calendar__month-navigation">
           <button type="button" onClick={() => onChangeMonth(-1)} aria-label="Previous month">
             <Icon icon="solar:alt-arrow-left-linear" />
           </button>
@@ -301,7 +310,7 @@ export default function AdminAppointmentOverview() {
   const [timeFilter, setTimeFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const overdueOnly = statusFilter === appointmentOverviewStatuses.overdue;
-  const { appointments, loading, error, refresh } = useAdminAppointmentOverview(
+  const { appointments, loading, error, refreshWarning, refresh } = useAdminAppointmentOverview(
     selectedDateKey,
     isAdmin,
     user?.id,
@@ -320,15 +329,40 @@ export default function AdminAppointmentOverview() {
     );
   }, [appointments]);
 
+  const doctorFilterIsValid =
+    doctorFilter === "all" ||
+    doctorOptions.some((option) => option.value === doctorFilter);
+  const activeDoctorFilter =
+    !loading && !error && !doctorFilterIsValid
+      ? "all"
+      : doctorFilter;
+
+  React.useEffect(() => {
+    if (
+      loading ||
+      error ||
+      doctorFilterIsValid
+    ) {
+      return undefined;
+    }
+
+    const resetTimer = window.setTimeout(() => {
+      setDoctorFilter("all");
+      setPage(1);
+    }, 0);
+
+    return () => window.clearTimeout(resetTimer);
+  }, [doctorFilterIsValid, error, loading]);
+
   const filteredAppointments = React.useMemo(() => {
     const searchValue = cleanText(search).toLowerCase();
     return appointments.filter((appointment) => {
       if (searchValue && !appointment.searchText.includes(searchValue)) return false;
       if (statusFilter !== "all" && appointment.status !== statusFilter) return false;
-      if (doctorFilter !== "all" && appointment.doctorFilterKey !== doctorFilter) return false;
+      if (activeDoctorFilter !== "all" && appointment.doctorFilterKey !== activeDoctorFilter) return false;
       return matchesTimeFilter(appointment.timeKey, timeFilter);
     });
-  }, [appointments, doctorFilter, search, statusFilter, timeFilter]);
+  }, [activeDoctorFilter, appointments, search, statusFilter, timeFilter]);
 
   const summaryCounts = React.useMemo(() => {
     const counts = {
@@ -355,6 +389,10 @@ export default function AdminAppointmentOverview() {
   const selectedDateLabel = formatAppointmentDate(
     toManilaISOString(selectedDateKey, "12:00")
   );
+  const appointmentCountLabel =
+    loading || error
+      ? ""
+      : ` (${appointments.length})`;
   const firstVisible = filteredAppointments.length ? (safePage - 1) * PAGE_SIZE + 1 : 0;
   const lastVisible = Math.min(safePage * PAGE_SIZE, filteredAppointments.length);
 
@@ -413,7 +451,7 @@ export default function AdminAppointmentOverview() {
         <AdminPageHeader
           className="admin-appointment-title"
           title="Appointment Overview"
-          subtitle="Monitor and manage Patient appointments."
+          subtitle="Monitor Patient appointments and status activity."
         />
 
         <section className="admin-appointment-summary-grid" aria-label="Appointment status summary">
@@ -447,7 +485,7 @@ export default function AdminAppointmentOverview() {
           <FilterSelect label="Status" value={statusFilter} onChange={updateStatusFilter}>
             {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </FilterSelect>
-          <FilterSelect label="Doctor" value={doctorFilter} onChange={updateFilter(setDoctorFilter)}>
+          <FilterSelect label="Doctor" value={activeDoctorFilter} onChange={updateFilter(setDoctorFilter)}>
             <option value="all">All</option>
             {doctorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </FilterSelect>
@@ -484,17 +522,25 @@ export default function AdminAppointmentOverview() {
             <header>
               <h2 id="appointment-table-title">
                 {overdueOnly
-                  ? `Overdue appointments (${appointments.length})`
-                  : `Appointments for ${selectedDateLabel} (${appointments.length})`}
+                  ? `Overdue appointments${appointmentCountLabel}`
+                  : `Appointments for ${selectedDateLabel}${appointmentCountLabel}`}
               </h2>
             </header>
+
+            {refreshWarning ? (
+              <div className="admin-appointment-refresh-warning" role="status">
+                <Icon icon="solar:danger-triangle-linear" />
+                <p>Appointments could not be refreshed. Showing the most recently loaded data.</p>
+                <button type="button" onClick={refresh}>Refresh</button>
+              </div>
+            ) : null}
 
             {error ? (
               <div className="admin-appointment-message" role="alert">
                 <Icon icon="solar:danger-triangle-linear" />
                 <div>
-                  <strong>Unable to load appointment information. Please try again.</strong>
-                  <p>{error.message || "Check the connection and try again."}</p>
+                  <strong>Unable to load appointments right now. Please try again.</strong>
+                  <p>Check your connection and try again in a moment.</p>
                 </div>
                 <button type="button" onClick={refresh}>Retry</button>
               </div>
@@ -539,7 +585,10 @@ export default function AdminAppointmentOverview() {
                                 <small>{appointment.doctorSpecialization}</small>
                               </div>
                             </td>
-                            <td>{appointment.appointmentType}</td>
+                            <td>
+                              <strong>{appointment.appointmentType}</strong>
+                              <small>Appointment ID: {appointment.appointmentDisplayId || "\u2014"}</small>
+                            </td>
                             <td><StatusBadge appointment={appointment} /></td>
                           </tr>
                         ))}
@@ -548,8 +597,12 @@ export default function AdminAppointmentOverview() {
                 {!loading && !visibleAppointments.length ? (
                   <div className="admin-appointment-empty">
                     <Icon icon="solar:calendar-search-linear" />
-                    <strong>No appointments found</strong>
-                    <p>There are no appointments matching this date and filter set.</p>
+                    <strong>{overdueOnly ? "No overdue appointments found" : "No appointments found"}</strong>
+                    <p>
+                      {overdueOnly
+                        ? "There are no overdue appointments matching the current filters."
+                        : "There are no appointments matching this date and filter set."}
+                    </p>
                   </div>
                 ) : null}
               </div>
