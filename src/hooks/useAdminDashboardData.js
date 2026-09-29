@@ -14,6 +14,7 @@ import {
   getAdminWorkspaceSnapshot,
   setAdminWorkspaceSnapshot,
 } from "../lib/adminWorkspaceSnapshots";
+import { queryAdminOverdueScheduleRows } from "../lib/adminAppointmentOverdue";
 
 const dashboardSnapshotNamespace = "dashboard";
 
@@ -247,7 +248,102 @@ function mapAppointmentOverview(rows) {
   });
 }
 
-function mapSummary(payload, range) {
+function alignOverdueSystemAlert(alerts, overdueCount) {
+  const safeAlerts = Array.isArray(alerts) ? alerts : [];
+
+  if (!Number.isFinite(overdueCount)) return safeAlerts;
+
+  const existingIndex = safeAlerts.findIndex(
+    (alert) => alert?.id === "overdue-appointments"
+  );
+
+  if (overdueCount <= 0) {
+    return safeAlerts.filter(
+      (alert) => alert?.id !== "overdue-appointments"
+    );
+  }
+
+  const overdueAlert = {
+    id: "overdue-appointments",
+    icon: "solar:calendar-minimalistic-linear",
+    count: overdueCount,
+    severity: "High",
+    title: "Overdue appointments unresolved",
+    detail: "Past appointments still have an active status.",
+    target: "appointments",
+  };
+
+  if (existingIndex < 0) {
+    const nextAlerts = [...safeAlerts];
+    const insertionIndex = nextAlerts.findIndex(
+      (alert) => alert?.id === "unassigned-appointments"
+    );
+    nextAlerts.splice(
+      insertionIndex < 0 ? nextAlerts.length : insertionIndex,
+      0,
+      overdueAlert
+    );
+    return nextAlerts;
+  }
+
+  return safeAlerts.map((alert, index) =>
+    index === existingIndex
+      ? { ...alert, count: overdueCount, detail: overdueAlert.detail }
+      : alert
+  );
+}
+
+function alignUnlinkedPatientAlert(alerts, unlinkedPatientCount) {
+  const safeAlerts = Array.isArray(alerts) ? alerts : [];
+
+  if (!Number.isFinite(unlinkedPatientCount)) return safeAlerts;
+
+  const existingIndex = safeAlerts.findIndex(
+    (alert) => alert?.id === "unlinked-patients"
+  );
+
+  if (unlinkedPatientCount <= 0) {
+    return safeAlerts.filter(
+      (alert) => alert?.id !== "unlinked-patients"
+    );
+  }
+
+  const unlinkedAlert = {
+    id: "unlinked-patients",
+    icon: "solar:link-broken-minimalistic-linear",
+    count: unlinkedPatientCount,
+    severity: "Review",
+    title: "Patient accounts not linked",
+    detail: "Non-archived Patient records are missing an account link.",
+    target: "users",
+  };
+
+  if (existingIndex < 0) {
+    const nextAlerts = [...safeAlerts];
+    const insertionIndex = nextAlerts.findIndex(
+      (alert) => alert?.id === "inactive-professionals"
+    );
+    nextAlerts.splice(
+      insertionIndex < 0 ? nextAlerts.length : insertionIndex,
+      0,
+      unlinkedAlert
+    );
+    return nextAlerts;
+  }
+
+  return safeAlerts.map((alert, index) =>
+    index === existingIndex
+      ? { ...alert, count: unlinkedPatientCount }
+      : alert
+  );
+}
+
+function mapSummary(
+  payload,
+  range,
+  overdueCount,
+  unlinkedPatientCount
+) {
   const totals = payload?.totals || {};
 
   return {
@@ -273,11 +369,15 @@ function mapSummary(payload, range) {
       range
     ),
 
-    systemAlerts: Array.isArray(payload?.system_alerts)
-      ? payload.system_alerts.filter((alert) =>
+    systemAlerts: alignUnlinkedPatientAlert(
+      alignOverdueSystemAlert(
+        payload?.system_alerts,
+        overdueCount
+      ),
+      unlinkedPatientCount
+    ).filter((alert) =>
           supportedAdminAlertTargets.has(alert?.target)
-        )
-      : [],
+        ),
 
     generatedAt: payload?.generated_at || null,
   };
@@ -306,6 +406,31 @@ async function querySummary(range) {
   );
 
   return { data, error };
+}
+
+async function queryUnlinkedPatientCount() {
+  const { data, error } = await supabase.rpc(
+    "admin_get_user_management_summary"
+  );
+
+  if (error) return { count: undefined, error };
+
+  let payload = data;
+
+  if (typeof data === "string") {
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      payload = {};
+    }
+  }
+
+  const count = Number(payload?.patients?.not_linked);
+
+  return {
+    count: Number.isFinite(count) ? count : undefined,
+    error: null,
+  };
 }
 
 async function queryRecentActivity() {
@@ -457,11 +582,20 @@ export function useAdminDashboardData(
 
         let summaryResult;
         let activityResult;
+        let overdueResult;
+        let unlinkedPatientResult;
 
         try {
-          [summaryResult, activityResult] = await Promise.all([
+          [
+            summaryResult,
+            activityResult,
+            overdueResult,
+            unlinkedPatientResult,
+          ] = await Promise.all([
             querySummary(range),
             queryRecentActivity(),
+            queryAdminOverdueScheduleRows(),
+            queryUnlinkedPatientCount(),
           ]);
         } catch (unexpectedError) {
           if (requestIdRef.current !== requestId) {
@@ -502,7 +636,13 @@ export function useAdminDashboardData(
         } else {
           const nextSummary = mapSummary(
             summaryResult.data,
-            range
+            range,
+            overdueResult.error
+              ? undefined
+              : overdueResult.data.length,
+            unlinkedPatientResult.error
+              ? undefined
+              : unlinkedPatientResult.count
           );
 
           setSummaryState({

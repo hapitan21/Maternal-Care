@@ -20,6 +20,11 @@ const adminRoutes = {
   dashboard: "/admin/dashboard",
 };
 
+const adminAlertRoutes = {
+  "overdue-appointments": "/admin/appointment-overview?status=overdue",
+  "unlinked-patients": "/admin/user-management?status=not_linked",
+};
+
 function getGreeting() {
   const hour = Number(
     new Intl.DateTimeFormat("en-PH", {
@@ -333,7 +338,7 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
                     <span className={`admin-alert-severity is-${String(alert.severity || "review").toLowerCase()}`}>{alert.severity || "Review"}</span>
                     <small>{alert.detail}</small>
                   </div>
-                  <button type="button" onClick={() => onNavigate(alert.target)}>View</button>
+                  <button type="button" onClick={() => onNavigate(alert.target, alert.id)}>View</button>
                 </div>
               ))
             ) : (
@@ -353,8 +358,12 @@ export default function AdminDashboard() {
   const dashboardData = useAdminDashboardData(dateRange, isAdmin, user?.id);
 
   const navigateAdmin = React.useCallback(
-    (page) => {
-      navigate(adminRoutes[page] || adminRoutes.dashboard);
+    (page, alertId = "") => {
+      navigate(
+        adminAlertRoutes[alertId] ||
+          adminRoutes[page] ||
+          adminRoutes.dashboard
+      );
     },
     [navigate]
   );

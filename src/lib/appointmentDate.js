@@ -20,6 +20,7 @@ const CHECKED_IN_STATUSES = new Set([appointmentStatuses.checkedIn]);
 export const appointmentOverviewStatuses = {
   completed: "completed",
   upcoming: "upcoming",
+  overdue: "overdue",
   canceled: "canceled",
   missed: "missed",
   excluded: "excluded",

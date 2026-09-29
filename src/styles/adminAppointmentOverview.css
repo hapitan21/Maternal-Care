@@ -454,6 +454,13 @@
   font-weight: 800;
 }
 
+.admin-appointment-table-card td > small {
+  display: block;
+  margin-top: 3px;
+  color: #92a0b5;
+  font-size: 9px;
+}
+
 .admin-appointment-person {
   min-width: 0;
   display: grid;
@@ -526,6 +533,12 @@
   border-color: #ffd8ad;
   color: #ff7900;
   background: #fff6eb;
+}
+
+.admin-appointment-status--overdue {
+  border-color: #f5b8c8;
+  color: #c92a58;
+  background: #fff0f4;
 }
 
 .admin-appointment-status--canceled {

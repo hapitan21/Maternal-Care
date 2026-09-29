@@ -15,6 +15,11 @@ import {
   setAdminWorkspaceSnapshot,
 } from "../lib/adminWorkspaceSnapshots";
 
+import {
+  isUnresolvedOverdueAppointment,
+  queryAdminOverdueScheduleRows,
+} from "../lib/adminAppointmentOverdue";
+
 import { supabase } from "../lib/supabaseClient";
 
 const appointmentOverviewSnapshotNamespace = "appointment-overview";
@@ -63,6 +68,7 @@ function getStatusLabel(status) {
     {
       [appointmentOverviewStatuses.completed]: "Completed",
       [appointmentOverviewStatuses.upcoming]: "Upcoming",
+      [appointmentOverviewStatuses.overdue]: "Overdue",
       [appointmentOverviewStatuses.canceled]: "Canceled",
       [appointmentOverviewStatuses.missed]: "Missed",
     }[status] || "Upcoming"
@@ -77,11 +83,15 @@ function mapAppointmentRow(
 ) {
   if (!row?.id || !row.start_time) return null;
 
-  const status = normalizeAppointmentOverviewStatus(row.status);
+  const normalizedStatus = normalizeAppointmentOverviewStatus(row.status);
 
-  if (status === appointmentOverviewStatuses.excluded) {
+  if (normalizedStatus === appointmentOverviewStatuses.excluded) {
     return null;
   }
+
+  const status = isUnresolvedOverdueAppointment(row)
+    ? appointmentOverviewStatuses.overdue
+    : normalizedStatus;
 
   const patient =
     patientById.get(cleanText(row.patient_id)) || null;
@@ -270,14 +280,16 @@ function logOverviewError(error) {
 export function useAdminAppointmentOverview(
   selectedDateKey,
   enabled = true,
-  adminId = ""
+  adminId = "",
+  overdueOnly = false
 ) {
   const mountedRef = useRef(true);
   const requestIdRef = useRef(0);
   const pendingRequestRef = useRef(null);
 
-  const snapshotKey =
-    selectedDateKey || "no-date";
+  const snapshotKey = overdueOnly
+    ? appointmentOverviewStatuses.overdue
+    : selectedDateKey || "no-date";
 
   const stateKey =
     `${adminId}:${snapshotKey}`;
@@ -308,7 +320,7 @@ export function useAdminAppointmentOverview(
     if (
       !enabled ||
       !adminId ||
-      !selectedDateKey
+      (!selectedDateKey && !overdueOnly)
     ) {
       setState({
         appointments: [],
@@ -359,42 +371,53 @@ export function useAdminAppointmentOverview(
 
     const promise = (async () => {
       try {
-        const startIso =
-          toManilaISOString(
-            selectedDateKey,
-            "00:00"
-          );
+        let scheduleRows;
+        let scheduleError;
 
-        const start =
-          new Date(startIso);
+        if (overdueOnly) {
+          const overdueResult =
+            await queryAdminOverdueScheduleRows();
 
-        if (
-          !startIso ||
-          Number.isNaN(start.getTime())
-        ) {
-          throw new Error(
-            "The selected appointment date is invalid."
-          );
+          scheduleRows = overdueResult.data;
+          scheduleError = overdueResult.error;
+        } else {
+          const startIso =
+            toManilaISOString(
+              selectedDateKey,
+              "00:00"
+            );
+
+          const start =
+            new Date(startIso);
+
+          if (
+            !startIso ||
+            Number.isNaN(start.getTime())
+          ) {
+            throw new Error(
+              "The selected appointment date is invalid."
+            );
+          }
+
+          const endIso =
+            new Date(
+              start.getTime() +
+                24 * 60 * 60 * 1000
+            ).toISOString();
+
+          const scheduleResult = await supabase
+            .from("schedule")
+            .select(scheduleColumns)
+            .gte("start_time", startIso)
+            .lt("start_time", endIso)
+            .order(
+              "start_time",
+              { ascending: true }
+            );
+
+          scheduleRows = scheduleResult.data;
+          scheduleError = scheduleResult.error;
         }
-
-        const endIso =
-          new Date(
-            start.getTime() +
-              24 * 60 * 60 * 1000
-          ).toISOString();
-
-        const {
-          data: scheduleRows,
-          error: scheduleError,
-        } = await supabase
-          .from("schedule")
-          .select(scheduleColumns)
-          .gte("start_time", startIso)
-          .lt("start_time", endIso)
-          .order(
-            "start_time",
-            { ascending: true }
-          );
 
         if (scheduleError) {
           throw scheduleError;
@@ -501,6 +524,7 @@ export function useAdminAppointmentOverview(
     selectedDateKey,
     snapshotKey,
     stateKey,
+    overdueOnly,
   ]);
 
   useEffect(() => {
@@ -516,7 +540,7 @@ export function useAdminAppointmentOverview(
       enabled && adminId
         ? supabase
             .channel(
-              `admin-appointment-overview-${selectedDateKey}`
+              `admin-appointment-overview-${snapshotKey}`
             )
             .on(
               "postgres_changes",
@@ -536,6 +560,7 @@ export function useAdminAppointmentOverview(
                   .filter(Boolean);
 
                 if (
+                  overdueOnly ||
                   affectedDates.includes(
                     selectedDateKey
                   )
@@ -562,6 +587,8 @@ export function useAdminAppointmentOverview(
     enabled,
     refresh,
     selectedDateKey,
+    snapshotKey,
+    overdueOnly,
   ]);
 
   const renderSnapshot =

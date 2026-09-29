@@ -1,5 +1,6 @@
 import React from "react";
 import { Icon } from "@iconify/react";
+import { useSearchParams } from "react-router-dom";
 import { useAdminAppointmentOverview } from "../../hooks/useAdminAppointmentOverview";
 import { useAdminAuth } from "../../hooks/useAdminAuth";
 import AdminPageHeader from "../../components/admin/AdminPageHeader";
@@ -18,6 +19,7 @@ const statusOptions = [
   { value: "all", label: "All" },
   { value: appointmentOverviewStatuses.completed, label: "Completed" },
   { value: appointmentOverviewStatuses.upcoming, label: "Upcoming" },
+  { value: appointmentOverviewStatuses.overdue, label: "Overdue" },
   { value: appointmentOverviewStatuses.canceled, label: "Canceled" },
   { value: appointmentOverviewStatuses.missed, label: "Missed" },
 ];
@@ -60,6 +62,14 @@ const summaryDefinitions = [
 
 function cleanText(value) {
   return String(value || "").trim();
+}
+
+function getStatusFilterFromSearchParams(searchParams) {
+  const requestedStatus = cleanText(searchParams.get("status")).toLowerCase();
+
+  return statusOptions.some((option) => option.value === requestedStatus)
+    ? requestedStatus
+    : "all";
 }
 
 function getInitials(name) {
@@ -241,20 +251,23 @@ function Pagination({ page, pageCount, onChange }) {
 
 export default function AdminAppointmentOverview() {
   const { isAdmin, user } = useAdminAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedDateKey, setSelectedDateKey] = React.useState(() => getManilaDateKey(new Date()));
   const initialDateParts = getDateParts(selectedDateKey);
   const [calendarMonth, setCalendarMonth] = React.useState(
     () => new Date(initialDateParts.year, initialDateParts.month, 1, 12)
   );
   const [search, setSearch] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState("all");
+  const statusFilter = getStatusFilterFromSearchParams(searchParams);
   const [doctorFilter, setDoctorFilter] = React.useState("all");
   const [timeFilter, setTimeFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
+  const overdueOnly = statusFilter === appointmentOverviewStatuses.overdue;
   const { appointments, loading, error, refresh } = useAdminAppointmentOverview(
     selectedDateKey,
     isAdmin,
-    user?.id
+    user?.id,
+    overdueOnly
   );
 
   const doctorOptions = React.useMemo(() => {
@@ -310,6 +323,11 @@ export default function AdminAppointmentOverview() {
     if (!parts) return;
     setSelectedDateKey(dateKey);
     setCalendarMonth(new Date(parts.year, parts.month, 1, 12));
+    if (overdueOnly) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("status");
+      setSearchParams(nextParams, { replace: true });
+    }
     setPage(1);
   };
 
@@ -318,12 +336,26 @@ export default function AdminAppointmentOverview() {
     setPage(1);
   };
 
+  const updateStatusFilter = (event) => {
+    const nextStatus = event.target.value;
+    const nextParams = new URLSearchParams(searchParams);
+
+    setPage(1);
+
+    if (nextStatus === "all") nextParams.delete("status");
+    else nextParams.set("status", nextStatus);
+
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const clearFilters = () => {
     setSearch("");
-    setStatusFilter("all");
     setDoctorFilter("all");
     setTimeFilter("all");
     setPage(1);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("status");
+    setSearchParams(nextParams, { replace: true });
   };
 
   const changeMonth = (offset) => {
@@ -361,7 +393,7 @@ export default function AdminAppointmentOverview() {
               onChange={updateFilter(setSearch)}
             />
           </label>
-          <FilterSelect label="Status" value={statusFilter} onChange={updateFilter(setStatusFilter)}>
+          <FilterSelect label="Status" value={statusFilter} onChange={updateStatusFilter}>
             {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </FilterSelect>
           <FilterSelect label="Doctor" value={doctorFilter} onChange={updateFilter(setDoctorFilter)}>
@@ -387,14 +419,22 @@ export default function AdminAppointmentOverview() {
             />
             <div className="admin-appointment-date-note">
               <Icon icon="solar:info-circle-linear" />
-              <p>You are viewing appointments for <strong>{selectedDateLabel}</strong></p>
+              <p>
+                {overdueOnly ? (
+                  <>You are viewing <strong>all overdue unresolved appointments</strong></>
+                ) : (
+                  <>You are viewing appointments for <strong>{selectedDateLabel}</strong></>
+                )}
+              </p>
             </div>
           </aside>
 
           <section className="admin-appointment-table-card" aria-labelledby="appointment-table-title">
             <header>
               <h2 id="appointment-table-title">
-                Appointments for {selectedDateLabel} ({appointments.length})
+                {overdueOnly
+                  ? `Overdue appointments (${appointments.length})`
+                  : `Appointments for ${selectedDateLabel} (${appointments.length})`}
               </h2>
             </header>
 
@@ -429,7 +469,10 @@ export default function AdminAppointmentOverview() {
                         ))
                       : visibleAppointments.map((appointment) => (
                           <tr key={appointment.id}>
-                            <td><strong>{appointment.timeLabel}</strong></td>
+                            <td>
+                              <strong>{appointment.timeLabel}</strong>
+                              {overdueOnly ? <small>{appointment.dateLabel}</small> : null}
+                            </td>
                             <td>
                               <div className="admin-appointment-person">
                                 <span>{getInitials(appointment.patientName)}</span>
