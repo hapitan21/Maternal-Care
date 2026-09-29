@@ -251,7 +251,14 @@ function mapAppointmentOverview(rows) {
 function alignOverdueSystemAlert(alerts, overdueCount) {
   const safeAlerts = Array.isArray(alerts) ? alerts : [];
 
-  if (!Number.isFinite(overdueCount)) return safeAlerts;
+  // The shared overdue query is the authoritative source.
+  // If it failed and no trusted cached count exists, do not fall back
+  // to the Dashboard RPC's independently calculated overdue value.
+  if (!Number.isFinite(overdueCount)) {
+    return safeAlerts.filter(
+      (alert) => alert?.id !== "overdue-appointments"
+    );
+  }
 
   const existingIndex = safeAlerts.findIndex(
     (alert) => alert?.id === "overdue-appointments"
@@ -291,6 +298,28 @@ function alignOverdueSystemAlert(alerts, overdueCount) {
       ? { ...alert, count: overdueCount, detail: overdueAlert.detail }
       : alert
   );
+}
+
+function getCachedOverdueAlertCount(summary) {
+  const alerts = Array.isArray(summary?.systemAlerts)
+    ? summary.systemAlerts
+    : [];
+
+  const overdueAlert = alerts.find(
+    (alert) => alert?.id === "overdue-appointments"
+  );
+
+  // A valid cached Dashboard with no overdue alert means
+  // the last authoritative overdue count was zero.
+  if (!overdueAlert) {
+    return 0;
+  }
+
+  const count = Number(overdueAlert.count);
+
+  return Number.isFinite(count)
+    ? count
+    : undefined;
 }
 
 function alignUnlinkedPatientAlert(alerts, unlinkedPatientCount) {
@@ -634,16 +663,20 @@ export function useAdminDashboardData(
               : summaryResult.error,
           }));
         } else {
-          const nextSummary = mapSummary(
-            summaryResult.data,
-            range,
-            overdueResult.error
-              ? undefined
-              : overdueResult.data.length,
-            unlinkedPatientResult.error
-              ? undefined
-              : unlinkedPatientResult.count
-          );
+          const cachedOverdueCount = hasCachedSummary
+  ? getCachedOverdueAlertCount(cachedSnapshot.summary)
+  : undefined;
+
+const nextSummary = mapSummary(
+  summaryResult.data,
+  range,
+  overdueResult.error
+    ? cachedOverdueCount
+    : overdueResult.data.length,
+  unlinkedPatientResult.error
+    ? undefined
+    : unlinkedPatientResult.count
+);
 
           setSummaryState({
             data: nextSummary,
