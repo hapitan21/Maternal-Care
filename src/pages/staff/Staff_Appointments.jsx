@@ -34,7 +34,6 @@ import AppointmentTimePicker from "../../components/appointments/AppointmentTime
 import {
   APPOINTMENT_CATEGORIES,
   APPOINTMENT_TYPES,
-  buildThirtyMinuteAppointmentRange,
   getAppointmentTypeCategory,
   getAppointmentTypeForCategory,
 } from "../../lib/appointmentTypes";
@@ -3434,55 +3433,90 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
         return;
       }
 
-      const appointmentRange = buildThirtyMinuteAppointmentRange(
-        rescheduleForm.date,
-        rescheduleForm.time
-      );
-
-      if (!appointmentRange) {
-        setRescheduleError("Choose a valid reschedule date and time.");
-        return;
-      }
-
-      const { startDate, endDate } = appointmentRange;
-
-      if (startDate < new Date()) {
-        setRescheduleError(
-          "Rescheduled appointments cannot start in the past."
-        );
-        return;
-      }
-
-      const startTime = startDate.toISOString();
-      const endTime = endDate.toISOString();
+      const existingStartDate = new Date(appointment.startTime);
+      const existingEndDate = new Date(appointment.endTime);
 
       if (
-        hasAppointmentConflict(appointments, {
-          id: appointment.id,
-          start: startTime,
-          end: endTime,
-        })
+        Number.isNaN(existingStartDate.getTime()) ||
+        Number.isNaN(existingEndDate.getTime()) ||
+        existingEndDate <= existingStartDate
       ) {
         setRescheduleError(
-          "This appointment conflicts with another active appointment."
+          "This appointment has an invalid stored time range and cannot be rescheduled."
         );
         return;
       }
-
-      const description = buildStaffScheduleDescription(
-        appointment.description,
-        {
-          message: rescheduleForm.message,
-          cancellationReason: "",
-          remindersDisabled: false,
-        }
-      );
 
       rescheduleSaveLockRef.current = true;
       setIsReschedulingAppointment(true);
       setRescheduleError("");
 
       try {
+        let appointmentPolicy;
+
+        try {
+          appointmentPolicy = await loadOperationalAppointmentPolicy();
+        } catch (error) {
+          setRescheduleError(
+            error?.message ||
+              "Unable to load the operational appointment policy. Please try again."
+          );
+          return;
+        }
+
+        let startTime;
+
+        try {
+          startTime = clinicLocalDateTimeToISOString(
+            rescheduleForm.date,
+            rescheduleForm.time,
+            appointmentPolicy.timezone
+          );
+        } catch (error) {
+          setRescheduleError(
+            error?.message || "Choose a valid reschedule date and time."
+          );
+          return;
+        }
+
+        const existingDurationMilliseconds =
+          existingEndDate.getTime() - existingStartDate.getTime();
+        const startDate = new Date(startTime);
+        const endDate = new Date(
+          startDate.getTime() + existingDurationMilliseconds
+        );
+
+        if (startDate < new Date()) {
+          setRescheduleError(
+            "Rescheduled appointments cannot start in the past."
+          );
+          return;
+        }
+
+        const endTime = endDate.toISOString();
+
+        if (
+          hasAppointmentConflict(appointments, {
+            id: appointment.id,
+            start: startTime,
+            end: endTime,
+          })
+        ) {
+          setRescheduleError(
+            "This appointment conflicts with another active appointment."
+          );
+          return;
+        }
+
+        const description = buildStaffScheduleDescription(
+          appointment.description,
+          {
+            message: rescheduleForm.message,
+            cancellationReason: "",
+            remindersDisabled: false,
+          }
+        );
+
         const { data: rescheduleResult, error } = await supabase.rpc(
           "reschedule_appointment",
           {
@@ -3881,38 +3915,64 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     let endDate;
     let startTime;
     let endTime;
+    let existingDurationMilliseconds;
 
     if (wasEditing) {
-      // Preserve the existing Staff edit/reschedule behavior.
-      // Do NOT make existing appointments adopt the current Admin default duration.
-      const appointmentRange = buildThirtyMinuteAppointmentRange(
-        addAppointmentForm.date,
-        addAppointmentForm.startTime
+      const existingAppointment = appointments.find(
+        (appointment) => appointment.id === editingAppointmentId
       );
+      const existingStartDate = new Date(existingAppointment?.startTime);
+      const existingEndDate = new Date(existingAppointment?.endTime);
 
-      if (!appointmentRange) {
-        setAddAppointmentError("Choose a valid appointment date and time.");
-        return;
-      }
-
-      startDate = appointmentRange.startDate;
-      endDate = appointmentRange.endDate;
-
-      startTime = startDate.toISOString();
-      endTime = endDate.toISOString();
-    } else {
-      // NEW appointments use the operational Appointment Policy.
-      let appointmentPolicy;
-
-      try {
-        appointmentPolicy = await loadOperationalAppointmentPolicy();
-      } catch (error) {
+      if (
+        !existingAppointment ||
+        Number.isNaN(existingStartDate.getTime()) ||
+        Number.isNaN(existingEndDate.getTime()) ||
+        existingEndDate <= existingStartDate
+      ) {
         setAddAppointmentError(
-          error?.message ||
-            "Unable to load the operational appointment policy. Please try again."
+          "This appointment has an invalid stored time range and cannot be rescheduled."
         );
         return;
       }
+
+      existingDurationMilliseconds =
+        existingEndDate.getTime() - existingStartDate.getTime();
+    }
+
+    let appointmentPolicy;
+
+    try {
+      appointmentPolicy = await loadOperationalAppointmentPolicy();
+    } catch (error) {
+      setAddAppointmentError(
+        error?.message ||
+          "Unable to load the operational appointment policy. Please try again."
+      );
+      return;
+    }
+
+    if (wasEditing) {
+      try {
+        startTime = clinicLocalDateTimeToISOString(
+          addAppointmentForm.date,
+          addAppointmentForm.startTime,
+          appointmentPolicy.timezone
+        );
+      } catch (error) {
+        setAddAppointmentError(
+          error?.message || "Choose a valid appointment date and time."
+        );
+        return;
+      }
+
+      startDate = new Date(startTime);
+      endDate = new Date(
+        startDate.getTime() + existingDurationMilliseconds
+      );
+      endTime = endDate.toISOString();
+    } else {
+      // NEW appointments use the operational Appointment Policy.
 
       try {
         startTime = clinicLocalDateTimeToISOString(

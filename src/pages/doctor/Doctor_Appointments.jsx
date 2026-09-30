@@ -31,7 +31,6 @@ import {
 import {
   APPOINTMENT_CATEGORIES,
   APPOINTMENT_TYPES,
-  buildThirtyMinuteAppointmentRange,
   getAppointmentTypeCategory,
 } from "../../lib/appointmentTypes";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
@@ -2641,17 +2640,53 @@ export function DoctorAppointmentsContent({
 
     try {
 
-    const appointmentRange = buildThirtyMinuteAppointmentRange(
-      rescheduleForm.date,
-      rescheduleForm.time
-    );
+    const existingStartDate = toDate(rescheduleSchedule.start_time);
+    const existingEndDate = toDate(rescheduleSchedule.end_time);
 
-    if (!appointmentRange) {
-      setRescheduleError("Choose a valid reschedule date and time.");
+    if (
+      !existingStartDate ||
+      !existingEndDate ||
+      existingEndDate <= existingStartDate
+    ) {
+      setRescheduleError(
+        "This appointment has an invalid stored time range and cannot be rescheduled."
+      );
       return;
     }
 
-    const { startDate, endDate } = appointmentRange;
+    let appointmentPolicy;
+
+    try {
+      appointmentPolicy = await loadOperationalAppointmentPolicy();
+    } catch (error) {
+      setRescheduleError(
+        error?.message ||
+          "Unable to load the operational appointment policy. Please try again."
+      );
+      return;
+    }
+
+    let startTime;
+
+    try {
+      startTime = clinicLocalDateTimeToISOString(
+        rescheduleForm.date,
+        rescheduleForm.time,
+        appointmentPolicy.timezone
+      );
+    } catch (error) {
+      setRescheduleError(
+        error?.message || "Choose a valid reschedule date and time."
+      );
+      return;
+    }
+
+    const existingDurationMilliseconds =
+      existingEndDate.getTime() - existingStartDate.getTime();
+    const startDate = new Date(startTime);
+    const endDate = new Date(
+      startDate.getTime() + existingDurationMilliseconds
+    );
 
     if (startDate < new Date()) {
       setRescheduleError("Rescheduled appointments cannot start in the past.");
@@ -2659,7 +2694,7 @@ export function DoctorAppointmentsContent({
     }
 
     const payload = {
-      start_time: startDate.toISOString(),
+      start_time: startTime,
       end_time: endDate.toISOString(),
       description: buildScheduleDescription(rescheduleSchedule.description, {
         message: rescheduleForm.message,
