@@ -223,7 +223,12 @@ export default function AdminSystemSettings() {
     loadRequestRef.current += 1;
     setSavingSection(sectionBeingSaved);
     setFeedback(null);
-    const result = await updateAdminSystemSettings(sectionBeingSaved, values);
+    const valuesToSave = mergeSettingsSection(
+      baselineValues,
+      values,
+      sectionBeingSaved
+    );
+    const result = await updateAdminSystemSettings(sectionBeingSaved, valuesToSave);
 
     if (result.error) {
       setFeedback({ section: sectionBeingSaved, tone: "error", message: result.error });
