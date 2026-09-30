@@ -154,10 +154,18 @@ export function mergeSettingsSection(current, saved, section) {
   );
 }
 
+function parseInteger(value) {
+  const normalizedValue = String(value ?? "").trim();
+  if (!normalizedValue) return null;
+
+  const numericValue = Number(normalizedValue);
+  return Number.isInteger(numericValue) ? numericValue : null;
+}
+
 function validateInteger(value, minimum, maximum, label) {
-  const numericValue = Number(value);
+  const numericValue = parseInteger(value);
   if (
-    !Number.isInteger(numericValue) ||
+    numericValue === null ||
     numericValue < minimum ||
     numericValue > maximum
   ) {
@@ -256,10 +264,10 @@ function buildUpdateParameters(section, values) {
     p_timezone: values.timezone.trim(),
     p_clinic_opening_time: values.clinicOpeningTime,
     p_clinic_closing_time: values.clinicClosingTime,
-    p_default_appointment_duration_minutes: Number(values.appointmentDuration),
-    p_booking_interval_minutes: Number(values.bookingInterval),
-    p_cancellation_window_hours: Number(values.cancellationWindow),
-    p_maximum_daily_appointments: Number(values.maximumDailyAppointments),
+    p_default_appointment_duration_minutes: parseInteger(values.appointmentDuration),
+    p_booking_interval_minutes: parseInteger(values.bookingInterval),
+    p_cancellation_window_hours: parseInteger(values.cancellationWindow),
+    p_maximum_daily_appointments: parseInteger(values.maximumDailyAppointments),
     p_appointment_reminders_enabled: values.appointmentReminders,
     p_medication_reminder_alerts_enabled: values.medicationReminderAlerts,
 
@@ -275,8 +283,8 @@ function buildUpdateParameters(section, values) {
     p_second_reminder_hours_before: parseReminder(values.secondReminder),
     p_date_format: values.dateFormat,
     p_time_format: values.timeFormat,
-    p_records_per_page: Number(values.recordsPerPage),
-    p_dashboard_refresh_seconds: Number(values.dashboardRefreshInterval),
+    p_records_per_page: parseInteger(values.recordsPerPage),
+    p_dashboard_refresh_seconds: parseInteger(values.dashboardRefreshInterval),
   };
 }
 
