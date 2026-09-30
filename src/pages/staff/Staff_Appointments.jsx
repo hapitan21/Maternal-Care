@@ -3,6 +3,10 @@ import { Icon } from "@iconify/react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  clinicLocalDateTimeToISOString,
+  loadOperationalAppointmentPolicy,
+} from "../../lib/appointmentPolicy";
 import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
 import StaffPreConsultationForm from "../appointments/StaffPreConsultationForm";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
@@ -3825,12 +3829,13 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   };
 
   const saveAppointment = async (event) => {
-    event.preventDefault();
-    if (appointmentSaveLockRef.current) return;
+  event.preventDefault();
 
-    appointmentSaveLockRef.current = true;
+  if (appointmentSaveLockRef.current) return;
 
-    try {
+  appointmentSaveLockRef.current = true;
+
+  try {
     setAddAppointmentError("");
 
     if (!addAppointmentForm.patientName.trim()) {
@@ -3867,33 +3872,77 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
       setAddAppointmentError(
         "Select a registered patient so the appointment can notify their account."
       );
-      setIsSavingAppointment(false);
       return;
     }
 
-    const appointmentRange = buildThirtyMinuteAppointmentRange(
-      addAppointmentForm.date,
-      addAppointmentForm.startTime
-    );
+    const wasEditing = Boolean(editingAppointmentId);
 
-    if (!appointmentRange) {
-      setAddAppointmentError("Choose a valid appointment date and time.");
-      setIsSavingAppointment(false);
-      return;
+    let startDate;
+    let endDate;
+    let startTime;
+    let endTime;
+
+    if (wasEditing) {
+      // Preserve the existing Staff edit/reschedule behavior.
+      // Do NOT make existing appointments adopt the current Admin default duration.
+      const appointmentRange = buildThirtyMinuteAppointmentRange(
+        addAppointmentForm.date,
+        addAppointmentForm.startTime
+      );
+
+      if (!appointmentRange) {
+        setAddAppointmentError("Choose a valid appointment date and time.");
+        return;
+      }
+
+      startDate = appointmentRange.startDate;
+      endDate = appointmentRange.endDate;
+
+      startTime = startDate.toISOString();
+      endTime = endDate.toISOString();
+    } else {
+      // NEW appointments use the operational Appointment Policy.
+      let appointmentPolicy;
+
+      try {
+        appointmentPolicy = await loadOperationalAppointmentPolicy();
+      } catch (error) {
+        setAddAppointmentError(
+          error?.message ||
+            "Unable to load the operational appointment policy. Please try again."
+        );
+        return;
+      }
+
+      try {
+        startTime = clinicLocalDateTimeToISOString(
+          addAppointmentForm.date,
+          addAppointmentForm.startTime,
+          appointmentPolicy.timezone
+        );
+      } catch (error) {
+        setAddAppointmentError(
+          error?.message || "Choose a valid appointment date and time."
+        );
+        return;
+      }
+
+      startDate = new Date(startTime);
+
+      endDate = new Date(
+        startDate.getTime() +
+          appointmentPolicy.defaultAppointmentDurationMinutes * 60 * 1000
+      );
+
+      endTime = endDate.toISOString();
     }
-
-    const { startDate, endDate } = appointmentRange;
 
     if (startDate < new Date()) {
       setAddAppointmentError(
         "The selected appointment date and time has already passed. Please choose a future date and time."
       );
-      setIsSavingAppointment(false);
       return;
     }
-
-    const startTime = startDate.toISOString();
-    const endTime = endDate.toISOString();
 
     if (
       hasAppointmentConflict(appointments, {
@@ -3905,63 +3954,90 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
       setAddAppointmentError(
         "This appointment conflicts with another active appointment."
       );
-      setIsSavingAppointment(false);
       return;
     }
 
-    const category = categoryList.find((item) => item.id === addAppointmentForm.category);
-    const wasEditing = Boolean(editingAppointmentId);
+    const category = categoryList.find(
+      (item) => item.id === addAppointmentForm.category
+    );
+
+    const title =
+      addAppointmentForm.appointmentType.trim() ||
+      category?.label ||
+      "Appointment";
+
+    const description = JSON.stringify({
+      category: addAppointmentForm.category,
+      notes: addAppointmentForm.notes.trim(),
+    });
+
     const payload = {
       patient_id: patientRecordId,
       patient_name: addAppointmentForm.patientName.trim(),
       doctor_id: selectedDoctor.id,
       doctor_name: selectedDoctor.name,
-      title: addAppointmentForm.appointmentType.trim() || category?.label || "Appointment",
-      description: JSON.stringify({
-        category: addAppointmentForm.category,
-        notes: addAppointmentForm.notes.trim(),
-      }),
+      title,
+      description,
       start_time: startTime,
       end_time: endTime,
       status: "scheduled",
     };
 
     const saveQuery = wasEditing
-      ? supabase
-          .rpc("reschedule_appointment", {
-            p_schedule_id: editingAppointmentId,
-            p_new_start_time: payload.start_time,
-            p_new_end_time: payload.end_time,
-            p_description: payload.description,
-            p_apply_full_update: true,
-            p_patient_id: payload.patient_id,
-            p_patient_name: payload.patient_name,
-            p_doctor_id: payload.doctor_id,
-            p_doctor_name: payload.doctor_name,
-            p_title: payload.title,
-          })
-      : supabase
-          .from(scheduleTableName)
-          .insert([payload])
-          .select(scheduleColumns)
-          .single();
+      ? supabase.rpc("reschedule_appointment", {
+          p_schedule_id: editingAppointmentId,
+          p_new_start_time: payload.start_time,
+          p_new_end_time: payload.end_time,
+          p_description: payload.description,
+          p_apply_full_update: true,
+          p_patient_id: payload.patient_id,
+          p_patient_name: payload.patient_name,
+          p_doctor_id: payload.doctor_id,
+          p_doctor_name: payload.doctor_name,
+          p_title: payload.title,
+        })
+      : supabase.rpc("create_standard_appointment", {
+          p_patient_id: patientRecordId,
+          p_doctor_id: selectedDoctor.id,
+          p_title: title,
+          p_description: description,
+          p_start_time: startTime,
+        });
 
     const { data: savedResult, error } = await saveQuery;
-    const savedSchedule = wasEditing ? savedResult?.schedule : savedResult;
+
+    const savedSchedule = wasEditing
+      ? savedResult?.schedule
+      : savedResult;
+
     const appointmentEventId = wasEditing
       ? savedResult?.appointment_event_id || null
       : null;
 
     if (error) {
-      setIsSavingAppointment(false);
-      console.error("Staff appointment insert failed:", error);
-      setAddAppointmentError(`Unable to save appointment: ${error.message}`);
+      console.error("Staff appointment save failed:", error);
+
+      setAddAppointmentError(
+        `Unable to save appointment: ${error.message || "Unknown error."}`
+      );
+
       return;
     }
 
-    const nextDate = new Date(startTime);
-    setCalendarDate(nextDate);
-    setMiniMonthDate(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+    const [calendarYear, calendarMonth, calendarDay] =
+  addAppointmentForm.date.split("-").map(Number);
+
+const nextDate = new Date(
+  calendarYear,
+  calendarMonth - 1,
+  calendarDay
+);
+
+setCalendarDate(nextDate);
+setMiniMonthDate(
+  new Date(calendarYear, calendarMonth - 1, 1)
+);
+
     const notificationResult = savedSchedule
       ? await sendAutomaticAppointmentNotification({
           patientId: savedSchedule.patient_id,
@@ -3973,43 +4049,52 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
         })
       : {
           ok: false,
-          error: { message: "The saved appointment was not returned." },
+          error: {
+            message: "The saved appointment was not returned.",
+          },
         };
+
     setAddAppointmentError("");
     setIsAddAppointmentOpen(false);
     setEditingAppointmentId("");
-    setAddAppointmentForm(createBlankAppointmentForm(doctors[0] || null));
+    setAddAppointmentForm(
+      createBlankAppointmentForm(doctors[0] || null)
+    );
+
     await loadAppointments();
 
-    const notificationMessage = wasEditing && !savedResult?.rescheduled
-      ? "Appointment details saved. The appointment time did not change."
-      : getAutomaticNotificationStatusMessage(notificationResult, {
-          sentMessage: wasEditing
-            ? "Appointment rescheduled and Patient notified."
-            : "Appointment created and Patient notified.",
-          skippedMessage: wasEditing
-            ? "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent."
-            : "Appointment created successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
-          failedMessage: wasEditing
-            ? "Appointment rescheduled successfully, but the Patient notification could not be sent."
-            : "Appointment was saved, but the Patient notification could not be sent.",
-        });
+    const notificationMessage =
+      wasEditing && !savedResult?.rescheduled
+        ? "Appointment details saved. The appointment time did not change."
+        : getAutomaticNotificationStatusMessage(notificationResult, {
+            sentMessage: wasEditing
+              ? "Appointment rescheduled and Patient notified."
+              : "Appointment created and Patient notified.",
+
+            skippedMessage: wasEditing
+              ? "Appointment rescheduled successfully. The Patient has not activated their app account yet, so no in-app notification was sent."
+              : "Appointment created successfully. The Patient has not activated their app account yet, so no in-app notification was sent.",
+
+            failedMessage: wasEditing
+              ? "Appointment rescheduled successfully, but the Patient notification could not be sent."
+              : "Appointment was saved, but the Patient notification could not be sent.",
+          });
 
     if (
-      (!wasEditing ||
-        !savedResult?.rescheduled ||
-        notificationResult?.ok ||
-        notificationResult?.skipped)
+      !wasEditing ||
+      !savedResult?.rescheduled ||
+      notificationResult?.ok ||
+      notificationResult?.skipped
     ) {
       showSuccessMessage(notificationMessage);
     } else {
       setStatusMessage(notificationMessage);
     }
-    } finally {
-      appointmentSaveLockRef.current = false;
-      setIsSavingAppointment(false);
-    }
-  };
+  } finally {
+    appointmentSaveLockRef.current = false;
+    setIsSavingAppointment(false);
+  }
+};
 
   const openAppointmentDetails = useCallback(
     (appointmentId) => {
