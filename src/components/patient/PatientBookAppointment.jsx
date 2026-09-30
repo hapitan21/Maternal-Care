@@ -124,6 +124,189 @@ function getDoctorName(profile, personalById) {
   );
 }
 
+function DoctorSelectDropdown({
+  doctors,
+  selectedDoctor,
+  selectedDoctorId,
+  isLoading,
+  onSelect,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const optionRefs = useRef([]);
+  const selectedIndex = doctors.findIndex(
+    (doctor) => String(doctor.id) === String(selectedDoctorId)
+  );
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+
+  const openMenu = () => {
+    if (isLoading || doctors.length === 0) return;
+
+    setIsOpen(true);
+    window.requestAnimationFrame(() => {
+      optionRefs.current[Math.max(selectedIndex, 0)]?.focus();
+    });
+  };
+
+  const closeMenu = (restoreFocus = false) => {
+    setIsOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => triggerRef.current?.focus());
+    }
+  };
+
+  const selectDoctor = (doctorId) => {
+    onSelect(doctorId);
+    closeMenu(true);
+  };
+
+  const focusOption = (index) => {
+    if (!doctors.length) return;
+    const nextIndex = (index + doctors.length) % doctors.length;
+    optionRefs.current[nextIndex]?.focus();
+  };
+
+  const handleTriggerKeyDown = (event) => {
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+      event.preventDefault();
+      openMenu();
+    }
+  };
+
+  const handleOptionKeyDown = (event, index, doctorId) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusOption(index + 1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(index - 1);
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusOption(0);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      focusOption(doctors.length - 1);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectDoctor(doctorId);
+    }
+  };
+
+  return (
+    <div
+      className={`patient-doctor-select ${isOpen ? "is-open" : ""}`}
+      ref={rootRef}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <button
+        ref={triggerRef}
+        className="patient-doctor-select-trigger"
+        type="button"
+        onClick={() => (isOpen ? closeMenu() : openMenu())}
+        onKeyDown={handleTriggerKeyDown}
+        disabled={isLoading || doctors.length === 0}
+        aria-label="Select doctor"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls="patient-doctor-options"
+      >
+        <span className="patient-doctor-avatar" aria-hidden="true">
+          <Icon icon="solar:user-rounded-linear" />
+        </span>
+        <span className="patient-doctor-copy">
+          <strong>{isLoading ? "Loading doctors..." : selectedDoctor?.name}</strong>
+          <small>{selectedDoctor?.specialty || "Maternal care"}</small>
+        </span>
+        <Icon
+          className="patient-doctor-chevron"
+          icon="solar:alt-arrow-down-linear"
+          aria-hidden="true"
+        />
+      </button>
+
+      {isOpen ? (
+        <div
+          className="patient-doctor-options"
+          id="patient-doctor-options"
+          role="listbox"
+          aria-label="Available doctors"
+        >
+          {doctors.map((doctor, index) => {
+            const isSelected = String(doctor.id) === String(selectedDoctorId);
+
+            return (
+              <button
+                key={doctor.id}
+                ref={(element) => {
+                  optionRefs.current[index] = element;
+                }}
+                className={`patient-doctor-option ${isSelected ? "is-selected" : ""}`}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => selectDoctor(doctor.id)}
+                onKeyDown={(event) =>
+                  handleOptionKeyDown(event, index, doctor.id)
+                }
+              >
+                <span className="patient-doctor-option-avatar" aria-hidden="true">
+                  <Icon icon="solar:stethoscope-linear" />
+                </span>
+                <span className="patient-doctor-option-copy">
+                  <strong>{doctor.name}</strong>
+                  <small>{doctor.specialty || "Maternal care"}</small>
+                </span>
+                {isSelected ? (
+                  <Icon
+                    className="patient-doctor-option-check"
+                    icon="solar:check-circle-bold"
+                    aria-hidden="true"
+                  />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function getReadableBookingError(error) {
   const message = String(error?.message || "");
   const normalized = message.toLowerCase();
@@ -687,24 +870,13 @@ export default function PatientBookAppointment({ profile }) {
               <h2 id="booking-doctor-title">2. Select Doctor</h2>
               <p>Choose your preferred doctor.</p>
             </header>
-            <label className="patient-doctor-select">
-              <span><Icon icon="solar:user-rounded-linear" /></span>
-              <span>
-                <strong>{isLoadingDoctors ? "Loading doctors..." : selectedDoctor?.name}</strong>
-                <small>{selectedDoctor?.specialty || "Maternal care"}</small>
-              </span>
-              <select
-                value={selectedDoctorId}
-                onChange={(event) => handleDoctorSelect(event.target.value)}
-                disabled={isLoadingDoctors}
-                aria-label="Select doctor"
-              >
-                {doctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>{doctor.name}</option>
-                ))}
-              </select>
-              <Icon icon="solar:alt-arrow-down-linear" />
-            </label>
+            <DoctorSelectDropdown
+              doctors={doctors}
+              selectedDoctor={selectedDoctor}
+              selectedDoctorId={selectedDoctorId}
+              isLoading={isLoadingDoctors}
+              onSelect={handleDoctorSelect}
+            />
             <div className="patient-selected-service">
               <Icon icon="solar:info-circle-bold" />
               <span>

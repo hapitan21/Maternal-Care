@@ -131,7 +131,7 @@
   border-radius: 18px;
   background: #fff;
   box-shadow: 0 12px 30px rgba(31, 39, 55, 0.055);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .patient-booking-panel {
@@ -260,66 +260,185 @@
 }
 
 .patient-doctor-select {
+  position: relative;
+  z-index: 2;
+}
+
+.patient-doctor-select.is-open {
+  z-index: 30;
+}
+
+.patient-doctor-select-trigger {
+  width: 100%;
   min-height: 84px;
   border: 1px solid #dce5ef;
   border-radius: 14px;
+  background: #fff;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 28px;
   align-items: center;
   gap: 13px;
   padding: 15px 18px;
-  position: relative;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   box-shadow: 0 4px 9px rgba(31, 42, 62, 0.035);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
-.patient-doctor-select > span:first-child {
+.patient-doctor-select-trigger:hover:not(:disabled),
+.patient-doctor-select.is-open .patient-doctor-select-trigger {
+  border-color: #ff9fba;
+  background: #fffafd;
+  box-shadow: 0 10px 24px rgba(215, 31, 104, 0.1);
+}
+
+.patient-doctor-select-trigger:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.patient-doctor-avatar {
   width: 44px;
   height: 44px;
   border: 1px solid #edf1f6;
   border-radius: 999px;
-  background: #f8fafc;
-  color: #8a9ab0;
+  background: var(--booking-pink-soft);
+  color: var(--booking-pink);
   display: grid;
   place-items: center;
 }
 
-.patient-doctor-select > span:first-child svg {
+.patient-doctor-avatar svg {
   width: 23px;
   height: 23px;
 }
 
-.patient-doctor-select strong,
-.patient-doctor-select small {
+.patient-doctor-copy {
+  min-width: 0;
+}
+
+.patient-doctor-copy strong,
+.patient-doctor-copy small,
+.patient-doctor-option-copy strong,
+.patient-doctor-option-copy small {
   display: block;
 }
 
-.patient-doctor-select strong {
+.patient-doctor-copy strong,
+.patient-doctor-option-copy strong {
   color: var(--booking-ink);
   font-size: 14px;
   line-height: 1.4;
   font-weight: 800;
 }
 
-.patient-doctor-select small {
+.patient-doctor-copy small,
+.patient-doctor-option-copy small {
+  margin-top: 2px;
   color: #91a0b5;
   font-size: 11.5px;
   line-height: 1.4;
 }
 
-.patient-doctor-select select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.patient-doctor-select > svg {
+.patient-doctor-chevron {
   width: 18px;
   height: 18px;
+  justify-self: end;
   color: #91a0b5;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.patient-doctor-select.is-open .patient-doctor-chevron {
+  color: var(--booking-pink);
+  transform: rotate(180deg);
+}
+
+.patient-doctor-options {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: 0;
+  left: 0;
+  max-height: 272px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid #ffd2df;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 20px 42px rgba(71, 32, 52, 0.16);
+}
+
+.patient-doctor-option {
+  width: 100%;
+  min-height: 64px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.patient-doctor-option + .patient-doctor-option {
+  margin-top: 4px;
+}
+
+.patient-doctor-option:hover,
+.patient-doctor-option:focus-visible {
+  border-color: #ffd7e3;
+  background: #fff7fa;
+  transform: translateX(2px);
+}
+
+.patient-doctor-option.is-selected {
+  border-color: #ffb5ca;
+  background: var(--booking-pink-soft);
+}
+
+.patient-doctor-option-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #f5f7fb;
+  color: #8291a7;
+  display: grid;
+  place-items: center;
+}
+
+.patient-doctor-option.is-selected .patient-doctor-option-avatar {
+  background: linear-gradient(135deg, #ff5c8d, #f72f70);
+  color: #fff;
+}
+
+.patient-doctor-option-avatar svg {
+  width: 20px;
+  height: 20px;
+}
+
+.patient-doctor-option-copy {
+  min-width: 0;
+}
+
+.patient-doctor-option-copy strong,
+.patient-doctor-option-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-doctor-option-check {
+  width: 20px;
+  height: 20px;
+  justify-self: end;
+  color: var(--booking-pink);
 }
 
 .patient-selected-service {
@@ -836,15 +955,32 @@
     height: 46px;
   }
 
-  .patient-doctor-select {
+  .patient-doctor-select-trigger {
     grid-template-columns: 46px minmax(0, 1fr) 24px;
     min-height: 88px;
     padding: 14px;
   }
 
-  .patient-doctor-select > span:first-child {
+  .patient-doctor-avatar {
     width: 46px;
     height: 46px;
+  }
+
+  .patient-doctor-options {
+    max-height: min(260px, 46vh);
+    border-radius: 14px;
+  }
+
+  .patient-doctor-option {
+    grid-template-columns: 38px minmax(0, 1fr) 22px;
+    min-height: 60px;
+    gap: 10px;
+    padding: 9px 10px;
+  }
+
+  .patient-doctor-option-avatar {
+    width: 38px;
+    height: 38px;
   }
 
   .patient-selected-service {
