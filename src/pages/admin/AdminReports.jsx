@@ -77,6 +77,7 @@ const reportCards = [
 const statusMeta = {
   completed: { label: "Completed", color: "#18bf7d" },
   upcoming: { label: "Upcoming", color: "#ff9a00" },
+  checkedIn: { label: "Checked In", color: "#3b82f6" },
   canceled: { label: "Canceled", color: "#6978ff" },
   missed: { label: "Missed", color: "#ff476f" },
   rescheduled: { label: "Rescheduled", color: "#f4c64e" },
@@ -454,7 +455,7 @@ function useAdminReportData(range, enabled, view) {
 }
 
 function countStatuses(rows) {
-  const counts = { total: rows.length, completed: 0, upcoming: 0, canceled: 0, missed: 0, rescheduled: 0 };
+  const counts = { total: rows.length, completed: 0, upcoming: 0, checkedIn: 0, canceled: 0, missed: 0, rescheduled: 0 };
   rows.forEach((row) => {
     if (Object.hasOwn(counts, row.status)) counts[row.status] += 1;
   });
@@ -906,6 +907,7 @@ function appointmentSummaryCards(counts, loading = false) {
     { key: "total", label: "Total Appointments", icon: "solar:calendar-mark-linear", tone: "pink" },
     { key: "completed", label: "Completed", icon: "solar:check-circle-linear", tone: "green" },
     { key: "upcoming", label: "Upcoming", icon: "solar:clock-circle-linear", tone: "orange" },
+    { key: "checkedIn", label: "Checked In", icon: "solar:check-circle-linear", tone: "blue" },
     { key: "canceled", label: "Canceled", icon: "solar:close-circle-linear", tone: "blue" },
     { key: "missed", label: "No Show", icon: "solar:danger-circle-linear", tone: "red" },
   ].map(({ key, ...cardProps }) => (
@@ -971,7 +973,7 @@ function AppointmentReportView({ data, loading, error, canExport, refresh, range
     title: viewCopy.appointment.title,
     rangeLabel: formatRangeLabel(range),
     filename: `appointment-summary-${range.from}-to-${range.to}`,
-    summary: ["total", "completed", "upcoming", "canceled", "missed"].map((key) => ({ label: key === "total" ? "Total Appointments" : statusMeta[key].label, value: counts[key] || 0 })),
+    summary: ["total", "completed", "upcoming", "checkedIn", "canceled", "missed"].map((key) => ({ label: key === "total" ? "Total Appointments" : statusMeta[key].label, value: counts[key] || 0 })),
     tables: [
       {
         title: "Appointment Details",
@@ -980,8 +982,8 @@ function AppointmentReportView({ data, loading, error, canExport, refresh, range
       },
       {
         title: "Doctor Workload & Performance",
-        headers: ["Doctor", "Specialization", "Total", "Completed", "Upcoming", "Canceled", "Missed", "Completion Rate"],
-        rows: doctorStats.map((item) => [item.name, item.specialization, item.total, item.completed, item.upcoming, item.canceled, item.missed, `${item.completionRate}%`]),
+        headers: ["Doctor", "Specialization", "Total", "Completed", "Upcoming", "Checked In", "Canceled", "Missed", "Completion Rate"],
+        rows: doctorStats.map((item) => [item.name, item.specialization, item.total, item.completed, item.upcoming, item.checkedIn, item.canceled, item.missed, `${item.completionRate}%`]),
       },
     ],
   };
@@ -1024,11 +1026,11 @@ function AppointmentReportView({ data, loading, error, canExport, refresh, range
           <h2>Doctor Workload &amp; Performance</h2>
           <div className="admin-report-table-wrap">
             <table>
-              <thead><tr><th>Doctor</th><th>Total</th><th>Completed</th><th>Upcoming</th><th>Canceled</th><th>Missed</th><th>Completion Rate</th></tr></thead>
+              <thead><tr><th>Doctor</th><th>Total</th><th>Completed</th><th>Upcoming</th><th>Checked In</th><th>Canceled</th><th>Missed</th><th>Completion Rate</th></tr></thead>
               <tbody>{doctorStats.map((item) => (
                 <tr key={item.key}>
                   <td><div className="admin-report-person is-doctor"><span>{getInitials(item.name, "DR")}</span><div><strong>{item.name}</strong><small>{item.specialization}</small></div></div></td>
-                  <td>{item.total}</td><td>{item.completed}</td><td>{item.upcoming}</td><td>{item.canceled}</td><td>{item.missed}</td>
+                  <td>{item.total}</td><td>{item.completed}</td><td>{item.upcoming}</td><td>{item.checkedIn}</td><td>{item.canceled}</td><td>{item.missed}</td>
                   <td><strong className={`admin-report-rate ${item.completionRate >= 70 ? "is-good" : ""}`}>{item.completionRate}%</strong></td>
                 </tr>
               ))}</tbody>
@@ -1107,10 +1109,10 @@ function PatientReportView({ data, loading, error, canExport, refresh, range, on
 }
 
 function buildDoctorStats(appointments, doctors) {
-  const known = new Map(doctors.map((doctor) => [doctor.id, { ...doctor, key: doctor.id, total: 0, completed: 0, upcoming: 0, canceled: 0, missed: 0, rescheduled: 0 }]));
+  const known = new Map(doctors.map((doctor) => [doctor.id, { ...doctor, key: doctor.id, total: 0, completed: 0, upcoming: 0, checkedIn: 0, canceled: 0, missed: 0, rescheduled: 0 }]));
   appointments.forEach((item) => {
     const key = item.doctorKey;
-    if (!known.has(key)) known.set(key, { id: key, key, name: item.doctorName, specialization: item.doctorSpecialization, total: 0, completed: 0, upcoming: 0, canceled: 0, missed: 0, rescheduled: 0 });
+    if (!known.has(key)) known.set(key, { id: key, key, name: item.doctorName, specialization: item.doctorSpecialization, total: 0, completed: 0, upcoming: 0, checkedIn: 0, canceled: 0, missed: 0, rescheduled: 0 });
     const stats = known.get(key);
     stats.total += 1;
     if (Object.hasOwn(stats, item.status)) stats[item.status] += 1;

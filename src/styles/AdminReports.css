@@ -690,7 +690,8 @@
 .admin-report-status--active { color: #0daf70; background: #e9fbf3; }
 .admin-report-status--upcoming,
 .admin-report-status--temporary { color: #ed9000; background: #fff4e2; }
-.admin-report-status--canceled { color: #6271ef; background: #eef0ff; }
+.admin-report-status--canceled,
+.admin-report-status--checkedIn { color: #6271ef; background: #eef0ff; }
 .admin-report-status--missed,
 .admin-report-status--inactive { color: #e33f61; background: #fff0f3; }
 .admin-report-status--rescheduled { color: #a17b00; background: #fff8db; }
