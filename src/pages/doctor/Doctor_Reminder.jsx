@@ -199,14 +199,7 @@ function normalizePostgresTime(value) {
 }
 
 function formatSupabaseError(error) {
-  return [
-    error?.message,
-    error?.details,
-    error?.hint,
-    error?.code ? `Code: ${error.code}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  return error?.message || "Unknown error.";
 }
 
 function logMedicationReminderDebug(label, details = {}) {

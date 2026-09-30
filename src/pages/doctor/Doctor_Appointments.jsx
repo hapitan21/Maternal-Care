@@ -583,25 +583,11 @@ function getReadableScheduleError(error) {
     return "Supabase cannot find the schedule table.";
   }
 
-  return [
-    error.message,
-    error.details,
-    error.hint,
-    error.code ? `Code: ${error.code}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ") || "Failed to save schedule.";
+  return error.message || "Failed to save schedule.";
 }
 
 function getReadableSupabaseError(error) {
-  return [
-    error?.message,
-    error?.details,
-    error?.hint,
-    error?.code ? `Code: ${error.code}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  return error?.message || "";
 }
 
 function isOperationalAppointmentPolicyError(error) {

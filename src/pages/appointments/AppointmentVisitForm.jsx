@@ -102,9 +102,7 @@ const journeyOptions = [
 ];
 
 function getErrorMessage(error, fallback) {
-  return [error?.message || fallback, error?.code ? `Code: ${error.code}.` : ""]
-    .filter(Boolean)
-    .join(" ");
+  return error?.message || fallback;
 }
 
 function logVisitError(context, error) {

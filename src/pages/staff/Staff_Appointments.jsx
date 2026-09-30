@@ -549,12 +549,7 @@ function logAppointmentReminderError(context, error) {
 }
 
 function getAppointmentReminderErrorMessage(error) {
-  return [
-    error?.message || "Unknown reminder error.",
-    error?.code ? `Code: ${error.code}.` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  return error?.message || "Unknown reminder error.";
 }
 
 function CustomCalendarHeader({
