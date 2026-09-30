@@ -87,6 +87,8 @@ const scheduleColumns =
   "id, maternal_appointment_id, patient_id, doctor_id, patient_name, doctor_name, title, start_time, end_time, status, created_at";
 const patientColumns =
   "id, full_name, patient_id, contact_number, status, account_status, archived_at, created_at";
+const patientOptionColumns =
+  "id, full_name, patient_id, status, account_status, archived_at, created_at";
 const profileColumns = "id, full_name, role, account_status, created_at";
 const professionalColumns = "auth_user_id, board_certification, clinic_hospital_name";
 
@@ -236,11 +238,11 @@ async function fetchRowsByValues(table, columns, column, values) {
   return results.flat();
 }
 
-async function fetchAllAdminPatients(applyFilters) {
+async function fetchAllAdminPatients(applyFilters, columns = patientColumns) {
   const pageSize = 1000;
   const rows = [];
   for (let offset = 0; offset < 10000; offset += pageSize) {
-    let query = supabase.rpc("get_admin_patient_directory").select(patientColumns);
+    let query = supabase.rpc("get_admin_patient_directory").select(columns);
     query = applyFilters(query).range(offset, offset + pageSize - 1);
     const { data, error } = await query;
     if (error) throw error;
@@ -276,7 +278,7 @@ function mapPatientStatus(row) {
   return "temporary";
 }
 
-function mapReportData({ schedules, createdSchedules, previousCreatedSchedules, patients, previousPatients, relatedPatients, profiles, professionals }) {
+function mapReportData({ schedules, createdSchedules, previousCreatedSchedules, patients, previousPatients, patientOptions, relatedPatients, profiles, professionals }) {
   const patientById = new Map([...patients, ...relatedPatients].map((row) => [cleanText(row.id), row]));
   const profileById = new Map(profiles.map((row) => [cleanText(row.id), row]));
   const professionalById = new Map(professionals.map((row) => [cleanText(row.auth_user_id), row]));
@@ -332,6 +334,7 @@ function mapReportData({ schedules, createdSchedules, previousCreatedSchedules, 
     previousCreatedAppointments: previousCreatedSchedules.filter((row) => normalizeReportStatus(row.status) !== "excluded"),
     patients: patients.map(mapPatient).filter(Boolean).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
     previousPatients: previousPatients.filter((row) => !isPatientRecordArchived(row)),
+    patientOptions: patientOptions.map(mapPatient).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name)),
     doctors: profiles
       .filter((row) => lowerText(row.role) === "doctor")
       .map((row) => ({
@@ -380,7 +383,7 @@ function useAdminReportData(range, enabled, view) {
         const needsPatientRegistrations = view === "patient" || view === "trends";
         const rangeFilter = (column, bounds) => (query) =>
           query.gte(column, bounds.startIso).lt(column, bounds.endIso).order(column, { ascending: true });
-        const [schedules, createdSchedules, previousCreatedSchedules, patients, previousPatients, profiles] =
+        const [schedules, createdSchedules, previousCreatedSchedules, patients, previousPatients, patientOptions, profiles] =
           await Promise.all([
             needsScheduledAppointments
               ? fetchAllRows("schedule", scheduleColumns, rangeFilter("start_time", currentBounds))
@@ -396,6 +399,12 @@ function useAdminReportData(range, enabled, view) {
               : Promise.resolve([]),
             needsPatientRegistrations
               ? fetchAllAdminPatients(rangeFilter("created_at", previousBounds))
+              : Promise.resolve([]),
+            view === "patient"
+              ? fetchAllAdminPatients(
+                  (query) => query.order("full_name").order("id"),
+                  patientOptionColumns
+                )
               : Promise.resolve([]),
             needsScheduledAppointments
               ? fetchAllRows("profiles", profileColumns, (query) => query.ilike("role", "doctor").order("full_name"))
@@ -417,7 +426,7 @@ function useAdminReportData(range, enabled, view) {
               doctorIds
             )
           : [];
-        const data = mapReportData({ schedules, createdSchedules, previousCreatedSchedules, patients, previousPatients, relatedPatients, profiles, professionals });
+        const data = mapReportData({ schedules, createdSchedules, previousCreatedSchedules, patients, previousPatients, patientOptions, relatedPatients, profiles, professionals });
         if (mountedRef.current && requestRef.current === requestId) {
           setState({ data, loading: false, error: null, loadedKey: key });
         }
@@ -452,6 +461,62 @@ function useAdminReportData(range, enabled, view) {
     enabled && !state.loading && !state.error && state.data !== null && state.loadedKey === currentKey
   );
   return { ...state, canExport, refresh };
+}
+
+function usePatientCompletedVisits(patientId, range, enabled) {
+  const requestRef = React.useRef(0);
+  const [refreshIndex, setRefreshIndex] = React.useState(0);
+  const currentKey = patientId ? `${patientId}:${range.from}:${range.to}` : "";
+  const [state, setState] = React.useState({ key: "", visits: [], loading: false, error: null });
+
+  React.useEffect(() => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+
+    if (!enabled || !patientId) {
+      return undefined;
+    }
+
+    const bounds = getRangeBoundaries(range);
+
+    void fetchAllRows("schedule", "id, patient_id, start_time, status", (query) =>
+      query
+        .eq("patient_id", patientId)
+        .gte("start_time", bounds.startIso)
+        .lt("start_time", bounds.endIso)
+        .order("start_time", { ascending: false })
+        .order("id", { ascending: false })
+    )
+      .then((rows) => {
+        if (requestRef.current !== requestId) return;
+        const visits = mapCompletedVisits(rows);
+        setState({ key: currentKey, visits, loading: false, error: null });
+      })
+      .catch((error) => {
+        logReportError(error);
+        if (requestRef.current === requestId) {
+          setState({ key: currentKey, visits: [], loading: false, error });
+        }
+      });
+
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [currentKey, enabled, patientId, range, refreshIndex]);
+
+  const matchesCurrentSelection = Boolean(currentKey && state.key === currentKey);
+  return {
+    visits: matchesCurrentSelection ? state.visits : [],
+    loading: Boolean(enabled && currentKey && (!matchesCurrentSelection || state.loading)),
+    error: matchesCurrentSelection ? state.error : null,
+    refresh: () => setRefreshIndex((current) => current + 1),
+  };
+}
+
+function mapCompletedVisits(rows) {
+  return rows
+    .filter((row) => normalizeReportStatus(row.status) === "completed")
+    .map((row) => ({ id: row.id, dateLabel: formatAppointmentDate(row.start_time) }));
 }
 
 function countStatuses(rows) {
@@ -1043,11 +1108,51 @@ function AppointmentReportView({ data, loading, error, canExport, refresh, range
   );
 }
 
+function PatientCompletedVisitResult({ patient, range }) {
+  const completedVisits = usePatientCompletedVisits(patient.id, range, true);
+  return (
+    <div className="admin-report-patient-visit-result">
+      <div className="admin-report-patient-visit-identity">
+        <span>{getInitials(patient.name)}</span>
+        <div><small>Selected Patient</small><strong>{patient.name}</strong><p>{patient.displayId}</p></div>
+      </div>
+      <div className="admin-report-patient-visit-total">
+        <small>Total Completed Visits</small>
+        <strong>{completedVisits.loading ? "—" : completedVisits.visits.length}</strong>
+      </div>
+      <div className="admin-report-patient-visit-dates">
+        <h3>Visit Dates</h3>
+        {completedVisits.loading ? (
+          <p role="status">Loading completed visits...</p>
+        ) : completedVisits.error ? (
+          <div role="alert">
+            <p>Unable to load completed visits. Please try again.</p>
+            <button type="button" onClick={completedVisits.refresh}>Retry</button>
+          </div>
+        ) : completedVisits.visits.length ? (
+          <ul>{completedVisits.visits.map((visit) => <li key={visit.id}>{visit.dateLabel}</li>)}</ul>
+        ) : (
+          <p>No completed visits found for this patient in the selected period.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PatientReportView({ data, loading, error, canExport, refresh, range, onRangeChange, originalRange }) {
   const [status, setStatus] = React.useState("all");
   const [search, setSearch] = React.useState("");
+  const [patientSearch, setPatientSearch] = React.useState("");
+  const [selectedPatientId, setSelectedPatientId] = React.useState("");
   const [page, setPage] = React.useState(1);
   const patients = data?.patients || [];
+  const patientOptions = data?.patientOptions || [];
+  const selectedPatient = patientOptions.find((item) => item.id === selectedPatientId) || null;
+  const matchingPatientOptions = patientOptions.filter((item) =>
+    item.id === selectedPatientId ||
+    !lowerText(patientSearch) ||
+    [item.name, item.displayId].map(lowerText).join(" ").includes(lowerText(patientSearch))
+  );
   const filtered = patients.filter((item) => (status === "all" || item.status === status) && (!lowerText(search) || item.searchText.includes(lowerText(search))));
   const counts = patientStatusCounts(patients);
   const previous = patientStatusCounts(data?.previousPatients || []);
@@ -1085,7 +1190,44 @@ function PatientReportView({ data, loading, error, canExport, refresh, range, on
         onStatusChange={(value) => { setStatus(value); setPage(1); }}
         onReset={reset}
       />
-      <ReportState loading={loading} error={error} empty={!loading && !error && !patients.length} onRetry={refresh}>
+      <ReportState loading={loading} error={error} empty={!loading && !error && !patientOptions.length} onRetry={refresh}>
+        <section className="admin-report-patient-visits admin-report-screen-only">
+          <header>
+            <div>
+              <h2>Completed Visits by Patient</h2>
+              <p>Completed appointments within {formatRangeLabel(range)}.</p>
+            </div>
+            <div className="admin-report-patient-picker">
+              <label>
+                <span>Find Patient</span>
+                <input
+                  type="search"
+                  placeholder="Search name or Patient ID"
+                  value={patientSearch}
+                  onChange={(event) => setPatientSearch(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Patient</span>
+                <select value={selectedPatient?.id || ""} onChange={(event) => setSelectedPatientId(event.target.value)}>
+                  <option value="">Select a Patient</option>
+                  {matchingPatientOptions.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name} · {item.displayId}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </header>
+          {!selectedPatient ? (
+            <p className="admin-report-patient-visits-prompt">Select a Patient to view completed visits for this reporting period.</p>
+          ) : (
+            <PatientCompletedVisitResult
+              key={`${selectedPatient.id}:${range.from}:${range.to}`}
+              patient={selectedPatient}
+              range={range}
+            />
+          )}
+        </section>
         <div className="admin-report-four-grid">
           <SummaryCard icon="solar:users-group-rounded-linear" tone="blue" label="Total Patients" value={counts.total} comparisonValue={comparison(counts.total, previous.total)} />
           <SummaryCard icon="solar:check-circle-linear" tone="green" label="Active Patients" value={counts.active} comparisonValue={comparison(counts.active, previous.active)} />

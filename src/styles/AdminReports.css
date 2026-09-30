@@ -426,6 +426,185 @@
   white-space: nowrap;
 }
 
+.admin-report-patient-visits {
+  margin-top: 28px;
+  border: 1px solid #e2e6ee;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(32, 42, 67, 0.04);
+  padding: 24px;
+}
+
+.admin-report-patient-visits > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: end;
+}
+
+.admin-report-patient-visits h2,
+.admin-report-patient-visits h3,
+.admin-report-patient-visits p {
+  margin: 0;
+}
+
+.admin-report-patient-visits h2 {
+  color: #20283b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-report-patient-visits header p,
+.admin-report-patient-visits-prompt,
+.admin-report-patient-visit-dates p {
+  margin-top: 6px;
+  color: #778399;
+  font-size: 10px;
+}
+
+.admin-report-patient-picker {
+  width: min(540px, 100%);
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr);
+  gap: 12px;
+}
+
+.admin-report-patient-picker label {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.admin-report-patient-picker label > span {
+  color: #697489;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-report-patient-picker input,
+.admin-report-patient-picker select {
+  min-width: 0;
+  width: 100%;
+  height: 42px;
+  border: 1px solid #dce2ec;
+  border-radius: 8px;
+  color: #252e42;
+  background: #fff;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 12px;
+}
+
+.admin-report-patient-picker input:focus-visible,
+.admin-report-patient-picker select:focus-visible {
+  outline: none;
+  box-shadow: var(--admin-focus);
+}
+
+.admin-report-patient-visits-prompt {
+  padding-top: 24px;
+}
+
+.admin-report-patient-visit-result {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(160px, 0.5fr) minmax(260px, 1.25fr);
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.admin-report-patient-visit-identity,
+.admin-report-patient-visit-total,
+.admin-report-patient-visit-dates {
+  min-width: 0;
+  border: 1px solid #e7eaf0;
+  border-radius: 10px;
+  padding: 18px;
+}
+
+.admin-report-patient-visit-identity {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.admin-report-patient-visit-identity > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #69758d;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.admin-report-patient-visit-identity > div,
+.admin-report-patient-visit-total {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-report-patient-visit-identity small,
+.admin-report-patient-visit-total small {
+  color: #8793a8;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-report-patient-visit-identity strong {
+  overflow: hidden;
+  color: #273044;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-report-patient-visit-identity p {
+  color: #168ad0;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.admin-report-patient-visit-total strong {
+  color: #18a76f;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.admin-report-patient-visit-dates h3 {
+  color: #273044;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.admin-report-patient-visit-dates ul {
+  display: grid;
+  gap: 7px;
+  max-height: 150px;
+  overflow-y: auto;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #59667d;
+  font-size: 10px;
+}
+
+.admin-report-patient-visit-dates button {
+  margin-top: 10px;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  background: var(--admin-pink);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 7px 12px;
+}
+
 .admin-report-state {
   min-height: 260px;
   display: grid;
@@ -745,6 +924,10 @@
   .admin-reports-topbar .admin-profile-menu { margin-left: 0; }
   .admin-report-chart-grid { grid-template-columns: 1fr; }
   .admin-report-four-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-report-patient-visits > header { align-items: stretch; flex-direction: column; }
+  .admin-report-patient-picker { width: 100%; }
+  .admin-report-patient-visit-result { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-report-patient-visit-dates { grid-column: 1 / -1; }
 }
 
 @media (max-width: 700px) {
@@ -756,6 +939,9 @@
   .admin-report-export-actions { display: grid; grid-template-columns: 1fr; }
   .admin-report-export-actions button { width: 100%; }
   .admin-report-filter-card { grid-template-columns: 1fr; padding: 18px; }
+  .admin-report-patient-picker,
+  .admin-report-patient-visit-result { grid-template-columns: 1fr; }
+  .admin-report-patient-visit-dates { grid-column: auto; }
   .admin-report-reset { width: 100%; }
   .admin-report-donut-layout { grid-template-columns: 1fr; }
   .admin-report-chart-card { padding: 20px; }
