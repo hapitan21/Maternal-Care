@@ -908,6 +908,7 @@
 .admin-report-pagination button.is-active { border-color: var(--admin-pink); color: #fff; background: var(--admin-pink); }
 .admin-report-pagination button:disabled { color: #c5cad3; cursor: not-allowed; }
 
+.admin-report-print-context,
 .admin-report-print-data {
   display: none;
 }
@@ -978,7 +979,40 @@
   .admin-report-filter-card,
   .admin-report-screen-only,
   .admin-report-table-footer { display: none !important; }
+  .admin-report-print-context,
   .admin-report-print-data { display: block; }
+  .admin-report-print-context { margin: -14px 0 22px; color: #273044; }
+  .admin-report-print-range { margin: 0; font-size: 11px; }
+  .admin-report-print-patient {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+    border: 1px solid #dfe4ed;
+    border-radius: 8px;
+    padding: 14px 16px;
+    break-inside: avoid;
+  }
+  .admin-report-print-patient p,
+  .admin-report-print-patient h2 { margin: 0; }
+  .admin-report-print-patient > div:first-child { display: grid; gap: 2px; }
+  .admin-report-print-patient > div:first-child p {
+    color: #697489;
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .admin-report-print-patient > div:first-child strong { font-size: 13px; }
+  .admin-report-print-patient > div:first-child span { color: #59667d; font-size: 9px; }
+  .admin-report-print-patient > p { font-size: 10px; }
+  .admin-report-print-patient h2 { font-size: 10px; }
+  .admin-report-print-patient ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 20px;
+    margin: 6px 0 0;
+    padding-left: 16px;
+    font-size: 9px;
+  }
   .admin-reports-main { max-width: none; padding: 0; }
   .admin-reports-topbar { min-height: 0; display: block; margin-bottom: 18px; }
   .admin-report-summary-card,

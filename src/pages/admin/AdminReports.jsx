@@ -27,6 +27,7 @@ import "../../styles/AdminReports.css";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_RANGE_DAYS = 366;
 const PAGE_SIZE = 5;
+const EMPTY_VISITS = Object.freeze([]);
 
 const viewCopy = {
   landing: {
@@ -506,7 +507,7 @@ function usePatientCompletedVisits(patientId, range, enabled) {
 
   const matchesCurrentSelection = Boolean(currentKey && state.key === currentKey);
   return {
-    visits: matchesCurrentSelection ? state.visits : [],
+    visits: matchesCurrentSelection ? state.visits : EMPTY_VISITS,
     loading: Boolean(enabled && currentKey && (!matchesCurrentSelection || state.loading)),
     error: matchesCurrentSelection ? state.error : null,
     refresh: () => setRefreshIndex((current) => current + 1),
@@ -732,20 +733,23 @@ function ReportState({ loading, error, empty, onRetry, children }) {
   return children;
 }
 
-function ExportActions({ getModel, canExport }) {
+function ExportActions({ getModel, canExport, canPrint = canExport }) {
   const [busy, setBusy] = React.useState("");
   const [exportError, setExportError] = React.useState("");
   const canExportRef = React.useRef(canExport);
+  const canPrintRef = React.useRef(canPrint);
   React.useLayoutEffect(() => {
     canExportRef.current = canExport;
-  }, [canExport]);
+    canPrintRef.current = canPrint;
+  }, [canExport, canPrint]);
   const execute = async (type) => {
-    if (busy || !canExportRef.current) return;
+    const isReady = () => type === "print" ? canPrintRef.current : canExportRef.current;
+    if (busy || !isReady()) return;
     setBusy(type);
     setExportError("");
     try {
       await new Promise((resolve) => window.requestAnimationFrame(resolve));
-      if (!canExportRef.current) return;
+      if (!isReady()) return;
       const model = getModel();
       if (type === "pdf") await exportReportPdf(model);
       if (type === "excel") await exportReportExcel(model);
@@ -779,7 +783,7 @@ function ExportActions({ getModel, canExport }) {
           <Icon icon="solar:file-text-linear" />
           {busy === "excel" ? "Exporting Excel..." : "Export Excel"}
         </button>
-        <button className="is-primary" type="button" disabled={Boolean(busy) || !canExport} onClick={() => execute("print")}>
+        <button className="is-primary" type="button" disabled={Boolean(busy) || !canPrint} onClick={() => execute("print")}>
           <Icon icon="solar:printer-linear" />
           {busy === "print" ? "Preparing Print..." : "Print Report"}
         </button>
@@ -789,6 +793,33 @@ function ExportActions({ getModel, canExport }) {
           <Icon icon="solar:danger-triangle-linear" aria-hidden="true" />
           {exportError}
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+function PrintReportContext({ model }) {
+  const patient = model.printPatient;
+  return (
+    <div className="admin-report-print-context" aria-hidden="true">
+      <p className="admin-report-print-range"><strong>Date Range:</strong> {model.rangeLabel}</p>
+      {patient ? (
+        <section className="admin-report-print-patient">
+          <div>
+            <p>Selected Patient</p>
+            <strong>{patient.name}</strong>
+            <span>{patient.displayId}</span>
+          </div>
+          <p><strong>Total Completed Visits:</strong> {patient.visits.length}</p>
+          {patient.visits.length ? (
+            <div>
+              <h2>Visit Dates</h2>
+              <ul>{patient.visits.map((visit) => <li key={visit.id}>{visit.dateLabel}</li>)}</ul>
+            </div>
+          ) : (
+            <p>No completed visits found for this patient in the selected period.</p>
+          )}
+        </section>
       ) : null}
     </div>
   );
@@ -1055,6 +1086,7 @@ function AppointmentReportView({ data, loading, error, canExport, refresh, range
   return (
     <>
       <ExportActions getModel={() => model} canExport={canExport} />
+      <PrintReportContext model={model} />
       <ReportFilters
         range={range} onRangeChange={(next) => { onRangeChange(next); setPage(1); }}
         doctor={doctor} onDoctorChange={(value) => { setDoctor(value); setPage(1); }} doctors={data?.doctors || []}
@@ -1108,8 +1140,17 @@ function AppointmentReportView({ data, loading, error, canExport, refresh, range
   );
 }
 
-function PatientCompletedVisitResult({ patient, range }) {
+function PatientCompletedVisitResult({ patient, range, onStateChange }) {
   const completedVisits = usePatientCompletedVisits(patient.id, range, true);
+  const scopeKey = `${patient.id}:${range.from}:${range.to}`;
+  React.useEffect(() => {
+    onStateChange({
+      key: scopeKey,
+      visits: completedVisits.visits,
+      loading: completedVisits.loading,
+      error: completedVisits.error,
+    });
+  }, [completedVisits.error, completedVisits.loading, completedVisits.visits, onStateChange, scopeKey]);
   return (
     <div className="admin-report-patient-visit-result">
       <div className="admin-report-patient-visit-identity">
@@ -1144,10 +1185,22 @@ function PatientReportView({ data, loading, error, canExport, refresh, range, on
   const [search, setSearch] = React.useState("");
   const [patientSearch, setPatientSearch] = React.useState("");
   const [selectedPatientId, setSelectedPatientId] = React.useState("");
+  const [patientVisitPrintState, setPatientVisitPrintState] = React.useState(null);
   const [page, setPage] = React.useState(1);
   const patients = data?.patients || [];
   const patientOptions = data?.patientOptions || [];
   const selectedPatient = patientOptions.find((item) => item.id === selectedPatientId) || null;
+  const selectedPatientVisitKey = selectedPatient
+    ? `${selectedPatient.id}:${range.from}:${range.to}`
+    : "";
+  const selectedPatientVisitsReady = Boolean(
+    !selectedPatient ||
+    (
+      patientVisitPrintState?.key === selectedPatientVisitKey &&
+      !patientVisitPrintState.loading &&
+      !patientVisitPrintState.error
+    )
+  );
   const matchingPatientOptions = patientOptions.filter((item) =>
     item.id === selectedPatientId ||
     !lowerText(patientSearch) ||
@@ -1168,6 +1221,13 @@ function PatientReportView({ data, loading, error, canExport, refresh, range, on
     title: viewCopy.patient.title,
     rangeLabel: formatRangeLabel(range),
     filename: `patient-summary-${range.from}-to-${range.to}`,
+    printPatient: selectedPatient && selectedPatientVisitsReady
+      ? {
+          name: selectedPatient.name,
+          displayId: selectedPatient.displayId,
+          visits: patientVisitPrintState.visits,
+        }
+      : null,
     summary: ["total", "active", "temporary", "inactive"].map((key) => ({ label: key === "total" ? "Total Patients" : key.charAt(0).toUpperCase() + key.slice(1), value: counts[key] || 0 })),
     tables: [{
       title: "Patient Registration Cohort",
@@ -1177,7 +1237,12 @@ function PatientReportView({ data, loading, error, canExport, refresh, range, on
   };
   return (
     <>
-      <ExportActions getModel={() => model} canExport={canExport} />
+      <ExportActions
+        getModel={() => model}
+        canExport={canExport}
+        canPrint={canExport && selectedPatientVisitsReady}
+      />
+      <PrintReportContext model={model} />
       <ReportFilters
         range={range}
         onRangeChange={(next) => { onRangeChange(next); setPage(1); }}
@@ -1225,6 +1290,7 @@ function PatientReportView({ data, loading, error, canExport, refresh, range, on
               key={`${selectedPatient.id}:${range.from}:${range.to}`}
               patient={selectedPatient}
               range={range}
+              onStateChange={setPatientVisitPrintState}
             />
           )}
         </section>
@@ -1291,6 +1357,7 @@ function TrendsReportView({ data, loading, error, canExport, refresh, range, onR
   return (
     <>
       <ExportActions getModel={() => model} canExport={canExport} />
+      <PrintReportContext model={model} />
       <ReportFilters range={range} onRangeChange={onRangeChange} onReset={() => onRangeChange(originalRange)} />
       <ReportState loading={loading} error={error} empty={!loading && !error && !patients.length && !appointments.length} onRetry={refresh}>
         <div className="admin-report-two-grid">
