@@ -43,6 +43,10 @@ import {
 } from "../../components/appointments/AppointmentUi";
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
 import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
+import {
+  clinicLocalDateTimeToISOString,
+  loadOperationalAppointmentPolicy,
+} from "../../lib/appointmentPolicy";
 import "../../styles/doctor-appointments.css";
 
 const scheduleTableName = "schedule";
@@ -599,6 +603,19 @@ function getReadableSupabaseError(error) {
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function isOperationalAppointmentPolicyError(error) {
+  const message = String(error?.message || "").toLowerCase();
+
+  return [
+    "operational appointment policy",
+    "clinic opening time",
+    "clinic closing time",
+    "clinic hours",
+    "default appointment duration",
+    "appointment timezone",
+  ].some((phrase) => message.includes(phrase));
 }
 
 function getAutomaticNotificationStatusMessage(
@@ -1289,6 +1306,9 @@ export function DoctorAppointmentsContent({
   const [statusMessageVersion, setStatusMessageVersion] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
+  const [appointmentPolicy, setAppointmentPolicy] = useState(null);
+  const [isAppointmentPolicyLoading, setIsAppointmentPolicyLoading] = useState(false);
+  const [appointmentPolicyError, setAppointmentPolicyError] = useState("");
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(
     () => !appointmentSnapshot
   );
@@ -1319,6 +1339,7 @@ export function DoctorAppointmentsContent({
   const appointmentsMutationVersionRef = useRef(0);
   const appointmentsLoadedRef = useRef(Boolean(appointmentSnapshot));
   const patientsRequestRef = useRef(null);
+  const appointmentPolicyRequestRef = useRef(null);
   const successTimerRef = useRef(null);
   const automaticNotificationDispatchesRef = useRef(new Set());
   const dashboardStatusTargetAppliedRef = useRef(Boolean(dashboardStatusTarget));
@@ -1469,6 +1490,8 @@ export function DoctorAppointmentsContent({
     Boolean(form.title.trim()) &&
     hasExactPatientMatch &&
     Boolean(appointmentDoctor?.id) &&
+    Boolean(appointmentPolicy) &&
+    !isAppointmentPolicyLoading &&
     !isAppointmentDoctorLoading &&
     !visibleAppointmentDoctorError;
 
@@ -1962,6 +1985,48 @@ export function DoctorAppointmentsContent({
     }
   }, [doctorIdentity, hookAppointmentDoctor]);
 
+  const loadAppointmentPolicy = useCallback(() => {
+    if (appointmentPolicyRequestRef.current) {
+      return appointmentPolicyRequestRef.current;
+    }
+
+    setAppointmentPolicy(null);
+    setAppointmentPolicyError("");
+    setIsAppointmentPolicyLoading(true);
+
+    const request = loadOperationalAppointmentPolicy()
+      .then((policy) => {
+        if (appointmentsMountedRef.current) {
+          setAppointmentPolicy(policy);
+          setAppointmentPolicyError("");
+        }
+
+        return policy;
+      })
+      .catch((error) => {
+        if (appointmentsMountedRef.current) {
+          setAppointmentPolicy(null);
+          setAppointmentPolicyError(
+            error?.message || "Unable to load the operational appointment policy."
+          );
+        }
+
+        return null;
+      })
+      .finally(() => {
+        if (appointmentPolicyRequestRef.current === request) {
+          appointmentPolicyRequestRef.current = null;
+        }
+
+        if (appointmentsMountedRef.current) {
+          setIsAppointmentPolicyLoading(false);
+        }
+      });
+
+    appointmentPolicyRequestRef.current = request;
+    return request;
+  }, []);
+
   const openAddAppointment = useCallback(() => {
     if (isAdding) return;
 
@@ -1970,13 +2035,14 @@ export function DoctorAppointmentsContent({
     setAddAppointmentError("");
     setStatusMessage("");
     setAppointmentDoctorError(null);
+    void loadAppointmentPolicy();
 
     if (hookAppointmentDoctor) {
       return;
     }
 
     resolveAppointmentDoctor();
-  }, [hookAppointmentDoctor, isAdding, resolveAppointmentDoctor]);
+  }, [hookAppointmentDoctor, isAdding, loadAppointmentPolicy, resolveAppointmentDoctor]);
 
 
   const selectPatient = (patient) => {
@@ -1999,17 +2065,39 @@ export function DoctorAppointmentsContent({
     try {
     setAddAppointmentError("");
 
-    const appointmentRange = buildThirtyMinuteAppointmentRange(
-      form.appointment_date,
-      form.appointment_time
-    );
-
-    if (!appointmentRange) {
-      setAddAppointmentError("Choose a valid appointment date and time.");
+    if (isAppointmentPolicyLoading) {
+      setAddAppointmentError("The appointment policy is still loading. Please wait.");
       return;
     }
 
-    const { startDate, endDate } = appointmentRange;
+    if (!appointmentPolicy) {
+      setAddAppointmentError(
+        appointmentPolicyError ||
+          "Unable to load the operational appointment policy. Retry before saving."
+      );
+      return;
+    }
+
+    let clinicStartIso;
+
+    try {
+      clinicStartIso = clinicLocalDateTimeToISOString(
+        form.appointment_date,
+        form.appointment_time,
+        appointmentPolicy.timezone
+      );
+    } catch (error) {
+      setAddAppointmentError(
+        error?.message || "Choose a valid appointment date and time."
+      );
+      return;
+    }
+
+    const startDate = new Date(clinicStartIso);
+    const endDate = new Date(
+      startDate.getTime() +
+        appointmentPolicy.defaultAppointmentDurationMinutes * 60 * 1000
+    );
 
     if (startDate < new Date()) {
       setAddAppointmentError(
@@ -2050,19 +2138,15 @@ export function DoctorAppointmentsContent({
       return;
     }
 
-    const payload = {
+    const previewPayload = {
       patient_id: selectedPatient.id,
       doctor_id: selectedDoctor.id,
-      patient_name: form.patient_name.trim(),
-      doctor_name: selectedDoctor.name,
-      title: form.title.trim(),
-      description: form.description.trim() || null,
-      start_time: startDate.toISOString(),
+      start_time: clinicStartIso,
       end_time: endDate.toISOString(),
       status: "scheduled",
     };
 
-    if (hasDuplicateAppointment(schedules, payload)) {
+    if (hasDuplicateAppointment(schedules, previewPayload)) {
       setAddAppointmentError(
         "This patient already has an active appointment at the selected date and time."
       );
@@ -2071,22 +2155,27 @@ export function DoctorAppointmentsContent({
 
     setIsSaving(true);
 
-    const { data, error } = await supabase
-      .from(scheduleTableName)
-      .insert([payload])
-      .select(scheduleColumns)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("create_standard_appointment", {
+      p_patient_id: selectedPatient.id,
+      p_doctor_id: selectedDoctor.id,
+      p_title: form.title.trim(),
+      p_description: form.description.trim() || null,
+      p_start_time: clinicStartIso,
+    });
 
     if (error) {
-      console.error("[Doctor Appointment Flow] appointment insert error:", {
+      console.error("[Doctor Appointment Flow] appointment creation RPC error:", {
         error,
         patientDatabaseId: selectedPatient.id,
         authenticatedDoctorId: selectedDoctor.id,
         profileId: selectedDoctor.profileId || null,
-        startTime: payload.start_time,
+        startTime: clinicStartIso,
       });
+      if (isOperationalAppointmentPolicyError(error)) {
+        void loadAppointmentPolicy();
+      }
       setAddAppointmentError(
-        `Appointment was not saved: ${getReadableScheduleError(error)}`
+        `Appointment was not saved: ${getReadableSupabaseError(error) || "Unknown error."}`
       );
       return;
     }
@@ -2104,7 +2193,7 @@ export function DoctorAppointmentsContent({
     setForm(initialAppointmentForm);
     setIsAdding(false);
     setActiveTab("All");
-    selectCalendarDate(toDateInputValue(payload.start_time));
+    selectCalendarDate(form.appointment_date);
     showSuccessMessage("Appointment created successfully.");
     revalidateAppointmentsInBackground();
     dispatchAutomaticAppointmentNotification(
@@ -3068,6 +3157,18 @@ export function DoctorAppointmentsContent({
                     </p>
                   ) : null}
 
+                  {isAppointmentPolicyLoading ? (
+                    <p className="appointment-form-message" role="status">
+                      Loading appointment policy...
+                    </p>
+                  ) : null}
+
+                  {appointmentPolicyError ? (
+                    <p className="appointment-form-message" role="alert">
+                      {appointmentPolicyError}
+                    </p>
+                  ) : null}
+
                   {addAppointmentError ? (
                     <p className="appointment-form-message" role="alert">
                       {addAppointmentError}
@@ -3075,6 +3176,16 @@ export function DoctorAppointmentsContent({
                   ) : null}
 
                   <div className="appointment-form-actions">
+                    {appointmentPolicyError ? (
+                      <button
+                        className="appointment-form-cancel appointment-add-cancel"
+                        type="button"
+                        onClick={() => void loadAppointmentPolicy()}
+                        disabled={isAppointmentPolicyLoading}
+                      >
+                        Retry policy
+                      </button>
+                    ) : null}
                     <button
                       className="appointment-add-save"
                       type="submit"
@@ -3083,7 +3194,11 @@ export function DoctorAppointmentsContent({
                         !isAddAppointmentReady
                       }
                     >
-                      {isSaving ? "Saving..." : "Save"}
+                      {isSaving
+                        ? "Saving..."
+                        : isAppointmentPolicyLoading
+                          ? "Loading policy..."
+                          : "Save"}
                     </button>
                     <button
                       className="appointment-form-cancel appointment-add-cancel"
