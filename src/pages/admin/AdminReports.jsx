@@ -359,7 +359,7 @@ function useAdminReportData(range, enabled, view) {
   const mountedRef = React.useRef(true);
   const requestRef = React.useRef(0);
   const pendingRef = React.useRef(null);
-  const [state, setState] = React.useState({ data: null, loading: Boolean(enabled), error: null });
+  const [state, setState] = React.useState({ data: null, loading: Boolean(enabled), error: null, loadedKey: null });
 
   const refresh = React.useCallback(() => {
     if (!enabled) return Promise.resolve(null);
@@ -418,13 +418,13 @@ function useAdminReportData(range, enabled, view) {
           : [];
         const data = mapReportData({ schedules, createdSchedules, previousCreatedSchedules, patients, previousPatients, relatedPatients, profiles, professionals });
         if (mountedRef.current && requestRef.current === requestId) {
-          setState({ data, loading: false, error: null });
+          setState({ data, loading: false, error: null, loadedKey: key });
         }
         return data;
       } catch (error) {
         logReportError(error);
         if (mountedRef.current && requestRef.current === requestId) {
-          setState({ data: null, loading: false, error });
+          setState({ data: null, loading: false, error, loadedKey: null });
         }
         return null;
       }
@@ -446,7 +446,11 @@ function useAdminReportData(range, enabled, view) {
     };
   }, [refresh]);
 
-  return { ...state, refresh };
+  const currentKey = `${view}:${range.from}:${range.to}`;
+  const canExport = Boolean(
+    enabled && !state.loading && !state.error && state.data !== null && state.loadedKey === currentKey
+  );
+  return { ...state, canExport, refresh };
 }
 
 function countStatuses(rows) {
@@ -662,15 +666,20 @@ function ReportState({ loading, error, empty, onRetry, children }) {
   return children;
 }
 
-function ExportActions({ getModel }) {
+function ExportActions({ getModel, canExport }) {
   const [busy, setBusy] = React.useState("");
   const [exportError, setExportError] = React.useState("");
+  const canExportRef = React.useRef(canExport);
+  React.useLayoutEffect(() => {
+    canExportRef.current = canExport;
+  }, [canExport]);
   const execute = async (type) => {
-    if (busy) return;
+    if (busy || !canExportRef.current) return;
     setBusy(type);
     setExportError("");
     try {
       await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      if (!canExportRef.current) return;
       const model = getModel();
       if (type === "pdf") await exportReportPdf(model);
       if (type === "excel") await exportReportExcel(model);
@@ -696,15 +705,15 @@ function ExportActions({ getModel }) {
   return (
     <div className="admin-report-export-group">
       <div className="admin-report-export-actions" aria-label="Report export controls">
-        <button type="button" disabled={Boolean(busy)} onClick={() => execute("pdf")}>
+        <button type="button" disabled={Boolean(busy) || !canExport} onClick={() => execute("pdf")}>
           <Icon icon="solar:download-minimalistic-linear" />
           {busy === "pdf" ? "Exporting PDF..." : "Export PDF"}
         </button>
-        <button type="button" disabled={Boolean(busy)} onClick={() => execute("excel")}>
+        <button type="button" disabled={Boolean(busy) || !canExport} onClick={() => execute("excel")}>
           <Icon icon="solar:file-text-linear" />
           {busy === "excel" ? "Exporting Excel..." : "Export Excel"}
         </button>
-        <button className="is-primary" type="button" disabled={Boolean(busy)} onClick={() => execute("print")}>
+        <button className="is-primary" type="button" disabled={Boolean(busy) || !canExport} onClick={() => execute("print")}>
           <Icon icon="solar:printer-linear" />
           {busy === "print" ? "Preparing Print..." : "Print Report"}
         </button>
@@ -934,7 +943,7 @@ function LandingView({ range, onRangeChange, navigate }) {
   );
 }
 
-function AppointmentReportView({ data, loading, error, refresh, range, onRangeChange, originalRange }) {
+function AppointmentReportView({ data, loading, error, canExport, refresh, range, onRangeChange, originalRange }) {
   const [doctor, setDoctor] = React.useState("all");
   const [status, setStatus] = React.useState("all");
   const [type, setType] = React.useState("all");
@@ -978,7 +987,7 @@ function AppointmentReportView({ data, loading, error, refresh, range, onRangeCh
   };
   return (
     <>
-      <ExportActions getModel={() => model} />
+      <ExportActions getModel={() => model} canExport={canExport} />
       <ReportFilters
         range={range} onRangeChange={(next) => { onRangeChange(next); setPage(1); }}
         doctor={doctor} onDoctorChange={(value) => { setDoctor(value); setPage(1); }} doctors={data?.doctors || []}
@@ -1032,7 +1041,7 @@ function AppointmentReportView({ data, loading, error, refresh, range, onRangeCh
   );
 }
 
-function PatientReportView({ data, loading, error, refresh, range, onRangeChange, originalRange }) {
+function PatientReportView({ data, loading, error, canExport, refresh, range, onRangeChange, originalRange }) {
   const [status, setStatus] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
@@ -1061,7 +1070,7 @@ function PatientReportView({ data, loading, error, refresh, range, onRangeChange
   };
   return (
     <>
-      <ExportActions getModel={() => model} />
+      <ExportActions getModel={() => model} canExport={canExport} />
       <ReportFilters
         range={range}
         onRangeChange={(next) => { onRangeChange(next); setPage(1); }}
@@ -1114,7 +1123,7 @@ function buildDoctorStats(appointments, doctors) {
   }).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 }
 
-function TrendsReportView({ data, loading, error, refresh, range, onRangeChange, originalRange }) {
+function TrendsReportView({ data, loading, error, canExport, refresh, range, onRangeChange, originalRange }) {
   const patients = data?.patients || [];
   const appointments = data?.createdAppointments || [];
   const patientBuckets = buildBuckets(patients, range, "created_at");
@@ -1137,7 +1146,7 @@ function TrendsReportView({ data, loading, error, refresh, range, onRangeChange,
   };
   return (
     <>
-      <ExportActions getModel={() => model} />
+      <ExportActions getModel={() => model} canExport={canExport} />
       <ReportFilters range={range} onRangeChange={onRangeChange} onReset={() => onRangeChange(originalRange)} />
       <ReportState loading={loading} error={error} empty={!loading && !error && !patients.length && !appointments.length} onRetry={refresh}>
         <div className="admin-report-two-grid">
