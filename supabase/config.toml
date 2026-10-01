@@ -3,6 +3,9 @@ project_id = "maternal-app"
 [functions.send-patient-web-push]
 verify_jwt = false
 
+[functions.send-patient-native-push]
+verify_jwt = false
+
 [functions.send-doctor-followup-web-push]
 verify_jwt = false
 
