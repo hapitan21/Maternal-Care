@@ -25,13 +25,15 @@ import {
   clearPatientPwaSessionCache,
   getPatientPwaSessionCache,
   setPatientPwaSessionCache,
+  takePatientPwaStartupAuthorization,
 } from "../../lib/patientPwaSessionCache";
 import "../../styles/patient-PWA.css";
 import "../../styles/patient-notifications.css";
 import "../../styles/patient-pwa-ui-system.css";
 import "../../styles/patient-pwa-status.css";
 
-const PatientPWADashboard = lazy(() => import("./Patient_PWA_Dashboard"));
+const loadPatientPWADashboard = () => import("./Patient_PWA_Dashboard");
+const PatientPWADashboard = lazy(loadPatientPWADashboard);
 const PatientPWAViewProfile = lazy(() => import("./Patient_PWA_ViewProfile"));
 const PatientPWASettings = lazy(() => import("./Patient_PWA_Settings"));
 const PatientPWAMedicalRecords = lazy(() => import("./Patient_PWA_MedicalRecords"));
@@ -72,7 +74,7 @@ const defaultPatientProfile = {
 
 const patientSessionStorageKey = "maternal_patient_session";
 const patientAccountCacheSection = "account-shell";
-const patientLoadingMessage = "Loading your Maternal Care account...";
+const patientLoadingMessage = "Opening Maternal Care";
 
 const navItems = [
   { key: "dashboard", label: "Dashboard", mobileLabel: "Home", icon: "solar:widget-2-bold" },
@@ -304,6 +306,12 @@ export default function PatientPWA() {
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
+    if (activePage === "dashboard") {
+      void loadPatientPWADashboard();
+    }
+  }, [activePage]);
+
+  useEffect(() => {
     let active = true;
 
     const loadPatientProfile = async () => {
@@ -380,11 +388,25 @@ export default function PatientPWA() {
           ),
         });
 
-        let { data: profileRow, error: profileError } = await supabase
+        const startupAuthorization = takePatientPwaStartupAuthorization(user.id);
+        const profileRequest = supabase
           .from("profiles")
           .select("id, full_name, email, role, avatar_url")
           .eq("id", user.id)
           .maybeSingle();
+        const linkedStatusRequest = startupAuthorization
+          ? Promise.resolve({
+              data: {
+                id: startupAuthorization.patientId,
+                account_status: startupAuthorization.accountStatus,
+              },
+              error: null,
+            })
+          : supabase.rpc("get_current_patient_account_status");
+        let [
+          { data: profileRow, error: profileError },
+          { data: linkedStatusData, error: linkedStatusError },
+        ] = await Promise.all([profileRequest, linkedStatusRequest]);
 
         if (
           profileError &&
@@ -420,11 +442,6 @@ export default function PatientPWA() {
           });
           return;
         }
-
-        const { data: linkedStatusData, error: linkedStatusError } =
-          await supabase.rpc("get_current_patient_account_status");
-
-        if (!active) return;
 
         if (linkedStatusError) {
           const statusErrorMessage = isMissingPatientLinkingRpc(linkedStatusError)
@@ -478,10 +495,13 @@ export default function PatientPWA() {
         }
 
         const supportsAccountStatus = true;
-        const { data: byUser, error: byUserError } = await supabase
-          .rpc("get_patient_own_record")
-          .limit(1)
-          .maybeSingle();
+        const [
+          { data: byUser, error: byUserError },
+          profileSummary,
+        ] = await Promise.all([
+          supabase.rpc("get_patient_own_record").limit(1).maybeSingle(),
+          loadPatientProfileSummary(linkedSummary.id),
+        ]);
 
         if (!active) return;
 
@@ -535,10 +555,6 @@ export default function PatientPWA() {
           return;
         }
 
-        const profileSummary = await loadPatientProfileSummary();
-
-        if (!active) return;
-
         if (profileSummary.patient.id !== patientRow.id) {
           throw new Error("The Patient profile summary did not match the linked Patient record.");
         }
@@ -580,6 +596,12 @@ export default function PatientPWA() {
           patientAccountCacheSection,
           nextAccountCache
         );
+        setPatientPwaSessionCache(profileSummary.patient.id, "pregnancy-tracking", {
+          status: profileSummary.tracking.hasCurrentPregnancy ? "ready" : "empty",
+          tracking: profileSummary.tracking,
+          error: "",
+          cachedAt: Date.now(),
+        });
         setAccessState({ status: "active", message: "", details: "" });
       } catch (error) {
         if (!active) return;

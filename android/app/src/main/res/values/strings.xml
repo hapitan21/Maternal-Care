@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Maternal Care</string>
+    <string name="title_activity_main">Maternal Care</string>
+    <string name="package_name">com.lapazmaternity.maternalcare</string>
+    <string name="custom_url_scheme">com.lapazmaternity.maternalcare</string>
+</resources>

@@ -1,5 +1,6 @@
 const patientPwaSessionCache = new Map();
 let activePatientId = "";
+let patientStartupAuthorization = null;
 
 function getCacheKey(patientId, section) {
   const normalizedPatientId = String(patientId || "").trim();
@@ -38,7 +39,34 @@ export function setPatientPwaSessionCache(patientId, section, value) {
   }
 }
 
+export function setPatientPwaStartupAuthorization({
+  userId,
+  patientId,
+  accountStatus,
+}) {
+  const normalizedUserId = String(userId || "").trim();
+  const normalizedPatientId = String(patientId || "").trim();
+
+  patientStartupAuthorization = normalizedUserId && normalizedPatientId
+    ? {
+        userId: normalizedUserId,
+        patientId: normalizedPatientId,
+        accountStatus,
+      }
+    : null;
+}
+
+export function takePatientPwaStartupAuthorization(userId) {
+  const authorization = patientStartupAuthorization;
+  patientStartupAuthorization = null;
+
+  return authorization?.userId === String(userId || "").trim()
+    ? authorization
+    : null;
+}
+
 export function clearPatientPwaSessionCache() {
   patientPwaSessionCache.clear();
   activePatientId = "";
+  patientStartupAuthorization = null;
 }

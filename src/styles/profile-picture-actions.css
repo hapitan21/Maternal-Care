@@ -157,6 +157,14 @@
     bottom: 1px;
   }
 
+  .patient-profile-picture-editor .profile-picture-actions {
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: flex-end;
+    pointer-events: none;
+  }
+
   .profile-picture-actions__trigger {
     width: 32px;
     height: 32px;
@@ -169,5 +177,17 @@
 
   .profile-picture-actions__menu {
     width: 148px;
+  }
+
+  .patient-profile-picture-editor .profile-picture-actions__menu,
+  .patient-profile-picture-editor .profile-picture-actions__error {
+    left: 0;
+    right: auto;
+    max-width: calc(100vw - 32px);
+    pointer-events: auto;
+  }
+
+  .patient-profile-picture-editor .profile-picture-actions__trigger {
+    pointer-events: auto;
   }
 }

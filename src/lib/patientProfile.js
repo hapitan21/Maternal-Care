@@ -50,8 +50,21 @@ function getLatestClinicalGestationalAge(records) {
   return latest ? getClinicalGestationalAge(latest) : "";
 }
 
-export async function loadPatientProfileSummary() {
-  const { data, error } = await supabase.rpc("get_my_patient_profile_summary");
+export async function loadPatientProfileSummary(expectedPatientId = "") {
+  const normalizedPatientId = String(expectedPatientId || "").trim();
+  const summaryRequest = supabase.rpc("get_my_patient_profile_summary");
+  const recordsRequest = normalizedPatientId
+    ? supabase
+        .from("medical_records")
+        .select("id, patient_id, form_data, uploaded_at, created_at")
+        .eq("patient_id", normalizedPatientId)
+        .order("uploaded_at", { ascending: false })
+    : null;
+  const [summaryResult, prefetchedRecordsResult] = await Promise.all([
+    summaryRequest,
+    recordsRequest || Promise.resolve(null),
+  ]);
+  const { data, error } = summaryResult;
   if (error) throw error;
 
   const summary = Array.isArray(data) ? data[0] : data;
@@ -59,11 +72,16 @@ export async function loadPatientProfileSummary() {
     throw new Error("The authenticated Patient profile could not be loaded.");
   }
 
-  const { data: records, error: recordsError } = await supabase
-    .from("medical_records")
-    .select("id, patient_id, form_data, uploaded_at, created_at")
-    .eq("patient_id", summary.patient.id)
-    .order("uploaded_at", { ascending: false });
+  if (normalizedPatientId && summary.patient.id !== normalizedPatientId) {
+    throw new Error("The authenticated Patient profile did not match the expected record.");
+  }
+
+  const recordsResult = prefetchedRecordsResult || await supabase
+      .from("medical_records")
+      .select("id, patient_id, form_data, uploaded_at, created_at")
+      .eq("patient_id", summary.patient.id)
+      .order("uploaded_at", { ascending: false });
+  const { data: records, error: recordsError } = recordsResult;
 
   if (recordsError) throw recordsError;
 

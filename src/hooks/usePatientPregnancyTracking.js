@@ -11,6 +11,7 @@ const initialState = {
   tracking: null,
   error: "",
 };
+const freshTrackingCacheMs = 30_000;
 
 export function usePatientPregnancyTracking(patientId) {
   const [initialCache] = useState(() =>
@@ -41,7 +42,7 @@ export function usePatientPregnancyTracking(patientId) {
       }
 
       try {
-        const summary = await loadPatientProfileSummary();
+        const summary = await loadPatientProfileSummary(patientId);
         if (!active) return;
 
         if (summary.patient.id !== patientId) {
@@ -52,6 +53,7 @@ export function usePatientPregnancyTracking(patientId) {
           status: summary.tracking.hasCurrentPregnancy ? "ready" : "empty",
           tracking: summary.tracking,
           error: "",
+          cachedAt: Date.now(),
         };
         initialCacheRef.current = nextState;
         setPatientPwaSessionCache(patientId, "pregnancy-tracking", nextState);
@@ -111,13 +113,15 @@ export function usePatientPregnancyTracking(patientId) {
 
       if (!active) return;
 
-      /*
-       * Initial fetch still happens independently
-       * from Realtime.
-       */
-      await loadPregnancyTracking({
-        showLoading: true,
-      });
+      /* Keep a fresh shell result visible while reconciling it with the server. */
+      const initialCacheAge = Date.now() - Number(initialCacheRef.current?.cachedAt || 0);
+      if (!initialCacheRef.current || initialCacheAge >= freshTrackingCacheMs) {
+        await loadPregnancyTracking({
+          showLoading: true,
+        });
+      } else {
+        await loadPregnancyTracking();
+      }
 
       if (!active) return;
 

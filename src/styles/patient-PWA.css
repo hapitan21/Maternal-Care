@@ -623,6 +623,15 @@ button {
     min-height: 100dvh !important;
   }
 
+  .pwa-loading-shell {
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    place-items: center !important;
+    padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom) !important;
+  }
+
   .pwa-sidebar {
     position: fixed !important;
     left: 0 !important;

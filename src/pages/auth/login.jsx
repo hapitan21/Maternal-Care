@@ -8,6 +8,7 @@ import {
 } from "../../lib/patientAccountStatus";
 import { supabase } from "../../lib/supabaseClient";
 import { recordAuditEvent } from "../../lib/auditLog";
+import { setPatientPwaStartupAuthorization } from "../../lib/patientPwaSessionCache";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import "../../styles/login.css";
 import "../../styles/patient-access.css";
@@ -61,6 +62,8 @@ async function getAuthenticatedRoleRoute(role, user, nextPath = "") {
   const normalizedRole = String(role || "").trim().toLowerCase();
   if (normalizedRole !== "patient") return getRoleRoute(role, nextPath);
 
+  const patientWorkspacePromise = import("../patient/Patient_PWA");
+
   const { data, error } = await supabase.rpc(
     "get_current_patient_account_status"
   );
@@ -102,6 +105,13 @@ async function getAuthenticatedRoleRoute(role, user, nextPath = "") {
     blockedError.code = "patient_account_blocked";
     throw blockedError;
   }
+
+  await patientWorkspacePromise;
+  setPatientPwaStartupAuthorization({
+    userId: user?.id,
+    patientId: patient?.id,
+    accountStatus: patient?.account_status,
+  });
 
   if (nextPath.startsWith("/patient") && nextPath !== "/patient/access") {
     return nextPath;
