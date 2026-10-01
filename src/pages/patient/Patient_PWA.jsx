@@ -27,6 +27,12 @@ import {
   setPatientPwaSessionCache,
   takePatientPwaStartupAuthorization,
 } from "../../lib/patientPwaSessionCache";
+import {
+  beginPatientNativePushSession,
+  cleanupPatientNativePushBeforeLogout,
+  isNativeAndroidPushAvailable,
+  reconcilePatientNativePushRegistration,
+} from "../../lib/patientNativePush";
 import "../../styles/patient-PWA.css";
 import "../../styles/patient-notifications.css";
 import "../../styles/patient-pwa-ui-system.css";
@@ -304,6 +310,10 @@ export default function PatientPWA() {
         }
   );
   const [reloadToken, setReloadToken] = useState(0);
+  const [nativePushAuthorization, setNativePushAuthorization] = useState({
+    reloadToken: -1,
+    userId: "",
+  });
 
   useEffect(() => {
     if (activePage === "dashboard") {
@@ -482,6 +492,7 @@ export default function PatientPWA() {
         }
 
         if (linkedStatus !== patientAccountStatuses.active) {
+          await cleanupPatientNativePushBeforeLogout();
           window.localStorage.removeItem(patientSessionStorageKey);
           clearPatientPwaSessionCache();
           await supabase.auth.signOut().catch(() => null);
@@ -548,6 +559,7 @@ export default function PatientPWA() {
         });
 
         if (nextAccessState.status !== "active") {
+          await cleanupPatientNativePushBeforeLogout();
           window.localStorage.removeItem(patientSessionStorageKey);
           clearPatientPwaSessionCache();
           await supabase.auth.signOut().catch(() => null);
@@ -602,6 +614,10 @@ export default function PatientPWA() {
           error: "",
           cachedAt: Date.now(),
         });
+        if (isNativeAndroidPushAvailable()) {
+          beginPatientNativePushSession();
+        }
+        setNativePushAuthorization({ reloadToken, userId: user.id });
         setAccessState({ status: "active", message: "", details: "" });
       } catch (error) {
         if (!active) return;
@@ -659,6 +675,45 @@ export default function PatientPWA() {
   }, [accessState.status, profile]);
 
   useEffect(() => {
+    if (
+      accessState.status !== "active" ||
+      !profile.recordId ||
+      !profile.userId ||
+      nativePushAuthorization.reloadToken !== reloadToken ||
+      nativePushAuthorization.userId !== profile.userId ||
+      !isNativeAndroidPushAvailable()
+    ) {
+      return undefined;
+    }
+
+    let active = true;
+    const reconcileNativePush = () => {
+      if (!active || document.visibilityState === "hidden") return;
+      void reconcilePatientNativePushRegistration().catch(() => undefined);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        reconcileNativePush();
+      }
+    };
+
+    reconcileNativePush();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    accessState.status,
+    nativePushAuthorization.reloadToken,
+    nativePushAuthorization.userId,
+    profile.recordId,
+    profile.userId,
+    reloadToken,
+  ]);
+
+  useEffect(() => {
     const syncProfilePicture = (event) => {
       setProfile((current) => ({
         ...current,
@@ -696,9 +751,11 @@ export default function PatientPWA() {
   };
 
   const handleLogout = async () => {
+    await cleanupPatientNativePushBeforeLogout();
+    const { error } = await supabase.auth.signOut();
+
     window.localStorage.removeItem(patientSessionStorageKey);
     clearPatientPwaSessionCache();
-    const { error } = await supabase.auth.signOut();
 
     if (error) {
       console.error("Logout failed:", error);

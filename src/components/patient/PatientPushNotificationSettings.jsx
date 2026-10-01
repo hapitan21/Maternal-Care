@@ -1,5 +1,7 @@
 import { Icon } from "@iconify/react";
+import { usePatientNativePushNotifications } from "../../hooks/usePatientNativePushNotifications";
 import { usePatientPushNotifications } from "../../hooks/usePatientPushNotifications";
+import { isNativeAndroidPushAvailable } from "../../lib/patientNativePush";
 import {
   isIosOrIpadOs,
   isStandalonePwa,
@@ -26,7 +28,17 @@ function getPermissionLabel(permission) {
   return "Unavailable";
 }
 
-export default function PatientPushNotificationSettings() {
+function BrowserPushNotificationSettings() {
+  const pushState = usePatientPushNotifications();
+  return <PushNotificationSettingsCard pushState={pushState} nativeAndroid={false} />;
+}
+
+function NativePushNotificationSettings() {
+  const pushState = usePatientNativePushNotifications();
+  return <PushNotificationSettingsCard pushState={pushState} nativeAndroid />;
+}
+
+function PushNotificationSettingsCard({ pushState, nativeAndroid }) {
   const {
     secureContext,
     supported,
@@ -41,7 +53,7 @@ export default function PatientPushNotificationSettings() {
     enablePushNotifications,
     disablePushNotifications,
     refreshPushStatus,
-  } = usePatientPushNotifications();
+  } = pushState;
 
   const busy = loading || enabling || disabling;
   const enableUnavailable =
@@ -50,7 +62,8 @@ export default function PatientPushNotificationSettings() {
     !supported ||
     permission === "denied" ||
     status === patientPushStatuses.missingPublicKey;
-  const showIosInstallGuidance = isIosOrIpadOs() && !isStandalonePwa();
+  const showIosInstallGuidance =
+    !nativeAndroid && isIosOrIpadOs() && !isStandalonePwa();
 
   return (
     <section className="pwa-settings-card patient-push-settings-card">
@@ -61,8 +74,9 @@ export default function PatientPushNotificationSettings() {
         <div>
           <h3>Push Notifications</h3>
           <p>
-            Receive appointment and clinic reminders on this device even when
-            the Maternal Care PWA is closed.
+            {nativeAndroid
+              ? "Receive appointment and clinic reminders through the Maternal Care Android app."
+              : "Receive appointment and clinic reminders on this device even when the Maternal Care PWA is closed."}
           </p>
         </div>
         <button
@@ -105,8 +119,9 @@ export default function PatientPushNotificationSettings() {
         <p className="patient-push-guidance is-warning">
           <Icon icon="solar:danger-triangle-linear" />
           <span>
-            Notifications are blocked in your browser. Allow notifications in
-            this site&apos;s browser settings, then refresh the status.
+            {nativeAndroid
+              ? "Notifications are blocked for Maternal Care. Allow them in Android Settings, then refresh the status."
+              : "Notifications are blocked in your browser. Allow notifications in this site&apos;s browser settings, then refresh the status."}
           </span>
         </p>
       ) : null}
@@ -144,5 +159,13 @@ export default function PatientPushNotificationSettings() {
         Using a shared device? Disable push notifications before signing out.
       </p>
     </section>
+  );
+}
+
+export default function PatientPushNotificationSettings() {
+  return isNativeAndroidPushAvailable() ? (
+    <NativePushNotificationSettings />
+  ) : (
+    <BrowserPushNotificationSettings />
   );
 }
