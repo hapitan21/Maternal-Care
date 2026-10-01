@@ -77,3 +77,22 @@ export function getSafePatientNotificationTarget(notification) {
 
   return configuredTarget || "/patient/reminders";
 }
+
+// Native delivery has a Dashboard fallback; keep the inbox resolver unchanged.
+export function getSafePatientNativeNotificationTarget(type, route) {
+  const fallback = "/patient/dashboard";
+  if (
+    typeof type !== "string" ||
+    typeof route !== "string" ||
+    !Object.hasOwn(notificationTypeConfig, type)
+  ) {
+    return fallback;
+  }
+
+  const expected = type === "general"
+    ? fallback
+    : notificationTypeConfig[type].targetPath;
+  return route === expected && allowedPatientTargets.has(route)
+    ? route
+    : fallback;
+}

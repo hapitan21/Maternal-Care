@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense } from "react";
+import { Component, lazy, Suspense, useEffect, useSyncExternalStore } from "react";
 import {
   BrowserRouter,
   Link,
@@ -6,6 +6,7 @@ import {
   Route,
   Routes,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import Login from "./pages/auth/login";
@@ -15,6 +16,12 @@ import { AdminAuthProvider } from "./context/AdminAuthContext.jsx";
 
 import { useAuthenticatedStaff } from "./hooks/useAuthenticatedStaff";
 import { useDoctorRouteAuthorization } from "./hooks/useDoctorRouteAuthorization";
+import {
+  canOpenPatientNativePushWorkspace,
+  getPatientNativePushNavigationSnapshot,
+  subscribePatientNativePushNavigation,
+  verifyPendingPatientNativePushNavigation,
+} from "./lib/patientNativePushNavigation";
 
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -426,9 +433,37 @@ function AdminRedirect({ to }) {
    APPLICATION
    ============================================================ */
 
+function PatientNativePushNavigationBridge() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const revision = useSyncExternalStore(
+    subscribePatientNativePushNavigation,
+    getPatientNativePushNavigationSnapshot
+  );
+
+  useEffect(() => {
+    void verifyPendingPatientNativePushNavigation();
+  }, [revision]);
+
+  useEffect(() => {
+    if (!canOpenPatientNativePushWorkspace()) return;
+    const path = location.pathname;
+    // Let the existing login redirect finish. Competing with its asynchronous
+    // default redirect could overwrite the eventual notification destination.
+    if (path === "/" || path === "/login") return;
+    const patientEntry = ["/patient/login", "/patient/access", "/patient/create-account"].includes(path);
+    if (path === "/patient" || (path.startsWith("/patient/") && !patientEntry)) return;
+    // This fixed entry is authorized; only Patient_PWA consumes the destination.
+    navigate("/patient/dashboard", { replace: true });
+  }, [revision, location.pathname, navigate]);
+
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter>
+      <PatientNativePushNavigationBridge />
       <RouteAwareApplicationErrorBoundary>
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>

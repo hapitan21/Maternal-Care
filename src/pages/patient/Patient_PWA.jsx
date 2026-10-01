@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
@@ -33,6 +33,15 @@ import {
   isNativeAndroidPushAvailable,
   reconcilePatientNativePushRegistration,
 } from "../../lib/patientNativePush";
+import {
+  acknowledgePatientNativePushNavigation,
+  cancelPatientNativePushNavigationBeforeLogout,
+  clearPatientNativePushNavigation,
+  consumePatientNativePushNavigation,
+  getPatientNativePushNavigationSnapshot,
+  hasPendingPatientNativePushNavigation,
+  subscribePatientNativePushNavigation,
+} from "../../lib/patientNativePushNavigation";
 import "../../styles/patient-PWA.css";
 import "../../styles/patient-notifications.css";
 import "../../styles/patient-pwa-ui-system.css";
@@ -293,6 +302,10 @@ export default function PatientPWA() {
   const location = useLocation();
   const navigate = useNavigate();
   const activePage = getPageFromPath(location.pathname);
+  const nativeNavigationRevision = useSyncExternalStore(
+    subscribePatientNativePushNavigation,
+    getPatientNativePushNavigationSnapshot
+  );
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [topbarSecondaryTarget, setTopbarSecondaryTarget] = useState(null);
   const [initialAccountCache] = useState(getCachedPatientAccount);
@@ -342,6 +355,7 @@ export default function PatientPWA() {
         if (!active) return;
 
         if (userError && isMissingAuthSession(userError)) {
+          clearPatientNativePushNavigation();
           logPatientAccess("unauthenticated", {
             route: routePath,
             redirectDestination: "/patient/login",
@@ -361,6 +375,7 @@ export default function PatientPWA() {
         }
 
         if (!userData.user) {
+          clearPatientNativePushNavigation();
           logPatientAccess("unauthenticated", {
             route: routePath,
             redirectDestination: "/patient/login",
@@ -438,6 +453,7 @@ export default function PatientPWA() {
         }
 
         if (profileRow?.role && profileRow.role.toLowerCase() !== "patient") {
+          clearPatientNativePushNavigation();
           logPatientAccess("role mismatch", {
             authenticatedUserId: user.id,
             role: profileRow.role,
@@ -481,6 +497,7 @@ export default function PatientPWA() {
         });
 
         if (!linkedSummary) {
+          clearPatientNativePushNavigation();
           window.localStorage.removeItem(patientSessionStorageKey);
           clearPatientPwaSessionCache();
           setAccessState({
@@ -492,6 +509,7 @@ export default function PatientPWA() {
         }
 
         if (linkedStatus !== patientAccountStatuses.active) {
+          cancelPatientNativePushNavigationBeforeLogout();
           await cleanupPatientNativePushBeforeLogout();
           window.localStorage.removeItem(patientSessionStorageKey);
           clearPatientPwaSessionCache();
@@ -559,6 +577,7 @@ export default function PatientPWA() {
         });
 
         if (nextAccessState.status !== "active") {
+          cancelPatientNativePushNavigationBeforeLogout();
           await cleanupPatientNativePushBeforeLogout();
           window.localStorage.removeItem(patientSessionStorageKey);
           clearPatientPwaSessionCache();
@@ -623,6 +642,7 @@ export default function PatientPWA() {
         if (!active) return;
 
         if (isMissingAuthSession(error)) {
+          clearPatientNativePushNavigation();
           window.localStorage.removeItem(patientSessionStorageKey);
           clearPatientPwaSessionCache();
           setAccessState({
@@ -728,7 +748,10 @@ export default function PatientPWA() {
   }, []);
 
   useEffect(() => {
-    if (accessState.status !== "active") {
+    if (
+      accessState.status !== "active" ||
+      hasPendingPatientNativePushNavigation()
+    ) {
       return;
     }
 
@@ -739,7 +762,56 @@ export default function PatientPWA() {
       });
       navigate(pageRoutes.dashboard, { replace: true });
     }
-  }, [accessState.status, location.pathname, navigate]);
+  }, [accessState.status, location.pathname, navigate, nativeNavigationRevision]);
+
+  useEffect(() => {
+    if (
+      accessState.status !== "active" ||
+      !profile.recordId ||
+      !profile.userId ||
+      nativePushAuthorization.reloadToken !== reloadToken ||
+      nativePushAuthorization.userId !== profile.userId
+    ) return undefined;
+
+    // This marker is set only after the normal fresh authorization completes.
+    // A cached active account cannot mount a native navigation consumer.
+    let active = true;
+    const consume = () => {
+      acknowledgePatientNativePushNavigation({
+        userId: profile.userId,
+        patientId: profile.recordId,
+        pathname: location.pathname,
+        search: location.search,
+        hash: location.hash,
+      });
+      void consumePatientNativePushNavigation({
+        userId: profile.userId,
+        patientId: profile.recordId,
+        pathname: location.pathname,
+        search: location.search,
+        hash: location.hash,
+        navigate,
+        isMounted: () => active,
+      });
+    };
+    const unsubscribe = subscribePatientNativePushNavigation(consume);
+    consume();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [
+    accessState.status,
+    profile.recordId,
+    profile.userId,
+    nativePushAuthorization.reloadToken,
+    nativePushAuthorization.userId,
+    reloadToken,
+    location.pathname,
+    location.search,
+    location.hash,
+    navigate,
+  ]);
 
   const handleNavigate = (page) => {
     if (typeof page === "string" && page.startsWith("/patient/")) {
@@ -751,6 +823,7 @@ export default function PatientPWA() {
   };
 
   const handleLogout = async () => {
+    cancelPatientNativePushNavigationBeforeLogout();
     await cleanupPatientNativePushBeforeLogout();
     const { error } = await supabase.auth.signOut();
 
