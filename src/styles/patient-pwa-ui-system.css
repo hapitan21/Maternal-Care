@@ -881,7 +881,7 @@
   }
 
   .pwa-topbar .pwa-top-profile.is-open {
-    position: static !important;
+    position: relative !important;
     width: auto !important;
     border: 0 !important;
     background: transparent !important;
@@ -902,17 +902,34 @@
   }
 
   .pwa-topbar .pwa-profile-menu {
-    position: fixed !important;
-    top: calc(66px + env(safe-area-inset-top)) !important;
-    right: 12px !important;
-    left: 12px !important;
-    width: auto !important;
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    right: 0 !important;
+    left: auto !important;
+    width: min(240px, calc(100vw - 40px)) !important;
     margin: 0 !important;
     border: 1px solid var(--pwa-ui-line) !important;
-    border-radius: 16px !important;
+    border-radius: 18px !important;
     background: #ffffff !important;
-    padding: 10px !important;
-    box-shadow: 0 20px 48px rgba(31, 39, 55, 0.16) !important;
+    padding: 14px !important;
+    gap: 6px;
+    box-shadow: 0 12px 28px rgba(31, 39, 55, 0.12) !important;
+    animation: pwa-profile-menu-in 150ms ease-out;
+    transform-origin: top right;
+  }
+
+  .pwa-topbar .pwa-profile-menu button {
+    min-height: 48px;
+    height: 48px;
+    padding: 0 12px;
+    font-size: 15px;
+    gap: 10px;
+  }
+
+  .pwa-topbar .pwa-profile-menu svg {
+    width: 21px;
+    height: 21px;
+    flex-shrink: 0;
   }
 
   .pwa-main.is-profile-open .pwa-content {
@@ -973,7 +990,9 @@
     gap: 4px !important;
   }
 
-  .pwa-nav-item {
+  /* Match touch hover explicitly: the legacy hover rule is also !important. */
+  .pwa-nav-item,
+  .pwa-nav-item:hover {
     position: relative;
     height: 56px !important;
     min-height: 56px !important;
@@ -982,6 +1001,8 @@
     color: #7b8495 !important;
     gap: 3px !important;
     box-shadow: none !important;
+    transform: none !important;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .pwa-nav-item::after {
@@ -990,9 +1011,10 @@
     font-weight: 720 !important;
   }
 
-  .pwa-nav-item.is-active {
-    background: var(--pwa-ui-primary-soft) !important;
-    color: var(--pwa-ui-primary-dark) !important;
+  .pwa-nav-item.is-active,
+  .pwa-nav-item.is-active:hover {
+    background: var(--pwa-pink) !important;
+    color: #ffffff !important;
   }
 
   .pwa-nav-item.is-active::before {
@@ -2582,4 +2604,9 @@
   .pwa-medication-adherence-page .pwa-medication-summary-grid {
     grid-template-columns: 1fr !important;
   }
+}
+
+@keyframes pwa-profile-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }

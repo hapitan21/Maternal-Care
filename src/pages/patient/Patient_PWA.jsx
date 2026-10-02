@@ -123,6 +123,19 @@ function getPageFromPath(pathname) {
   return routePages[pathname.replace(/\/$/, "") || "/patient"] || "not-found";
 }
 
+// Navigation selection follows route families without changing page resolution.
+function getActiveNavFromPath(pathname) {
+  const path = pathname.replace(/\/+$/, "") || "/patient";
+  if (path === "/patient") return "dashboard";
+
+  return navItems.find((item) => {
+    const roots = item.key === "medical-record"
+      ? [pageRoutes[item.key], "/patient/medical-records"]
+      : [pageRoutes[item.key]];
+    return roots.some((root) => path === root || path.startsWith(root + "/"));
+  })?.key;
+}
+
 function isMissingPatientLinkingRpc(error) {
   if (!error) return false;
 
@@ -303,6 +316,7 @@ export default function PatientPWA() {
   const location = useLocation();
   const navigate = useNavigate();
   const activePage = getPageFromPath(location.pathname);
+  const activeNav = getActiveNavFromPath(location.pathname);
   const nativeNavigationRevision = useSyncExternalStore(
     subscribePatientNativePushNavigation,
     getPatientNativePushNavigationSnapshot
@@ -904,20 +918,10 @@ export default function PatientPWA() {
             <button
               key={item.key}
               type="button"
-              className={`pwa-nav-item ${
-                activePage === item.key ||
-                (item.key === "appointments" && activePage === "book-appointment")
-                  ? "is-active"
-                  : ""
-              }`}
+              className={`pwa-nav-item ${activeNav === item.key ? "is-active" : ""}`}
               onClick={() => handleNavigate(item.key)}
               aria-label={item.label}
-              aria-current={
-                activePage === item.key ||
-                (item.key === "appointments" && activePage === "book-appointment")
-                  ? "page"
-                  : undefined
-              }
+              aria-current={activeNav === item.key ? "page" : undefined}
               data-mobile-label={item.mobileLabel}
               title={item.label}
             >
