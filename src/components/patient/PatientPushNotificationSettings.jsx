@@ -44,6 +44,7 @@ function PushNotificationSettingsCard({ pushState, nativeAndroid }) {
     supported,
     permission,
     subscribed,
+    disableRetry = false,
     status,
     loading,
     enabling,
@@ -127,12 +128,12 @@ function PushNotificationSettingsCard({ pushState, nativeAndroid }) {
       ) : null}
 
       <div className="patient-push-feedback" aria-live="polite">
-        {error && permission !== "denied" ? <p className="is-error">{error}</p> : null}
+        {error && (nativeAndroid || permission !== "denied") ? <p className="is-error">{error}</p> : null}
         {message ? <p className="is-success">{message}</p> : null}
       </div>
 
       <div className="patient-push-actions">
-        {subscribed ? (
+        {subscribed || (nativeAndroid && disableRetry) ? (
           <button
             className="is-disable"
             type="button"

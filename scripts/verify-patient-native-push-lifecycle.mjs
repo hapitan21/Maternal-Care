@@ -113,6 +113,7 @@ function eventTarget() {
       listeners.get(event).add(listener);
     },
     removeEventListener(event, listener) { listeners.get(event)?.delete(listener); },
+    listenerCount(event) { return listeners.get(event)?.size || 0; },
     dispatchEvent(event) {
       for (const listener of [...(listeners.get(event.type) || [])]) listener(event);
       return true;
@@ -249,7 +250,10 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
   const window = { ...eventTarget(), setTimeout: time.setTimeout, clearTimeout: time.clearTimeout,
     localStorage: {
       getItem: key => storage.get(key) ?? null,
-      setItem: (key, value) => storage.set(key, String(value)),
+      setItem: (key, value) => {
+        if (key === disabledKey) calls.push("preference:" + String(value));
+        storage.set(key, String(value));
+      },
       removeItem: key => storage.delete(key), clear: () => storage.clear(),
     },
   };
@@ -257,6 +261,9 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
   let currentSession = initialSession;
   let permission = "granted";
   let deactivateFails = false;
+  let unregisterFails = false;
+  let permissionFails = false;
+  let statusFails = false;
   let registerCalls = 0;
   let unregisterCalls = 0;
   const nativeListeners = new Map();
@@ -290,15 +297,26 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
     for (const callback of callbacks) callback({ value });
   };
   const push = {
-    checkPermissions: async () => ({ receive: permission }),
-    requestPermissions: async () => ({ receive: permission }),
+    checkPermissions: async () => {
+      calls.push("native:checkPermissions");
+      const captured = permission;
+      await checkpoint("permission");
+      if (permissionFails) throw new Error("synthetic permission failure");
+      return { receive: captured };
+    },
+    requestPermissions: async () => { calls.push("native:requestPermissions"); return { receive: permission }; },
     async register() {
       registerCalls++;
       await checkpoint("register");
       if (registerFails) throw new Error("synthetic registration failure");
       if (autoToken) emit(autoToken);
     },
-    async unregister() { unregisterCalls++; },
+    async unregister() {
+      calls.push("native:unregister");
+      unregisterCalls++;
+      await checkpoint("unregister");
+      if (unregisterFails) throw new Error("synthetic unregister failure");
+    },
     async addListener(event, callback) {
       if (!nativeListeners.has(event)) nativeListeners.set(event, new Set());
       nativeListeners.get(event).add(callback);
@@ -386,6 +404,7 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
             return { data: { found, enabled: false }, error: null };
           }
           if (name === "get_my_patient_native_push_device_status") {
+            if (statusFails) return { data: null, error: { code: "synthetic-status-failure" } };
             return { data: model.status(requestSession, args.p_installation_id), error: null };
           }
           throw new Error("Unmocked RPC");
@@ -432,6 +451,9 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
     get unregisterCalls() { return unregisterCalls; },
     setPermission(value) { permission = value; },
     failDeactivation(value = true) { deactivateFails = value; },
+    failUnregister(value = true) { unregisterFails = value; },
+    failPermission(value = true) { permissionFails = value; },
+    failStatus(value = true) { statusFails = value; },
     async authChange(next, event = "SIGNED_IN") {
       currentSession = next;
       if (next) sessionHistory.set(next.access_token, next);
@@ -649,7 +671,6 @@ const transientFailure = { ok: false, httpStatus: 503, errorCode: "UNAVAILABLE",
   errorMessage: "Synthetic transient failure", permanentTokenFailure: false };
 const tests = [];
 const safeguard = (name, run) => tests.push({ name, run });
-const defect = (name, reason, run) => tests.push({ name, expectedFailure: reason, run });
 
 safeguard("SQL authorization model and uniqueness mirror recognized source", async () => {
   validateSqlModel();
@@ -1695,7 +1716,7 @@ safeguard("OS denial prevents registration without setting explicit disable", as
   assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
 });
 
-defect("Settings refreshes permission after background revoke and visible resume", "mounted Settings hook has no visible/resume refresh", async () => {
+safeguard("Settings refreshes permission after background revoke and visible resume", async () => {
   const h = await nativeHarness({ autoToken: token(1) });
   await h.api.registerPatientNativePushDevice();
   const settings = await settingsHarness(h);
@@ -1738,7 +1759,7 @@ safeguard("failed server deactivation is immediately shown as error with a usabl
   settings.unmount();
 });
 
-defect("failed deactivation stays visible and retryable after status refresh", "refresh hides unsynchronized disable error and removes retry button", async () => {
+safeguard("failed deactivation stays visible and retryable after status refresh", async () => {
   const h = await nativeHarness({ autoToken: token(1) });
   await h.api.registerPatientNativePushDevice();
   const settings = await settingsHarness(h);
@@ -1768,6 +1789,494 @@ safeguard("retrying Disable after server recovery deactivates the row", async ()
   assert.equal([...h.model.rows.values()][0].enabled, false);
   assert.equal(settings.state.status, "unsubscribed");
   settings.unmount();
+});
+
+
+// Phase 7F: foreground Settings reads and recoverable, session-bound Disable.
+for (const permission of ["granted", "denied", "prompt"]) safeguard("Settings mount reads OS permission without prompting or mutating delivery (" + permission + ")", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  h.setPermission(permission);
+  const before = { ...[...h.model.rows.values()][0] };
+  const settings = await settingsHarness(h);
+  assert.equal(settings.state.permission, permission === "prompt" ? "default" : permission);
+  assert.equal(settings.state.subscribed, true);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  assert.equal(h.calls.includes("native:requestPermissions"), false);
+  assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
+  assert.deepEqual([...h.model.rows.values()][0], before);
+  assert.equal(h.registerCalls, 1);
+  settings.unmount();
+});
+
+safeguard("foreground permission restoration preserves explicit Disable and disabled server row", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  await h.api.disablePatientNativePushDevice();
+  h.setPermission("denied");
+  const settings = await settingsHarness(h);
+  assert.equal(settings.state.permission, "denied");
+  await h.visible(false);
+  h.setPermission("granted");
+  await h.visible(true);
+  await settings.settle();
+  assert.equal(settings.state.permission, "granted");
+  assert.equal(settings.state.subscribed, false);
+  assert.equal(settings.state.status, "unsubscribed");
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  assert.equal([...h.model.rows.values()][0].enabled, false);
+  assert.equal((await h.api.reconcilePatientNativePushRegistration()).registered, false);
+  assert.equal(h.registerCalls, 1);
+  settings.unmount();
+});
+
+safeguard("foreground listeners coalesce visibility and focus and are removed on every unmount", async () => {
+  const h = await nativeHarness();
+  for (let mount = 0; mount < 3; mount++) {
+    const settings = await settingsHarness(h);
+    assert.equal(h.window.listenerCount(h.api.patientNativePushStatusChangedEvent), 1);
+    assert.equal(h.window.listenerCount("focus"), 1);
+    assert.equal(h.document.listenerCount("visibilitychange"), 1);
+    for (let foreground = 0; foreground < 3; foreground++) {
+      const reads = h.calls.filter(name => name === "get_my_patient_native_push_device_status").length;
+      await h.visible(true);
+      await settings.settle();
+      assert.equal(h.calls.filter(name => name === "get_my_patient_native_push_device_status").length, reads + 1);
+      assert.equal(h.window.listenerCount("focus"), 1);
+    }
+    settings.unmount();
+    assert.equal(h.window.listenerCount(h.api.patientNativePushStatusChangedEvent), 0);
+    assert.equal(h.window.listenerCount("focus"), 0);
+    assert.equal(h.document.listenerCount("visibilitychange"), 0);
+    const calls = h.calls.length;
+    await h.visible(true);
+    assert.equal(h.calls.length, calls);
+  }
+});
+
+safeguard("visible focus alone refreshes permission but hidden focus does not", async () => {
+  const h = await nativeHarness();
+  const settings = await settingsHarness(h);
+  await h.visible(false);
+  h.setPermission("denied");
+  h.window.dispatchEvent({ type: "focus" });
+  await settings.settle();
+  assert.equal(settings.state.permission, "granted");
+  h.document.visibilityState = "visible";
+  h.window.dispatchEvent({ type: "focus" });
+  await settings.settle();
+  assert.equal(settings.state.permission, "denied");
+  settings.unmount();
+});
+
+safeguard("permission change during an in-flight refresh queues one read of the latest permission", async () => {
+  const h = await nativeHarness();
+  const settings = await settingsHarness(h);
+  const gate = h.pause("permission");
+  const refresh = observe(settings.state.refreshPushStatus());
+  await gate.entered;
+  h.setPermission("denied");
+  await h.visible(true);
+  await h.visible(true);
+  const reads = h.calls.filter(name => name === "native:checkPermissions").length;
+  gate.release();
+  await complete(refresh);
+  await settings.settle();
+  assert.equal(settings.state.permission, "denied");
+  assert.equal(h.calls.filter(name => name === "native:checkPermissions").length, reads + 1);
+  settings.unmount();
+});
+
+safeguard("unmount ignores an in-flight Settings result and queued foreground refresh", async () => {
+  const h = await nativeHarness();
+  const settings = await settingsHarness(h);
+  const gate = h.pause("permission");
+  const refresh = observe(settings.state.refreshPushStatus());
+  await gate.entered;
+  await settings.settle();
+  const before = settings.state;
+  h.setPermission("denied");
+  await h.visible(true);
+  settings.unmount();
+  gate.release();
+  await complete(refresh);
+  await settings.settle();
+  assert.equal(settings.state, before);
+  assert.equal(h.window.listenerCount("focus"), 0);
+  assert.equal(h.document.listenerCount("visibilitychange"), 0);
+});
+
+safeguard("status-read failure still exposes current OS denial and preserves Disable action", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const settings = await settingsHarness(h);
+  h.setPermission("denied");
+  h.failStatus();
+  await h.visible(true);
+  await settings.settle();
+  assert.equal(settings.state.permission, "denied");
+  assert.equal(settings.state.status, "error");
+  assert.equal(settings.errorVisible(), true);
+  assert.equal(settings.disableButton()?.props.disabled, false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  assert.equal([...h.model.rows.values()][0].enabled, true);
+  h.failStatus(false);
+  await settings.state.refreshPushStatus();
+  await settings.settle();
+  assert.equal(settings.state.status, "permission_denied");
+  settings.unmount();
+});
+
+safeguard("permission-read failure is safely retryable without prompting or deactivation", async () => {
+  const h = await nativeHarness();
+  h.failPermission();
+  const settings = await settingsHarness(h);
+  assert.equal(settings.state.status, "error");
+  assert.equal(settings.errorVisible(), true);
+  assert.equal(h.calls.includes("native:requestPermissions"), false);
+  assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
+  h.failPermission(false);
+  await h.visible(true);
+  await settings.settle();
+  assert.equal(settings.state.permission, "granted");
+  assert.equal(settings.state.error, "");
+  settings.unmount();
+});
+
+safeguard("Disable orders server acknowledgement before unregister and saved preference", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const server = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const native = h.pause("unregister");
+  const operation = observe(h.api.disablePatientNativePushDevice());
+  await server.entered;
+  assert.equal([...h.model.rows.values()][0].enabled, true);
+  assert.equal(h.unregisterCalls, 0);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  const reconcile = observe(h.api.reconcilePatientNativePushRegistration());
+  await complete(reconcile);
+  assert.equal(reconcile.error?.code, "registration_cancelled");
+  server.release();
+  await native.entered;
+  assert.equal([...h.model.rows.values()][0].enabled, false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  native.release();
+  await complete(operation);
+  assert.equal(operation.value.deactivated, true);
+  assert.equal(operation.value.unregistered, true);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  assert.ok(h.calls.indexOf("deactivate_my_patient_native_push_device") < h.calls.indexOf("native:unregister"));
+  assert.ok(h.calls.indexOf("native:unregister") < h.calls.indexOf("preference:true"));
+  const writes = h.writes.length;
+  h.emit(token(2));
+  assert.equal((await h.api.reconcilePatientNativePushRegistration()).registered, false);
+  assert.equal(h.writes.length, writes);
+});
+
+safeguard("concurrent Disable calls share one operation and repeated success is idempotent", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const first = h.api.disablePatientNativePushDevice();
+  assert.equal(h.api.disablePatientNativePushDevice(), first);
+  const operation = observe(first);
+  await gate.entered;
+  gate.release();
+  await complete(operation);
+  assert.equal(h.calls.filter(name => name === "deactivate_my_patient_native_push_device").length, 1);
+  assert.equal(h.unregisterCalls, 1);
+  assert.equal((await h.api.disablePatientNativePushDevice()).deactivated, true);
+  assert.equal(h.model.rows.size, 1);
+  assert.equal([...h.model.rows.values()][0].enabled, false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+});
+
+safeguard("failed Disable preserves the prior preference and skips native unregister", async () => {
+  for (const previouslyDisabled of [false, true]) {
+    const h = await nativeHarness({ autoToken: token(1) });
+    await h.api.registerPatientNativePushDevice();
+    if (previouslyDisabled) await h.api.disablePatientNativePushDevice();
+    const unregisters = h.unregisterCalls;
+    const before = h.storage.get(disabledKey);
+    h.failDeactivation();
+    const result = await h.api.disablePatientNativePushDevice();
+    assert.equal(result.deactivated, false);
+    assert.equal(result.unregistered, false);
+    assert.equal(h.storage.get(disabledKey), before);
+    assert.equal(h.unregisterCalls, unregisters);
+    assert.equal([...h.model.rows.values()][0].enabled, !previouslyDisabled);
+  }
+});
+
+safeguard("failed Disable permits reconciliation and explicit Enable using the same row", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const rowId = [...h.model.rows.values()][0].id;
+  const installation = h.storage.get(installationKey);
+  const settings = await settingsHarness(h);
+  h.failDeactivation();
+  assert.equal(await settings.state.disablePushNotifications(), false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  assert.equal((await h.api.reconcilePatientNativePushRegistration()).registered, true);
+  assert.equal(h.listenerCount(), 1);
+  assert.equal(await settings.state.enablePushNotifications(), true);
+  await settings.settle();
+  assert.equal(settings.state.error, "");
+  assert.equal(settings.state.subscribed, true);
+  assert.equal(h.model.rows.size, 1);
+  assert.equal([...h.model.rows.values()][0].id, rowId);
+  assert.equal(h.storage.get(installationKey), installation);
+  settings.unmount();
+});
+
+safeguard("failed Disable feedback and retry remain visible when OS permission is denied", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const settings = await settingsHarness(h);
+  h.failDeactivation();
+  await settings.state.disablePushNotifications();
+  h.setPermission("denied");
+  await h.visible(true);
+  await settings.settle();
+  assert.equal(settings.state.permission, "denied");
+  assert.equal(settings.errorVisible(), true);
+  assert.equal(settings.disableButton()?.props.disabled, false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  h.failDeactivation(false);
+  assert.equal(await settings.state.disablePushNotifications(), true);
+  await settings.settle();
+  assert.equal(settings.state.error, "");
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  assert.equal([...h.model.rows.values()][0].enabled, false);
+  settings.unmount();
+});
+
+safeguard("server-disabled native-unregister failure retains preference and offers a working retry", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const settings = await settingsHarness(h);
+  h.failUnregister();
+  assert.equal(await settings.state.disablePushNotifications(), false);
+  await settings.settle();
+  assert.equal([...h.model.rows.values()][0].enabled, false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  assert.equal(settings.errorVisible(), true);
+  assert.equal(settings.disableButton()?.props.disabled, false);
+  await settings.state.refreshPushStatus();
+  await settings.settle();
+  assert.equal(settings.state.subscribed, false);
+  assert.equal(settings.errorVisible(), true);
+  assert.equal(settings.disableButton()?.props.disabled, false);
+  h.failUnregister(false);
+  assert.equal(await settings.state.disablePushNotifications(), true);
+  await settings.settle();
+  assert.equal(settings.state.error, "");
+  assert.equal(settings.disableButton(), null);
+  settings.unmount();
+});
+
+safeguard("foreground refresh waits for Disable completion without overwriting its outcome", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const settings = await settingsHarness(h);
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const action = observe(settings.state.disablePushNotifications());
+  await gate.entered;
+  h.setPermission("denied");
+  const reads = h.calls.filter(name => name === "get_my_patient_native_push_device_status").length;
+  await h.visible(true);
+  await settings.settle();
+  assert.equal(settings.state.disabling, true);
+  assert.equal(h.calls.filter(name => name === "get_my_patient_native_push_device_status").length, reads);
+  gate.release();
+  await complete(action);
+  await settings.settle();
+  assert.equal(settings.state.permission, "denied");
+  assert.equal(settings.state.subscribed, false);
+  assert.equal(settings.state.disabling, false);
+  assert.equal(settings.state.error, "");
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  settings.unmount();
+});
+
+safeguard("timed-out Disable aborts a delayed RPC and permits later reconciliation", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const action = observe(h.api.disablePatientNativePushDevice());
+  await gate.entered;
+  await h.time.advance(15000);
+  await complete(action);
+  assert.equal(action.value.deactivated, false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  assert.equal(h.unregisterCalls, 0);
+  gate.release();
+  await flush();
+  assert.equal([...h.model.rows.values()][0].enabled, true);
+  assert.equal((await h.api.reconcilePatientNativePushRegistration()).registered, true);
+});
+
+safeguard("logout synchronously invalidates pending Disable before its asynchronous cleanup", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const action = observe(h.api.disablePatientNativePushDevice());
+  await gate.entered;
+  const logout = observe(h.api.cleanupPatientNativePushBeforeLogout());
+  gate.release();
+  await complete(action);
+  await complete(logout);
+  assert.equal(action.value.deactivated, false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  assert.equal(logout.value.deactivated, true);
+  assert.equal(h.unregisterCalls, 1, "only logout cleanup may unregister");
+  assert.equal([...h.model.rows.values()][0].enabled, false);
+  assert.equal(h.writes.length, 1);
+});
+
+for (const replacement of [session(uid(2), uid(102)), session(uid(1), uid(103))]) safeguard(
+  "replacement auth invalidates pending Disable (" + (replacement.user.id === uid(1) ? "session" : "Patient") + ")", async () => {
+    const h = await nativeHarness({ autoToken: token(1) });
+    await h.api.registerPatientNativePushDevice();
+    const before = { ...[...h.model.rows.values()][0] };
+    const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+    const action = observe(h.api.disablePatientNativePushDevice());
+    await gate.entered;
+    await h.authChange(replacement);
+    gate.release();
+    await complete(action);
+    assert.equal(action.value.deactivated, false);
+    assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+    assert.equal(h.unregisterCalls, 0);
+    assert.deepEqual([...h.model.rows.values()][0], before);
+    assert.equal(h.writes.length, 1);
+  });
+
+safeguard("same logical session refresh can complete Disable", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const action = observe(h.api.disablePatientNativePushDevice());
+  await gate.entered;
+  await h.authChange(session(uid(1), uid(101), 1), "TOKEN_REFRESHED");
+  gate.release();
+  await complete(action);
+  assert.equal(action.value.deactivated, true);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  assert.equal(h.unregisterCalls, 1);
+});
+
+safeguard("replacement before an initial Disable session read prevents any cleanup write", async () => {
+  const h = await nativeHarness();
+  const gate = h.pause("session");
+  const action = observe(h.api.disablePatientNativePushDevice());
+  await gate.entered;
+  await h.authChange(session(uid(2), uid(102)));
+  gate.release();
+  await complete(action);
+  assert.equal(action.value.deactivated, false);
+  assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
+  assert.equal(h.unregisterCalls, 0);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+});
+
+
+safeguard("first Disable observes session replacement during its RPC without a prior registration", async () => {
+  const h = await nativeHarness();
+  const installation = h.api.getOrCreatePatientNativePushInstallationId();
+  const before = { ...h.model.upsert(session(), installation, token(1)) };
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const action = observe(h.api.disablePatientNativePushDevice());
+  await gate.entered;
+  await h.authChange(session(uid(2), uid(102)));
+  gate.release();
+  await complete(action);
+  assert.equal(action.value.deactivated, false);
+  assert.deepEqual(h.model.rows.get(installation), before);
+  assert.equal(h.unregisterCalls, 0);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+});
+
+safeguard("ending or replacing the Patient shell invalidates pending Disable", async () => {
+  for (const boundary of ["endPatientNativePushSession", "beginPatientNativePushSession"]) {
+    const h = await nativeHarness({ autoToken: token(1) });
+    await h.api.registerPatientNativePushDevice();
+    const before = { ...[...h.model.rows.values()][0] };
+    const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+    const action = observe(h.api.disablePatientNativePushDevice());
+    await gate.entered;
+    h.api[boundary]();
+    gate.release();
+    await complete(action);
+    assert.equal(action.value.deactivated, false);
+    assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+    assert.equal(h.unregisterCalls, 0);
+    assert.deepEqual([...h.model.rows.values()][0], before);
+  }
+});
+
+safeguard("Settings preserves disabled server status when retry deactivation fails", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  await h.api.disablePatientNativePushDevice();
+  const settings = await settingsHarness(h);
+  h.failDeactivation();
+  assert.equal(await settings.state.disablePushNotifications(), false);
+  await settings.settle();
+  assert.equal(settings.state.subscribed, false);
+  assert.equal(settings.errorVisible(), true);
+  assert.equal(settings.disableButton()?.props.disabled, false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  assert.equal([...h.model.rows.values()][0].enabled, false);
+  settings.unmount();
+});
+
+safeguard("successful explicit Enable clears Disable preference and keeps foreground reads deferred", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  await h.api.disablePatientNativePushDevice();
+  const settings = await settingsHarness(h);
+  const rowId = [...h.model.rows.values()][0].id;
+  const gate = h.pause("rpc:upsert_my_patient_native_push_device");
+  const action = observe(settings.state.enablePushNotifications());
+  await gate.entered;
+  const reads = h.calls.filter(name => name === "get_my_patient_native_push_device_status").length;
+  await h.visible(true);
+  await settings.settle();
+  assert.equal(settings.state.enabling, true);
+  assert.equal(h.calls.filter(name => name === "get_my_patient_native_push_device_status").length, reads);
+  assert.equal(await settings.state.disablePushNotifications(), false);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  gate.release();
+  await complete(action);
+  await settings.settle();
+  assert.equal(action.value, true);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  assert.equal(settings.state.subscribed, true);
+  assert.equal(settings.state.enabling, false);
+  assert.equal(h.listenerCount(), 1);
+  assert.equal([...h.model.rows.values()][0].id, rowId);
+  assert.equal(h.model.rows.size, 1);
+  settings.unmount();
+});
+
+safeguard("unmount suppresses pending Disable UI updates while the requested service work completes", async () => {
+  const h = await nativeHarness({ autoToken: token(1) });
+  await h.api.registerPatientNativePushDevice();
+  const settings = await settingsHarness(h);
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const action = observe(settings.state.disablePushNotifications());
+  await gate.entered;
+  await settings.settle();
+  const before = settings.state;
+  settings.unmount();
+  gate.release();
+  await complete(action);
+  await settings.settle();
+  assert.equal(settings.state, before);
+  assert.equal(action.value, true);
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), true);
+  assert.equal(h.window.listenerCount(h.api.patientNativePushStatusChangedEvent), 0);
 });
 
 safeguard("restart retains installation UUID through the actual storage helper", async () => {

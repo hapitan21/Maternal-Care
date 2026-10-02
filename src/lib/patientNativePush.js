@@ -23,6 +23,7 @@ let observedAuthIdentity = null;
 let authObserved = false;
 let authGeneration = 0;
 let registrationTokens = null;
+let disableInFlight = null;
 
 function createNativePushError(code) {
   const error = new Error(code);
@@ -152,7 +153,7 @@ function observeRegistrationAuth() {
   authSubscription = supabase.auth.onAuthStateChange((event, session) => {
     // Keep the callback synchronous: Supabase auth callbacks must not await SDK calls.
     const identity = getSessionIdentity(session);
-    const expected = registrationInFlight?.identity || observedAuthIdentity;
+    const expected = registrationInFlight?.identity || disableInFlight?.identity || observedAuthIdentity;
     const boundary = event === "SIGNED_OUT" || event === "PASSWORD_RECOVERY" ||
       !identity || (expected && !sameIdentity(expected, identity)) ||
       (!expected && registrationInFlight && event !== "INITIAL_SESSION");
@@ -164,6 +165,7 @@ function observeRegistrationAuth() {
       if (!identity || event === "SIGNED_OUT" || event === "PASSWORD_RECOVERY") {
         registrationBlocked = true;
       }
+      disableInFlight?.abortController.abort();
       cancelRegistration(registrationInFlight, "auth_changed");
       disposeRegistrationTokens();
     }
@@ -460,13 +462,14 @@ async function performRegistration(operation) {
   }
 }
 
-async function deactivateCurrentInstallation({ notify = true, session,
+async function deactivateCurrentInstallation({ notify = true, session, abortSignal,
   installationId = getOrCreatePatientNativePushInstallationId() } = {}) {
   const request = supabase.rpc(
     "deactivate_my_patient_native_push_device",
     { p_installation_id: installationId }
   );
   if (session) request.setHeader("Authorization", "Bearer " + session.access_token);
+  if (abortSignal) request.abortSignal(abortSignal);
   const { data, error } = await request;
 
   if (error) {
@@ -577,6 +580,7 @@ export async function requestPatientNativePushPermission() {
 export function beginPatientNativePushSession() {
   if (isNativeAndroidPushAvailable()) observeRegistrationAuth();
   lifecycleGeneration += 1;
+  disableInFlight?.abortController.abort();
   disposeRegistrationTokens();
   registrationBlocked = false;
 
@@ -589,6 +593,7 @@ export function endPatientNativePushSession() {
   registrationBlocked = true;
   lifecycleGeneration += 1;
   authGeneration += 1;
+  disableInFlight?.abortController.abort();
   cancelRegistration(registrationInFlight, "session_ended");
   disposeRegistrationTokens();
   authSubscription?.unsubscribe();
@@ -604,6 +609,9 @@ export function registerPatientNativePushDevice({ allowExplicitlyDisabled = fals
 function startRegistration({
   allowExplicitlyDisabled = false, tokens = registrationTokens, rotation = false,
 } = {}) {
+  if (disableInFlight?.generation === lifecycleGeneration) {
+    return Promise.reject(createNativePushError("registration_cancelled"));
+  }
   if (registrationBlocked) {
     return Promise.reject(createNativePushError("registration_cancelled"));
   }
@@ -698,59 +706,91 @@ export async function getPatientNativePushDeviceStatus() {
   return data || { found: false, enabled: false, platform: "android" };
 }
 
-export async function disablePatientNativePushDevice() {
+export function disablePatientNativePushDevice() {
   if (!isNativeAndroidPushAvailable()) {
-    return {
+    return Promise.resolve({
       deactivated: false,
       unregistered: false,
       deactivationError: createNativePushError("unsupported"),
       unregisterError: null,
-    };
+    });
   }
-
-  let deactivationError = null;
-  let unregisterError = null;
-  setExplicitlyDisabled(true);
+  if (disableInFlight?.generation === lifecycleGeneration) return disableInFlight.promise;
 
   lifecycleGeneration += 1;
   const pendingRegistration = registrationInFlight;
   cancelRegistration(pendingRegistration, "explicit_disable");
   disposeRegistrationTokens();
-  const cleanupBinding = captureCleanupSession();
+  const operation = {
+    generation: lifecycleGeneration,
+    binding: captureCleanupSession(),
+    installationId: getOrCreatePatientNativePushInstallationId(),
+    identity: null,
+    abortController: new AbortController(),
+    promise: null,
+  };
+  disableInFlight = operation;
+  operation.promise = performDisable(operation, pendingRegistration).finally(() => {
+    if (disableInFlight === operation) disableInFlight = null;
+  });
+  return operation.promise;
+}
+
+function assertCurrentDisable(operation, session) {
+  if (session) operation.identity ||= getSessionIdentity(session);
+  if (registrationBlocked || operation.abortController.signal.aborted ||
+      operation.generation !== lifecycleGeneration || operation.binding.generation !== authGeneration ||
+      (authObserved && operation.identity && !sameIdentity(operation.identity, observedAuthIdentity))) {
+    throw createNativePushError("auth_changed");
+  }
+}
+
+async function performDisable(operation, pendingRegistration) {
+  let deactivationError = null;
+  let unregisterError = null;
 
   if (pendingRegistration) {
-    await withTimeout(
-      pendingRegistration.completion,
-      settingsOperationTimeoutMs,
-      "registration_cancellation_timeout"
-    ).catch(() => undefined);
+    await withTimeout(pendingRegistration.completion, settingsOperationTimeoutMs,
+      "registration_cancellation_timeout").catch(() => undefined);
   }
 
   try {
-    await runBoundCleanup(
-      cleanupBinding,
-      (session) => deactivateCurrentInstallation({ session }),
-      settingsOperationTimeoutMs,
-      "deactivation_timeout"
-    );
+    assertCurrentDisable(operation);
+    await runBoundCleanup(operation.binding, (session) => {
+      assertCurrentDisable(operation, session);
+      return deactivateCurrentInstallation({ session, notify: false,
+        installationId: operation.installationId, abortSignal: operation.abortController.signal });
+    }, settingsOperationTimeoutMs, "deactivation_timeout");
+    assertCurrentDisable(operation);
   } catch (error) {
     deactivationError = error;
+    operation.abortController.abort();
   }
 
-  try {
-    await runBoundCleanup(
-      cleanupBinding,
-      () => unregisterNativePush(),
-      settingsOperationTimeoutMs,
-      "unregister_timeout"
-    );
-  } catch (error) {
-    unregisterError = error;
+  // A failed server operation leaves the saved preference and native token usable.
+  // The temporary in-flight guard prevents reconciliation from re-enabling mid-Disable.
+  if (!deactivationError) {
+    try {
+      await runBoundCleanup(operation.binding, (session) => {
+        assertCurrentDisable(operation, session);
+        return unregisterNativePush();
+      }, settingsOperationTimeoutMs, "unregister_timeout");
+    } catch (error) {
+      unregisterError = error;
+    }
+    try {
+      assertCurrentDisable(operation);
+      // Server delivery is off even if native unregister failed; retain explicit Disable.
+      setExplicitlyDisabled(true);
+      dispatchStatusChanged(false);
+    } catch (error) {
+      deactivationError = error;
+    }
   }
 
   return {
     deactivated: deactivationError === null,
-    unregistered: unregisterError === null,
+    unregistered: deactivationError === null && unregisterError === null,
     deactivationError,
     unregisterError,
   };
@@ -767,6 +807,7 @@ export async function cleanupPatientNativePushBeforeLogout() {
   registrationBlocked = true;
   lifecycleGeneration += 1;
   const pendingRegistration = registrationInFlight;
+  disableInFlight?.abortController.abort();
   cancelRegistration(pendingRegistration, "logout_cleanup");
   disposeRegistrationTokens();
   const cleanupBinding = captureCleanupSession();

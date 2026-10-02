@@ -31,6 +31,7 @@ function getInitialState() {
     loading: supported,
     enabling: false,
     disabling: false,
+    disableRetry: false,
     error: "",
     message: "",
   };
@@ -63,17 +64,26 @@ export function usePatientNativePushNotifications() {
   const operationRef = useRef(0);
   const enablingRef = useRef(false);
   const disablingRef = useRef(false);
+  const mountedRef = useRef(false);
+  const refreshInFlightRef = useRef(null);
+  const refreshPendingRef = useRef(false);
+  const disableErrorRef = useRef("");
 
-  const setFeatureState = useCallback((updates) => {
+  const setFeatureState = useCallback((updates, operationId) => {
+    if (!mountedRef.current || operationId !== operationRef.current) return;
     setState((current) => ({ ...current, ...updates }));
   }, []);
 
-  const refreshPushStatus = useCallback(async ({ keepMessage = false } = {}) => {
-    const operationId = operationRef.current + 1;
-    operationRef.current = operationId;
-
+  const refreshPushStatus = useCallback(function refreshStatus({ keepMessage = false } = {}) {
+    if (!mountedRef.current) return Promise.resolve();
+    if (enablingRef.current || disablingRef.current || refreshInFlightRef.current) {
+      refreshPendingRef.current = true;
+      return refreshInFlightRef.current || Promise.resolve();
+    }
+    refreshPendingRef.current = false;
+    const operationId = ++operationRef.current;
     const finish = (updates) => {
-      if (operationRef.current !== operationId) return;
+      if (!mountedRef.current || operationRef.current !== operationId) return;
       setState((current) => ({
         ...current,
         loading: false,
@@ -81,93 +91,111 @@ export function usePatientNativePushNotifications() {
         ...updates,
       }));
     };
-
     setState((current) => ({
       ...current,
       status: patientPushStatuses.loading,
       loading: true,
-      error: "",
+      error: disableErrorRef.current,
       message: keepMessage ? current.message : "",
     }));
 
-    if (!isNativeAndroidPushAvailable()) {
-      finish({
-        supported: false,
-        permission: "unsupported",
-        subscribed: false,
-        status: patientPushStatuses.unsupported,
-      });
-      return;
-    }
-
-    try {
-      const permission = await checkPatientNativePushPermission();
-      const deviceStatus = await getPatientNativePushDeviceStatus();
-      const explicitlyDisabled =
-        isPatientNativePushExplicitlyDisabled();
-      const subscribed =
-        !explicitlyDisabled && deviceStatus?.enabled === true;
-      const status =
-        permission === "denied"
-          ? patientPushStatuses.permissionDenied
-          : subscribed
-            ? patientPushStatuses.subscribed
-            : permission === "default"
-              ? patientPushStatuses.permissionDefault
-              : patientPushStatuses.unsubscribed;
-
-      finish({
-        supported: true,
-        secureContext: true,
-        permission,
-        subscribed,
-        status,
-        error: "",
-      });
-    } catch (error) {
-      finish({
-        supported: true,
-        subscribed: false,
-        status: patientPushStatuses.error,
-        error: getSafeNativePushErrorMessage(
-          error,
-          "Push notification status could not be loaded. Please try again."
-        ),
-      });
-    }
+    const work = (async () => {
+      if (!isNativeAndroidPushAvailable()) {
+        finish({
+          supported: false,
+          permission: "unsupported",
+          subscribed: false,
+          status: patientPushStatuses.unsupported,
+        });
+        return;
+      }
+      let permission;
+      try {
+        permission = await checkPatientNativePushPermission();
+        const deviceStatus = await getPatientNativePushDeviceStatus();
+        const subscribed =
+          !isPatientNativePushExplicitlyDisabled() && deviceStatus?.enabled === true;
+        const status =
+          permission === "denied"
+            ? patientPushStatuses.permissionDenied
+            : subscribed
+              ? patientPushStatuses.subscribed
+              : permission === "default"
+                ? patientPushStatuses.permissionDefault
+                : patientPushStatuses.unsubscribed;
+        finish({
+          supported: true,
+          secureContext: true,
+          permission,
+          subscribed,
+          status: disableErrorRef.current ? patientPushStatuses.error : status,
+          error: disableErrorRef.current,
+          disableRetry: Boolean(disableErrorRef.current),
+        });
+      } catch (error) {
+        // A status-read failure must not remove an already usable Disable retry action.
+        finish({
+          supported: true,
+          ...(permission ? { permission } : {}),
+          status: patientPushStatuses.error,
+          error: disableErrorRef.current || getSafeNativePushErrorMessage(
+            error,
+            "Push notification status could not be loaded. Please try again."
+          ),
+        });
+      }
+    })();
+    const tracked = work.finally(() => {
+      if (refreshInFlightRef.current !== tracked) return;
+      refreshInFlightRef.current = null;
+      if (mountedRef.current && refreshPendingRef.current &&
+          !enablingRef.current && !disablingRef.current) {
+        void refreshStatus({ keepMessage: true });
+      }
+    });
+    refreshInFlightRef.current = tracked;
+    return tracked;
   }, []);
 
   useEffect(() => {
     let active = true;
-    const initializeStatus = async () => {
-      await Promise.resolve();
-      if (active) await refreshPushStatus();
+    let scheduled = false;
+    mountedRef.current = true;
+    const scheduleRefresh = () => {
+      if (!active || scheduled) return;
+      scheduled = true;
+      void Promise.resolve().then(() => {
+        scheduled = false;
+        if (active) void refreshPushStatus({ keepMessage: true });
+      });
     };
-    void initializeStatus();
-
-    const handleStatusChanged = () => {
-      void refreshPushStatus({ keepMessage: true });
+    const handleForeground = () => {
+      if (document.visibilityState !== "hidden") scheduleRefresh();
     };
-    window.addEventListener(
-      patientNativePushStatusChangedEvent,
-      handleStatusChanged
-    );
-
+    scheduleRefresh();
+    window.addEventListener(patientNativePushStatusChangedEvent, scheduleRefresh);
+    document.addEventListener("visibilitychange", handleForeground);
+    window.addEventListener("focus", handleForeground);
     return () => {
       active = false;
-      window.removeEventListener(
-        patientNativePushStatusChangedEvent,
-        handleStatusChanged
-      );
+      mountedRef.current = false;
+      operationRef.current += 1;
+      refreshPendingRef.current = false;
+      window.removeEventListener(patientNativePushStatusChangedEvent, scheduleRefresh);
+      document.removeEventListener("visibilitychange", handleForeground);
+      window.removeEventListener("focus", handleForeground);
     };
   }, [refreshPushStatus]);
 
   const enablePushNotifications = useCallback(async () => {
-    if (enablingRef.current) return false;
+    if (!mountedRef.current || enablingRef.current || disablingRef.current) return false;
     enablingRef.current = true;
-    operationRef.current += 1;
-    setFeatureState({
+    const operationId = ++operationRef.current;
+    const finish = (updates) => setFeatureState(updates, operationId);
+    disableErrorRef.current = "";
+    finish({
       enabling: true,
+      disableRetry: false,
       loading: false,
       error: "",
       message: "",
@@ -194,7 +222,7 @@ export function usePatientNativePushNotifications() {
       }
 
       if (permission !== "granted") {
-        setFeatureState({
+        finish({
           permission,
           subscribed: false,
           status:
@@ -211,7 +239,7 @@ export function usePatientNativePushNotifications() {
       await registerPatientNativePushDevice({
         allowExplicitlyDisabled: true,
       });
-      setFeatureState({
+      finish({
         permission: "granted",
         subscribed: true,
         status: patientPushStatuses.subscribed,
@@ -222,7 +250,7 @@ export function usePatientNativePushNotifications() {
       return true;
     } catch (error) {
       const inactivePatient = error?.code === "inactive_patient";
-      setFeatureState({
+      finish({
         subscribed: false,
         status: patientPushStatuses.error,
         enabling: false,
@@ -237,14 +265,19 @@ export function usePatientNativePushNotifications() {
       return false;
     } finally {
       enablingRef.current = false;
+      if (mountedRef.current && refreshPendingRef.current) {
+        void refreshPushStatus({ keepMessage: true });
+      }
     }
-  }, [setFeatureState]);
+  }, [refreshPushStatus, setFeatureState]);
 
   const disablePushNotifications = useCallback(async () => {
-    if (disablingRef.current) return false;
+    if (!mountedRef.current || disablingRef.current || enablingRef.current) return false;
     disablingRef.current = true;
-    operationRef.current += 1;
-    setFeatureState({
+    const operationId = ++operationRef.current;
+    const finish = (updates) => setFeatureState(updates, operationId);
+    disableErrorRef.current = "";
+    finish({
       disabling: true,
       loading: false,
       error: "",
@@ -255,34 +288,53 @@ export function usePatientNativePushNotifications() {
       const result = await disablePatientNativePushDevice();
 
       if (!result.deactivated) {
-        setFeatureState({
-          subscribed: true,
+        disableErrorRef.current = navigator.onLine === false
+          ? offlineMessage
+          : "Maternal Care could not disable push delivery for this device. Connect to the internet and retry Disable.";
+        finish({
           status: patientPushStatuses.error,
           disabling: false,
-          error: navigator.onLine === false
-            ? offlineMessage
-            : "Android notifications were removed locally, but Maternal Care could not synchronize this setting. Connect to the internet and retry Disable.",
+          disableRetry: true,
+          error: disableErrorRef.current,
           message: "",
         });
         return false;
       }
 
-      setFeatureState({
+      disableErrorRef.current = result.unregistered
+        ? ""
+        : "Push delivery is disabled, but Android could not finish removing its local registration. You can safely retry.";
+      finish({
         subscribed: false,
+        disableRetry: !result.unregistered,
         status: patientPushStatuses.unsubscribed,
         disabling: false,
-        error: result.unregistered
-          ? ""
-          : "Push delivery is disabled, but Android could not finish removing its local registration. You can safely retry.",
+        error: disableErrorRef.current,
         message: result.unregistered
           ? "Push notifications are no longer enabled on this device."
           : "Push delivery is no longer enabled for this device.",
       });
       return result.unregistered;
+    } catch (error) {
+      disableErrorRef.current = getSafeNativePushErrorMessage(
+        error,
+        "Push notifications could not be disabled. Please retry Disable."
+      );
+      finish({
+        status: patientPushStatuses.error,
+        disabling: false,
+        disableRetry: true,
+        error: disableErrorRef.current,
+        message: "",
+      });
+      return false;
     } finally {
       disablingRef.current = false;
+      if (mountedRef.current && refreshPendingRef.current) {
+        void refreshPushStatus({ keepMessage: true });
+      }
     }
-  }, [setFeatureState]);
+  }, [refreshPushStatus, setFeatureState]);
 
   return {
     ...state,
