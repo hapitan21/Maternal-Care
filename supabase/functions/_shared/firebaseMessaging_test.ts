@@ -1,12 +1,11 @@
 // Included by scripts/verify-patient-native-push-lifecycle.mjs without Deno or network.
-// Direct Deno execution also runs the desired contracts; the known defect stays red.
+// Direct Deno execution also runs these normal passing contracts.
 // Firebase's invalid-registration example: https://firebase.google.com/docs/cloud-messaging/error-codes
 import assert from "node:assert/strict";
 import { sendFirebaseMessage } from "./firebaseMessaging.ts";
 
 type TestCase = {
   name: string;
-  expectedFailure?: string;
   run: () => Promise<void>;
 };
 
@@ -26,11 +25,9 @@ function classificationCase(
   httpStatus: number,
   error: ErrorFixture,
   permanent: boolean,
-  expectedFailure?: string,
 ): TestCase {
   return {
     name,
-    expectedFailure,
     async run() {
       const originalFetch = globalThis.fetch;
       // Only a synthetic target and authorization are used; no credentials are loaded.
@@ -60,6 +57,13 @@ function classificationCase(
   };
 }
 
+function classificationGroup(name: string, cases: TestCase[]): TestCase {
+  return { name, async run() { for (const test of cases) await test.run(); } };
+}
+
+const invalidRegistrationMessage =
+  "The registration token is not a valid FCM registration token";
+
 export const firebaseLifecycleTests: TestCase[] = [
   classificationCase("UNREGISTERED is permanent", 404,
     { status: "NOT_FOUND", details: [fcmDetail("UNREGISTERED")] }, true),
@@ -72,20 +76,49 @@ export const firebaseLifecycleTests: TestCase[] = [
   }, true),
   classificationCase("documented invalid-registration FcmError is permanent", 400, {
     status: "INVALID_ARGUMENT",
-    message: "The registration token is not a valid FCM registration token",
+    message: invalidRegistrationMessage,
     details: [fcmDetail("INVALID_ARGUMENT")],
-  }, true, "Firebase parser misses the documented FcmError token response"),
+  }, true),
   classificationCase("generic INVALID_ARGUMENT is not permanent", 400,
     { status: "INVALID_ARGUMENT" }, false),
-  classificationCase("payload field violation is not permanent", 400, {
-    status: "INVALID_ARGUMENT",
-    details: [{
-      "@type": "type.googleapis.com/google.rpc.BadRequest",
-      fieldViolations: [{ field: "message.data[0].value", description: "Invalid content value" }],
-    }],
-  }, false),
-  classificationCase("FCM-specific INVALID_ARGUMENT without token evidence is not permanent", 400,
-    { status: "INVALID_ARGUMENT", details: [fcmDetail("INVALID_ARGUMENT")] }, false),
+  classificationGroup("payload field violation is not permanent",
+    ["message.notification.title", "message.notification.body", "message.data[0].value"]
+      .map(field => classificationCase(field + " content error is not permanent", 400, {
+        status: "INVALID_ARGUMENT",
+        details: [{
+          "@type": "type.googleapis.com/google.rpc.BadRequest",
+          fieldViolations: [{ field, description: "Invalid content value" }],
+        }],
+      }, false))),
+  classificationGroup("FCM-specific INVALID_ARGUMENT without token evidence is not permanent", [
+    classificationCase("typed code alone is not permanent", 400,
+      { status: "INVALID_ARGUMENT", details: [fcmDetail("INVALID_ARGUMENT")] }, false),
+    classificationCase("typed code with payload error message is not permanent", 400,
+      { status: "INVALID_ARGUMENT", message: "Invalid notification content",
+        details: [fcmDetail("INVALID_ARGUMENT")] }, false),
+    classificationCase("documented message without typed FcmError is not permanent", 400,
+      { status: "INVALID_ARGUMENT", message: invalidRegistrationMessage }, false),
+    classificationCase("documented message with wrong detail type is not permanent", 400, {
+      status: "INVALID_ARGUMENT", message: invalidRegistrationMessage,
+      details: [{ "@type": "synthetic.unknown.Error", errorCode: "INVALID_ARGUMENT" }],
+    }, false),
+    classificationCase("documented message with sender error is not permanent", 400,
+      { status: "INVALID_ARGUMENT", message: invalidRegistrationMessage,
+        details: [fcmDetail("SENDER_ID_MISMATCH")] }, false),
+    classificationCase("documented message in transient response is not permanent", 503,
+      { status: "INVALID_ARGUMENT", message: invalidRegistrationMessage,
+        details: [fcmDetail("INVALID_ARGUMENT")] }, false),
+    classificationCase("documented message with inconsistent status is not permanent", 400,
+      { status: "INTERNAL", message: invalidRegistrationMessage,
+        details: [fcmDetail("INVALID_ARGUMENT")] }, false),
+    classificationCase("documented message with conflicting payload violation is not permanent", 400, {
+      status: "INVALID_ARGUMENT", message: invalidRegistrationMessage,
+      details: [fcmDetail("INVALID_ARGUMENT"), {
+        "@type": "type.googleapis.com/google.rpc.BadRequest",
+        fieldViolations: [{ field: "message.notification.title", description: "Invalid content value" }],
+      }],
+    }, false),
+  ]),
   classificationCase("unrelated message-token violation is not permanent", 400, {
     status: "INVALID_ARGUMENT",
     details: [{

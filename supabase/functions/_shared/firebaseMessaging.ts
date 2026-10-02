@@ -303,9 +303,10 @@ function getFcmErrorDetails(payload: unknown): {
   status: string | null;
   errorCode: string | null;
   invalidTokenField: boolean;
+  invalidTokenFcmError: boolean;
 } {
   if (!isJsonObject(payload) || !isJsonObject(payload.error)) {
-    return { status: null, errorCode: null, invalidTokenField: false };
+    return { status: null, errorCode: null, invalidTokenField: false, invalidTokenFcmError: false };
   }
 
   const error = payload.error;
@@ -346,7 +347,17 @@ function getFcmErrorDetails(payload: unknown): {
     }
   }
 
-  return { status, errorCode, invalidTokenField };
+  // FcmError.INVALID_ARGUMENT is ambiguous. Recognize only Firebase's documented
+  // invalid-registration response, with no conflicting BadRequest payload detail.
+  // https://firebase.google.com/docs/cloud-messaging/error-codes
+  const invalidTokenFcmError = errorCode === "INVALID_ARGUMENT" &&
+    status === "INVALID_ARGUMENT" &&
+    error.message === "The registration token is not a valid FCM registration token" &&
+    !details.some((detail) =>
+      isJsonObject(detail) && detail["@type"] === "type.googleapis.com/google.rpc.BadRequest"
+    );
+
+  return { status, errorCode, invalidTokenField, invalidTokenFcmError };
 }
 
 function sanitizeErrorCode(value: string | null, httpStatus: number): string {
@@ -453,7 +464,8 @@ export async function sendFirebaseMessage(
   const rawCode = details.errorCode || details.status;
   const errorCode = sanitizeErrorCode(rawCode, response.status);
   const permanentTokenFailure = errorCode === "UNREGISTERED" ||
-    (errorCode === "INVALID_ARGUMENT" && details.invalidTokenField);
+    (errorCode === "INVALID_ARGUMENT" && details.invalidTokenField) ||
+    (response.status === 400 && details.invalidTokenFcmError);
 
   return {
     ok: false,
