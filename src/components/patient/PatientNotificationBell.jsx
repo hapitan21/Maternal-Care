@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Icon } from "@iconify/react";
+import { Bell, BellRing } from "lucide-react";
 import { usePatientNotifications } from "../../hooks/usePatientNotifications";
 import { getSafePatientNotificationTarget } from "../../lib/patientNotificationRoutes";
 import PatientNotificationPanel from "./PatientNotificationPanel";
@@ -41,7 +41,6 @@ export default function PatientNotificationBell({ onNavigate }) {
     const mediaQuery = window.matchMedia(mobileNotificationQuery);
     const syncViewport = (event) => setIsMobileViewport(event.matches);
 
-    setIsMobileViewport(mediaQuery.matches);
     mediaQuery.addEventListener?.("change", syncViewport);
 
     return () => {
@@ -128,7 +127,7 @@ export default function PatientNotificationBell({ onNavigate }) {
           aria-label={`Notifications, ${unreadCount} unread`}
           title="Notifications"
         >
-          <Icon icon={unreadCount ? "solar:bell-bing-bold" : "solar:bell-linear"} />
+          {unreadCount ? <BellRing aria-hidden="true" /> : <Bell aria-hidden="true" />}
           {unreadCount ? (
             <span className="pwa-notification-badge" aria-hidden="true">
               {unreadCount > 99 ? "99+" : unreadCount}

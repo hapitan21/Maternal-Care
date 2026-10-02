@@ -972,8 +972,6 @@ function TopProfile({ profile, onNavigate, onLogout, onOpenChange }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!open) return undefined;
-
     onOpenChange?.(open);
   }, [onOpenChange, open]);
 
