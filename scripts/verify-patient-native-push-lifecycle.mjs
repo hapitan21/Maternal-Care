@@ -5,7 +5,7 @@
 // A repaired contract is an UNEXPECTED PASS until its expected-failure annotation is removed.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { webcrypto } from "node:crypto";
 import * as vm from "node:vm";
 import { transformWithOxc } from "vite";
@@ -27,6 +27,16 @@ const senderPath = "supabase/functions/send-patient-native-push/index.ts";
 const firebasePath = "supabase/functions/_shared/firebaseMessaging.ts";
 const firebaseTestPath = "supabase/functions/_shared/firebaseMessaging_test.ts";
 const rpcSql = read("supabase/migrations/20261002012000_fix_native_push_rpc_sql_expressions.sql");
+// Model the last checked-in upsert definition; this is not a claim about deployed SQL.
+const effectiveUpsertSql = readdirSync(new URL("supabase/migrations/", root))
+  .filter(file => file.endsWith(".sql")).sort()
+  .map(file => read("supabase/migrations/" + file))
+  .filter(sql => /create or replace function public\.upsert_my_patient_native_push_device\(/i.test(sql)).at(-1);
+const normalizedUpsertSql = effectiveUpsertSql.slice(0, effectiveUpsertSql.indexOf("$function$;") + 11)
+  .replace(/--[^\n]*/g, "").replace(/\s+/g, " ").toLowerCase();
+const protectsInstallationOwnership = normalizedUpsertSql.includes(
+  "where device.patient_id = v_patient_id and device.user_id = v_user_id returning"
+);
 const tableSql = read("supabase/migrations/20261001120000_patient_native_push_devices.sql");
 const ledgerSql = read("supabase/migrations/20261002120000_patient_notification_native_push_deliveries.sql");
 let installationSequence = 3000;
@@ -141,19 +151,28 @@ async function load(file, context, imports = {}) {
 // Narrowly recognize the current SQL contract. Unexpected SQL changes fail setup;
 // this model is explicitly not proof of deployed RLS or PostgreSQL execution.
 function validateSqlModel() {
-  const sql = rpcSql.slice(0, rpcSql.indexOf("create or replace function public.deactivate_my_patient_native_push_device"))
-    .replace(/--[^\n]*/g, "").replace(/\s+/g, " ").toLowerCase();
+  const sql = normalizedUpsertSql;
   for (const fragment of [
     "v_user_id uuid := auth.uid()", "into strict v_patient_id",
     "where patient.user_id = v_user_id",
     "coalesce(profile.role, ''))) = 'patient'",
     "coalesce(profile.account_status, ''))) = 'active'",
     "coalesce(patient.account_status, ''))) = 'active'",
-    "patient.archived_at is null", "not in ('archived', 'deleted')",
-    "on conflict (platform, installation_id) do update set patient_id = excluded.patient_id, user_id = excluded.user_id, push_token = excluded.push_token",
+    "patient.archived_at is null", "not in ('inactive', 'archived', 'deleted')",
   ]) assert.ok(sql.includes(fragment), "SQL model requires review: unrecognized account/upsert clause");
-  const upsert = sql.slice(sql.indexOf("on conflict (platform, installation_id)"), sql.indexOf("returning id, enabled"));
-  assert.equal(upsert.includes(" where "), false, "SQL model requires review: conflict authorization changed");
+  const upsert = sql.slice(sql.indexOf("on conflict (platform, installation_id)"), sql.indexOf("returning", sql.indexOf("on conflict (platform, installation_id)"))).trim();
+  const assignments = "push_token = excluded.push_token, enabled = true, last_seen_at = pg_catalog.now(), disabled_at = null, app_version = excluded.app_version";
+  const expectedConflict = protectsInstallationOwnership
+    ? "on conflict (platform, installation_id) do update set " + assignments +
+      " where device.patient_id = v_patient_id and device.user_id = v_user_id"
+    : "on conflict (platform, installation_id) do update set patient_id = excluded.patient_id, user_id = excluded.user_id, " + assignments;
+  assert.equal(upsert, expectedConflict, "SQL model requires review: unrecognized ownership conflict clause");
+  if (protectsInstallationOwnership) {
+    assert.ok(sql.includes("insert into public.patient_native_push_devices as device ("));
+    assert.ok(sql.includes("if not found then raise exception 'the native push registration conflicts with another app installation.' using errcode = '42501'"));
+    assert.ok(sql.includes("when unique_violation then raise exception 'the native push registration conflicts with another app installation.' using errcode = '23505'"));
+    assert.ok(sql.includes("security definer set search_path = ''"));
+  }
   const deactivate = rpcSql.slice(
     rpcSql.indexOf("create or replace function public.deactivate_my_patient_native_push_device"),
     rpcSql.indexOf("create or replace function public.get_my_patient_native_push_device_status"),
@@ -175,7 +194,7 @@ function registrationModel(accountMap = accounts) {
     const account = accountMap.get(currentSession?.user?.id);
     if (!account || account.role !== "patient" || account.profileStatus !== "active" ||
         account.patientStatus !== "active" || !account.patient || account.archived ||
-        ["archived", "deleted"].includes(account.recordStatus)) {
+        ["inactive", "archived", "deleted"].includes(account.recordStatus)) {
       throw Object.assign(new Error("synthetic authorization rejection"), { code: "42501" });
     }
     return account;
@@ -189,7 +208,11 @@ function registrationModel(accountMap = accounts) {
         throw Object.assign(new Error("synthetic token uniqueness rejection"), { code: "23505" });
       }
       const previous = rows.get(installation);
-      // Mirrors the recognized SQL: no proof of ownership or separate transfer grant.
+      // Mirror the effective conflict predicate before any state/timestamp mutation.
+      if (protectsInstallationOwnership && previous &&
+          (previous.user_id !== account.user || previous.patient_id !== account.patient)) {
+        throw Object.assign(new Error("synthetic installation conflict"), { code: "42501" });
+      }
       const row = { ...previous, id: previous?.id || uid(++deviceSequence),
         platform: "android", installation_id: installation, patient_id: account.patient,
         user_id: account.user, push_token: value, enabled: true, disabled_at: null,
@@ -960,6 +983,8 @@ safeguard("shell lifecycle replacement cannot reuse an old token callback after 
   staleCallback({ value: token(2) });
   await flush();
   assert.equal(h.writes.length, 1);
+  // B uses a distinct installation; normal registration cannot transfer A's row.
+  h.storage.set(installationKey, uid(803));
   const op = await beginRegistration(h);
   h.emit(token(3));
   await complete(op);
@@ -1412,11 +1437,14 @@ safeguard("logout cleanup does not run under a replacement account", async () =>
   await flush();
   assert.equal(gate.started, true);
   await h.authChange(session(uid(2), uid(102)));
-  const replacement = h.model.upsert(h.currentSession, installation, token(2));
+  // A fresh B installation keeps the cleanup isolation assertion independent of takeover.
+  h.storage.set(installationKey, uid(804));
+  const replacement = h.model.upsert(h.currentSession, uid(804), token(2));
   gate.release();
   await complete(logout);
   assert.equal(logout.value.deactivated, false);
   assert.equal(logout.value.unregistered, false);
+  assert.equal(h.model.rows.get(installation).enabled, true);
   assert.equal(replacement.enabled, true);
   assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
 });
@@ -1517,7 +1545,7 @@ safeguard("own-device deactivation cannot disable another Patient's registration
   assert.equal(model.rows.get(uid(801)).enabled, true);
 });
 
-defect("knowing another installation UUID must not authorize takeover", "upsert conflict unconditionally replaces the existing owner", async () => {
+safeguard("knowing another installation UUID must not authorize takeover", async () => {
   const model = registrationModel();
   model.upsert(session(), uid(801), token(1));
   let rejected = false;
@@ -1526,7 +1554,7 @@ defect("knowing another installation UUID must not authorize takeover", "upsert 
   check(rejected && model.rows.get(uid(801)).user_id === uid(1), "knowing another installation UUID must not authorize takeover");
 });
 
-defect("disabled registration still requires authorization for ownership transfer", "disabled installation has no separate authorized transfer contract", async () => {
+safeguard("disabled registration still requires authorization for ownership transfer", async () => {
   const model = registrationModel();
   model.upsert(session(), uid(801), token(1));
   model.deactivate(session(), uid(801));
@@ -1535,6 +1563,118 @@ defect("disabled registration still requires authorization for ownership transfe
   try { model.upsert(session(uid(2), uid(102)), uid(801), token(2)); }
   catch (error) { if (error.code !== "42501") throw error; rejected = true; }
   check(rejected, "disabled registration still requires authorization for ownership transfer");
+});
+
+safeguard("forward upsert retains signature, definer safety, least privilege, and token error sanitization", async () => {
+  const sql = effectiveUpsertSql.replace(/--[^\n]*/g, "").replace(/\s+/g, " ").toLowerCase();
+  assert.match(sql, /create or replace function public\.upsert_my_patient_native_push_device\( p_installation_id text, p_push_token text, p_platform text default 'android', p_app_version text default null \) returns jsonb language plpgsql security definer set search_path = ''/);
+  assert.ok(sql.includes("revoke all on function public.upsert_my_patient_native_push_device( text, text, text, text ) from public, anon, authenticated"));
+  assert.ok(sql.includes("grant execute on function public.upsert_my_patient_native_push_device( text, text, text, text ) to authenticated"));
+  assert.doesNotMatch(sql, /create table|alter table|drop |grant.*on table|create policy|create or replace function public\.(deactivate|get_my)/);
+  assert.ok(sql.includes("when unique_violation then raise exception 'the native push registration conflicts with another app installation.' using errcode = '23505'"));
+  assert.ok(protectsInstallationOwnership);
+});
+
+safeguard("new installation ownership is derived from its active linked Patient", async () => {
+  const model = registrationModel();
+  const row = model.upsert(session(uid(2), uid(102)), uid(851), token(2));
+  assert.equal(row.user_id, uid(2));
+  assert.equal(row.patient_id, patientB);
+  assert.equal(row.enabled, true);
+  assert.equal(model.rows.size, 1);
+});
+
+safeguard("same-owner update and token rotation preserve ownership and row identity", async () => {
+  const model = registrationModel();
+  const first = model.upsert(session(), uid(851), token(1));
+  const rotated = model.upsert(session(), uid(851), token(2));
+  assert.equal(rotated.id, first.id);
+  assert.equal(rotated.patient_id, first.patient_id);
+  assert.equal(rotated.user_id, first.user_id);
+  assert.equal(rotated.push_token, token(2));
+  assert.notEqual(rotated.updated_at, first.updated_at);
+  assert.notEqual(rotated.last_seen_at, first.last_seen_at);
+  assert.equal(model.rows.size, 1);
+});
+
+safeguard("same-owner re-enable preserves installation and registration identity", async () => {
+  const model = registrationModel();
+  const first = model.upsert(session(), uid(851), token(1));
+  model.deactivate(session(), uid(851));
+  const enabled = model.upsert(session(), uid(851), token(2));
+  assert.equal(enabled.id, first.id);
+  assert.equal(enabled.enabled, true);
+  assert.equal(enabled.disabled_at, null);
+  assert.equal(enabled.user_id, uid(1));
+  assert.equal(model.rows.size, 1);
+});
+
+for (const disabled of [false, true]) safeguard("failed takeover preserves every original field (disabled=" + disabled + ")", async () => {
+  const model = registrationModel();
+  model.upsert(session(), uid(851), token(1));
+  if (disabled) model.deactivate(session(), uid(851));
+  const before = { ...model.rows.get(uid(851)) };
+  assert.throws(() => model.upsert(session(uid(2), uid(102)), uid(851), token(2)), { code: "42501" });
+  assert.deepEqual(model.rows.get(uid(851)), before);
+  assert.equal(model.rows.size, 1);
+});
+
+safeguard("both auth user and canonical Patient must match existing ownership", async () => {
+  const accountMap = new Map([[uid(1), activeAccount()], [uid(2), activeAccount(uid(2), patientA)]]);
+  const model = registrationModel(accountMap);
+  const first = model.upsert(session(), uid(851), token(1));
+  assert.throws(() => model.upsert(session(uid(2), uid(102)), uid(851), token(2)), { code: "42501" });
+  accountMap.get(uid(1)).patient = patientB;
+  assert.throws(() => model.upsert(session(), uid(851), token(2)), { code: "42501" });
+  assert.deepEqual(model.rows.get(uid(851)), first);
+});
+
+safeguard("knowing both installation and its token still does not authorize takeover", async () => {
+  const model = registrationModel();
+  const first = model.upsert(session(), uid(851), token(1));
+  assert.throws(() => model.upsert(session(uid(2), uid(102)), uid(851), token(1)), { code: "42501" });
+  assert.deepEqual(model.rows.get(uid(851)), first);
+});
+
+safeguard("token conflicts cannot mutate either installation or leak ownership in the error", async () => {
+  for (const useExistingInstallation of [false, true]) {
+    const model = registrationModel();
+    model.upsert(session(), uid(851), token(1));
+    model.upsert(session(uid(2), uid(102)), uid(852), token(2));
+    const before = [...model.rows].map(([key, row]) => [key, { ...row }]);
+    assert.throws(() => model.upsert(session(uid(2), uid(102)), useExistingInstallation ? uid(852) : uid(853), token(1)), { code: "23505" });
+    assert.deepEqual([...model.rows], before);
+  }
+});
+
+safeguard("legacy inactive record status independently rejects otherwise active Patient upsert", async () => {
+  const account = { ...activeAccount(), recordStatus: "inactive" };
+  assert.equal(account.role, "patient");
+  assert.equal(account.profileStatus, "active");
+  assert.equal(account.patientStatus, "active");
+  assert.equal(account.archived, false);
+  assert.ok(account.patient);
+  const model = registrationModel(new Map([[uid(1), account]]));
+  assert.throws(() => model.upsert(session(), uid(851), token(1)), { code: "42501" });
+  assert.equal(model.rows.size, 0);
+});
+
+safeguard("RPC model itself rejects invalid roles and account states", async () => {
+  for (const update of [
+    { role: "doctor" }, { role: "staff" }, { role: "admin" }, { role: undefined },
+    { profileStatus: "inactive" }, { patientStatus: "inactive" },
+    { patientStatus: "pending_activation" }, { patientStatus: "deleted" },
+    { patientStatus: "deactivated" }, { patientStatus: "suspended" },
+    { patientStatus: "disabled" }, { patientStatus: "blocked" },
+    { archived: true }, { recordStatus: "archived" }, { recordStatus: "deleted" },
+    { patient: null },
+  ]) {
+    const accountMap = new Map([[uid(1), { ...activeAccount(), ...update }]]);
+    const model = registrationModel(accountMap);
+    assert.throws(() => model.upsert(session(), uid(851), token(1)), { code: "42501" });
+    assert.equal(model.rows.size, 0);
+  }
+  assert.throws(() => registrationModel().upsert(null, uid(851), token(1)), { code: "42501" });
 });
 
 safeguard("granted permission and explicit disable are separate states", async () => {
@@ -1664,15 +1804,18 @@ safeguard("fresh installation creates a separate row without changing another Pa
   assert.deepEqual(model.rows.get(uid(802)), other);
 });
 
-defect("restored UUID under another Patient must not silently overwrite registration", "restored installation identity reaches unrestricted ownership upsert", async () => {
+safeguard("restored UUID under another Patient must not silently overwrite registration", async () => {
   const model = registrationModel();
   model.upsert(session(), uid(801), token(1));
+  const before = { ...model.rows.get(uid(801)) };
   const h = await nativeHarness({ model, storage: new Map([[installationKey, uid(801)]]),
     initialSession: session(uid(2), uid(102)), autoToken: token(2) });
   const op = observe(h.api.registerPatientNativePushDevice());
   await complete(op);
   check(model.rows.get(uid(801)).user_id === uid(1) && h.writes.length === 0,
     "restored UUID under another Patient must not silently overwrite registration");
+  assert.equal(op.error?.code, "persistence_failed");
+  assert.deepEqual(model.rows.get(uid(801)), before);
 });
 
 safeguard("restored UUID with conflicting token is rejected rather than duplicating token", async () => {
