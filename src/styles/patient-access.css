@@ -338,6 +338,10 @@
   gap: 14px;
 }
 
+.patient-login-shell .patient-access-form > .patient-access-message {
+  margin: 0;
+}
+
 .patient-login-shell .patient-access-form label {
   gap: 7px;
 }

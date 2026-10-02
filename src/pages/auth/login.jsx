@@ -6,6 +6,7 @@ import {
   normalizePatientAccountStatus,
   patientAccountStatuses,
 } from "../../lib/patientAccountStatus";
+import { getLoginErrorMessage } from "../../lib/loginErrorMessage";
 import { supabase } from "../../lib/supabaseClient";
 import { recordAuditEvent } from "../../lib/auditLog";
 import { setPatientPwaStartupAuthorization } from "../../lib/patientPwaSessionCache";
@@ -187,27 +188,6 @@ async function getUserRole(user) {
   return profile.role;
 }
 
-function getLoginErrorMessage(error) {
-  const message = String(error?.message || "").toLowerCase();
-
-  if (message.includes("invalid login credentials")) {
-    return "Invalid email or password. Please check your login details and try again.";
-  }
-
-  if (message.includes("email not confirmed")) {
-    return "Please verify your email address before logging in.";
-  }
-
-  if (
-    message.includes("rate limit") ||
-    message.includes("too many requests")
-  ) {
-    return "Too many login attempts. Please wait a moment and try again.";
-  }
-
-  return error?.message || "Unable to log in. Please try again.";
-}
-
 function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -215,7 +195,9 @@ function Login() {
   const initialReason =
     searchParams.get("reason") === "staff_inactive"
       ? inactiveStaffMessage
-      : searchParams.get("reason") || "";
+      : searchParams.get("reason")
+        ? getLoginErrorMessage({ message: searchParams.get("reason") })
+        : "";
   const shouldSkipSessionCheck =
     searchParams.get("logout") === "1" ||
     searchParams.get("emailChanged") === "1";
@@ -297,10 +279,7 @@ function Login() {
         }
 
         if (active) {
-          setLoginError(
-            error?.message ||
-              "Unable to load your account. Please log in again."
-          );
+          setLoginError(getLoginErrorMessage(error));
           setCheckingSession(false);
         }
       }
@@ -338,7 +317,6 @@ function Login() {
       });
 
       if (error) {
-        setPassword("");
         const nextError = getLoginErrorMessage(error);
 
         setLoginError(nextError);
@@ -351,7 +329,7 @@ function Login() {
       }
 
       if (!data?.user) {
-        setLoginError("Unable to retrieve the authenticated account.");
+        setLoginError(getLoginErrorMessage());
         return;
       }
 
@@ -362,10 +340,7 @@ function Login() {
       } catch (profileError) {
         await supabase.auth.signOut();
 
-        setLoginError(
-          profileError?.message ||
-            "Your account profile could not be loaded."
-        );
+        setLoginError(getLoginErrorMessage(profileError));
 
         return;
       }
@@ -394,10 +369,8 @@ function Login() {
       console.error("Login failed:", error);
       if (error?.code === "patient_account_blocked") {
         await signOutWithTimeout().catch(() => null);
-        setLoginError(error.message);
-      } else {
-        setLoginError("Unable to log in. Please try again.");
       }
+      setLoginError(getLoginErrorMessage(error));
     } finally {
       setIsLoggingIn(false);
     }
@@ -443,10 +416,7 @@ function Login() {
           "Too many verification emails were requested. Please wait before trying again."
         );
       } else {
-        setLoginError(
-          error?.message ||
-            "Unable to send the verification email. Check the email in Supabase Authentication > Users."
-        );
+        setLoginError(getLoginErrorMessage(error));
       }
     } finally {
       setIsResendingVerification(false);

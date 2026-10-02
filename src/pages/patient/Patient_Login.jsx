@@ -6,9 +6,7 @@ import {
   ensurePatientProfile,
   getCurrentPatientAccountStatus,
   getPatientAccountMessage,
-  getPatientLinkingErrorMessage,
   getPatientRpcRow,
-  isMissingPatientAuthSession,
   normalizePatientAccessValue,
 } from "../../lib/patientAuthLinking";
 
@@ -23,6 +21,7 @@ import {
   resolvePatientPendingLink,
 } from "../../lib/patientPendingLink";
 
+import { getLoginErrorMessage } from "../../lib/loginErrorMessage";
 import { supabase } from "../../lib/supabaseClient";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 
@@ -234,15 +233,7 @@ function PatientLogin() {
       );
       setMessageTone("notice");
     } catch (error) {
-      if (isMissingPatientAuthSession(error)) {
-        setMessage(
-          "Your session has expired. Log in again to continue."
-        );
-      } else {
-        setMessage(
-          getPatientLinkingErrorMessage(error)
-        );
-      }
+      setMessage(getLoginErrorMessage(error));
       setMessageTone("error");
     } finally {
       setIsSubmitting(false);
@@ -321,6 +312,15 @@ function PatientLogin() {
               </div>
             </div>
 
+            {message ? (
+              <p
+                className={`patient-access-message is-${messageTone}`}
+                role="status"
+              >
+                {message}
+              </p>
+            ) : null}
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -368,15 +368,6 @@ function PatientLogin() {
               </>
             ) : null}
           </form>
-
-          {message ? (
-            <p
-              className={`patient-access-message is-${messageTone}`}
-              role="status"
-            >
-              {message}
-            </p>
-          ) : null}
         </div>
 
         <div

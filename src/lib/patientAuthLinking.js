@@ -69,7 +69,10 @@ export function isMissingPatientAuthSession(error) {
  * Convert Patient account-linking errors into
  * user-friendly messages.
  */
-export function getPatientLinkingErrorMessage(error) {
+export function getPatientLinkingErrorMessage(
+  error,
+  fallbackMessage = error?.message || "Unable to link the Patient record. Please try again."
+) {
   if (isMissingPatientRpcError(error)) {
     return linkingUnavailableMessage;
   }
@@ -142,10 +145,7 @@ export function getPatientLinkingErrorMessage(error) {
     return "This Patient account is already linked to a different Patient record. Please contact the clinic.";
   }
 
-  return (
-    error?.message ||
-    "Unable to link the Patient record. Please try again."
-  );
+  return fallbackMessage;
 }
 
 /**
