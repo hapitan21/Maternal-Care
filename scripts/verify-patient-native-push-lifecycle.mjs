@@ -242,6 +242,9 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
   const sessionHistory = new Map(initialSession ? [[initialSession.access_token, initialSession]] : []);
   const gates = new Map();
   let userMismatch = false;
+  let persistenceFailures = 0;
+  let registerFails = false;
+  const listenerCallbacks = [];
   const pause = stage => {
     let entered;
     let release;
@@ -266,15 +269,22 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
   const push = {
     checkPermissions: async () => ({ receive: permission }),
     requestPermissions: async () => ({ receive: permission }),
-    async register() { registerCalls++; if (autoToken) emit(autoToken); },
+    async register() {
+      registerCalls++;
+      await checkpoint("register");
+      if (registerFails) throw new Error("synthetic registration failure");
+      if (autoToken) emit(autoToken);
+    },
     async unregister() { unregisterCalls++; },
     async addListener(event, callback) {
       if (!nativeListeners.has(event)) nativeListeners.set(event, new Set());
       nativeListeners.get(event).add(callback);
+      listenerCallbacks.push({ event, callback });
       if (event === "registration") {
         const pending = retainedEvents.splice(0);
         for (const value of pending) callback({ value });
       }
+      await checkpoint("listener:" + event);
       return { remove: async () => nativeListeners.get(event)?.delete(callback) };
     },
   };
@@ -338,6 +348,10 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
           }
           if (name === "upsert_my_patient_native_push_device") {
             assert.equal(headers.has("Authorization"), true, "upsert must use an explicitly bound bearer");
+            if (persistenceFailures > 0) {
+              persistenceFailures--;
+              return { data: null, error: { code: "synthetic-transient" } };
+            }
             const row = model.upsert(requestSession, args.p_installation_id, args.p_push_token);
             writes.push({ owner: row.user_id, installation: row.installation_id, value: row.push_token });
             return { data: { device_id: row.id, enabled: row.enabled }, error: null };
@@ -383,6 +397,11 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
   return {
     api, context, model, storage, window, document, time, calls, writes, emit, accountMap,
     pause,
+    listenerCount(event = "registration") { return nativeListeners.get(event)?.size || 0; },
+    savedTokenCallback() { return listenerCallbacks.find(item => item.event === "registration")?.callback; },
+    failPersistence(count = 1) { persistenceFailures = count; },
+    failRegister(value = true) { registerFails = value; },
+    emitError() { for (const callback of nativeListeners.get("registrationError") || []) callback({ error: "synthetic" }); },
     get authListenerCount() { return authListeners.size; },
     mismatchUser(value = true) { userMismatch = value; },
     get currentSession() { return currentSession; },
@@ -781,15 +800,17 @@ const requireSuccessfulRegistration = async h => {
   return h.storage.get(installationKey);
 };
 
-defect("retained older event must not skip fresh register", "first retained event settles registration before register()", async () => {
+safeguard("retained older event must not skip fresh register", async () => {
   const h = await nativeHarness({ retained: [token(1)], autoToken: token(2) });
   const op = observe(h.api.registerPatientNativePushDevice());
   await complete(op);
   assert.equal(op.error, undefined);
   check(h.registerCalls === 1, "retained older event must not skip fresh register");
+  assert.equal(h.writes.length, 1);
+  assert.equal([...h.model.rows.values()][0].push_token, token(2));
 });
 
-defect("newer retained token must win over older retained token", "first retained registration event wins", async () => {
+safeguard("newer retained token must win over older retained token", async () => {
   const h = await nativeHarness({ retained: [token(1), token(2)] });
   const op = observe(h.api.registerPatientNativePushDevice());
   await complete(op);
@@ -798,7 +819,7 @@ defect("newer retained token must win over older retained token", "first retaine
   check([...h.model.rows.values()][0].push_token === token(2), "newer retained token must win over older retained token");
 });
 
-defect("closely spaced token updates must persist the latest token", "listener removal drops the newer registration event", async () => {
+safeguard("closely spaced token updates must persist the latest token", async () => {
   const h = await nativeHarness();
   const op = await beginRegistration(h);
   assert.equal(h.registerCalls, 1);
@@ -810,7 +831,7 @@ defect("closely spaced token updates must persist the latest token", "listener r
   check([...h.model.rows.values()][0].push_token === token(2), "closely spaced token updates must persist the latest token");
 });
 
-defect("later foreground token rotation must update the existing row", "no continuous registration listener after initial success", async () => {
+safeguard("later foreground token rotation must update the existing row", async () => {
   const h = await nativeHarness();
   const installation = await requireSuccessfulRegistration(h);
   const firstId = h.model.rows.get(installation).id;
@@ -819,6 +840,321 @@ defect("later foreground token rotation must update the existing row", "no conti
   assert.equal(h.model.rows.size, 1);
   assert.equal(h.model.rows.get(installation).id, firstId);
   check(h.model.rows.get(installation).push_token === token(2), "later foreground token rotation must update the existing row");
+});
+
+
+safeguard("newer token arriving during an older upsert is serialized and wins", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  const gate = h.pause("rpc:upsert_my_patient_native_push_device");
+  h.emit(token(1));
+  await flush();
+  assert.equal(gate.started, true);
+  h.emit(token(2));
+  h.emit(token(3));
+  await flush();
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.calls.filter(call => call === "upsert_my_patient_native_push_device").length, 1);
+  gate.release();
+  await complete(op);
+  assert.equal(op.error, undefined);
+  assert.deepEqual(h.writes.map(write => write.value), [token(1), token(3)]);
+  assert.equal([...h.model.rows.values()][0].push_token, token(3));
+  assert.equal(h.registerCalls, 1);
+});
+
+safeguard("duplicate token callbacks do not produce extra upserts or register calls", async () => {
+  const h = await nativeHarness();
+  await requireSuccessfulRegistration(h);
+  h.emit(token(1));
+  h.emit(token(1));
+  await flush();
+  assert.equal(h.writes.length, 1);
+  h.emit(token(2));
+  h.emit(token(2));
+  await flush();
+  assert.equal(h.writes.length, 2);
+  assert.equal(h.registerCalls, 1);
+  assert.equal(h.listenerCount(), 1);
+  assert.equal(h.listenerCount("registrationError"), 1);
+});
+
+safeguard("rotation revalidates authorization and coalesces tokens received during that check", async () => {
+  const h = await nativeHarness();
+  const installation = await requireSuccessfulRegistration(h);
+  const gate = h.pause("profile");
+  h.emit(token(2));
+  await flush();
+  assert.equal(gate.started, true);
+  h.emit(token(3));
+  gate.release();
+  await flush();
+  assert.equal(h.model.rows.get(installation).push_token, token(3));
+  assert.deepEqual(h.writes.map(write => write.value), [token(1), token(3)]);
+  assert.equal(h.registerCalls, 1);
+});
+
+safeguard("same logical session refresh preserves continuous rotation", async () => {
+  const h = await nativeHarness();
+  const installation = await requireSuccessfulRegistration(h);
+  const gate = h.pause("profile");
+  h.emit(token(2));
+  await flush();
+  assert.equal(gate.started, true);
+  await h.authChange(session(uid(1), uid(101), 1), "TOKEN_REFRESHED");
+  gate.release();
+  await flush();
+  assert.equal(h.model.rows.get(installation).push_token, token(2));
+  assert.equal(h.listenerCount(), 1);
+  assert.equal(h.registerCalls, 1);
+});
+
+for (const [label, next, event] of [
+  ["sign-out", null, "SIGNED_OUT"],
+  ["Patient switch", session(uid(2), uid(102)), "SIGNED_IN"],
+  ["replacement session_id", session(uid(1), uid(999)), "SIGNED_IN"],
+]) safeguard(label + " aborts pending rotation and detaches stale listeners", async () => {
+  const h = await nativeHarness();
+  const installation = await requireSuccessfulRegistration(h);
+  const staleCallback = h.savedTokenCallback();
+  const gate = h.pause("rpc:upsert_my_patient_native_push_device");
+  h.emit(token(2));
+  await flush();
+  assert.equal(gate.started, true);
+  await h.authChange(next, event);
+  assert.equal(h.listenerCount(), 0);
+  assert.equal(h.listenerCount("registrationError"), 0);
+  staleCallback({ value: token(3) });
+  gate.release();
+  await flush();
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.model.rows.get(installation).push_token, token(1));
+  assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
+});
+
+safeguard("logout synchronously invalidates rotation before asynchronous cleanup", async () => {
+  const h = await nativeHarness();
+  await requireSuccessfulRegistration(h);
+  const staleCallback = h.savedTokenCallback();
+  const gate = h.pause("profile");
+  h.emit(token(2));
+  await flush();
+  assert.equal(gate.started, true);
+  const logout = observe(h.api.cleanupPatientNativePushBeforeLogout());
+  staleCallback({ value: token(3) });
+  await complete(logout);
+  gate.release();
+  await flush();
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.listenerCount(), 0);
+  assert.equal(logout.value.deactivated, true);
+});
+
+safeguard("shell lifecycle replacement cannot reuse an old token callback after login", async () => {
+  const h = await nativeHarness();
+  await requireSuccessfulRegistration(h);
+  const staleCallback = h.savedTokenCallback();
+  h.api.endPatientNativePushSession();
+  await h.authChange(session(uid(2), uid(102)));
+  h.api.beginPatientNativePushSession();
+  staleCallback({ value: token(2) });
+  await flush();
+  assert.equal(h.writes.length, 1);
+  const op = await beginRegistration(h);
+  h.emit(token(3));
+  await complete(op);
+  assert.equal(op.error, undefined);
+  staleCallback({ value: token(4) });
+  await flush();
+  assert.equal(h.writes.length, 2);
+  assert.equal(h.writes[1].owner, uid(2));
+  assert.equal(h.writes[1].value, token(3));
+  assert.equal(h.listenerCount(), 1);
+});
+
+safeguard("Disable during rotation prevents callbacks from reactivating the existing row", async () => {
+  const h = await nativeHarness();
+  const installation = await requireSuccessfulRegistration(h);
+  const staleCallback = h.savedTokenCallback();
+  const gate = h.pause("rpc:upsert_my_patient_native_push_device");
+  h.emit(token(2));
+  await flush();
+  assert.equal(gate.started, true);
+  const disabled = observe(h.api.disablePatientNativePushDevice());
+  staleCallback({ value: token(3) });
+  await complete(disabled);
+  gate.release();
+  h.emit(token(4));
+  await h.api.reconcilePatientNativePushRegistration();
+  await flush();
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.model.rows.get(installation).enabled, false);
+  assert.equal(h.storage.get(disabledKey), "true");
+  assert.equal(h.listenerCount(), 0);
+  assert.equal(h.registerCalls, 1);
+  const enabled = observe(h.api.registerPatientNativePushDevice({ allowExplicitlyDisabled: true }));
+  await flush();
+  h.emit(token(5));
+  await complete(enabled);
+  assert.equal(enabled.error, undefined);
+  assert.equal(h.model.rows.size, 1);
+  assert.equal(h.model.rows.get(installation).push_token, token(5));
+  assert.equal(h.api.isPatientNativePushExplicitlyDisabled(), false);
+  h.emit(token(6));
+  await flush();
+  assert.equal(h.model.rows.get(installation).push_token, token(6));
+  assert.equal(h.registerCalls, 2);
+});
+
+safeguard("a failed older upsert still drains a newer token already queued", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  const gate = h.pause("rpc:upsert_my_patient_native_push_device");
+  h.failPersistence();
+  h.emit(token(1));
+  await flush();
+  assert.equal(gate.started, true);
+  h.emit(token(2));
+  gate.release();
+  await complete(op);
+  assert.equal(op.error, undefined);
+  assert.equal(h.writes.length, 1);
+  assert.equal([...h.model.rows.values()][0].push_token, token(2));
+  assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
+});
+
+safeguard("transient rotation failure does not replay an old token or start a retry loop", async () => {
+  const h = await nativeHarness();
+  const installation = await requireSuccessfulRegistration(h);
+  const firstId = h.model.rows.get(installation).id;
+  h.failPersistence();
+  h.emit(token(2));
+  await flush();
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.model.rows.get(installation).enabled, false);
+  const upserts = h.calls.filter(call => call === "upsert_my_patient_native_push_device").length;
+  h.emit(token(2));
+  await flush();
+  assert.equal(h.calls.filter(call => call === "upsert_my_patient_native_push_device").length, upserts);
+  assert.equal(h.registerCalls, 1);
+  h.emit(token(3));
+  await flush();
+  assert.equal(h.model.rows.get(installation).push_token, token(3));
+  assert.equal(h.model.rows.get(installation).enabled, true);
+  assert.equal(h.model.rows.get(installation).id, firstId);
+  assert.equal(h.registerCalls, 1);
+});
+
+safeguard("initial coordination waits for register to start and uses callbacks received meanwhile", async () => {
+  const h = await nativeHarness({ retained: [token(1)] });
+  const gate = h.pause("register");
+  const op = await beginRegistration(h);
+  assert.equal(gate.started, true);
+  assert.equal(h.writes.length, 0);
+  h.emit(token(2));
+  gate.release();
+  await complete(op);
+  assert.equal(op.error, undefined);
+  assert.equal(h.writes.length, 1);
+  assert.equal([...h.model.rows.values()][0].push_token, token(2));
+});
+
+safeguard("a delayed fresh callback supersedes retained data without another register call", async () => {
+  const h = await nativeHarness({ retained: [token(1)] });
+  const op = await beginRegistration(h);
+  await complete(op);
+  assert.equal(op.error, undefined);
+  h.emit(token(2));
+  await flush();
+  assert.equal([...h.model.rows.values()][0].push_token, token(2));
+  assert.equal(h.registerCalls, 1);
+});
+
+safeguard("cancellation during listener attachment removes late handles and blocks saved callbacks", async () => {
+  for (const stage of ["listener:registration", "listener:registrationError"]) {
+    const h = await nativeHarness();
+    const gate = h.pause(stage);
+    const op = await beginRegistration(h);
+    assert.equal(gate.started, true);
+    const staleCallback = h.savedTokenCallback();
+    await h.authChange(null, "SIGNED_OUT");
+    await complete(op);
+    gate.release();
+    await flush();
+    staleCallback({ value: token(2) });
+    await flush();
+    assert.equal(h.listenerCount(), 0);
+    assert.equal(h.listenerCount("registrationError"), 0);
+    assert.equal(h.registerCalls, 0);
+    assert.equal(h.writes.length, 0);
+  }
+});
+
+safeguard("invalid later callbacks cannot replace a valid token", async () => {
+  const h = await nativeHarness();
+  const installation = await requireSuccessfulRegistration(h);
+  h.emit("invalid");
+  await flush();
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.model.rows.get(installation).push_token, token(1));
+});
+
+safeguard("native registration failure and timeout detach the persistent listeners", async () => {
+  for (const failure of ["register", "event", "timeout"]) {
+    const h = await nativeHarness();
+    if (failure === "register") h.failRegister();
+    const op = await beginRegistration(h);
+    if (failure === "event") h.emitError();
+    if (failure === "timeout") await h.time.advance(20_000);
+    await complete(op);
+    assert.equal(op.error?.code, failure === "timeout" ? "registration_timeout" : "registration_failed");
+    assert.equal(h.listenerCount(), 0);
+    assert.equal(h.listenerCount("registrationError"), 0);
+    assert.equal(h.writes.length, 0);
+  }
+});
+
+safeguard("a token arriving during registration completion starts exactly one follow-up update", async () => {
+  const h = await nativeHarness();
+  let emitted = false;
+  h.window.addEventListener(h.api.patientNativePushStatusChangedEvent, event => {
+    if (event.detail.enabled && !emitted) { emitted = true; h.emit(token(2)); }
+  });
+  const installation = await requireSuccessfulRegistration(h);
+  await flush();
+  assert.equal(h.model.rows.get(installation).push_token, token(2));
+  assert.equal(h.writes.length, 2);
+  assert.equal(h.registerCalls, 1);
+});
+
+safeguard("newer rotation received during failure cleanup is not lost", async () => {
+  const h = await nativeHarness();
+  const installation = await requireSuccessfulRegistration(h);
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  h.failPersistence();
+  h.emit(token(2));
+  await flush();
+  assert.equal(gate.started, true);
+  h.emit(token(3));
+  gate.release();
+  await flush();
+  assert.equal(h.model.rows.get(installation).push_token, token(3));
+  assert.equal(h.model.rows.get(installation).enabled, true);
+  assert.deepEqual(h.writes.map(write => write.value), [token(1), token(3)]);
+  assert.equal(h.registerCalls, 1);
+});
+
+safeguard("changed Patient eligibility blocks continuous rotation before an upsert", async () => {
+  const accountMap = new Map([[uid(1), activeAccount()]]);
+  const h = await nativeHarness({ accountMap, model: registrationModel(accountMap) });
+  await requireSuccessfulRegistration(h);
+  accountMap.get(uid(1)).patientStatus = "inactive";
+  h.emit(token(2));
+  await flush();
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.listenerCount(), 0);
+  assert.equal(h.listenerCount("registrationError"), 0);
+  assert.equal(h.calls.filter(call => call === "upsert_my_patient_native_push_device").length, 1);
 });
 
 safeguard("concurrent registration callers share one native request and one upsert", async () => {

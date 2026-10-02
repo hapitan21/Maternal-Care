@@ -22,6 +22,7 @@ let authSubscription = null;
 let observedAuthIdentity = null;
 let authObserved = false;
 let authGeneration = 0;
+let registrationTokens = null;
 
 function createNativePushError(code) {
   const error = new Error(code);
@@ -120,6 +121,7 @@ function cancelRegistration(operation, code = "registration_cancelled") {
   operation.cancelCode = code;
   operation.abortController?.abort();
   operation.cancelWaiting?.();
+  if (operation.tokens === registrationTokens) disposeRegistrationTokens();
 }
 
 // The logical session identifier survives token refresh, but changes on a new login.
@@ -163,6 +165,7 @@ function observeRegistrationAuth() {
         registrationBlocked = true;
       }
       cancelRegistration(registrationInFlight, "auth_changed");
+      disposeRegistrationTokens();
     }
   }).data.subscription;
 }
@@ -247,73 +250,108 @@ async function authorizeRegistration(operation, sessionResult) {
   return finalSession.data.session;
 }
 
+function isCurrentTokenListener(tokens) {
+  return tokens === registrationTokens && !tokens.disposed &&
+    !registrationBlocked && tokens.generation === lifecycleGeneration;
+}
+
+function disposeRegistrationTokens() {
+  const tokens = registrationTokens;
+  registrationTokens = null;
+  if (!tokens) return;
+  tokens.disposed = true;
+  tokens.latest = null;
+  void removeListener(tokens.handle);
+  void removeListener(tokens.errorHandle);
+}
+
+function receiveRegistrationToken(tokens, value) {
+  if (!isCurrentTokenListener(tokens)) return;
+  if (isExplicitlyDisabled() && !(registrationInFlight?.tokens === tokens &&
+      registrationInFlight.allowExplicitlyDisabled)) return;
+
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (normalized.length < 32) {
+    tokens.waiting?.(createNativePushError("registration_failed"));
+    return;
+  }
+  if (normalized === tokens.latest) return;
+  tokens.latest = normalized;
+  tokens.revision += 1;
+  tokens.waiting?.();
+  if (tokens.enabled && !registrationInFlight) {
+    // Rotations share the same serialization and authorization as initial registration.
+    // Failures wait for a new event or explicit reconciliation; they never spin/replay old tokens.
+    void startRegistration({ tokens, rotation: true }).catch(() => undefined);
+  }
+}
+
+function createRegistrationTokens(operation) {
+  const tokens = {
+    identity: operation.identity, patientId: operation.patientId,
+    installationId: operation.installationId, generation: operation.generation,
+    latest: null, revision: 0, enabled: false,
+    disposed: false, handle: null, errorHandle: null, waiting: null,
+  };
+  registrationTokens = tokens;
+  return tokens;
+}
+
 async function waitForRegistrationToken(operation) {
-  let registrationHandle;
-  let registrationErrorHandle;
+  const tokens = operation.tokens;
   let timeoutId;
   let settled = false;
+  let started = false;
+  let initialError;
 
   return new Promise((resolve, reject) => {
-    const finish = (callback, value) => {
+    const finish = (error) => {
       if (settled) return;
       settled = true;
+      tokens.waiting = null;
       operation.cancelWaiting = null;
       window.clearTimeout(timeoutId);
-
-      void Promise.all([
-        removeListener(registrationHandle),
-        removeListener(registrationErrorHandle),
-      ]).finally(() => callback(value));
+      if (error) reject(error);
+      else resolve();
     };
-
-    operation.cancelWaiting = () => {
-      finish(
-        reject,
-        createNativePushError(operation.cancelCode || "registration_cancelled")
-      );
+    tokens.waiting = (error) => {
+      if (error) initialError = error;
+      if (!started) return;
+      if (tokens.latest) finish();
+      else if (initialError) finish(initialError);
     };
+    operation.cancelWaiting = () => finish(createNativePushError(
+      operation.cancelCode || "registration_cancelled"
+    ));
+    timeoutId = window.setTimeout(() => {
+      cancelRegistration(operation, "registration_timeout");
+    }, registrationTimeoutMs);
 
     const start = async () => {
-      registrationHandle = await PushNotifications.addListener(
-        "registration",
-        (token) => {
-          finish(resolve, token?.value);
+      if (!tokens.handle) {
+        tokens.handle = await PushNotifications.addListener("registration", (token) => {
+          receiveRegistrationToken(tokens, token?.value);
+        });
+        if (!isCurrentTokenListener(tokens)) {
+          await removeListener(tokens.handle);
+          return;
         }
-      );
-      if (settled) {
-        await removeListener(registrationHandle);
-        return;
-      }
-
-      registrationErrorHandle = await PushNotifications.addListener(
-        "registrationError",
-        () => {
-          finish(reject, createNativePushError("registration_failed"));
+        tokens.errorHandle = await PushNotifications.addListener("registrationError", () => {
+          tokens.waiting?.(createNativePushError("registration_failed"));
+        });
+        if (!isCurrentTokenListener(tokens)) {
+          await removeListener(tokens.errorHandle);
+          return;
         }
-      );
-      if (settled) {
-        await Promise.all([
-          removeListener(registrationHandle),
-          removeListener(registrationErrorHandle),
-        ]);
-        return;
       }
-
-      timeoutId = window.setTimeout(() => {
-        cancelRegistration(operation, "registration_timeout");
-      }, registrationTimeoutMs);
-
-      if (operation.cancelled) {
-        operation.cancelWaiting?.();
-        return;
-      }
-
+      assertCurrentRegistration(operation);
+      // Retained callbacks run on addListener. They must never skip the fresh getToken request.
       await PushNotifications.register();
+      assertCurrentRegistration(operation);
+      started = true;
+      tokens.waiting?.();
     };
-
-    void start().catch(() => {
-      finish(reject, createNativePushError("registration_failed"));
-    });
+    void start().catch(() => finish(createNativePushError("registration_failed")));
   });
 }
 
@@ -368,35 +406,39 @@ async function performRegistration(operation) {
     throw createNativePushError("unsupported");
   }
 
-  const installationId = getOrCreatePatientNativePushInstallationId();
+  const installationId = operation.tokens?.installationId || getOrCreatePatientNativePushInstallationId();
   operation.installationId = installationId;
   let persistenceStarted = false;
 
   try {
     await authorizeRegistration(operation, await awaitRegistrationWork(operation, operation.initialSession));
-    const pushToken = await waitForRegistrationToken(operation);
-    if (!isCurrentRegistration(operation)) {
-      throw createNativePushError(
-        operation.cancelCode || "registration_cancelled"
-      );
-    }
-
-    const session = await authorizeRegistration(operation);
+    operation.tokens ||= createRegistrationTokens(operation);
+    const tokens = operation.tokens;
+    if (!operation.rotation) await waitForRegistrationToken(operation);
     assertCurrentRegistration(operation);
-    persistenceStarted = true;
-    const registration = await awaitRegistrationWork(operation, persistRegistrationToken(
-      pushToken,
-      installationId,
-      operation.abortController.signal,
-      session
-    ));
 
-    if (!isCurrentRegistration(operation)) {
-      throw createNativePushError(
-        operation.cancelCode || "registration_cancelled"
-      );
-    }
+    let registration;
+    do {
+      const session = await authorizeRegistration(operation);
+      assertCurrentRegistration(operation);
+      // Read after authorization so callbacks received during those awaits coalesce.
+      const pushToken = tokens.latest;
+      operation.tokenRevision = tokens.revision;
+      persistenceStarted = true;
+      try {
+        registration = await awaitRegistrationWork(operation, persistRegistrationToken(
+          pushToken, installationId, operation.abortController.signal, session
+        ));
+      } catch (error) {
+        assertCurrentRegistration(operation);
+        // An older failed request cannot discard an already received newer token.
+        if (tokens.revision !== operation.tokenRevision) continue;
+        throw error;
+      }
+      assertCurrentRegistration(operation);
+    } while (tokens.revision !== operation.tokenRevision);
 
+    tokens.enabled = true;
     setExplicitlyDisabled(false);
     dispatchStatusChanged(true);
     return { installationId, registration };
@@ -404,16 +446,13 @@ async function performRegistration(operation) {
     if (persistenceStarted) {
       await compensateForPossibleUpsert(operation);
     }
-
-    if (operation.cancelled) {
-      throw createNativePushError(
-        operation.cancelCode || "registration_cancelled"
-      );
+    if (!operation.tokens?.enabled || error?.code === "inactive_patient") {
+      if (operation.tokens === registrationTokens) disposeRegistrationTokens();
     }
-
-    throw error?.code
-      ? error
-      : createNativePushError("persistence_failed");
+    if (operation.cancelled) {
+      throw createNativePushError(operation.cancelCode || "registration_cancelled");
+    }
+    throw error?.code ? error : createNativePushError("persistence_failed");
   } finally {
     operation.abortController = null;
     operation.initialSession = null;
@@ -538,6 +577,7 @@ export async function requestPatientNativePushPermission() {
 export function beginPatientNativePushSession() {
   if (isNativeAndroidPushAvailable()) observeRegistrationAuth();
   lifecycleGeneration += 1;
+  disposeRegistrationTokens();
   registrationBlocked = false;
 
   if (registrationInFlight) {
@@ -550,14 +590,19 @@ export function endPatientNativePushSession() {
   lifecycleGeneration += 1;
   authGeneration += 1;
   cancelRegistration(registrationInFlight, "session_ended");
+  disposeRegistrationTokens();
   authSubscription?.unsubscribe();
   authSubscription = null;
   observedAuthIdentity = null;
   authObserved = false;
 }
 
-export function registerPatientNativePushDevice({
-  allowExplicitlyDisabled = false,
+export function registerPatientNativePushDevice({ allowExplicitlyDisabled = false } = {}) {
+  return startRegistration({ allowExplicitlyDisabled });
+}
+
+function startRegistration({
+  allowExplicitlyDisabled = false, tokens = registrationTokens, rotation = false,
 } = {}) {
   if (registrationBlocked) {
     return Promise.reject(createNativePushError("registration_cancelled"));
@@ -577,8 +622,9 @@ export function registerPatientNativePushDevice({
   observeRegistrationAuth();
   const operation = {
     abortController: new AbortController(),
-    identity: null,
-    patientId: null,
+    identity: tokens?.identity || null,
+    patientId: tokens?.patientId || null,
+    tokens, rotation, allowExplicitlyDisabled, tokenRevision: tokens?.revision || 0,
     authGeneration,
     initialSession: supabase.auth.getSession().catch(() => ({ error: true })),
     cancelled: false,
@@ -608,6 +654,11 @@ export function registerPatientNativePushDevice({
   const clearInFlight = () => {
     if (registrationInFlight === operation) {
       registrationInFlight = null;
+      const tokens = operation.tokens;
+      if (tokens?.enabled && isCurrentTokenListener(tokens) &&
+          tokens.revision > operation.tokenRevision) {
+        void startRegistration({ tokens, rotation: true }).catch(() => undefined);
+      }
     }
   };
   operation.completion.then(clearInFlight);
@@ -664,6 +715,7 @@ export async function disablePatientNativePushDevice() {
   lifecycleGeneration += 1;
   const pendingRegistration = registrationInFlight;
   cancelRegistration(pendingRegistration, "explicit_disable");
+  disposeRegistrationTokens();
   const cleanupBinding = captureCleanupSession();
 
   if (pendingRegistration) {
@@ -716,6 +768,7 @@ export async function cleanupPatientNativePushBeforeLogout() {
   lifecycleGeneration += 1;
   const pendingRegistration = registrationInFlight;
   cancelRegistration(pendingRegistration, "logout_cleanup");
+  disposeRegistrationTokens();
   const cleanupBinding = captureCleanupSession();
 
   if (pendingRegistration) {
