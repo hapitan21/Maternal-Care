@@ -30,6 +30,7 @@ import {
 import {
   beginPatientNativePushSession,
   cleanupPatientNativePushBeforeLogout,
+  endPatientNativePushSession,
   isNativeAndroidPushAvailable,
   reconcilePatientNativePushRegistration,
 } from "../../lib/patientNativePush";
@@ -633,9 +634,6 @@ export default function PatientPWA() {
           error: "",
           cachedAt: Date.now(),
         });
-        if (isNativeAndroidPushAvailable()) {
-          beginPatientNativePushSession();
-        }
         setNativePushAuthorization({ reloadToken, userId: user.id });
         setAccessState({ status: "active", message: "", details: "" });
       } catch (error) {
@@ -706,6 +704,7 @@ export default function PatientPWA() {
       return undefined;
     }
 
+    beginPatientNativePushSession();
     let active = true;
     const reconcileNativePush = () => {
       if (!active || document.visibilityState === "hidden") return;
@@ -723,6 +722,7 @@ export default function PatientPWA() {
     return () => {
       active = false;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      endPatientNativePushSession();
     };
   }, [
     accessState.status,

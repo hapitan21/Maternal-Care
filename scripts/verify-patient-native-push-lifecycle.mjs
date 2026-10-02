@@ -51,7 +51,7 @@ const accounts = new Map([
 ]);
 const silentConsole = { info() {}, warn() {}, error() {}, log() {} };
 const forbidNetwork = async () => { throw new Error("Unmocked network access is forbidden"); };
-const flush = async () => { for (let i = 0; i < 64; i += 1) await Promise.resolve(); };
+const flush = async () => { for (let i = 0; i < 128; i += 1) await Promise.resolve(); };
 const observe = (promise) => {
   const operation = { settled: false };
   operation.promise = Promise.resolve(promise).then(
@@ -239,6 +239,23 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
   const nativeListeners = new Map();
   const retainedEvents = [...retained];
   const authListeners = new Set();
+  const sessionHistory = new Map(initialSession ? [[initialSession.access_token, initialSession]] : []);
+  const gates = new Map();
+  let userMismatch = false;
+  const pause = stage => {
+    let entered;
+    let release;
+    const gate = { started: false, entered: new Promise(resolve => { entered = resolve; }),
+      wait: new Promise(resolve => { release = resolve; }), mark: () => { gate.started = true; entered(); }, release: () => release() };
+    gates.set(stage, gate);
+    return gate;
+  };
+  const checkpoint = async stage => {
+    const gate = gates.get(stage);
+    if (gate) { gates.delete(stage); gate.mark(); await gate.wait; }
+  };
+  const authenticatedSession = headers => headers.has("Authorization")
+    ? sessionHistory.get(headers.get("Authorization").replace(/^Bearer /, "")) : currentSession;
   const calls = [];
   const writes = [];
   const emit = value => {
@@ -263,42 +280,89 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
   };
   const supabase = {
     auth: {
-      getSession: async () => ({ data: { session: currentSession }, error: null }),
-      getUser: async () => ({ data: { user: currentSession?.user }, error: null }),
+      getSession: async () => {
+        const captured = currentSession;
+        calls.push("auth:getSession");
+        await checkpoint("session");
+        return { data: { session: captured }, error: null };
+      },
+      getUser: async accessToken => {
+        const captured = accessToken ? sessionHistory.get(accessToken) : currentSession;
+        await checkpoint("user");
+        return { data: { user: userMismatch ? { id: uid(999) } : captured?.user }, error: null };
+      },
       onAuthStateChange(callback) {
         authListeners.add(callback);
         return { data: { subscription: { unsubscribe: () => authListeners.delete(callback) } } };
       },
     },
+    from(table) {
+      assert.equal(table, "profiles", "registration may read only the authenticated profile");
+      const headers = new Map();
+      let profileId;
+      let signal;
+      const builder = {
+        select(columns) { assert.equal(columns, "role, account_status"); return builder; },
+        eq(column, value) { assert.equal(column, "id"); profileId = value; return builder; },
+        maybeSingle() { return builder; },
+        setHeader(name, value) { headers.set(name, value); return builder; },
+        abortSignal(value) { signal = value; return builder; },
+        then(resolve, reject) {
+          return (async () => {
+            await checkpoint("profile");
+            if (signal?.aborted) return { data: null, error: { code: "synthetic-abort" } };
+            const owner = authenticatedSession(headers)?.user?.id;
+            assert.equal(profileId, owner, "profile lookup must be pinned to its authenticated owner");
+            const account = accountMap.get(owner);
+            return { data: account ? { role: account.role, account_status: account.profileStatus } : null, error: null };
+          })().then(resolve, reject);
+        },
+      };
+      return builder;
+    },
     rpc(name, args) {
       calls.push(name);
+      const headers = new Map();
+      let signal;
       let execution;
-      const execute = () => execution ||= Promise.resolve().then(() => {
+      const execute = () => execution ||= (async () => {
+        await checkpoint("rpc:" + name);
+        if (signal?.aborted) return { data: null, error: { code: "synthetic-abort" } };
+        const requestSession = authenticatedSession(headers);
         try {
+          if (name === "get_current_patient_account_status") {
+            const account = accountMap.get(requestSession?.user?.id);
+            const archived = account?.archived || ["archived", "deleted"].includes(account?.recordStatus);
+            return { data: account?.patient ? [{ id: account.patient,
+              account_status: archived ? "archived" : account.patientStatus, linked: true }] : [], error: null };
+          }
           if (name === "upsert_my_patient_native_push_device") {
-            const row = model.upsert(currentSession, args.p_installation_id, args.p_push_token);
+            assert.equal(headers.has("Authorization"), true, "upsert must use an explicitly bound bearer");
+            const row = model.upsert(requestSession, args.p_installation_id, args.p_push_token);
             writes.push({ owner: row.user_id, installation: row.installation_id, value: row.push_token });
             return { data: { device_id: row.id, enabled: row.enabled }, error: null };
           }
           if (name === "deactivate_my_patient_native_push_device") {
+            assert.equal(headers.has("Authorization"), true, "cleanup must use an explicitly bound bearer");
             if (deactivateFails) return { data: null, error: { code: "synthetic-deactivation-failure" } };
-            const found = model.deactivate(currentSession, args.p_installation_id);
+            const found = model.deactivate(requestSession, args.p_installation_id);
             return { data: { found, enabled: false }, error: null };
           }
           if (name === "get_my_patient_native_push_device_status") {
-            return { data: model.status(currentSession, args.p_installation_id), error: null };
+            return { data: model.status(requestSession, args.p_installation_id), error: null };
           }
           throw new Error("Unmocked RPC");
         } catch (error) {
           if (["42501", "23505"].includes(error.code)) return { data: null, error: { code: error.code } };
           throw error;
         }
-      });
-      return {
+      })();
+      const builder = {
+        setHeader(name, value) { headers.set(name, value); return builder; },
+        abortSignal(value) { signal = value; return builder; },
         then: (resolve, reject) => execute().then(resolve, reject),
-        abortSignal: signal => signal.aborted
-          ? Promise.resolve({ data: null, error: { code: "synthetic-abort" } }) : execute(),
       };
+      return builder;
     },
   };
   const context = vm.createContext({ console: silentConsole, AbortController,
@@ -318,6 +382,9 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
   api.beginPatientNativePushSession();
   return {
     api, context, model, storage, window, document, time, calls, writes, emit, accountMap,
+    pause,
+    get authListenerCount() { return authListeners.size; },
+    mismatchUser(value = true) { userMismatch = value; },
     get currentSession() { return currentSession; },
     get registerCalls() { return registerCalls; },
     get unregisterCalls() { return unregisterCalls; },
@@ -325,6 +392,7 @@ async function nativeHarness({ storage = new Map(), model = registrationModel(),
     failDeactivation(value = true) { deactivateFails = value; },
     async authChange(next, event = "SIGNED_IN") {
       currentSession = next;
+      if (next) sessionHistory.set(next.access_token, next);
       for (const callback of authListeners) callback(event, next);
       await flush();
     },
@@ -823,7 +891,7 @@ safeguard("registration timeout cleans listeners and does not persist", async ()
   assert.equal(h.time.size, 0);
 });
 
-defect("Patient switch must not persist an old registration under the new Patient", "device registration does not observe auth identity changes", async () => {
+safeguard("Patient switch must not persist an old registration under the new Patient", async () => {
   const h = await nativeHarness();
   const op = await beginRegistration(h);
   await h.authChange(session(uid(2), uid(102)));
@@ -832,7 +900,7 @@ defect("Patient switch must not persist an old registration under the new Patien
   check(h.writes.every(write => write.owner !== uid(2)), "Patient switch must not persist an old registration under the new Patient");
 });
 
-defect("same-user new session_id must invalidate stale registration", "device lifecycle generation is not bound to auth session_id", async () => {
+safeguard("same-user new session_id must invalidate stale registration", async () => {
   const h = await nativeHarness();
   const op = await beginRegistration(h);
   await h.authChange(session(uid(1), uid(999)));
@@ -867,7 +935,7 @@ safeguard("normal logout cleanup cancels registration before signing out", async
   assert.equal(h.unregisterCalls, 1);
 });
 
-defect("auth SIGNED_OUT alone must cancel pending registration", "device registration does not subscribe to auth sign-out", async () => {
+safeguard("auth SIGNED_OUT alone must cancel pending registration", async () => {
   const h = await nativeHarness();
   const op = await beginRegistration(h);
   await h.authChange(null, "SIGNED_OUT");
@@ -890,19 +958,217 @@ safeguard("explicit session replacement cancels pending registration", async () 
   assert.equal(h.writes.length, 0);
 });
 
+
+safeguard("signed-out registration cannot resume after a later Patient login", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  await h.authChange(null, "SIGNED_OUT");
+  await complete(op);
+  assert.equal(op.error?.code, "auth_changed");
+  await h.authChange(session(uid(2), uid(102)));
+  h.api.beginPatientNativePushSession();
+  h.emit(token(1));
+  await flush();
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.calls.includes("upsert_my_patient_native_push_device"), false);
+});
+
+safeguard("generation cancellation during session capture prevents native work and writes", async () => {
+  const h = await nativeHarness();
+  const gate = h.pause("session");
+  const op = observe(h.api.registerPatientNativePushDevice());
+  await flush();
+  assert.equal(gate.started, true);
+  h.api.beginPatientNativePushSession();
+  await complete(op);
+  gate.release();
+  await flush();
+  assert.equal(op.error?.code, "session_replaced");
+  assert.equal(h.registerCalls, 0);
+  assert.equal(h.writes.length, 0);
+});
+
+safeguard("Patient switch during final authorization prevents the upsert from being issued", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  const gate = h.pause("profile");
+  h.emit(token(1));
+  await flush();
+  assert.equal(gate.started, true);
+  await h.authChange(session(uid(2), uid(102)));
+  gate.release();
+  await complete(op);
+  assert.equal(op.error?.code, "auth_changed");
+  assert.equal(h.calls.includes("upsert_my_patient_native_push_device"), false);
+  assert.equal(h.writes.length, 0);
+});
+
+safeguard("same-session refresh during final authorization can complete safely", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  const gate = h.pause("profile");
+  h.emit(token(1));
+  await flush();
+  assert.equal(gate.started, true);
+  await h.authChange(session(uid(1), uid(101), 1), "TOKEN_REFRESHED");
+  gate.release();
+  await complete(op);
+  assert.equal(op.error, undefined);
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.writes[0].owner, uid(1));
+});
+
+safeguard("sign-out aborts a dispatched but still pending persistence request", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  const gate = h.pause("rpc:upsert_my_patient_native_push_device");
+  h.emit(token(1));
+  await flush();
+  assert.equal(gate.started, true);
+  await h.authChange(null, "SIGNED_OUT");
+  gate.release();
+  await complete(op);
+  assert.equal(op.error?.code, "auth_changed");
+  assert.equal(h.writes.length, 0);
+});
+
+safeguard("cancelled persistence and compensation cannot mutate a replacement Patient row", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  const installation = h.storage.get(installationKey);
+  const gate = h.pause("rpc:upsert_my_patient_native_push_device");
+  h.emit(token(1));
+  await flush();
+  assert.equal(gate.started, true);
+  await h.authChange(session(uid(2), uid(102)));
+  const replacement = h.model.upsert(h.currentSession, installation, token(2));
+  gate.release();
+  await complete(op);
+  assert.equal(op.error?.code, "auth_changed");
+  assert.equal(h.writes.length, 0);
+  assert.equal(replacement.enabled, true);
+  assert.equal(replacement.push_token, token(2));
+  assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
+});
+
+safeguard("logout invalidation precedes asynchronous deactivation", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  const gate = h.pause("rpc:deactivate_my_patient_native_push_device");
+  const logout = observe(h.api.cleanupPatientNativePushBeforeLogout());
+  // No await before this callback: logout must have already invalidated the operation.
+  h.emit(token(1));
+  await flush();
+  assert.equal(gate.started, true);
+  await complete(op);
+  assert.equal(op.error?.code, "logout_cleanup");
+  assert.equal(h.writes.length, 0);
+  gate.release();
+  await complete(logout);
+  assert.equal(logout.value.deactivated, true);
+});
+
+safeguard("logout cleanup does not run under a replacement account", async () => {
+  const h = await nativeHarness();
+  const installation = await requireSuccessfulRegistration(h);
+  const gate = h.pause("session");
+  const logout = observe(h.api.cleanupPatientNativePushBeforeLogout());
+  await flush();
+  assert.equal(gate.started, true);
+  await h.authChange(session(uid(2), uid(102)));
+  const replacement = h.model.upsert(h.currentSession, installation, token(2));
+  gate.release();
+  await complete(logout);
+  assert.equal(logout.value.deactivated, false);
+  assert.equal(logout.value.unregistered, false);
+  assert.equal(replacement.enabled, true);
+  assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
+});
+
+safeguard("Patient access is revalidated after native registration and before the upsert", async () => {
+  for (const updates of [{ role: "doctor" }, { patientStatus: "inactive" },
+    { patientStatus: "pending_activation" }, { patient: null }, { archived: true }]) {
+    const accountMap = new Map([[uid(1), activeAccount()]]);
+    const h = await nativeHarness({ accountMap, model: registrationModel(accountMap) });
+    const op = await beginRegistration(h);
+    assert.equal(h.registerCalls, 1);
+    Object.assign(accountMap.get(uid(1)), updates);
+    h.emit(token(1));
+    await complete(op);
+    assert.equal(op.error?.code, "inactive_patient");
+    assert.equal(h.calls.includes("upsert_my_patient_native_push_device"), false);
+    assert.equal(h.writes.length, 0);
+  }
+});
+
+
+safeguard("logout auth reads remain bounded and late reads cannot trigger cleanup", async () => {
+  const h = await nativeHarness();
+  const gate = h.pause("session");
+  const logout = observe(h.api.cleanupPatientNativePushBeforeLogout());
+  await flush();
+  assert.equal(gate.started, true);
+  await h.time.advance(2_500);
+  await h.time.advance(2_500);
+  await complete(logout);
+  assert.equal(logout.value.deactivated, false);
+  assert.equal(logout.value.unregistered, false);
+  gate.release();
+  await flush();
+  assert.equal(h.calls.includes("deactivate_my_patient_native_push_device"), false);
+  assert.equal(h.unregisterCalls, 0);
+});
+
+safeguard("server-verified user mismatch prevents native registration and persistence", async () => {
+  const h = await nativeHarness();
+  h.mismatchUser();
+  const op = observe(h.api.registerPatientNativePushDevice());
+  await complete(op);
+  assert.equal(op.error?.code, "inactive_patient");
+  assert.equal(h.registerCalls, 0);
+  assert.equal(h.writes.length, 0);
+});
+
+safeguard("missing or malformed logical session identity fails closed", async () => {
+  for (const invalid of [session(uid(1), "invalid-session"),
+    { user: { id: uid(1) }, access_token: "synthetic.invalid.synthetic" }]) {
+    const h = await nativeHarness({ initialSession: invalid });
+    const op = observe(h.api.registerPatientNativePushDevice());
+    await complete(op);
+    assert.equal(op.error?.code, "auth_changed");
+    assert.equal(h.registerCalls, 0);
+    assert.equal(h.writes.length, 0);
+  }
+});
+
+safeguard("shell lifecycle end cancels work and session starts do not duplicate auth observers", async () => {
+  const h = await nativeHarness();
+  const op = await beginRegistration(h);
+  assert.equal(h.authListenerCount, 1);
+  h.api.endPatientNativePushSession();
+  h.emit(token(1));
+  await complete(op);
+  assert.equal(op.error?.code, "session_ended");
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.authListenerCount, 0);
+  for (let i = 0; i < 3; i += 1) h.api.beginPatientNativePushSession();
+  assert.equal(h.authListenerCount, 1);
+});
+
 for (const [label, updates] of [
-  ["Doctor", { role: "doctor" }], ["Staff", { role: "staff" }], ["Admin", { role: "admin" }],
-  ["inactive Patient", { patientStatus: "inactive" }], ["pending Patient", { patientStatus: "pending" }],
+  ["Doctor", { role: "doctor" }], ["missing role", { role: undefined }], ["Staff", { role: "staff" }], ["Admin", { role: "admin" }],
+  ["inactive Patient", { patientStatus: "inactive" }], ["pending Patient", { patientStatus: "pending" }], ["pending activation Patient", { patientStatus: "pending_activation" }],
   ["inactive profile", { profileStatus: "inactive" }], ["archived Patient", { archived: true }],
   ["archived record status", { recordStatus: "archived" }], ["deleted record status", { recordStatus: "deleted" }],
   ["unlinked Patient", { patient: null }],
-]) safeguard("RPC authorization model rejects " + label, async () => {
+]) safeguard("registration authorization rejects " + label, async () => {
   const accountMap = new Map([[uid(1), { ...activeAccount(), ...updates }]]);
   const model = registrationModel(accountMap);
   const h = await nativeHarness({ model, accountMap, autoToken: token(1) });
   const op = observe(h.api.registerPatientNativePushDevice());
   await complete(op);
-  assert.equal(op.error?.code, "persistence_failed");
+  assert.equal(op.error?.code, "inactive_patient");
+  assert.equal(h.registerCalls, 0, "invalid account must be blocked before native registration");
   assert.equal(model.rows.size, 0);
   assert.equal(h.writes.length, 0);
 });

@@ -18,6 +18,10 @@ let registrationInFlight = null;
 let registrationBarrier = Promise.resolve();
 let lifecycleGeneration = 0;
 let registrationBlocked = false;
+let authSubscription = null;
+let observedAuthIdentity = null;
+let authObserved = false;
+let authGeneration = 0;
 
 function createNativePushError(code) {
   const error = new Error(code);
@@ -118,6 +122,131 @@ function cancelRegistration(operation, code = "registration_cancelled") {
   operation.cancelWaiting?.();
 }
 
+// The logical session identifier survives token refresh, but changes on a new login.
+// These identities stay in memory and are never logged or stored.
+function getSessionIdentity(session) {
+  try {
+    const encoded = session.access_token.split(".")[1];
+    const payload = JSON.parse(globalThis.atob(
+      encoded.replace(/-/g, "+").replace(/_/g, "/")
+    ));
+    if (!session.user?.id || typeof payload.session_id !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.session_id)) {
+      return null;
+    }
+    return { userId: session.user.id, sessionId: payload.session_id };
+  } catch {
+    return null;
+  }
+}
+
+function sameIdentity(first, second) {
+  return Boolean(first && second && first.userId === second.userId &&
+    first.sessionId === second.sessionId);
+}
+
+function observeRegistrationAuth() {
+  if (authSubscription) return;
+  authSubscription = supabase.auth.onAuthStateChange((event, session) => {
+    // Keep the callback synchronous: Supabase auth callbacks must not await SDK calls.
+    const identity = getSessionIdentity(session);
+    const expected = registrationInFlight?.identity || observedAuthIdentity;
+    const boundary = event === "SIGNED_OUT" || event === "PASSWORD_RECOVERY" ||
+      !identity || (expected && !sameIdentity(expected, identity)) ||
+      (!expected && registrationInFlight && event !== "INITIAL_SESSION");
+    observedAuthIdentity = identity;
+    authObserved = true;
+    if (boundary) {
+      authGeneration += 1;
+      lifecycleGeneration += 1;
+      if (!identity || event === "SIGNED_OUT" || event === "PASSWORD_RECOVERY") {
+        registrationBlocked = true;
+      }
+      cancelRegistration(registrationInFlight, "auth_changed");
+    }
+  }).data.subscription;
+}
+
+function assertCurrentRegistration(operation) {
+  if (!isCurrentRegistration(operation)) {
+    throw createNativePushError(operation.cancelCode || "registration_cancelled");
+  }
+}
+
+async function awaitRegistrationWork(operation, work) {
+  assertCurrentRegistration(operation);
+  const signal = operation.abortController.signal;
+  let onAbort;
+  const cancelled = new Promise((_, reject) => {
+    onAbort = () => reject(createNativePushError(operation.cancelCode || "registration_cancelled"));
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([work, cancelled]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+function assertMatchingSession(operation, session) {
+  const identity = getSessionIdentity(session);
+  if (!sameIdentity(operation.identity, identity) ||
+      (authObserved && !sameIdentity(observedAuthIdentity, identity))) {
+    cancelRegistration(operation, "auth_changed");
+  }
+  assertCurrentRegistration(operation);
+}
+
+async function authorizeRegistration(operation, sessionResult) {
+  assertCurrentRegistration(operation);
+  const current = sessionResult || await awaitRegistrationWork(operation, supabase.auth.getSession());
+  assertCurrentRegistration(operation);
+  const session = current.data?.session;
+  if (current.error || !getSessionIdentity(session)) {
+    cancelRegistration(operation, "auth_changed");
+    assertCurrentRegistration(operation);
+  }
+  operation.identity ||= getSessionIdentity(session);
+  if (!authObserved) {
+    observedAuthIdentity = operation.identity;
+    authObserved = true;
+  }
+  assertMatchingSession(operation, session);
+
+  const user = await awaitRegistrationWork(operation, supabase.auth.getUser(session.access_token));
+  assertCurrentRegistration(operation);
+  if (user.error || user.data?.user?.id !== operation.identity.userId) {
+    throw createNativePushError("inactive_patient");
+  }
+
+  const authorization = "Bearer " + session.access_token;
+  const profile = await awaitRegistrationWork(operation, supabase.from("profiles")
+    .select("role, account_status").eq("id", operation.identity.userId)
+    .maybeSingle().setHeader("Authorization", authorization)
+    .abortSignal(operation.abortController.signal));
+  assertCurrentRegistration(operation);
+  if (profile.error || profile.data?.role?.trim().toLowerCase() !== "patient" ||
+      profile.data?.account_status?.trim().toLowerCase() !== "active") {
+    throw createNativePushError("inactive_patient");
+  }
+
+  const account = await awaitRegistrationWork(operation, supabase.rpc("get_current_patient_account_status")
+    .setHeader("Authorization", authorization).abortSignal(operation.abortController.signal));
+  assertCurrentRegistration(operation);
+  const patient = Array.isArray(account.data) ? account.data[0] : account.data;
+  if (account.error || !patient?.id || patient.account_status !== "active" ||
+      (operation.patientId && operation.patientId !== patient.id)) {
+    throw createNativePushError("inactive_patient");
+  }
+  operation.patientId = patient.id;
+
+  const finalSession = await awaitRegistrationWork(operation, supabase.auth.getSession());
+  assertCurrentRegistration(operation);
+  if (finalSession.error) throw createNativePushError("inactive_patient");
+  assertMatchingSession(operation, finalSession.data?.session);
+  return finalSession.data.session;
+}
+
 async function waitForRegistrationToken(operation) {
   let registrationHandle;
   let registrationErrorHandle;
@@ -191,7 +320,8 @@ async function waitForRegistrationToken(operation) {
 async function persistRegistrationToken(
   pushToken,
   installationId,
-  abortSignal
+  abortSignal,
+  session
 ) {
   const normalizedToken = String(pushToken || "").trim();
 
@@ -205,6 +335,7 @@ async function persistRegistrationToken(
       p_push_token: normalizedToken,
       p_platform: "android",
     })
+    .setHeader("Authorization", "Bearer " + session.access_token)
     .abortSignal(abortSignal);
 
   if (error) {
@@ -214,10 +345,16 @@ async function persistRegistrationToken(
   return data;
 }
 
-async function compensateForPossibleUpsert() {
+async function compensateForPossibleUpsert(operation) {
+  if (operation.authGeneration !== authGeneration) return;
   try {
+    const generation = authGeneration;
+    const current = await supabase.auth.getSession();
+    if (current.error || generation !== authGeneration ||
+        !sameIdentity(operation.identity, getSessionIdentity(current.data?.session))) return;
     await withTimeout(
-      deactivateCurrentInstallation({ notify: false }),
+      deactivateCurrentInstallation({ notify: false, session: current.data.session,
+        installationId: operation.installationId }),
       logoutOperationTimeoutMs,
       "deactivation_timeout"
     );
@@ -232,9 +369,11 @@ async function performRegistration(operation) {
   }
 
   const installationId = getOrCreatePatientNativePushInstallationId();
+  operation.installationId = installationId;
   let persistenceStarted = false;
 
   try {
+    await authorizeRegistration(operation, await awaitRegistrationWork(operation, operation.initialSession));
     const pushToken = await waitForRegistrationToken(operation);
     if (!isCurrentRegistration(operation)) {
       throw createNativePushError(
@@ -242,13 +381,15 @@ async function performRegistration(operation) {
       );
     }
 
+    const session = await authorizeRegistration(operation);
+    assertCurrentRegistration(operation);
     persistenceStarted = true;
-    operation.abortController = new AbortController();
-    const registration = await persistRegistrationToken(
+    const registration = await awaitRegistrationWork(operation, persistRegistrationToken(
       pushToken,
       installationId,
-      operation.abortController.signal
-    );
+      operation.abortController.signal,
+      session
+    ));
 
     if (!isCurrentRegistration(operation)) {
       throw createNativePushError(
@@ -261,7 +402,7 @@ async function performRegistration(operation) {
     return { installationId, registration };
   } catch (error) {
     if (persistenceStarted) {
-      await compensateForPossibleUpsert();
+      await compensateForPossibleUpsert(operation);
     }
 
     if (operation.cancelled) {
@@ -275,16 +416,19 @@ async function performRegistration(operation) {
       : createNativePushError("persistence_failed");
   } finally {
     operation.abortController = null;
+    operation.initialSession = null;
     operation.cancelWaiting = null;
   }
 }
 
-async function deactivateCurrentInstallation({ notify = true } = {}) {
-  const installationId = getOrCreatePatientNativePushInstallationId();
-  const { data, error } = await supabase.rpc(
+async function deactivateCurrentInstallation({ notify = true, session,
+  installationId = getOrCreatePatientNativePushInstallationId() } = {}) {
+  const request = supabase.rpc(
     "deactivate_my_patient_native_push_device",
     { p_installation_id: installationId }
   );
+  if (session) request.setHeader("Authorization", "Bearer " + session.access_token);
+  const { data, error } = await request;
 
   if (error) {
     throw createNativePushError("deactivation_failed");
@@ -292,6 +436,36 @@ async function deactivateCurrentInstallation({ notify = true } = {}) {
 
   if (notify) dispatchStatusChanged(false);
   return data;
+}
+
+function captureCleanupSession() {
+  return {
+    identity: registrationInFlight?.identity || observedAuthIdentity,
+    generation: authGeneration,
+    session: supabase.auth.getSession().catch(() => ({ error: true })),
+  };
+}
+
+async function getCleanupSession(binding) {
+  const result = await binding.session;
+  const session = result.data?.session;
+  const identity = getSessionIdentity(session);
+  if (result.error || !identity || binding.generation !== authGeneration ||
+      (binding.identity && !sameIdentity(binding.identity, identity))) {
+    throw createNativePushError("auth_changed");
+  }
+  return session;
+}
+
+function runBoundCleanup(binding, action, timeoutMs, timeoutCode) {
+  let active = true;
+  const work = getCleanupSession(binding).then((session) => {
+    if (!active || binding.generation !== authGeneration) {
+      throw createNativePushError("auth_changed");
+    }
+    return action(session);
+  });
+  return withTimeout(work, timeoutMs, timeoutCode).finally(() => { active = false; });
 }
 
 async function unregisterNativePush() {
@@ -362,12 +536,24 @@ export async function requestPatientNativePushPermission() {
 }
 
 export function beginPatientNativePushSession() {
+  if (isNativeAndroidPushAvailable()) observeRegistrationAuth();
   lifecycleGeneration += 1;
   registrationBlocked = false;
 
   if (registrationInFlight) {
     cancelRegistration(registrationInFlight, "session_replaced");
   }
+}
+
+export function endPatientNativePushSession() {
+  registrationBlocked = true;
+  lifecycleGeneration += 1;
+  authGeneration += 1;
+  cancelRegistration(registrationInFlight, "session_ended");
+  authSubscription?.unsubscribe();
+  authSubscription = null;
+  observedAuthIdentity = null;
+  authObserved = false;
 }
 
 export function registerPatientNativePushDevice({
@@ -388,8 +574,13 @@ export function registerPatientNativePushDevice({
     return registrationInFlight.promise;
   }
 
+  observeRegistrationAuth();
   const operation = {
-    abortController: null,
+    abortController: new AbortController(),
+    identity: null,
+    patientId: null,
+    authGeneration,
+    initialSession: supabase.auth.getSession().catch(() => ({ error: true })),
     cancelled: false,
     cancelCode: "",
     cancelWaiting: null,
@@ -473,6 +664,7 @@ export async function disablePatientNativePushDevice() {
   lifecycleGeneration += 1;
   const pendingRegistration = registrationInFlight;
   cancelRegistration(pendingRegistration, "explicit_disable");
+  const cleanupBinding = captureCleanupSession();
 
   if (pendingRegistration) {
     await withTimeout(
@@ -483,8 +675,9 @@ export async function disablePatientNativePushDevice() {
   }
 
   try {
-    await withTimeout(
-      deactivateCurrentInstallation(),
+    await runBoundCleanup(
+      cleanupBinding,
+      (session) => deactivateCurrentInstallation({ session }),
       settingsOperationTimeoutMs,
       "deactivation_timeout"
     );
@@ -493,8 +686,9 @@ export async function disablePatientNativePushDevice() {
   }
 
   try {
-    await withTimeout(
-      unregisterNativePush(),
+    await runBoundCleanup(
+      cleanupBinding,
+      () => unregisterNativePush(),
       settingsOperationTimeoutMs,
       "unregister_timeout"
     );
@@ -522,6 +716,7 @@ export async function cleanupPatientNativePushBeforeLogout() {
   lifecycleGeneration += 1;
   const pendingRegistration = registrationInFlight;
   cancelRegistration(pendingRegistration, "logout_cleanup");
+  const cleanupBinding = captureCleanupSession();
 
   if (pendingRegistration) {
     await withTimeout(
@@ -532,8 +727,9 @@ export async function cleanupPatientNativePushBeforeLogout() {
   }
 
   try {
-    await withTimeout(
-      deactivateCurrentInstallation(),
+    await runBoundCleanup(
+      cleanupBinding,
+      (session) => deactivateCurrentInstallation({ session }),
       logoutOperationTimeoutMs,
       "deactivation_timeout"
     );
@@ -543,8 +739,9 @@ export async function cleanupPatientNativePushBeforeLogout() {
   }
 
   try {
-    await withTimeout(
-      unregisterNativePush(),
+    await runBoundCleanup(
+      cleanupBinding,
+      () => unregisterNativePush(),
       logoutOperationTimeoutMs,
       "unregister_timeout"
     );
