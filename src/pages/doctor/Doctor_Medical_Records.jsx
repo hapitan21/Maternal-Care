@@ -7,6 +7,9 @@ import { usePatientAppointments } from "../../hooks/usePatientAppointments";
 import { usePatientMedicalOverview } from "../../hooks/usePatientMedicalOverview";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
 import MedicationAdherenceTrendCharts from "../../components/doctor/MedicationAdherenceTrendCharts";
+import AppointmentSummaryPrintableReport from "../../components/reports/AppointmentSummaryPrintableReport";
+import { buildDoctorAppointmentSummary } from "../../lib/doctorAppointmentSummary";
+import "../../styles/doctor-appointment-summary.css";
 import MedicationAdherencePrintableReport from "../../components/reports/MedicationAdherencePrintableReport";
 import "../../styles/patient-record-ui-system.css";
 import "../../styles/clinical-workflow-ui-system.css";
@@ -29,9 +32,6 @@ import {
   sanitizeFilename,
 } from "../../lib/reportExport";
 import {
-  classifyAppointment,
-  compareHistoryAppointments,
-  compareUpcomingAppointments,
   formatAppointmentDate,
   formatAppointmentTime,
   getAppointmentStart,
@@ -1640,7 +1640,7 @@ function PrenatalHistoryPanel({ patient, patientRelated, records }) {
   );
 }
 
-function AppointmentsPanel({ patient, appointmentState, focusedAppointmentId }) {
+function AppointmentsPanel({ patient, appointmentState, clinicalRecordState, focusedAppointmentId, doctorName }) {
   const historyRef = React.useRef(null);
   React.useEffect(() => {
     if (!focusedAppointmentId) return;
@@ -1651,50 +1651,53 @@ function AppointmentsPanel({ patient, appointmentState, focusedAppointmentId }) 
     });
   }, [focusedAppointmentId]);
 
-  const classifiedAppointments = React.useMemo(
-    () =>
-      appointmentState.appointments.map((appointment) => ({
-        ...appointment,
-        classification: classifyAppointment(appointment),
-      })),
-    [appointmentState.appointments]
+  const summary = React.useMemo(
+    () => buildDoctorAppointmentSummary(appointmentState.appointments, new Date(), {
+      medicalRecords: clinicalRecordState.medicalRecords, patientId: patient?.id,
+    }),
+    [appointmentState.appointments, clinicalRecordState.medicalRecords, patient?.id]
   );
-  const upcomingAppointments = React.useMemo(
-    () =>
-      classifiedAppointments
-        .filter((appointment) => appointment.classification.isUpcoming)
-        .sort(compareUpcomingAppointments),
-    [classifiedAppointments]
-  );
-  const historyAppointments = React.useMemo(
-    () => [...classifiedAppointments].sort(compareHistoryAppointments),
-    [classifiedAppointments]
-  );
+  const { upcomingAppointments, historyAppointments, metrics: appointmentSummary } = summary;
   const nextAppointment = upcomingAppointments[0] || null;
-  const completedCount = classifiedAppointments.filter(
-    (appointment) => appointment.classification.category === "completed"
-  ).length;
-  const missedCancelledCount = classifiedAppointments.filter((appointment) =>
-    ["cancelled", "missed", "overdue"].includes(appointment.classification.category)
-  ).length;
-  const attendanceTotal = completedCount + missedCancelledCount;
-  const attendanceRate = attendanceTotal
-    ? Math.round((completedCount / attendanceTotal) * 100)
-    : 0;
-  const percentOfTotal = (count) =>
-    classifiedAppointments.length
-      ? `${Math.round((count / classifiedAppointments.length) * 100)}%`
-      : "0%";
-  const appointmentSummary = [
-    { label: "Total Visits", value: String(classifiedAppointments.length), note: "All time", icon: "mingcute:calendar-line", iconClass: "is-calendar", tone: "purple" },
-    { label: "Completed", value: String(completedCount), note: percentOfTotal(completedCount), icon: "simple-line-icons:check", iconClass: "is-check", tone: "pink" },
-    { label: "Upcoming", value: String(upcomingAppointments.length), note: percentOfTotal(upcomingAppointments.length), icon: "tabler:clock", iconClass: "is-clock", tone: "yellow" },
-    { label: "Missed / Cancelled", value: String(missedCancelledCount), note: percentOfTotal(missedCancelledCount), icon: "charm:circle-cross", iconClass: "is-close", tone: "green" },
-    { label: "Attendance Rate", value: `${attendanceRate}%`, note: `${attendanceRate}% attended`, icon: "streamline-ultimate:presentation-board-graph", iconClass: "is-attendance", tone: "blue" },
-  ];
+  const [printSnapshot, setPrintSnapshot] = React.useState(null);
+  const [printError, setPrintError] = React.useState("");
+  const printingRef = React.useRef(false);
+  const canPrint = Boolean(patient?.id) && !appointmentState.loading && !appointmentState.error &&
+    !clinicalRecordState.loading && !clinicalRecordState.error;
+  const printAppointmentSummary = async () => {
+    if (!canPrint || printingRef.current) return;
+    printingRef.current = true;
+    setPrintError("");
+    setPrintSnapshot({ patient, doctorName, summary, generatedAt: new Date().toISOString() });
+    try {
+      await printReport({
+        bodyClass: "print-doctor-appointment-summary",
+        documentTitle: "Appointment Summary",
+        rootSelector: ".report-print-root.report-print-appointments",
+      });
+    } catch {
+      setPrintError("The appointment summary could not be prepared for printing. Please try again.");
+    } finally {
+      printingRef.current = false;
+      setPrintSnapshot(null);
+    }
+  };
 
   return (
     <div className="mr-appointments-panel">
+      <header className="mr-appointment-report-toolbar">
+        <h3>Appointment Summary</h3>
+        <button type="button" className="mr-appointment-print-button" onClick={printAppointmentSummary} disabled={!canPrint || Boolean(printSnapshot)}>
+          <Icon icon="solar:printer-linear" aria-hidden="true" />
+          {printSnapshot ? "Preparing summary..." : "Print Appointment Summary"}
+        </button>
+      </header>
+      {appointmentState.loading ? <p role="status">Loading appointments...</p> : null}
+      {appointmentState.error ? <p role="status">Unable to load appointments. Please try again before printing.</p> : null}
+      {clinicalRecordState.loading ? <p role="status">Loading clinical visit records...</p> : null}
+      {clinicalRecordState.error ? <p role="status">Unable to load clinical visit records. Please try again before printing.</p> : null}
+      {printError ? <p role="alert">{printError}</p> : null}
+      {summary.additionalNote ? <p className="mr-appointment-count-note">{summary.additionalNote}</p> : null}
       <section className="mr-appointment-summary" aria-label="Appointment summary">
         {appointmentSummary.map((item) => (
           <article
@@ -1764,7 +1767,7 @@ function AppointmentsPanel({ patient, appointmentState, focusedAppointmentId }) 
                   {item.classification.category === "completed" ? <Icon icon="mdi:check" /> : null}
                 </span>
                 <div>
-                  <strong>{patient?.gestational_age || "Appointment"}</strong>
+                  <strong>{clinicalRecordState.loading ? "Loading..." : clinicalRecordState.error ? "Unavailable" : item.recordedGestationalAge}</strong>
                   <p>{item.title || "Appointment"}</p>
                   <small>{formatAppointmentDate(item.start_time)}</small>
                 </div>
@@ -1800,7 +1803,7 @@ function AppointmentsPanel({ patient, appointmentState, focusedAppointmentId }) 
                 >
                   <td>{formatAppointmentDate(appointment.start_time, { month: "2-digit", day: "2-digit", year: "2-digit" })}</td>
                   <td>{formatAppointmentTime(appointment.start_time)}</td>
-                  <td>{patient?.gestational_age || "-"}</td>
+                  <td>{clinicalRecordState.loading ? "Loading..." : clinicalRecordState.error ? "Unavailable" : appointment.recordedGestationalAge}</td>
                   <td>{appointment.resolved_doctor_name || "Doctor not recorded"}</td>
                   <td>{appointment.title || "Appointment"}</td>
                   <td><mark>{appointment.classification.displayStatus}</mark></td>
@@ -1814,6 +1817,7 @@ function AppointmentsPanel({ patient, appointmentState, focusedAppointmentId }) 
           </table>
         </div>
       </section>
+      {printSnapshot ? <AppointmentSummaryPrintableReport {...printSnapshot} /> : null}
     </div>
   );
 }
@@ -3677,6 +3681,14 @@ export default function Doctor_Medical_Records({
     () => ({ ...appointmentState, appointments: resolvedAppointments }),
     [appointmentState, resolvedAppointments]
   );
+  const appointmentClinicalRecordState = React.useMemo(
+    () => ({
+      medicalRecords: loadedMedicalRecordsPatientId === patient?.id ? medicalRecordRows : [],
+      loading: Boolean(patient?.id) && (isLoadingRecords || loadedMedicalRecordsPatientId !== patient.id),
+      error: loadedMedicalRecordsPatientId === patient?.id ? medicalRecordsError : null,
+    }),
+    [isLoadingRecords, loadedMedicalRecordsPatientId, medicalRecordRows, medicalRecordsError, patient]
+  );
   const recordsRequired = medicalRecordTabs.has(activeTab);
   const visibleRecordsLoading = Boolean(patient?.id && recordsRequired) &&
     loadedMedicalRecordsPatientId !== patient.id;
@@ -4461,8 +4473,11 @@ export default function Doctor_Medical_Records({
 
           {activeTab === "Appointments" && (
             <AppointmentsPanel
+              key={patient.id}
+              doctorName={doctorName}
               patient={patient}
               appointmentState={resolvedAppointmentState}
+              clinicalRecordState={appointmentClinicalRecordState}
               focusedAppointmentId={focusedAppointmentId}
             />
           )}

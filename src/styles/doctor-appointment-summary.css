@@ -1,0 +1,44 @@
+.mr-appointment-report-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+.mr-appointment-report-toolbar h3 {
+  margin: 0;
+  color: var(--mr-text, #333);
+  font-size: 17px;
+  font-weight: 600;
+}
+.mr-appointment-report-toolbar .mr-appointment-print-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border: 1px solid var(--mr-pink, #dc4b87);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mr-pink, #dc4b87);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mr-appointment-print-button:hover:not(:disabled) { background: #fff3f8; }
+.mr-appointment-print-button:focus-visible { outline: 2px solid #dc4b87; outline-offset: 3px; }
+.mr-appointment-print-button:disabled { opacity: .6; cursor: default; }
+.mr-appointment-print-button svg { width: 18px; height: 18px; flex-shrink: 0; }
+.mr-appointment-count-note { margin: 0; font-size: 13px; color: #687083; }
+@media (max-width: 600px) {
+  .mr-appointment-report-toolbar { align-items: stretch; flex-direction: column; }
+  .mr-appointment-print-button { width: 100%; }
+}
+@media print {
+  body.is-printing-report > .report-print-appointments table { table-layout: fixed; }
+  .report-print-appointments .report-print-metrics > div { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
