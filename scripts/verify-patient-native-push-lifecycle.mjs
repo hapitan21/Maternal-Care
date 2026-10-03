@@ -10,6 +10,7 @@ import { webcrypto } from "node:crypto";
 import * as vm from "node:vm";
 import { transformWithOxc } from "vite";
 import { createDeliveryLedger, verifyRetrySql } from "./verify-patient-native-push-retry-sql.mjs";
+import { recoverStaleLedger, verifyStaleRecoverySql } from "./verify-patient-native-push-stale-recovery.mjs";
 
 if (!vm.SourceTextModule) {
   const result = spawnSync(process.execPath, [
@@ -911,6 +912,24 @@ safeguard("sender exhausted recording retries leave processing without FCM repla
   await h.invoke();h.advance(1800000);await h.retry();assert.equal(h.sends.length,1);
   const text=JSON.stringify(h.logs);assert.equal(text.includes(token(1)),false);
   assert.equal(text.includes([...h.ledger.values()][0].claim_token),false);assert.equal(text.includes("synthetic_retry_secret_for_isolated_tests_only"),false);
+});
+
+
+safeguard("Phase 8C actual sender acknowledges recovery without resend or cleanup",async()=>{
+  const model=registrationModel();model.upsert(session(),uid(801),token(1));const h=await senderHarness(model);
+  const device=JSON.stringify([...model.rows.values()]);
+  h.outcomes.set(token(1),async()=>{
+    h.advance(600000);const attempted=Date.parse([...h.ledger.values()][0].attempted_at);
+    assert.equal(recoverStaleLedger(h.deliveryModel,attempted+600000),1);
+    return {ok:false,httpStatus:404,errorCode:"UNREGISTERED",failureClass:"permanent_device",retryAfterMs:null,permanentTokenFailure:true};
+  });
+  const response=await h.invoke();assert.equal(response.status,200);assert.equal(response.body.skipped,1);
+  assert.equal(response.body.failed,0);assert.equal(response.body.disabledTokens,0);assert.equal(h.sends.length,1);
+  assert.equal(h.queries.filter(q=>q.rpc==="finalize_patient_native_push_delivery").length,1);
+  assert.equal(JSON.stringify([...model.rows.values()]),device);assert.equal([...h.ledger.values()][0].status,"delivery_unknown");
+  await h.invoke();await h.retry();assert.equal(h.sends.length,1);
+  const logs=JSON.stringify(h.logs);assert.equal(logs.includes("delivery_unknown_acknowledged"),true);
+  for(const value of [token(1),[...h.ledger.values()][0].claim_token,"synthetic-authorization"])assert.equal(logs.includes(value),false);
 });
 
 const beginRegistration = async h => {
@@ -2435,6 +2454,7 @@ async function firebaseTests() {
   const deliveryCases = await load("supabase/functions/_shared/patientNativePushDelivery_test.ts", context, {
     "node:assert/strict": { default: assert }, "./patientNativePushDelivery.ts": delivery,
     "../../../scripts/verify-patient-native-push-retry-sql.mjs": { createDeliveryLedger, verifyRetrySql },
+    "../../../scripts/verify-patient-native-push-stale-recovery.mjs": { recoverStaleLedger, verifyStaleRecoverySql },
   });
   for (const entry of deliveryCases.patientNativeDeliveryTests) tests.push(entry);
 }
@@ -2463,7 +2483,9 @@ async function main() {
   let unexpected = 0;
   console.log("Phase 7A: isolated actual-source tests; SQL authorization is a source-bound model only.");
   console.log("No production credentials, database connections, device operations, or unmocked network calls.");
-  for (const test of tests) {
+  const selected = process.argv.includes("--recovery") ? tests.filter(test => test.name.startsWith("Phase 8C")) : tests;
+  assert.ok(selected.length > 0, "Selected regression coverage must not be empty");
+  for (const test of selected) {
     let error;
     try { await test.run(); } catch (caught) { error = caught; }
     const outcome = classify(test, error);

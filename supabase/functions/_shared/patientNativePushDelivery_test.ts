@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { FirebaseSendResult } from "./firebaseMessaging.ts";
 import { deliverPatientNativePushDevice, type NativeDeliveryStore, type DeliveryClaim, type Finalization, type FinalizationArguments } from "./patientNativePushDelivery.ts";
 import { createDeliveryLedger, verifyRetrySql } from "../../../scripts/verify-patient-native-push-retry-sql.mjs";
+import { recoverStaleLedger, verifyStaleRecoverySql } from "../../../scripts/verify-patient-native-push-stale-recovery.mjs";
 
 const uuid = (n: number) => "00000000-0000-4000-8000-" + String(n).padStart(12, "0");
 const success = { ok: true as const, httpStatus: 200, providerMessageId: "synthetic-message" };
@@ -154,5 +155,53 @@ test("operational logs contain no recipient, claim token, authorization or provi
   const h=fixture(); h.failRecording(10); await h.send(); const text=JSON.stringify(h.logs);
   for(const value of [h.device.push_token,h.row().claim_token,h.options.authorization.accessToken,"synthetic transport detail"]) assert.equal(text.includes(value),false);
 });
+
+test("Phase 8C source protects terminal recovery and unchanged Phase 8B",async()=>{verifyStaleRecoverySql();});
+for(const state of ["delivery_unknown"]) test("Phase 8C terminal row blocks webhook/retry/discovery",async()=>{
+  const h=fixture();h.model.claim(h.notification.id,h.device.id,"notification");h.advance(600000);
+  assert.equal(recoverStaleLedger(h.model,Date.parse("2026-10-03T00:00:00Z")+600000),1);
+  assert.equal(h.row().status,state);await h.send();await h.retry();assert.equal(h.sends.length,0);assert.equal(h.model.due().length,0);
+});
+for(const provider of [success,transient,permanent]) test("Phase 8C late "+(provider.ok?"success":provider.failureClass)+" observes terminal recovery once",async()=>{
+  const h=fixture();h.setOutcome(provider);const original=h.options.store.finalize;
+  let calls=0;
+  h.options.store.finalize=async args=>{
+    calls++;h.advance(600000);recoverStaleLedger(h.model,Date.parse("2026-10-03T00:00:00Z")+600000);
+    return original(args);
+  };
+  const device=JSON.stringify(h.device);
+  assert.deepEqual(await h.send(),{attempted:true,result:"skipped"});
+  assert.equal(calls,1);assert.equal(h.sends.length,1);assert.equal(h.records.length,1);assert.equal(h.waits.length,0);
+  assert.equal(h.row().status,"delivery_unknown");assert.equal(JSON.stringify(h.device),device);
+  assert.deepEqual(h.logs,["delivery_unknown_acknowledged"]);
+  await h.send();await h.retry();assert.equal(h.sends.length,1);assert.equal(calls,1);
+  for(const value of [h.device.push_token,h.row().claim_token,h.options.authorization.accessToken,h.notification.id])assert.equal(JSON.stringify(h.logs).includes(value),false);
+});
+for(const scenario of ["claim committed crash","crash immediately before FCM","network timeout","FCM accepted finalization lost",
+  "429 known only in memory","500 INTERNAL known only in memory","503 UNAVAILABLE known only in memory","success and persistent DB outage"])
+  test("Phase 8C fault: "+scenario,async()=>{
+    const h=fixture();const beforeSend=scenario.startsWith("claim")||scenario.startsWith("crash");
+    if(beforeSend)h.model.claim(h.notification.id,h.device.id,"notification");
+    else{
+      h.failRecording(10);
+      if(scenario==="network timeout")h.throwSend();
+      if(scenario.startsWith("429"))h.setOutcome({...transient,httpStatus:429,errorCode:"QUOTA_EXCEEDED"});
+      if(scenario.startsWith("500"))h.setOutcome({...transient,httpStatus:500,errorCode:"INTERNAL"});
+      if(scenario.startsWith("503"))h.setOutcome(transient);
+      await h.send();
+    }
+    assert.equal(h.row().status,"processing");const snapshot={...h.row()};const devices=JSON.stringify(h.device);
+    h.advance(599000);assert.equal(recoverStaleLedger(h.model,Date.parse("2026-10-03T00:00:00Z")+599000),0);
+    h.advance(1000);assert.equal(recoverStaleLedger(h.model,Date.parse("2026-10-03T00:00:00Z")+600000),1);
+    for(const key of ["id","notification_id","device_id","attempt_count","claim_token","attempted_at","created_at","sent_at","fcm_http_status","error_code","error_message","provider_message_id","last_failure_class"])assert.equal(h.row()[key],snapshot[key]);
+    assert.equal(h.row().status,"delivery_unknown");assert.equal(h.row().next_attempt_at,null);assert.equal(JSON.stringify(h.device),devices);
+    assert.equal(recoverStaleLedger(h.model,Date.parse("2026-10-03T00:00:00Z")+1200000),0);
+    await h.send();await h.retry();assert.equal(h.sends.length,beforeSend?0:1);assert.equal(h.row().attempt_count,1);assert.equal(h.model.due().length,0);
+  });
+test("Phase 8C temporary DB outage still finalizes known success without recovery",async()=>{
+  const h=fixture();h.failRecording(3);assert.equal((await h.send()).result,"sent");h.advance(600000);
+  assert.equal(recoverStaleLedger(h.model,Date.parse("2026-10-03T00:00:00Z")+600000),0);assert.equal(h.sends.length,1);
+});
+
 export const patientNativeDeliveryTests=tests;
 if(typeof Deno!=="undefined") for(const entry of tests) Deno.test(entry.name,entry.run);

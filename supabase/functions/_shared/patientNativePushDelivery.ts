@@ -92,6 +92,10 @@ export async function deliverPatientNativePushDevice(options: {
         options.log?.("finalization_stale");
         return { attempted: true, result: "skipped" };
       }
+      if (response.data?.result === "already_finalized" && response.data.status === "delivery_unknown") {
+        options.log?.("delivery_unknown_acknowledged");
+        return { attempted: true, result: "skipped" };
+      }
       if (["finalized", "already_finalized"].includes(response.data?.result || "")
           && ["sent", "failed", "disabled_token"].includes(response.data?.status || "")) {
         return { attempted: true, result: response.data!.status as DeliveryOutcome["result"] };
