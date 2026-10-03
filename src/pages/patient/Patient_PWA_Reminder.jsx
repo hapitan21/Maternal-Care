@@ -21,6 +21,10 @@ import {
   getPatientPwaSessionCache,
   setPatientPwaSessionCache,
 } from "../../lib/patientPwaSessionCache";
+import {
+  getAppointmentReminderStatusLabel,
+  isLocalAppointmentReminderDue,
+} from "../../lib/appointmentReminder";
 import "../../styles/patient-PWA-reminder.css";
 
 const reminderTabs = ["Today", "Tomorrow", "Upcoming"];
@@ -180,22 +184,6 @@ function normalizeMedicationScheduledMinute(value) {
   return date.toISOString();
 }
 
-function formatDatabaseReminderStatus(status, remindAt) {
-  const normalizedStatus = String(status || "pending").toLowerCase();
-
-  if (normalizedStatus === "sent") return "Sent";
-  if (normalizedStatus === "completed") return "Completed";
-  if (normalizedStatus === "cancelled") return "Missed";
-
-  const remindTime = remindAt ? new Date(remindAt).getTime() : Number.NaN;
-
-  if (Number.isFinite(remindTime) && remindTime <= Date.now()) {
-    return "Sent";
-  }
-
-  return "Pending";
-}
-
 function formatMedicationStatus(status) {
   const normalizedStatus = String(status || "active").toLowerCase();
 
@@ -228,7 +216,7 @@ function mapReminderDatabaseRow(row) {
     scheduleStatus,
     notifyAt: row.remind_at,
     message: row.message || "",
-    status: formatDatabaseReminderStatus(row.status, row.remind_at),
+    status: getAppointmentReminderStatusLabel(row.status),
     sentAt: row.sent_at,
   };
 }
@@ -1679,15 +1667,9 @@ export default function PatientPWAReminder({ profile }) {
 
       appointmentReminders.forEach((reminder) => {
         const notificationKey = `appointment-${reminder.id}`;
-        const notifyTime = reminder.notifyAt
-          ? new Date(reminder.notifyAt).getTime()
-          : Number.NaN;
-
         if (
           !notifiedReminderKeys.current.has(notificationKey) &&
-          Number.isFinite(notifyTime) &&
-          notifyTime <= now &&
-          !["Completed", "Missed"].includes(reminder.status)
+          isLocalAppointmentReminderDue(reminder, now)
         ) {
           notifiedReminderKeys.current.add(notificationKey);
           sendPatientNotification(reminder);

@@ -16,6 +16,12 @@ import {
   getManilaTimeKey,
   toManilaISOString,
 } from "../../lib/appointmentDate";
+import {
+  APPOINTMENT_REMINDER_LEAD_GUIDANCE,
+  clinicReminderLocalToISOString,
+  getAppointmentReminderNotifyAt,
+  getAppointmentReminderTimingError,
+} from "../../lib/appointmentReminder";
 import "../../styles/doctor-reminder.css";
 import "../../styles/clinical-workflow-ui-system.css";
 
@@ -219,6 +225,7 @@ function getReminderDisplayStatus(
   const normalizedStatus = String(status || "pending").toLowerCase();
   const normalizedRepeatMode = String(repeatMode || "none").toLowerCase();
 
+  if (normalizedStatus === "expired") return "Expired";
   if (normalizedStatus === "cancelled") return "Cancelled";
   if (normalizedStatus === "completed") return "Completed";
   if (normalizedStatus === "sent") return "Sent";
@@ -775,27 +782,6 @@ function mapHealthTipDatabaseRow(row) {
 
 function getScheduleDateTime(scheduleDate, scheduleTime) {
   return new Date(`${scheduleDate}T${scheduleTime || "08:00"}`).toISOString();
-}
-
-function getReminderNotifyAtForAppointment(appointment, reminderLeadTime, customNotifyAt = "") {
-  if (reminderLeadTime === "custom") {
-    return customNotifyAt ? new Date(customNotifyAt).toISOString() : "";
-  }
-
-  if (!appointment?.scheduleDate || !appointment?.scheduleTime) {
-    return "";
-  }
-
-  const scheduleDate = new Date(`${appointment.scheduleDate}T${appointment.scheduleTime}`);
-  const leadTimeHours = {
-    "1hour": 1,
-    "1day": 24,
-    "3days": 72,
-    "3weeks": 504,
-  }[reminderLeadTime] ?? 24;
-
-  scheduleDate.setHours(scheduleDate.getHours() - leadTimeHours);
-  return scheduleDate.toISOString();
 }
 
 function buildAppointmentReminderMessage(appointment) {
@@ -2132,24 +2118,18 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
     for (const appointment of appointmentsToSave) {
       try {
-        const notifyAt = getReminderNotifyAtForAppointment(
+        const notifyAt = getAppointmentReminderNotifyAt(
           appointment,
           form.reminderLeadTime,
           form.customNotifyAt
         );
-        const notifyTime = new Date(notifyAt).getTime();
-        const scheduleTime = new Date(
-          appointment.scheduleAt ||
-            `${appointment.scheduleDate}T${appointment.scheduleTime || "08:00"}`
-        ).getTime();
-
-        if (
-          !Number.isFinite(notifyTime) ||
-          !Number.isFinite(scheduleTime) ||
-          notifyTime >= scheduleTime
-        ) {
-          throw new Error("The reminder time must be before the appointment.");
-        }
+        const scheduleAt = appointment.scheduleAt || clinicReminderLocalToISOString(
+          appointment.scheduleDate + "T" + (appointment.scheduleTime || "08:00")
+        );
+        const timingError = getAppointmentReminderTimingError(notifyAt, scheduleAt);
+        if (timingError) throw new Error(timingError);
+        const notifyTime = Date.parse(notifyAt);
+        const scheduleTime = Date.parse(scheduleAt);
 
         if (repeatStepMs && notifyTime + repeatStepMs >= scheduleTime) {
           throw new Error(
@@ -3574,10 +3554,14 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   Custom date/time is available for individual reminders only.
                 </p>
               ) : null}
+              <p id="appointment-reminder-lead-guidance" className="doctor-reminder-target-hint">
+                {APPOINTMENT_REMINDER_LEAD_GUIDANCE} Times are in Manila.
+              </p>
               {form.reminderLeadTime === "custom" ? (
                 <input
                   className="doctor-reminder-custom-time"
                   name="customNotifyAt"
+                  aria-describedby="appointment-reminder-lead-guidance"
                   type="datetime-local"
                   value={form.customNotifyAt}
                   onChange={handleChange}
