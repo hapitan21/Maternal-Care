@@ -192,7 +192,9 @@ function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const nextPath = searchParams.get("next") || "";
+  const inactivityLogout = searchParams.get("reason") === "inactivity";
   const initialReason =
+    inactivityLogout ? "" :
     searchParams.get("reason") === "staff_inactive"
       ? inactiveStaffMessage
       : searchParams.get("reason")
@@ -213,7 +215,7 @@ function Login() {
   const [isResendingVerification, setIsResendingVerification] =
     useState(false);
   const [verificationMessage, setVerificationMessage] =
-    useState("");
+    useState(inactivityLogout ? "You were logged out due to inactivity." : "");
 
   useEffect(() => {
     let active = true;

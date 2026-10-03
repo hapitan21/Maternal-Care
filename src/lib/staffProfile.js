@@ -204,6 +204,22 @@ export function saveStaffSettings(settings) {
   };
 }
 
+// Retain preference flags while removing the known profile fields on logout.
+export function clearSensitiveStaffSettings() {
+  clearStaffSettingsMemoryCache();
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(staffSettingsKey) || "null");
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) {
+      window.localStorage.removeItem(staffSettingsKey);
+      return;
+    }
+    for (const field of Object.keys(defaultStaffSettings)) {
+      if (field !== "twoFactorAuth" && field !== "loginNotifications") delete saved[field];
+    }
+    window.localStorage.setItem(staffSettingsKey, JSON.stringify(saved));
+  } catch { /* Clearing memory still prevents reuse of the current profile. */ }
+}
+
 export function getStaffInitials(name) {
   const initials = String(name || "Staff")
     .trim()

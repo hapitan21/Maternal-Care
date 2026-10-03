@@ -46,6 +46,7 @@ export function useAuthenticatedStaff() {
   const mountedRef = useRef(true);
   const requestIdRef = useRef(0);
   const inFlightRef = useRef(null);
+  const inactiveLogoutRef = useRef(null);
 
   /*
    * Reuse the already-authorized Staff identity when React Router moves
@@ -103,6 +104,8 @@ export function useAuthenticatedStaff() {
         profileError = legacyResult.error;
       }
 
+      if (!mountedRef.current || requestIdRef.current !== requestId) return null;
+
       if (profileError) {
         throw profileError;
       }
@@ -126,7 +129,9 @@ export function useAuthenticatedStaff() {
 
       if (isClinicAccountInactive(profile.account_status)) {
         cachedStaffIdentity = null;
-        await supabase.auth.signOut();
+        inactiveLogoutRef.current = requestId;
+        try { await supabase.auth.signOut(); }
+        finally { if (inactiveLogoutRef.current === requestId) inactiveLogoutRef.current = null; }
 
         throw createStaffAccessError(
           inactiveStaffMessage,
@@ -134,6 +139,8 @@ export function useAuthenticatedStaff() {
           role
         );
       }
+
+      if (!mountedRef.current || requestIdRef.current !== requestId) return null;
 
       const nextIdentity = {
         authUser: user,
@@ -228,13 +235,18 @@ export function useAuthenticatedStaff() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
+        const inactiveLogout = inactiveLogoutRef.current === requestIdRef.current;
+        requestIdRef.current += 1;
+        inFlightRef.current = null;
         cachedStaffIdentity = null;
         clearStaffSessionCache();
         clearStaffSettingsMemoryCache();
 
         if (mountedRef.current) {
           setIdentity(null);
-          setError(null);
+          setError(inactiveLogout
+            ? createStaffAccessError(inactiveStaffMessage, "staff_account_inactive", "staff")
+            : createStaffAccessError("No authenticated Staff account was found. Please log in again.", "staff_not_authenticated"));
           setRefreshError(null);
           setLoading(false);
         }

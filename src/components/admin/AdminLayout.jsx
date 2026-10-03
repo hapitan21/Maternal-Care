@@ -1,3 +1,4 @@
+import { useRoleInactivityIdentity } from "../../hooks/useRoleInactivityIdentity";
 import React from "react";
 import { Icon } from "@iconify/react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
@@ -21,7 +22,8 @@ function getSectionClasses(pathname) {
 
 export default function AdminLayout() {
   const location = useLocation();
-  const { loading, error, refreshProfile } = useAdminAuth();
+  const { loading, error, refreshProfile, user, profile, isAdmin } = useAdminAuth();
+  useRoleInactivityIdentity({ userId: user?.id, role: "admin", authorized: isAdmin && !error, revalidate: refreshProfile, revision: profile });
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const menuButtonRef = React.useRef(null);
   const sectionClasses = getSectionClasses(location.pathname);

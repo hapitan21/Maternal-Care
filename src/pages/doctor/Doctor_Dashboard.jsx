@@ -1,3 +1,4 @@
+import { createDoctorSessionCache } from "../../lib/doctorSessionCache";
 import { lazy, startTransition, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -47,7 +48,7 @@ const defaultDoctorDashboardProfile = {
   roleLabel: "Doctor",
 };
 
-const doctorDashboardSnapshots = new Map();
+const doctorDashboardSnapshots = createDoctorSessionCache();
 
 const navItems = [
   {

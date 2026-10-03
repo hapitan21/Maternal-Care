@@ -1,3 +1,4 @@
+import { createDoctorSessionCache } from "../../lib/doctorSessionCache";
 import React from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
@@ -32,7 +33,7 @@ const medicationReminderOccurrencesTableName = "medication_reminder_occurrences"
 const healthTipsTableName = "health_tips";
 const healthTipCategories = ["All", "Nutrition", "Exercise"];
 const healthTipManagementFilters = ["Active", "Archived", "All"];
-const doctorReminderSnapshots = new Map();
+const doctorReminderSnapshots = createDoctorSessionCache();
 
 function hasDoctorReminderSnapshot(doctorId, dataset) {
   const snapshot = doctorId ? doctorReminderSnapshots.get(doctorId) : null;

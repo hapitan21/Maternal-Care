@@ -1,3 +1,4 @@
+import { createDoctorSessionCache } from "../../lib/doctorSessionCache";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -62,7 +63,7 @@ const appointmentTabs = [
   "Missed",
 ];
 const appointmentPageSizes = [10, 15];
-const doctorAppointmentSnapshots = new Map();
+const doctorAppointmentSnapshots = createDoctorSessionCache();
 
 const doctorPendingStatusActions = [
   {

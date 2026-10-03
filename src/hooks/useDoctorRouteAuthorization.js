@@ -138,5 +138,5 @@ export function useDoctorRouteAuthorization() {
     };
   }, [markAuthorizationLoading, resolveAuthorization]);
 
-  return authorization;
+  return { ...authorization, refresh: resolveAuthorization };
 }

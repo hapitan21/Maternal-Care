@@ -219,6 +219,8 @@ export function useAuthenticatedAdmin() {
         throw sessionError;
       }
 
+      if (!mountedRef.current || requestIdRef.current !== requestId) return null;
+
       if (
         session?.access_token &&
         session?.user?.id === user.id
@@ -274,7 +276,7 @@ export function useAuthenticatedAdmin() {
         setLoading(false);
       }
 
-      return nextIdentity;
+      return mountedRef.current && requestIdRef.current === requestId ? nextIdentity : null;
     } catch (nextError) {
       if (
         mountedRef.current &&
@@ -311,6 +313,7 @@ export function useAuthenticatedAdmin() {
           if (
             event === "SIGNED_OUT"
           ) {
+            requestIdRef.current += 1;
             clearAdminWorkspaceSnapshots();
 
             const unauthenticatedError =

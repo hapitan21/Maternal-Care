@@ -1,3 +1,5 @@
+import RoleInactivityProvider from "./components/auth/RoleInactivityProvider";
+import { useRoleInactivityIdentity } from "./hooks/useRoleInactivityIdentity";
 import { Component, lazy, Suspense, useEffect, useSyncExternalStore } from "react";
 import {
   BrowserRouter,
@@ -266,6 +268,7 @@ class PatientErrorBoundary extends Component {
 
 function DoctorRoute() {
   const doctorAccess = useDoctorRouteAuthorization();
+  useRoleInactivityIdentity({ userId: doctorAccess.user?.id, role: doctorAccess.role, authorized: doctorAccess.authorized, revalidate: doctorAccess.refresh, revision: doctorAccess.profile });
 
   /*
    * Initial login / first page load:
@@ -328,6 +331,7 @@ function PatientRoute() {
 function StaffRoute() {
   const location = useLocation();
   const staffAccess = useAuthenticatedStaff();
+  useRoleInactivityIdentity({ userId: staffAccess.identity?.authUser?.id, role: staffAccess.identity?.role, authorized: staffAccess.isStaff, revalidate: staffAccess.refresh, revision: staffAccess.identity });
 
   /*
    * Initial login / direct first load:
@@ -464,6 +468,7 @@ function App() {
   return (
     <BrowserRouter>
       <PatientNativePushNavigationBridge />
+      <RoleInactivityProvider>
       <RouteAwareApplicationErrorBoundary>
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
@@ -734,6 +739,7 @@ function App() {
           </Routes>
         </Suspense>
       </RouteAwareApplicationErrorBoundary>
+      </RoleInactivityProvider>
     </BrowserRouter>
   );
 }

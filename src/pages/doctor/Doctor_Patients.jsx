@@ -1,3 +1,4 @@
+import { createDoctorSessionCache } from "../../lib/doctorSessionCache";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation } from "react-router-dom";
@@ -8,7 +9,7 @@ import "../../styles/doctor-patients.css";
 const patientSelectColumns =
   "id, full_name, patient_id, date_of_birth, age, contact_number, email, address, status, expected_delivery_date, gestational_age, blood_type, risk_level, created_at";
 
-const doctorPatientSnapshots = new Map();
+const doctorPatientSnapshots = createDoctorSessionCache();
 
 function isActivePatientRow(row) {
   const status = String(row?.status || "").trim().toLowerCase();
