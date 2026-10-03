@@ -9,6 +9,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { webcrypto } from "node:crypto";
 import * as vm from "node:vm";
 import { transformWithOxc } from "vite";
+import { createDeliveryLedger, verifyRetrySql } from "./verify-patient-native-push-retry-sql.mjs";
 
 if (!vm.SourceTextModule) {
   const result = spawnSync(process.execPath, [
@@ -578,35 +579,38 @@ async function settingsHarness(harness) {
 async function senderHarness(model = registrationModel()) {
   const notification = { id: uid(501), patient_id: patientA, type: "general" };
   const notifications = new Map([[notification.id, notification]]);
-  const ledger = new Map();
+  let databaseNow = Date.parse("2026-10-02T00:00:00Z");
+  const deliveryModel = createDeliveryLedger({ notifications, devices: model.rows, now: () => databaseNow });
+  const ledger = deliveryModel.rows;
   const sends = [];
   const logs = [];
   const outcomes = new Map();
   const queries = [];
-  let claimSequence = 600;
+  let finalizationFailures = 0;
   let handler;
   const success = { ok: true, httpStatus: 200, providerMessageId: "synthetic-provider-message" };
   const db = {
+    rpc(name, args = {}) {
+      queries.push({ rpc: name });
+      const execute = async () => {
+        if (name === "finalize_patient_native_push_delivery" && finalizationFailures-- > 0) return {data:null,error:{code:"08006"}};
+        return { error: null, data:
+        name === "claim_patient_native_push_delivery" ? deliveryModel.claim(args.p_notification_id, args.p_device_id, args.p_mode) :
+        name === "finalize_patient_native_push_delivery" ? deliveryModel.finalize(args) :
+        name === "list_due_patient_native_push_deliveries" ? deliveryModel.due() : (() => { throw Error("Unexpected sender RPC"); })() };
+      };
+      return { abortSignal() { return this; }, maybeSingle: execute, then(resolve, reject) { return execute().then(resolve, reject); } };
+    },
     from(table) {
-      assert.ok(["patient_notifications", "patient_native_push_devices", "patient_notification_native_push_deliveries"].includes(table));
-      const query = { table, action: "select", filters: [] };
+      assert.ok(["patient_notifications", "patient_native_push_devices"].includes(table));
+      const query = { table, filters: [] };
       queries.push(query);
       let execution;
       const execute = () => execution ||= Promise.resolve().then(() => {
         let rows;
         if (table === "patient_notifications") rows = [...notifications.values()];
         else if (table === "patient_native_push_devices") rows = [...model.rows.values()];
-        else rows = [...ledger.values()];
-        if (query.action === "insert") {
-          assert.equal(table, "patient_notification_native_push_deliveries");
-          const key = JSON.stringify([query.value.notification_id, query.value.device_id]);
-          if (ledger.has(key)) return { data: null, error: { code: "23505" } };
-          const row = { ...query.value, id: uid(++claimSequence) };
-          ledger.set(key, row);
-          return { data: { id: row.id }, error: null };
-        }
         const matching = rows.filter(row => query.filters.every(([column, value]) => row[column] === value));
-        if (query.action === "update") for (const row of matching) Object.assign(row, query.value);
         // Copy selection: subsequent rotation must not mutate the sender's snapshot.
         const copied = matching.map(row => ({ ...row }));
         return { data: query.single ? copied[0] ?? null : copied, error: null };
@@ -614,8 +618,7 @@ async function senderHarness(model = registrationModel()) {
       const builder = {
         select(columns) { query.columns = columns; return builder; },
         eq(column, value) { query.filters.push([column, value]); return builder; },
-        insert(value) { query.action = "insert"; query.value = value; return builder; },
-        update(value) { query.action = "update"; query.value = value; return builder; },
+        abortSignal() { return builder; },
         maybeSingle() { query.single = true; return execute(); },
         single() { query.single = true; return execute(); },
         then(resolve, reject) { return execute().then(resolve, reject); },
@@ -625,6 +628,7 @@ async function senderHarness(model = registrationModel()) {
   };
   const environment = new Map([
     ["NATIVE_PUSH_WEBHOOK_SECRET", "synthetic-webhook-secret"],
+    ["NATIVE_PUSH_RETRY_SECRET", "synthetic_retry_secret_for_isolated_tests_only"],
     ["SUPABASE_URL", "https://database.invalid"],
     ["SUPABASE_SERVICE_ROLE_KEY", "synthetic-server-key"],
   ]);
@@ -632,14 +636,17 @@ async function senderHarness(model = registrationModel()) {
   const context = vm.createContext({
     console: { info: logger, warn: logger, error: logger },
     crypto: { subtle: webcrypto.subtle, randomUUID: () => uid(700) },
-    TextEncoder, Request, Response, fetch: forbidNetwork,
+    TextEncoder, Request, Response, AbortSignal, fetch: forbidNetwork,
+    setTimeout: (callback) => { Promise.resolve().then(callback); return 1; }, clearTimeout() {},
     Date: class extends Date { constructor(...args) { super(...(args.length ? args : ["2026-10-02T00:00:00Z"])); } },
     Deno: {
       env: { get: key => environment.get(key) },
       serve: callback => { handler = callback; },
     },
   });
+  const deliveryHelper = await load("supabase/functions/_shared/patientNativePushDelivery.ts", context);
   await load(senderPath, context, {
+    "../_shared/patientNativePushDelivery.ts": deliveryHelper,
     "@supabase/supabase-js": { createClient: () => db },
     "../_shared/firebaseMessaging.ts": {
       FirebaseConfigurationError: class extends Error {},
@@ -653,7 +660,15 @@ async function senderHarness(model = registrationModel()) {
     },
   });
   return {
-    model, ledger, sends, logs, outcomes, queries, notifications, notification,
+    model, ledger, deliveryModel, sends, logs, outcomes, queries, notifications, notification,
+    advance(milliseconds) { databaseNow += milliseconds; },
+    failFinalization(count) { finalizationFailures = count; },
+    async retry(secret = "synthetic_retry_secret_for_isolated_tests_only") {
+      const response = await handler(new Request("https://sender.invalid", { method: "POST",
+        headers: { "x-native-push-mode": "retry", "x-retry-secret": secret, "content-type": "application/json" },
+        body: JSON.stringify({ mode: "retry" }) }));
+      return { status: response.status, body: await response.json() };
+    },
     async invoke(id = notification.id, secret = "synthetic-webhook-secret") {
       const response = await handler(new Request("https://sender.invalid", {
         method: "POST", headers: { "x-webhook-secret": secret, "content-type": "application/json" },
@@ -666,14 +681,15 @@ async function senderHarness(model = registrationModel()) {
 }
 
 const permanentFailure = { ok: false, httpStatus: 404, errorCode: "UNREGISTERED",
-  errorMessage: "Synthetic permanent failure", permanentTokenFailure: true };
+  errorMessage: "Synthetic permanent failure", permanentTokenFailure: true, failureClass: "permanent_device", retryAfterMs: null };
 const transientFailure = { ok: false, httpStatus: 503, errorCode: "UNAVAILABLE",
-  errorMessage: "Synthetic transient failure", permanentTokenFailure: false };
+  errorMessage: "Synthetic transient failure", permanentTokenFailure: false, failureClass: "confirmed_transient", retryAfterMs: null };
 const tests = [];
 const safeguard = (name, run) => tests.push({ name, run });
 
 safeguard("SQL authorization model and uniqueness mirror recognized source", async () => {
   validateSqlModel();
+  verifyRetrySql();
   const model = registrationModel();
   assert.equal(model.authorizedTransfer, null, "No proof-based transfer API currently exists in this model");
 });
@@ -829,6 +845,72 @@ safeguard("sender logs exclude registration values and send metadata excludes Pa
   const message = h.sends[0];
   assert.deepEqual(Object.keys(message).sort(), ["notificationId", "notificationType", "route", "token"]);
   assert.equal(Object.keys(message).includes("patientId"), false);
+});
+
+
+// Phase 8B sender integration: actual handler/helper, isolated SQL model only.
+safeguard("retry tick rejects unauthorized and webhook credentials before database work",async()=>{
+  for(const secret of ["synthetic-wrong-secret","synthetic-webhook-secret"]){
+    const h=await senderHarness();const response=await h.retry(secret);
+    assert.equal(response.status,401);assert.equal(h.queries.length,0);assert.equal(h.sends.length,0);
+  }
+});
+safeguard("retry credential cannot authorize webhook mode",async()=>{
+  const h=await senderHarness();assert.equal((await h.invoke(undefined,"synthetic_retry_secret_for_isolated_tests_only")).status,401);assert.equal(h.queries.length,0);
+});
+safeguard("sender webhook duplicates never claim an eligible due retry",async()=>{
+  const model=registrationModel();model.upsert(session(),uid(801),token(1));const h=await senderHarness(model);
+  h.outcomes.set(token(1),transientFailure);await h.invoke();h.advance(61000);
+  const repeat=await h.invoke();assert.equal(repeat.body.skipped,1);assert.equal(h.sends.length,1);assert.equal([...h.ledger.values()][0].attempt_count,1);
+});
+safeguard("secured retry tick sends failed device only and preserves another sent device",async()=>{
+  const model=registrationModel();model.upsert(session(),uid(801),token(1));model.upsert(session(),uid(802),token(2));
+  const h=await senderHarness(model);h.outcomes.set(token(1),transientFailure);await h.invoke();h.advance(61000);h.outcomes.delete(token(1));
+  const retry=await h.retry();assert.equal(retry.body.sent,1);assert.equal(h.sends.filter(send=>send.token===token(1)).length,2);
+  assert.equal(h.sends.filter(send=>send.token===token(2)).length,1);
+});
+safeguard("overlapping isolated retry ticks cannot obtain two model claims",async()=>{
+  const model=registrationModel();model.upsert(session(),uid(801),token(1));const h=await senderHarness(model);
+  h.outcomes.set(token(1),transientFailure);await h.invoke();h.advance(61000);h.outcomes.delete(token(1));
+  const results=await Promise.all([h.retry(),h.retry()]);assert.equal(results.reduce((sum,result)=>sum+result.body.sent,0),1);
+  assert.equal(h.sends.length,2);assert.equal([...h.ledger.values()][0].attempt_count,2);
+});
+safeguard("duplicate webhook while retry FCM is pending cannot send again",async()=>{
+  const model=registrationModel();model.upsert(session(),uid(801),token(1));const h=await senderHarness(model);
+  h.outcomes.set(token(1),transientFailure);await h.invoke();h.advance(61000);
+  let release, entered;const sending=new Promise(resolve=>{entered=resolve;});
+  h.outcomes.set(token(1),()=>new Promise(resolve=>{release=resolve;entered();}));const retry=h.retry();await sending;
+  assert.equal(h.sends.length,2);assert.equal((await h.invoke()).body.skipped,1);assert.equal(h.sends.length,2);
+  release({ok:true,httpStatus:200,providerMessageId:"synthetic-provider-message"});await retry;
+});
+safeguard("retry tick discovery caps at ten and processing concurrency stays at five",async()=>{
+  const model=registrationModel();for(let i=1;i<=12;i++)model.upsert(session(),uid(800+i),token(i));
+  const h=await senderHarness(model);for(let i=1;i<=12;i++)h.outcomes.set(token(i),transientFailure);
+  await h.invoke();h.advance(61000);let active=0,maximum=0;
+  for(let i=1;i<=12;i++)h.outcomes.set(token(i),async()=>{
+    active++;maximum=Math.max(maximum,active);await flush();active--;
+    return {ok:true,httpStatus:200,providerMessageId:"synthetic-provider-message"};
+  });
+  assert.equal((await h.retry()).body.sent,10);assert.ok(maximum<=5);assert.equal(h.sends.length,22);
+  assert.equal((await h.retry()).body.sent,2);assert.equal(h.sends.length,24);
+});
+safeguard("retry tick excludes expired or newly disabled candidates",async()=>{
+  const model=registrationModel();model.upsert(session(),uid(801),token(1));const h=await senderHarness(model);
+  h.outcomes.set(token(1),transientFailure);await h.invoke();h.advance(61000);model.rows.get(uid(801)).enabled=false;
+  assert.equal((await h.retry()).body.attempted,0);model.rows.get(uid(801)).enabled=true;h.advance(1800000);
+  assert.equal((await h.retry()).body.attempted,0);assert.equal(h.sends.length,1);
+});
+safeguard("sender retries database finalization only after known FCM success",async()=>{
+  const model=registrationModel();model.upsert(session(),uid(801),token(1));const h=await senderHarness(model);
+  h.failFinalization(3);assert.equal((await h.invoke()).body.sent,1);assert.equal(h.sends.length,1);
+  assert.equal(h.queries.filter(query=>query.rpc==="finalize_patient_native_push_delivery").length,4);
+});
+safeguard("sender exhausted recording retries leave processing without FCM replay",async()=>{
+  const model=registrationModel();model.upsert(session(),uid(801),token(1));const h=await senderHarness(model);
+  h.failFinalization(10);assert.equal((await h.invoke()).body.failed,1);assert.equal([...h.ledger.values()][0].status,"processing");
+  await h.invoke();h.advance(1800000);await h.retry();assert.equal(h.sends.length,1);
+  const text=JSON.stringify(h.logs);assert.equal(text.includes(token(1)),false);
+  assert.equal(text.includes([...h.ledger.values()][0].claim_token),false);assert.equal(text.includes("synthetic_retry_secret_for_isolated_tests_only"),false);
 });
 
 const beginRegistration = async h => {
@@ -2349,6 +2431,12 @@ async function firebaseTests() {
     "node:assert/strict": { default: assert }, "./firebaseMessaging.ts": helper,
   });
   for (const entry of cases.firebaseLifecycleTests) tests.push(entry);
+  const delivery = await load("supabase/functions/_shared/patientNativePushDelivery.ts", context);
+  const deliveryCases = await load("supabase/functions/_shared/patientNativePushDelivery_test.ts", context, {
+    "node:assert/strict": { default: assert }, "./patientNativePushDelivery.ts": delivery,
+    "../../../scripts/verify-patient-native-push-retry-sql.mjs": { createDeliveryLedger, verifyRetrySql },
+  });
+  for (const entry of deliveryCases.patientNativeDeliveryTests) tests.push(entry);
 }
 
 // A different assertion or thrown mock/runtime error is NEVER an expected failure.

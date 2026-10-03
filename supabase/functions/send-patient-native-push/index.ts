@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   FirebaseConfigurationError,
-  type FirebaseSendResult,
   getFirebaseAuthorization,
   sendFirebaseMessage,
 } from "../_shared/firebaseMessaging.ts";
+
+import { deliverPatientNativePushDevice, type DeliveryOutcome, type NativeDeliveryStore } from "../_shared/patientNativePushDelivery.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -44,14 +45,10 @@ type NativeDeviceRow = {
   updated_at: string;
 };
 
-type DeliveryOutcome = {
-  attempted: boolean;
-  result: "sent" | "failed" | "disabled_token" | "skipped";
-};
-
 type DeliverySummary = {
   ok: true;
-  notificationId: string;
+  notificationId?: string;
+  mode?: "retry";
   attempted: number;
   sent: number;
   failed: number;
@@ -146,10 +143,6 @@ async function timingSafeEqual(
   return mismatch === 0;
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  return isJsonObject(error) && error.code === "23505";
-}
-
 function validateWebhookPayload(payload: unknown): string {
   if (!isJsonObject(payload)) {
     throw new RequestFailure(400, "invalid_webhook_payload");
@@ -212,321 +205,124 @@ function getNativeNotificationMetadata(rawType: string): {
 Deno.serve(async (request: Request): Promise<Response> => {
   const executionId = crypto.randomUUID();
   let acceptedNotificationId: string | null = null;
-
   try {
-    if (request.method !== "POST") {
-      return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
+    if (request.method !== "POST") return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
+    const mode = request.headers.get("x-native-push-mode") === "retry" ? "retry" : "notification";
+    const expected = getRequiredEnvironment(mode === "retry" ? "NATIVE_PUSH_RETRY_SECRET" : "NATIVE_PUSH_WEBHOOK_SECRET");
+    const other = Deno.env.get(mode === "retry" ? "NATIVE_PUSH_WEBHOOK_SECRET" : "NATIVE_PUSH_RETRY_SECRET")?.trim();
+    if (expected === other || (mode === "retry" && !/^[A-Za-z0-9_-]{32,256}$/.test(expected))) {
+      throw new ServerConfigurationError();
     }
-
-    const expectedWebhookSecret = getRequiredEnvironment(
-      "NATIVE_PUSH_WEBHOOK_SECRET",
-    );
-    const suppliedWebhookSecret = request.headers.get("x-webhook-secret");
-    if (
-      !suppliedWebhookSecret ||
-      !(await timingSafeEqual(suppliedWebhookSecret, expectedWebhookSecret))
-    ) {
+    const supplied = request.headers.get(mode === "retry" ? "x-retry-secret" : "x-webhook-secret");
+    if (!supplied || !(await timingSafeEqual(supplied, expected))) {
       return jsonResponse({ ok: false, error: "unauthorized" }, 401);
     }
-
-    let requestPayload: unknown;
-    try {
-      requestPayload = await request.json();
-    } catch {
-      throw new RequestFailure(400, "invalid_json");
+    let payload: unknown;
+    try { payload = await request.json(); } catch { throw new RequestFailure(400, "invalid_json"); }
+    if (mode === "retry") {
+      if (!isJsonObject(payload) || payload.mode !== "retry" || Object.keys(payload).length !== 1) {
+        throw new RequestFailure(400, "invalid_retry_request");
+      }
+    } else {
+      acceptedNotificationId = validateWebhookPayload(payload);
     }
-
-    acceptedNotificationId = validateWebhookPayload(requestPayload);
-    const supabaseUrl = getRequiredEnvironment("SUPABASE_URL");
-    const supabase = createClient(supabaseUrl, getSupabaseAdminKey(), {
+    // No operational database access happens before mode-specific authentication.
+    const supabase = createClient(getRequiredEnvironment("SUPABASE_URL"), getSupabaseAdminKey(), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-
-    const { data: notificationData, error: notificationError } = await supabase
-      .from("patient_notifications")
-      .select("id, patient_id, type")
-      .eq("id", acceptedNotificationId)
-      .maybeSingle();
-
-    if (notificationError) throw new DatabaseFailure("load_notification");
-    if (!notificationData) {
-      return jsonResponse({
-        ok: false,
-        error: "notification_not_found",
-        notificationId: acceptedNotificationId,
-      }, 404);
-    }
-
-    const notification = notificationData as CanonicalNotificationRow;
-    if (
-      notification.id !== acceptedNotificationId ||
-      !UUID_PATTERN.test(notification.patient_id) ||
-      typeof notification.type !== "string"
-    ) {
-      throw new DatabaseFailure("validate_notification");
-    }
-    const metadata = getNativeNotificationMetadata(notification.type);
-
-    const { data: deviceData, error: deviceError } = await supabase
-      .from("patient_native_push_devices")
-      .select("id, push_token, updated_at")
-      .eq("patient_id", notification.patient_id)
-      .eq("platform", "android")
-      .eq("enabled", true);
-
-    if (deviceError) throw new DatabaseFailure("load_devices");
-    const devices = (deviceData ?? []) as NativeDeviceRow[];
+    const signal = () => AbortSignal.timeout(5000);
+    const store: NativeDeliveryStore = {
+      async claim(notificationId, deviceId, claimMode) {
+        return await supabase.rpc("claim_patient_native_push_delivery", {
+          p_notification_id: notificationId, p_device_id: deviceId, p_mode: claimMode,
+        }).abortSignal(signal()).maybeSingle();
+      },
+      async finalize(args) {
+        return await supabase.rpc("finalize_patient_native_push_delivery", args)
+          .abortSignal(signal()).maybeSingle();
+      },
+    };
+    const loadNotification = async (id: string): Promise<CanonicalNotificationRow | null> => {
+      const response = await supabase.from("patient_notifications").select("id, patient_id, type")
+        .eq("id", id).abortSignal(signal()).maybeSingle();
+      if (response.error) throw new DatabaseFailure("load_notification");
+      if (!response.data) return null;
+      const row = response.data as CanonicalNotificationRow;
+      if (row.id !== id || !UUID_PATTERN.test(row.patient_id) || typeof row.type !== "string") {
+        throw new DatabaseFailure("validate_notification");
+      }
+      return row;
+    };
     const summary: DeliverySummary = {
-      ok: true,
-      notificationId: notification.id,
-      attempted: 0,
-      sent: 0,
-      failed: 0,
-      disabledTokens: 0,
-      skipped: 0,
+      ok: true, attempted: 0, sent: 0, failed: 0, disabledTokens: 0, skipped: 0,
+      ...(mode === "retry" ? { mode: "retry" as const } : { notificationId: acceptedNotificationId! }),
     };
-
-    console.info("Patient native push request accepted", {
-      executionId,
-      notificationId: notification.id,
-      devices: devices.length,
-    });
-
-    if (devices.length === 0) {
-      summary.reason = "no_active_devices";
-      return jsonResponse(summary);
-    }
-
-    const firebaseAuthorization = await getFirebaseAuthorization();
-
-    const deliverToDevice = async (
-      device: NativeDeviceRow,
-    ): Promise<DeliveryOutcome> => {
-      if (
-        !UUID_PATTERN.test(device.id) ||
-        !device.push_token ||
-        !device.updated_at
-      ) {
-        console.warn("Patient native push device row was invalid", {
-          executionId,
-          notificationId: notification.id,
-          deviceId: UUID_PATTERN.test(device.id)
-            ? device.id
-            : "invalid_device_id",
-        });
-        return { attempted: false, result: "failed" };
-      }
-
-      const { data: claimData, error: claimError } = await supabase
-        .from("patient_notification_native_push_deliveries")
-        .insert({
-          notification_id: notification.id,
-          device_id: device.id,
-          status: "processing",
-          attempt_count: 1,
-        })
-        .select("id")
-        .single();
-
-      if (claimError) {
-        if (isUniqueViolation(claimError)) {
-          return { attempted: false, result: "skipped" };
-        }
-        console.error("Patient native push claim failed", {
-          executionId,
-          notificationId: notification.id,
-          deviceId: device.id,
-        });
-        return { attempted: false, result: "failed" };
-      }
-
-      const claimId = typeof claimData?.id === "string" ? claimData.id : null;
-      if (!claimId || !UUID_PATTERN.test(claimId)) {
-        console.error("Patient native push claim result was invalid", {
-          executionId,
-          notificationId: notification.id,
-          deviceId: device.id,
-        });
-        return { attempted: false, result: "failed" };
-      }
-
-      let sendResult: FirebaseSendResult;
-      try {
-        sendResult = await sendFirebaseMessage(firebaseAuthorization, {
-          token: device.push_token,
-          notificationId: notification.id,
-          notificationType: metadata.type,
-          route: metadata.route,
-        });
-      } catch {
-        sendResult = {
-          ok: false as const,
-          httpStatus: null,
-          errorCode: "FCM_OUTCOME_UNKNOWN",
-          errorMessage:
-            "FCM request failed before a response was received; delivery outcome is unknown.",
-          permanentTokenFailure: false,
-        };
-      }
-
-      if (sendResult.ok) {
-        const { error: sentError } = await supabase
-          .from("patient_notification_native_push_deliveries")
-          .update({
-            status: "sent",
-            fcm_http_status: sendResult.httpStatus,
-            error_code: null,
-            error_message: null,
-            provider_message_id: sendResult.providerMessageId,
-            sent_at: new Date().toISOString(),
-          })
-          .eq("id", claimId);
-
-        if (sentError) {
-          console.error("Patient native push success recording failed", {
-            executionId,
-            notificationId: notification.id,
-            deviceId: device.id,
-          });
-          return { attempted: true, result: "failed" };
-        }
-        return { attempted: true, result: "sent" };
-      }
-
-      let deliveryStatus: "failed" | "disabled_token" = "failed";
-      let errorCode = sendResult.errorCode;
-      let errorMessage = sendResult.errorMessage;
-
-      if (sendResult.permanentTokenFailure) {
-        const now = new Date().toISOString();
-        const { data: disabledDevice, error: disableError } = await supabase
-          .from("patient_native_push_devices")
-          .update({ enabled: false, disabled_at: now, updated_at: now })
-          .eq("id", device.id)
-          .eq("updated_at", device.updated_at)
-          .eq("enabled", true)
-          .select("id")
-          .maybeSingle();
-
-        if (disableError || !disabledDevice) {
-          errorCode = "DEVICE_DISABLE_FAILED";
-          errorMessage = disableError
-            ? "Invalid FCM token could not be disabled."
-            : "Device registration changed before invalidation completed.";
-        } else {
-          deliveryStatus = "disabled_token";
-        }
-      }
-
-      const { error: failureRecordError } = await supabase
-        .from("patient_notification_native_push_deliveries")
-        .update({
-          status: deliveryStatus,
-          fcm_http_status: sendResult.httpStatus,
-          error_code: errorCode,
-          error_message: errorMessage,
-          provider_message_id: null,
-          sent_at: null,
-        })
-        .eq("id", claimId);
-
-      if (failureRecordError) {
-        console.error("Patient native push failure recording failed", {
-          executionId,
-          notificationId: notification.id,
-          deviceId: device.id,
-        });
-        return { attempted: true, result: "failed" };
-      }
-
-      console.warn("Patient native push delivery failed", {
-        executionId,
-        notificationId: notification.id,
-        deviceId: device.id,
-        status: sendResult.httpStatus,
-        code: errorCode,
+    let tasks: Array<() => Promise<DeliveryOutcome>> = [];
+    let authorization: Awaited<ReturnType<typeof getFirebaseAuthorization>>;
+    const deliver = (notification: CanonicalNotificationRow, device: NativeDeviceRow) => {
+      const metadata = getNativeNotificationMetadata(notification.type);
+      return deliverPatientNativePushDevice({ store, authorization, send: sendFirebaseMessage,
+        notification: { id: notification.id, type: metadata.type, route: metadata.route }, device, mode,
+        // Never include claim tokens, registration values, provider bodies or exception objects.
+        log: event => console.warn("Patient native push operational outcome", { executionId, event }),
       });
-
-      return { attempted: true, result: deliveryStatus };
     };
-
-    for (let index = 0; index < devices.length; index += DEVICE_CONCURRENCY) {
-      const chunk = devices.slice(index, index + DEVICE_CONCURRENCY);
-      const outcomes = await Promise.allSettled(chunk.map(deliverToDevice));
-
-      for (let offset = 0; offset < outcomes.length; offset += 1) {
-        const outcome = outcomes[offset];
-        if (outcome.status === "rejected") {
-          summary.failed += 1;
-          console.error("Patient native push device processing failed", {
-            executionId,
-            notificationId: notification.id,
-            deviceId: chunk[offset].id,
-          });
-          continue;
+    if (mode === "notification") {
+      const notification = await loadNotification(acceptedNotificationId!);
+      if (!notification) return jsonResponse({ ok: false, error: "notification_not_found", notificationId: acceptedNotificationId }, 404);
+      const response = await supabase.from("patient_native_push_devices").select("id, push_token, updated_at")
+        .eq("patient_id", notification.patient_id).eq("platform", "android").eq("enabled", true)
+        .abortSignal(signal());
+      if (response.error) throw new DatabaseFailure("load_devices");
+      tasks = ((response.data ?? []) as NativeDeviceRow[]).map(device => () => deliver(notification, device));
+      if (!tasks.length) { summary.reason = "no_active_devices"; return jsonResponse(summary); }
+    } else {
+      // DB discovery applies canonical/enabled/window/due filters, ordering and LIMIT 10.
+      const response = await supabase.rpc("list_due_patient_native_push_deliveries").abortSignal(signal());
+      if (response.error) throw new DatabaseFailure("list_due_deliveries");
+      const candidates = response.data as Array<{ notification_id: string; device_id: string }> | null;
+      tasks = (candidates ?? []).slice(0, 10).map(candidate => async () => {
+        if (!UUID_PATTERN.test(candidate.notification_id) || !UUID_PATTERN.test(candidate.device_id)) {
+          return { attempted: false, result: "failed" };
         }
-
-        if (outcome.value.attempted) summary.attempted += 1;
-        if (outcome.value.result === "sent") summary.sent += 1;
-        if (outcome.value.result === "failed") summary.failed += 1;
-        if (outcome.value.result === "disabled_token") {
-          summary.disabledTokens += 1;
-        }
-        if (outcome.value.result === "skipped") summary.skipped += 1;
+        const notification = await loadNotification(candidate.notification_id);
+        if (!notification) return { attempted: false, result: "skipped" };
+        const selected = await supabase.from("patient_native_push_devices").select("id, push_token, updated_at")
+          .eq("id", candidate.device_id).eq("patient_id", notification.patient_id)
+          .eq("platform", "android").eq("enabled", true).abortSignal(signal()).maybeSingle();
+        if (selected.error) throw new DatabaseFailure("load_retry_device");
+        if (!selected.data) return { attempted: false, result: "skipped" };
+        return deliver(notification, selected.data as NativeDeviceRow);
+      });
+      if (!tasks.length) return jsonResponse(summary);
+    }
+    authorization = await getFirebaseAuthorization();
+    for (let index = 0; index < tasks.length; index += DEVICE_CONCURRENCY) {
+      const outcomes = await Promise.allSettled(tasks.slice(index, index + DEVICE_CONCURRENCY).map(task => task()));
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") { summary.failed++; continue; }
+        if (outcome.value.attempted) summary.attempted++;
+        if (outcome.value.result === "sent") summary.sent++;
+        if (outcome.value.result === "failed") summary.failed++;
+        if (outcome.value.result === "disabled_token") summary.disabledTokens++;
+        if (outcome.value.result === "skipped") summary.skipped++;
       }
     }
-
     console.info("Patient native push request completed", {
-      executionId,
-      notificationId: notification.id,
-      attempted: summary.attempted,
-      sent: summary.sent,
-      failed: summary.failed,
-      disabledTokens: summary.disabledTokens,
-      skipped: summary.skipped,
+      executionId, mode, attempted: summary.attempted, sent: summary.sent,
+      failed: summary.failed, disabledTokens: summary.disabledTokens, skipped: summary.skipped,
     });
-
     return jsonResponse(summary);
   } catch (error) {
-    if (error instanceof RequestFailure) {
-      return jsonResponse({ ok: false, error: error.publicCode }, error.status);
-    }
+    if (error instanceof RequestFailure) return jsonResponse({ ok: false, error: error.publicCode }, error.status);
     if (error instanceof FirebaseConfigurationError) {
-      console.error("Patient native push Firebase authorization failed", {
-        executionId,
-        notificationId: acceptedNotificationId,
-        status: error.httpStatus,
-        code: error.publicCode,
-      });
-      return jsonResponse({
-        ok: false,
-        error: "firebase_authentication_failed",
-        notificationId: acceptedNotificationId,
-      }, 500);
+      console.error("Patient native push Firebase authorization failed", { executionId, code: error.publicCode });
+      return jsonResponse({ ok: false, error: "firebase_authentication_failed", notificationId: acceptedNotificationId }, 500);
     }
-    if (error instanceof ServerConfigurationError) {
-      return jsonResponse(
-        { ok: false, error: "server_configuration_error" },
-        500,
-      );
-    }
-    if (error instanceof DatabaseFailure) {
-      console.error("Patient native push database operation failed", {
-        executionId,
-        notificationId: acceptedNotificationId,
-        operation: error.operation,
-      });
-    } else {
-      console.error("Patient native push request failed", {
-        executionId,
-        notificationId: acceptedNotificationId,
-        error: "internal_error",
-      });
-    }
-    return jsonResponse({
-      ok: false,
-      error: "internal_error",
-      notificationId: acceptedNotificationId,
-    }, 500);
+    if (error instanceof ServerConfigurationError) return jsonResponse({ ok: false, error: "server_configuration_error" }, 500);
+    console.error("Patient native push request failed", {
+      executionId, operation: error instanceof DatabaseFailure ? error.operation : "internal_error",
+    });
+    return jsonResponse({ ok: false, error: "internal_error", notificationId: acceptedNotificationId }, 500);
   }
 });

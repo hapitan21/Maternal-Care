@@ -34,6 +34,8 @@ export type FirebaseMessage = {
   route: string;
 };
 
+export type FirebaseFailureClass = "permanent_device" | "confirmed_transient" | "non_retryable" | "unknown_outcome";
+
 export type FirebaseSendResult =
   | {
     ok: true;
@@ -46,6 +48,8 @@ export type FirebaseSendResult =
     errorCode: string;
     errorMessage: string;
     permanentTokenFailure: boolean;
+    failureClass: FirebaseFailureClass;
+    retryAfterMs: number | null;
   };
 
 export class FirebaseConfigurationError extends Error {
@@ -204,11 +208,30 @@ async function fetchWithTimeout(
   input: string,
   init: RequestInit,
   timeoutMs: number,
-): Promise<Response> {
+): Promise<{ response: Response; payload: unknown }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response | null = null;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error("request_deadline"));
+    }, timeoutMs);
+  });
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    return await Promise.race([
+      (async () => {
+        response = await fetch(input, { ...init, signal: controller.signal });
+        let payload: unknown = null;
+        try { payload = await response.json(); } catch { /* Never retain raw responses. */ }
+        return { response, payload };
+      })(),
+      deadline,
+    ]);
+  } catch (error) {
+    // Known HTTP acceptance/rejection survives a body timeout; ambiguous 5xx will be E.
+    if (response) return { response, payload: null };
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -219,9 +242,10 @@ async function requestAccessToken(
 ): Promise<FirebaseAuthorization> {
   const assertion = await createServiceAccountAssertion(serviceAccount);
   let response: Response;
+  let payload: unknown;
 
   try {
-    response = await fetchWithTimeout(
+    ({ response, payload } = await fetchWithTimeout(
       GOOGLE_OAUTH_TOKEN_ENDPOINT,
       {
         method: "POST",
@@ -232,16 +256,9 @@ async function requestAccessToken(
         }),
       },
       OAUTH_REQUEST_TIMEOUT_MS,
-    );
+    ));
   } catch {
     throw new FirebaseConfigurationError("oauth_network_error");
-  }
-
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    // Only validated fields are used below; raw OAuth responses are never exposed.
   }
 
   if (!response.ok || !isJsonObject(payload)) {
@@ -395,6 +412,112 @@ function getSafeErrorMessage(
   return "FCM delivery failed.";
 }
 
+// A delay >= the retry window is a terminal scheduling sentinel, never an earlier retry.
+const RETRY_WINDOW_MS = 30 * 60 * 1000;
+function delayMilliseconds(value: string): number | null {
+  if (!/^\d+(?:\.\d{1,9})?$/.test(value)) return null;
+  const seconds = Number(value);
+  return seconds >= RETRY_WINDOW_MS / 1000 ? RETRY_WINDOW_MS
+    : Number.isFinite(seconds) ? Math.ceil(seconds * 1000) : null;
+}
+const HTTP_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const HTTP_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const HTTP_LONG_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// RFC 9110 section 5.6.7: parse all three HTTP-date forms without Date.parse.
+// Unrelated locale formats, rolled-over dates and inconsistent weekdays are rejected.
+function httpDateMilliseconds(value: string, now: number): number | null {
+  const imf = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat), (\d{2}) ([A-Z][a-z]{2}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT$/.exec(value);
+  const rfc850 = /^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), (\d{2})-([A-Z][a-z]{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) GMT$/.exec(value);
+  const asctime = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat) ([A-Z][a-z]{2}) (\d{2}| \d) (\d{2}):(\d{2}):(\d{2}) (\d{4})$/.exec(value);
+  const match = imf || rfc850 || asctime;
+  if (!match) return null;
+
+  const weekday = (rfc850 ? HTTP_LONG_DAYS : HTTP_DAYS).indexOf(match[1]);
+  const day = Number(asctime ? match[3] : match[2]);
+  const month = HTTP_MONTHS.indexOf(asctime ? match[2] : match[3]);
+  let year = Number(asctime ? match[7] : match[4]);
+  const hour = Number(asctime ? match[4] : match[5]);
+  const minute = Number(asctime ? match[5] : match[6]);
+  const second = Number(asctime ? match[6] : match[7]);
+  if (month < 0 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 60) return null;
+
+  const date = new Date(0);
+  if (rfc850) {
+    const currentYear = new Date(now).getUTCFullYear();
+    year += Math.floor(currentYear / 100) * 100;
+    date.setUTCFullYear(year, month, day);
+    date.setUTCHours(hour, minute, Math.min(second, 59), 0);
+    const cutoff = new Date(now);
+    cutoff.setUTCFullYear(currentYear + 50);
+    if (date.getTime() + (second === 60 ? 1000 : 0) > cutoff.getTime()) year -= 100;
+  }
+  if (year < 1 || year > 9999) return null;
+  date.setUTCFullYear(year, month, day);
+  date.setUTCHours(hour, minute, Math.min(second, 59), 0);
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month ||
+      date.getUTCDate() !== day || date.getUTCDay() !== weekday) return null;
+  // HTTP-date permits a leap second; normalize it to the next second.
+  return date.getTime() + (second === 60 ? 1000 : 0);
+}
+
+function getRetryAfterMs(response: Response, payload: unknown): number | null {
+  const delays: number[] = [];
+  const header = response.headers.get("retry-after")?.trim();
+  if (header) {
+    if (/^\d+$/.test(header)) {
+      const delay = delayMilliseconds(header);
+      if (delay !== null) delays.push(delay);
+    } else {
+      const now = Date.now();
+      const date = httpDateMilliseconds(header, now);
+      if (date !== null) delays.push(Math.min(RETRY_WINDOW_MS, Math.max(0, date - now)));
+    }
+  }
+  if (isJsonObject(payload) && isJsonObject(payload.error) && Array.isArray(payload.error.details)) {
+    for (const detail of payload.error.details) {
+      if (isJsonObject(detail) && detail["@type"] === "type.googleapis.com/google.rpc.RetryInfo"
+          && typeof detail.retryDelay === "string" && detail.retryDelay.endsWith("s")) {
+        const delay = delayMilliseconds(detail.retryDelay.slice(0, -1));
+        if (delay !== null) delays.push(delay);
+      }
+    }
+  }
+  return delays.length ? Math.max(...delays) : null;
+}
+// Keep retry evidence independent of the existing permanent-token parser.
+// A coherent top-level status can establish the transient outcome, but every
+// supplied detail must be a typed object and every FcmError must agree.
+// Other well-formed typed detail envelopes (e.g. RetryInfo) neither establish
+// nor contradict that outcome. BadRequest remains incompatible with replay.
+function hasConsistentTransientEvidence(payload: unknown, httpStatus: number, expected: string): boolean {
+  if (!isJsonObject(payload) || !isJsonObject(payload.error)) return false;
+  const error = payload.error;
+  if (error.status !== expected ||
+      ("code" in error && error.code !== httpStatus) ||
+      ("message" in error && typeof error.message !== "string")) return false;
+  if (!("details" in error)) return true;
+  if (!Array.isArray(error.details)) return false;
+  return error.details.every((detail) => {
+    if (!isJsonObject(detail) || typeof detail["@type"] !== "string" ||
+        !/^type\.googleapis\.com\/[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/.test(detail["@type"])) return false;
+    if (detail["@type"] === "type.googleapis.com/google.rpc.BadRequest") return false;
+    return detail["@type"] !== "type.googleapis.com/google.firebase.fcm.v1.FcmError" ||
+      detail.errorCode === expected;
+  });
+}
+
+function failureClassFor(response: Response, payload: unknown, permanent: boolean): FirebaseFailureClass {
+  if (permanent) return "permanent_device";
+  if (response.status === 429) return "confirmed_transient";
+  const expected = response.status === 500 ? "INTERNAL" : response.status === 503 ? "UNAVAILABLE" : null;
+  if (expected && hasConsistentTransientEvidence(payload, response.status, expected)) {
+    return "confirmed_transient";
+  }
+  if ([400, 401, 403, 404, 409].includes(response.status)) return "non_retryable";
+  return "unknown_outcome";
+}
+
 export async function sendFirebaseMessage(
   authorization: FirebaseAuthorization,
   message: FirebaseMessage,
@@ -403,9 +526,10 @@ export async function sendFirebaseMessage(
     encodeURIComponent(authorization.projectId)
   }/messages:send`;
   let response: Response;
+  let payload: unknown;
 
   try {
-    response = await fetchWithTimeout(
+    ({ response, payload } = await fetchWithTimeout(
       endpoint,
       {
         method: "POST",
@@ -431,7 +555,7 @@ export async function sendFirebaseMessage(
         }),
       },
       FCM_REQUEST_TIMEOUT_MS,
-    );
+    ));
   } catch {
     return {
       ok: false,
@@ -440,14 +564,9 @@ export async function sendFirebaseMessage(
       errorMessage:
         "FCM request failed before a response was received; delivery outcome is unknown.",
       permanentTokenFailure: false,
+      failureClass: "unknown_outcome",
+      retryAfterMs: null,
     };
-  }
-
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    // Raw provider responses are intentionally not retained or exposed.
   }
 
   if (response.ok) {
@@ -467,15 +586,20 @@ export async function sendFirebaseMessage(
     (errorCode === "INVALID_ARGUMENT" && details.invalidTokenField) ||
     (response.status === 400 && details.invalidTokenFcmError);
 
+  const failureClass = failureClassFor(response, payload, permanentTokenFailure);
   return {
     ok: false,
     httpStatus: response.status,
     errorCode,
-    errorMessage: getSafeErrorMessage(
+    errorMessage: failureClass === "unknown_outcome"
+      ? "FCM response did not establish a safe retry outcome."
+      : getSafeErrorMessage(
       errorCode,
       response.status,
       permanentTokenFailure,
     ),
     permanentTokenFailure,
+    failureClass,
+    retryAfterMs: failureClass === "confirmed_transient" ? getRetryAfterMs(response, payload) : null,
   };
 }
