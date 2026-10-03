@@ -386,7 +386,6 @@ function DoctorHeaderControls({ setActivePage, profile, profileKey, isLoading })
 
 function DashboardHome({
   setActivePage,
-  headerAction,
   dashboardStats,
   upcomingSessions,
   dashboardMessage,
@@ -427,13 +426,12 @@ function DashboardHome({
   }));
 
   return (
-    <div className="doctor-dashboard-home">
+    <div className="doctor-dashboard-home doctor-dashboard-home--responsive">
       <header className="doctor-topbar">
         <div className="doctor-page-title-block">
           <h2>Dashboard</h2>
           <p>Monitor today&apos;s appointments, patients, and session activity.</p>
         </div>
-        {headerAction}
       </header>
 
       <section className="doctor-hero-card">
@@ -1112,7 +1110,6 @@ function Doctor_Dashboard() {
         return (
           <DashboardHome
             setActivePage={navigateDoctorPage}
-            headerAction={<span className="doctor-global-profile-placeholder" aria-hidden="true" />}
             dashboardStats={dashboardStatsResolved ? dashboardStats : dashboardSnapshot?.dashboardStats || dashboardStats}
             upcomingSessions={dashboardStatsResolved ? upcomingSessions : dashboardSnapshot?.upcomingSessions || upcomingSessions}
             dashboardMessage={doctorIdentity.error?.message || dashboardMessage}

@@ -2110,3 +2110,168 @@ body:has(.doctor-dashboard) {
   font-weight: 800;
   letter-spacing: -0.055em;
 }
+
+/* Dashboard home only: Staff and the other Doctor sections do not use this modifier. */
+.doctor-dashboard .doctor-content .doctor-dashboard-home--responsive > .doctor-topbar {
+  min-height: var(--doctor-unified-profile-height) !important;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-page-title-block {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* The global profile is absolute above 900px; header padding is its only reservation. */
+@media (min-width: 901px) {
+  .doctor-dashboard .doctor-content .doctor-dashboard-home--responsive > .doctor-topbar {
+    padding-right: calc(var(--doctor-unified-profile-width) + 24px) !important;
+  }
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-hero-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  min-height: 0;
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-hero-text {
+  min-width: 0;
+  max-width: none;
+  overflow-wrap: anywhere;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-hero-text h1,
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-hero-text p {
+  width: 100% !important;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-hero-illustration {
+  position: static;
+  display: block;
+  align-self: end;
+  justify-self: end;
+  min-width: 0;
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+  max-height: 240px;
+  opacity: 1;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: 12px 16px;
+  min-width: 0;
+  min-height: 120px;
+  padding: 20px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-main {
+  flex: 1 1 150px;
+  min-width: 0;
+  gap: 12px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-icon {
+  width: 48px;
+  height: 48px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-copy {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-copy p {
+  width: auto !important;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-growth-badge {
+  position: static;
+  flex: 0 1 auto;
+  width: auto !important;
+  max-width: 100%;
+  min-height: 28px !important;
+  padding: 4px 10px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-progress-track {
+  position: static;
+  flex: 0 0 100%;
+}
+
+@media (max-width: 1180px) {
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-row {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  /* The real profile is now in normal flow above the Dashboard header. */
+  .doctor-dashboard .doctor-content .doctor-dashboard-home--responsive > .doctor-topbar {
+    min-height: 0 !important;
+    padding-right: 0 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .doctor-dashboard .doctor-content .doctor-dashboard-home--responsive > .doctor-topbar {
+    margin-bottom: 16px !important;
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-hero-card {
+    gap: 16px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-row {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-card {
+    min-height: 0;
+    padding: 16px;
+    gap: 10px 12px;
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-section-header {
+    margin: 0 0 12px;
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-card {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-status-row,
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-hero-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-hero-illustration {
+    max-width: 260px;
+    max-height: 136px;
+  }
+}
