@@ -454,7 +454,7 @@ function DashboardHome({
 
         <img
           className="doctor-hero-illustration"
-          src="/images/dashboard-hero-people.png"
+          src="/images/doctor-dashboard-hero-people.webp"
           alt="Maternal care team"
         />
       </section>
