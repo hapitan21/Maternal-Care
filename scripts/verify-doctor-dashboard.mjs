@@ -346,6 +346,245 @@ for (const time of ["2026-10-03T23:59:59.999+08:00", "2026-10-04T00:00:00+08:00"
 const largeRows = Array.from({ length: 2000 }, (_, index) => ({ ...fixtures[index % fixtures.length], id: "large-" + index }));
 await compareRefresh("large 2,000-row schedule", largeRows, "2026-10-04T12:00:00+08:00");
 
+// Exercise the production coordinator with deferred promises, without timing sleeps.
+let concurrencyChecks = 0;
+const concurrencyCheck = (ok, message) => { check(ok, message); concurrencyChecks++; };
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+const coordinatorSource = source.slice(source.indexOf("function createDashboardRefreshCoordinator()"), source.indexOf("const navItems"))
+  .replace("function createDashboardRefreshCoordinator()", "export function createDashboardRefreshCoordinator()");
+const { createDashboardRefreshCoordinator } = await load(coordinatorSource, "refresh-coordinator.js", {});
+function coordinatorProbe() {
+  const calls = [];
+  let running = 0, maxRunning = 0;
+  return {
+    calls,
+    get running() { return running; },
+    get maxRunning() { return maxRunning; },
+    loader(label = "doctor-a") {
+      return () => {
+        const work = deferred();
+        calls.push({ ...work, label });
+        maxRunning = Math.max(maxRunning, ++running);
+        return work.promise.finally(() => { running--; });
+      };
+    },
+  };
+}
+{
+  const coordinator = createDashboardRefreshCoordinator(), probe = coordinatorProbe();
+  const scope = coordinator.activate(probe.loader());
+  const work = scope.request();
+  await flush();
+  concurrencyCheck(probe.calls.length === 1 && probe.running === 1, "one request starts one loader");
+  const queued = Array.from({ length: 5 }, () => scope.request());
+  await flush();
+  concurrencyCheck(probe.calls.length === 1 && probe.maxRunning === 1, "five triggers never overlap the current loader");
+  concurrencyCheck(queued.every(promise => promise === work), "queued callers share the current drain promise");
+  probe.calls[0].resolve(); await flush();
+  concurrencyCheck(probe.calls.length === 2 && probe.running === 1, "five triggers cause exactly one trailing refresh");
+  for (let index = 0; index < 5; index++) scope.request();
+  await flush();
+  concurrencyCheck(probe.calls.length === 2, "triggers during trailing work remain coalesced");
+  probe.calls[1].resolve(); await flush();
+  concurrencyCheck(probe.calls.length === 3, "trailing work can queue one additional trailing refresh");
+  probe.calls[2].resolve(); await work; await flush();
+  concurrencyCheck(probe.calls.length === 3 && probe.running === 0 && probe.maxRunning === 1, "drain stops without queued work and concurrency never exceeds one");
+  const next = scope.request(); await flush();
+  concurrencyCheck(probe.calls.length === 4, "a later idle request can start normally");
+  probe.calls[3].resolve(); await next; await flush();
+  concurrencyCheck(probe.calls.length === 4, "no queued trigger means no trailing refresh");
+  scope.stop();
+}
+for (const queued of [false, true]) {
+  const coordinator = createDashboardRefreshCoordinator(), probe = coordinatorProbe();
+  const scope = coordinator.activate(probe.loader());
+  const work = scope.request(); await flush();
+  if (queued) for (let index = 0; index < 5; index++) scope.request();
+  probe.calls[0].reject(new Error("Synthetic request failure")); await flush();
+  concurrencyCheck(probe.calls.length === (queued ? 2 : 1), "rejection runs a trailing refresh only when requested");
+  if (queued) probe.calls[1].resolve();
+  await work; await flush();
+  concurrencyCheck(probe.running === 0 && probe.maxRunning === 1, "failure releases the in-flight lock");
+  concurrencyCheck(probe.calls.length === (queued ? 2 : 1), "failure never creates an automatic retry loop");
+  const next = scope.request(); await flush();
+  concurrencyCheck(probe.calls.length === (queued ? 3 : 2), "an explicit request still works after failure");
+  probe.calls.at(-1).resolve(); await next; scope.stop();
+}
+{
+  const coordinator = createDashboardRefreshCoordinator();
+  let calls = 0, scope;
+  scope = coordinator.activate(() => {
+    calls++;
+    if (calls === 1) scope.request();
+    throw new Error("Synthetic synchronous failure");
+  });
+  await scope.request(); await flush();
+  concurrencyCheck(calls === 2, "lock is installed before synchronous triggers and exceptions");
+  scope.stop();
+}
+{
+  const coordinator = createDashboardRefreshCoordinator(), probe = coordinatorProbe();
+  const scope = coordinator.activate(probe.loader());
+  const work = scope.request(); scope.stop(); await work;
+  concurrencyCheck(probe.calls.length === 0, "cleanup before loader startup prevents all work");
+  concurrencyCheck(scope.request() === undefined, "inactive callbacks cannot revive a stopped scope");
+}
+for (const reason of ["section leave", "unmount", "logout", "session loss"]) {
+  const coordinator = createDashboardRefreshCoordinator(), probe = coordinatorProbe();
+  const scope = coordinator.activate(probe.loader());
+  const work = scope.request(); await flush(); scope.request(); scope.stop();
+  concurrencyCheck(scope.request() === undefined, reason + ": stale trigger ignored");
+  probe.calls[0].resolve(); await work; await flush();
+  concurrencyCheck(probe.calls.length === 1 && probe.running === 0, reason + ": queued trailing work discarded");
+}
+{
+  const coordinator = createDashboardRefreshCoordinator(), probe = coordinatorProbe();
+  const oldScope = coordinator.activate(probe.loader("doctor-a"));
+  const oldWork = oldScope.request(); await flush(); oldScope.request(); oldScope.stop();
+  const newScope = coordinator.activate(probe.loader("doctor-b"));
+  await flush();
+  concurrencyCheck(probe.calls.length === 1, "new Doctor never inherits the old pending flag");
+  const newWork = newScope.request(); oldScope.stop();
+  concurrencyCheck(oldScope.request() === undefined, "old Doctor callbacks cannot request new Doctor work");
+  await flush();
+  concurrencyCheck(probe.calls.length === 1, "new scope waits for old HTTP work instead of overlapping it");
+  probe.calls[0].resolve(); await flush();
+  concurrencyCheck(probe.calls.length === 2 && probe.calls[1].label === "doctor-b", "only the newly requested Doctor refresh runs next");
+  probe.calls[1].resolve(); await Promise.all([oldWork, newWork]);
+  concurrencyCheck(probe.maxRunning === 1 && probe.calls.length === 2, "old cleanup cannot clear the new scope or cause duplicate work");
+  newScope.stop();
+}
+
+// Execute the actual refresh effect with fake timers and captured Realtime callbacks.
+const refreshEffect = source.slice(source.indexOf('  useEffect(() => {\n    if (activePage !== "dashboard"'), source.indexOf("  const openMedicalRecordTarget"));
+const effectBody = refreshEffect.slice("  useEffect(() => {".length, refreshEffect.lastIndexOf("  }, ["));
+const effectProbe = coordinatorProbe(), timeoutCallbacks = new Map(), intervalCallbacks = new Map(), focusCallbacks = new Map(), realtimeCallbacks = new Map();
+const removedChannels = [];
+let timerId = 0;
+const channel = {
+  on(event, filter, callback) { realtimeCallbacks.set(filter.table, { event, filter, callback }); return this; },
+  subscribe() { return this; },
+};
+const effectModule = await load('import {loadDashboardStats,supabase,createDashboardRefreshCoordinator} from "dependencies";\n'
+  + 'const activePage="dashboard", authenticatedDoctorId="synthetic"; const dashboardStatsRequestRef={current:0}; const dashboardRefreshCoordinatorRef={current:null};\n'
+  + "export function mountRefreshEffect() {" + effectBody + "}\nexport function requestRevision() { return dashboardStatsRequestRef.current; }", "refresh-effect.js", {
+  dependencies: {
+    loadDashboardStats: effectProbe.loader(), createDashboardRefreshCoordinator,
+    supabase: { channel: name => { concurrencyCheck(name === "doctor-dashboard-synthetic", "Realtime channel name preserved"); return channel; }, removeChannel: value => removedChannels.push(value) },
+  },
+}, { window: {
+  setTimeout: (callback, delay) => { concurrencyCheck(delay === 0, "initial zero-delay refresh preserved"); timeoutCallbacks.set(++timerId, callback); return timerId; },
+  clearTimeout: id => timeoutCallbacks.delete(id),
+  setInterval: (callback, delay) => { concurrencyCheck(delay === 60_000, "60-second refresh cadence preserved"); intervalCallbacks.set(++timerId, callback); return timerId; },
+  clearInterval: id => intervalCallbacks.delete(id),
+  addEventListener: (name, callback) => focusCallbacks.set(name, callback),
+  removeEventListener: (name, callback) => { if (focusCallbacks.get(name) === callback) focusCallbacks.delete(name); },
+} });
+const stopEffect = effectModule.mountRefreshEffect();
+concurrencyCheck(realtimeCallbacks.get("patients").filter.event === "*" && realtimeCallbacks.get("patients").filter.schema === "public", "Patient Realtime definition preserved");
+concurrencyCheck(realtimeCallbacks.get("schedule").filter.filter === "doctor_id=eq.synthetic", "Doctor-specific Schedule Realtime filter preserved");
+const triggers = [timeoutCallbacks.values().next().value, focusCallbacks.get("focus"), intervalCallbacks.values().next().value,
+  realtimeCallbacks.get("patients").callback, realtimeCallbacks.get("schedule").callback];
+for (const [index, trigger] of triggers.entries()) {
+  const work = trigger(); await flush();
+  concurrencyCheck(effectProbe.calls.length === index + 1, "existing refresh trigger " + index + " starts an idle refresh");
+  effectProbe.calls[index].resolve(); await work;
+}
+const realtimeWork = realtimeCallbacks.get("patients").callback(); await flush();
+for (let index = 0; index < 5; index++) {
+  realtimeCallbacks.get("patients").callback(); realtimeCallbacks.get("schedule").callback();
+}
+await flush();
+concurrencyCheck(effectProbe.calls.length === 6, "simultaneous Patient/Schedule events do not overlap");
+effectProbe.calls[5].resolve(); await flush();
+concurrencyCheck(effectProbe.calls.length === 7, "simultaneous Realtime events cause one trailing refresh");
+focusCallbacks.get("focus")(); stopEffect();
+effectProbe.calls[6].resolve(); await realtimeWork;
+concurrencyCheck(effectProbe.calls.length === 7 && effectProbe.maxRunning === 1, "effect cleanup discards the trailing flag");
+concurrencyCheck(effectModule.requestRevision() === 1, "existing stale-response revision is invalidated on cleanup");
+concurrencyCheck(timeoutCallbacks.size === 0 && intervalCallbacks.size === 0 && focusCallbacks.size === 0, "timer/focus cleanup preserved");
+concurrencyCheck(removedChannels.length === 1 && removedChannels[0] === channel, "Realtime channel cleanup preserved");
+for (const trigger of triggers) concurrencyCheck(trigger() === undefined, "captured callbacks cannot revive the cleaned-up Dashboard");
+
+// Keep the full loader locked through avatar completion and check real state/snapshot behavior.
+async function productionRefreshHarness() {
+  const batches = [], avatars = [];
+  function builder(promise) {
+    const query = { then: (yes, no) => promise.then(yes, no) };
+    for (const method of ["select", "ilike", "eq", "order"]) query[method] = () => query;
+    return query;
+  }
+  const harnessSource = loaderSource.replace('const authenticatedDoctorId="synthetic"', 'let authenticatedDoctorId="synthetic"')
+    + '\nexport function invalidateDoctor(id) { authenticatedDoctorId=id; dashboardStatsRequestRef.current++; }';
+  const module = await load(harnessSource, "coalesced-loader.js", {
+    db: { supabase: {
+      rpc: () => { const batch = deferred(); batches.push(batch); return builder(batch.promise.then(result => result.patients)); },
+      from: () => builder(batches.at(-1).promise.then(result => result.schedule)),
+    } },
+    dependencies: {
+      appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments, classifyAppointment,
+      fetchDashboardPatientAvatarMap: async rows => { const work = deferred(); avatars.push({ ...work, rows }); return work.promise; },
+      mapUpcomingSession: row => row,
+    },
+  }, { Date: DashboardTestDate });
+  return { module, batches, avatars };
+}
+const goodRefresh = count => ({ patients: { count, error: null }, schedule: { data: fixtures, error: null } });
+{
+  const harness = await productionRefreshHarness(), coordinator = createDashboardRefreshCoordinator();
+  const scope = coordinator.activate(harness.module.loadDashboardStats);
+  const work = scope.request(); await flush();
+  concurrencyCheck(harness.batches.length === 1 && !harness.module.observed.statsResolved && !harness.module.observed.sessionsResolved, "initial load retains unresolved presentation");
+  for (let index = 0; index < 5; index++) scope.request();
+  harness.batches[0].resolve(goodRefresh(17)); await flush();
+  concurrencyCheck(harness.batches.length === 1 && harness.avatars.length === 1, "lock covers the avatar stage of the full loader");
+  concurrencyCheck(harness.module.observed.statsResolved && !harness.module.observed.sessionsResolved, "existing metrics-before-avatar loading behavior retained");
+  harness.avatars[0].resolve(new Map()); await flush();
+  const currentStats = harness.module.observed.stats, currentSessions = harness.module.observed.sessions, currentSnapshot = harness.module.observed.snapshot;
+  concurrencyCheck(harness.batches.length === 2 && Boolean(currentSnapshot), "trailing work starts only after sessions and snapshot commit");
+  concurrencyCheck(harness.module.observed.statsResolved && harness.module.observed.sessionsResolved, "background trailing refresh keeps resolved content");
+  scope.request();
+  harness.batches[1].resolve({ patients: { error: { message: "Synthetic count error" } }, schedule: { error: { message: "Synthetic schedule error" } } });
+  await flush();
+  concurrencyCheck(harness.batches.length === 3 && harness.module.observed.failed, "friendly loader failure still permits requested trailing work");
+  concurrencyCheck(harness.module.observed.stats === currentStats && harness.module.observed.sessions === currentSessions && harness.module.observed.snapshot === currentSnapshot, "failure preserves current/cached content");
+  concurrencyCheck(harness.module.observed.message === "Unable to refresh the dashboard. Please try again later.", "existing friendly error message preserved");
+  harness.batches[2].resolve(goodRefresh(23)); await flush(); harness.avatars[1].resolve(new Map()); await work;
+  const expected = priorDashboardResults(fixtures, new Date(refreshTime), 23);
+  concurrencyCheck(JSON.stringify(harness.module.observed.stats) === JSON.stringify(expected.stats), "queued successful refresh preserves exact metrics");
+  concurrencyCheck(JSON.stringify(harness.module.observed.sessions) === JSON.stringify(expected.upcomingRows), "queued successful refresh preserves upcoming order");
+  concurrencyCheck(!harness.module.observed.failed && harness.batches.length === 3, "successful trailing recovery stops without automatic retries");
+  scope.stop();
+}
+for (const stage of ["primary queries", "avatar lookup"]) {
+  const harness = await productionRefreshHarness(), coordinator = createDashboardRefreshCoordinator();
+  const scope = coordinator.activate(harness.module.loadDashboardStats);
+  const work = scope.request(); await flush(); scope.request();
+  if (stage === "avatar lookup") { harness.batches[0].resolve(goodRefresh(17)); await flush(); }
+  scope.stop(); harness.module.invalidateDoctor("");
+  if (stage === "avatar lookup") harness.avatars[0].resolve(new Map());
+  else harness.batches[0].resolve(goodRefresh(17));
+  await work; await flush();
+  concurrencyCheck(harness.batches.length === 1 && !harness.module.observed.sessionsResolved && !harness.module.observed.snapshot, stage + ": session loss prevents stale session/snapshot commits and trailing work");
+  if (stage === "primary queries") concurrencyCheck(!harness.module.observed.statsResolved && harness.avatars.length === 0, "session loss also prevents stale metrics and avatar work");
+}
+{
+  const harness = await productionRefreshHarness(), coordinator = createDashboardRefreshCoordinator();
+  const oldScope = coordinator.activate(harness.module.loadDashboardStats);
+  const work = oldScope.request(); await flush(); oldScope.request(); oldScope.stop();
+  harness.module.invalidateDoctor("doctor-b");
+  const newScope = coordinator.activate(harness.module.loadDashboardStats); newScope.request();
+  harness.batches[0].resolve(goodRefresh(99)); await flush();
+  concurrencyCheck(harness.batches.length === 2 && !harness.module.observed.statsResolved && harness.avatars.length === 0, "Doctor change discards old response before metrics/avatar processing");
+  harness.batches[1].resolve(goodRefresh(23)); await flush(); harness.avatars[0].resolve(new Map()); await work;
+  concurrencyCheck(harness.module.observed.stats.totalPatients === 23 && harness.batches.length === 2, "only the new Doctor response populates the Dashboard");
+  newScope.stop();
+}
+
 
 const homeRuntime=hookRuntime();
 const interactiveHome=await load(homeSource,"DashboardHome.jsx",{react:homeRuntime.react,"react/jsx-runtime":{jsx,jsxs:jsx,Fragment:"fragment"},icon:{Icon:()=>null},avatar:avatar,menu:{default:()=>null}});
@@ -359,4 +598,4 @@ check(destination.page==="patients" && destination.options.path==="/doctor/patie
 const changed=spawnSync("git",["diff","--name-only"],{cwd:new URL("../",import.meta.url),encoding:"utf8",windowsHide:true});
 check(changed.status===0 && !/AppointmentVisitForm|StaffPreConsultationForm|src\/pages\/staff/.test(changed.stdout),"shared visit forms and Staff pages remain untouched");
 
-console.log("Doctor Dashboard Batch 2 and classification regression: "+checks+" assertions passed.");
+console.log("Doctor Dashboard regression: "+checks+" assertions passed, including "+concurrencyChecks+" deterministic concurrency assertions.");

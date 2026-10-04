@@ -52,6 +52,54 @@ const defaultDoctorDashboardProfile = {
 
 const doctorDashboardSnapshots = createDoctorSessionCache();
 
+function createDashboardRefreshCoordinator() {
+  let activeScope = null;
+  let inFlight = null;
+  let pending = false;
+
+  function request(scope) {
+    if (activeScope !== scope) return undefined;
+    pending = true;
+    if (!inFlight) {
+      // Install the lock before invoking the loader, including synchronous triggers.
+      inFlight = Promise.resolve().then(async () => {
+        try {
+          while (activeScope && pending) {
+            pending = false;
+            const currentScope = activeScope;
+            try {
+              await currentScope.load();
+            } catch (error) {
+              // The loader owns error presentation. A rejection must not drop queued work.
+              if (import.meta.env.DEV) console.warn("Doctor dashboard refresh rejected:", error);
+            }
+          }
+        } finally {
+          inFlight = null;
+        }
+      });
+    }
+    return inFlight;
+  }
+
+  return {
+    activate(load) {
+      const scope = { load };
+      activeScope = scope;
+      pending = false;
+      return {
+        request: () => request(scope),
+        stop() {
+          if (activeScope === scope) {
+            activeScope = null;
+            pending = false;
+          }
+        },
+      };
+    },
+  };
+}
+
 const navItems = [
   {
     key: "dashboard",
@@ -651,6 +699,7 @@ function Doctor_Dashboard() {
   );
   const [doctorPatientHeaderAction, setDoctorPatientHeaderAction] = useState(null);
   const dashboardStatsRequestRef = useRef(0);
+  const dashboardRefreshCoordinatorRef = useRef(null);
   const navigate = useNavigate();
   const authenticatedDoctorId =
     doctorIdentity.authUser?.id || doctorIdentity.profile?.id || "";
@@ -814,7 +863,11 @@ function Doctor_Dashboard() {
       return undefined;
     }
 
-    const refresh = () => loadDashboardStats();
+    if (!dashboardRefreshCoordinatorRef.current) {
+      dashboardRefreshCoordinatorRef.current = createDashboardRefreshCoordinator();
+    }
+    const refreshScope = dashboardRefreshCoordinatorRef.current.activate(loadDashboardStats);
+    const refresh = refreshScope.request;
     const handleWindowFocus = () => refresh();
     const initialLoadTimer = window.setTimeout(refresh, 0);
     const refreshTimer = window.setInterval(refresh, 60_000);
@@ -825,7 +878,7 @@ function Doctor_Dashboard() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "patients" },
-        loadDashboardStats
+        refresh
       )
       .on(
         "postgres_changes",
@@ -835,11 +888,12 @@ function Doctor_Dashboard() {
           table: "schedule",
           filter: `doctor_id=eq.${authenticatedDoctorId}`,
         },
-        loadDashboardStats
+        refresh
       )
       .subscribe();
 
     return () => {
+      refreshScope.stop();
       dashboardStatsRequestRef.current += 1;
       window.clearTimeout(initialLoadTimer);
       window.clearInterval(refreshTimer);
