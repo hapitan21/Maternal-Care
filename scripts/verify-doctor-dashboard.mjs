@@ -12,6 +12,8 @@ import {
   appointmentStatuses,
   classifyAppointment,
   compareUpcomingAppointments,
+  formatAppointmentDate,
+  formatAppointmentTime,
   normalizeAppointmentStatus,
 } from "../src/lib/appointmentDate.js";
 if (!vm.SourceTextModule) {
@@ -200,7 +202,7 @@ check(!events.has("pointerdown"),"closed menu removes global listeners");
 // Exercise the production loader itself, including returned errors and rejected requests.
 const loaderBody=source.slice(source.indexOf("  const loadDashboardStats = useCallback(async () => {"),source.indexOf("  }, [authenticatedDoctorId]);")+"  }, [authenticatedDoctorId]);".length).replace("  const loadDashboardStats = useCallback(async () => {","export async function loadDashboardStats() {").replace("  }, [authenticatedDoctorId]);","}");
 const loaderSource='import {supabase} from "db"; import {classifyAppointment,compareUpcomingAppointments,normalizeAppointmentStatus,appointmentStatuses,fetchDashboardPatientAvatarMap,mapUpcomingSession} from "dependencies";\n'
- + 'const authenticatedDoctorId="synthetic"; const dashboardStatsRequestRef={current:0}; export const observed={}; const doctorDashboardSnapshots={set:(id,value)=>observed.snapshot=value}; const setDashboardStats=value=>observed.stats=value; const setDashboardStatsResolved=value=>observed.statsResolved=value; const setDashboardFailed=value=>observed.failed=value; const setDashboardMessage=value=>observed.message=value; const setUpcomingSessions=value=>observed.sessions=value; const setSessionsResolved=value=>observed.sessionsResolved=value;\n'+loaderBody;
+ + 'const authenticatedDoctorId="synthetic"; const dashboardStatsRequestRef={current:0}; const dashboardSessionsRef={current:null}; export const observed={}; const snapshots=new Map(); const doctorDashboardSnapshots={get:id=>snapshots.get(id),set:(id,value)=>{snapshots.set(id,value);observed.snapshot=value;}}; const setDashboardStats=value=>observed.stats=value; const setDashboardStatsResolved=value=>observed.statsResolved=value; const setDashboardFailed=value=>observed.failed=value; const setDashboardMessage=value=>observed.message=value; const setUpcomingSessions=value=>{observed.sessions=typeof value==="function"?value(observed.sessions):value;observed.sessionUpdates=(observed.sessionUpdates||0)+1;}; const setSessionsResolved=value=>observed.sessionsResolved=value;\n'+loaderBody;
 let results={patients:{count:4,error:null},schedule:{data:[{id:"synthetic"}],error:null}};
 let reject=false;
 function query(which){const builder={}; for(const method of ["select","ilike","eq","order"]) builder[method]=()=>builder; builder.then=(resolve,rejectFn)=>reject?Promise.reject(new Error("INTERNAL RPC SECRET")).then(resolve,rejectFn):Promise.resolve(results[which]).then(resolve,rejectFn);return builder;}
@@ -542,7 +544,7 @@ const goodRefresh = count => ({ patients: { count, error: null }, schedule: { da
   for (let index = 0; index < 5; index++) scope.request();
   harness.batches[0].resolve(goodRefresh(17)); await flush();
   concurrencyCheck(harness.batches.length === 1 && harness.avatars.length === 1, "lock covers the avatar stage of the full loader");
-  concurrencyCheck(harness.module.observed.statsResolved && !harness.module.observed.sessionsResolved, "existing metrics-before-avatar loading behavior retained");
+  concurrencyCheck(harness.module.observed.statsResolved && harness.module.observed.sessionsResolved, "usable metrics and sessions precede avatar completion");
   harness.avatars[0].resolve(new Map()); await flush();
   const currentStats = harness.module.observed.stats, currentSessions = harness.module.observed.sessions, currentSnapshot = harness.module.observed.snapshot;
   concurrencyCheck(harness.batches.length === 2 && Boolean(currentSnapshot), "trailing work starts only after sessions and snapshot commit");
@@ -565,11 +567,12 @@ for (const stage of ["primary queries", "avatar lookup"]) {
   const scope = coordinator.activate(harness.module.loadDashboardStats);
   const work = scope.request(); await flush(); scope.request();
   if (stage === "avatar lookup") { harness.batches[0].resolve(goodRefresh(17)); await flush(); }
+  const visibleSessions = harness.module.observed.sessions;
   scope.stop(); harness.module.invalidateDoctor("");
   if (stage === "avatar lookup") harness.avatars[0].resolve(new Map());
   else harness.batches[0].resolve(goodRefresh(17));
   await work; await flush();
-  concurrencyCheck(harness.batches.length === 1 && !harness.module.observed.sessionsResolved && !harness.module.observed.snapshot, stage + ": session loss prevents stale session/snapshot commits and trailing work");
+  concurrencyCheck(harness.batches.length === 1 && harness.module.observed.sessions === visibleSessions && !harness.module.observed.snapshot, stage + ": session loss prevents late session/snapshot commits and trailing work");
   if (stage === "primary queries") concurrencyCheck(!harness.module.observed.statsResolved && harness.avatars.length === 0, "session loss also prevents stale metrics and avatar work");
 }
 {
@@ -586,6 +589,367 @@ for (const stage of ["primary queries", "avatar lookup"]) {
 }
 
 
+// Independently resolve each primary request and exercise the real session mapper.
+let progressiveChecks = 0;
+const progressiveCheck = (ok, message) => { check(ok, message); progressiveChecks++; };
+const sessionMapperSource = 'import {formatAppointmentDate,formatAppointmentTime} from "dates";\n'
+  + source.slice(source.indexOf("function getInitials("), source.indexOf("async function fetchDashboardPatientAvatarMap("))
+  + source.slice(source.indexOf("function mapUpcomingSession("), source.indexOf("function ProfileDropdown("))
+    .replace("function mapUpcomingSession(", "export function mapUpcomingSession(");
+const sessionMapper = await load(sessionMapperSource, "session-mapper.js", { dates: { formatAppointmentDate, formatAppointmentTime } });
+const progressiveRows = fixtures.map((row, index) => ({
+  ...row, patient_id: "patient-" + index, patient_name: "Maria Patient " + index,
+  maternal_appointment_id: index % 3 ? "MA " + index : null,
+}));
+async function progressiveHarness() {
+  const batches = [], avatars = [];
+  function builder(work) {
+    const query = { then: (yes, no) => { work.started = true; return work.promise.then(yes, no); } };
+    for (const method of ["select", "ilike", "eq", "order"]) query[method] = () => query;
+    return query;
+  }
+  const harnessSource = loaderSource.replace('const authenticatedDoctorId="synthetic"', 'let authenticatedDoctorId="synthetic"')
+    .replace('const setDashboardStats=value=>observed.stats=value;', 'const setDashboardStats=value=>{ observed.stats=value; observed.metricUpdates=(observed.metricUpdates||0)+1; };')
+    + '\nexport function invalidateDoctor(id) { authenticatedDoctorId=id; dashboardStatsRequestRef.current++; }'
+    + '\nexport function seedSnapshot(id, snapshot) { doctorDashboardSnapshots.set(id, snapshot); }'
+    + '\nexport function clearSnapshots() { snapshots.clear(); delete observed.snapshot; }'
+    + '\nexport function remountDashboard() { dashboardStatsRequestRef.current++; dashboardSessionsRef.current=null; delete observed.sessions; delete observed.sessionsResolved; delete observed.statsResolved; }';
+  const module = await load(harnessSource, "progressive-loader.js", {
+    db: { supabase: {
+      rpc: () => { const batch = { patients: deferred(), schedule: deferred() }; batches.push(batch); return builder(batch.patients); },
+      from: () => builder(batches.at(-1).schedule),
+    } },
+    dependencies: {
+      appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments, classifyAppointment,
+      mapUpcomingSession: sessionMapper.mapUpcomingSession,
+      fetchDashboardPatientAvatarMap: async rows => { const work = deferred(); avatars.push({ ...work, rows }); return work.promise; },
+    },
+  }, { Date: DashboardTestDate });
+  return { module, batches, avatars };
+}
+const avatarMapFor = (rows, prefix = "avatar") => new Map(rows.map(row => [row.patient_id, "https://example.test/" + prefix + "/" + row.patient_id + ".webp"]));
+const scheduleSuccess = (rows = progressiveRows) => ({ data: rows, error: null });
+{
+  const harness = await progressiveHarness(), coordinator = createDashboardRefreshCoordinator();
+  const scope = coordinator.activate(harness.module.loadDashboardStats);
+  const work = scope.request(); await flush();
+  progressiveCheck(harness.batches.length === 1 && harness.batches[0].patients.started && harness.batches[0].schedule.started, "patient count and schedule start in parallel");
+  progressiveCheck(!harness.module.observed.sessionsResolved, "initial session loading is retained before schedule completion");
+  harness.batches[0].schedule.resolve(scheduleSuccess()); await flush();
+  const initial = harness.module.observed.sessions;
+  progressiveCheck(harness.module.observed.sessionsResolved && initial.length === 4, "schedule publishes four usable rows before count or avatars finish");
+  progressiveCheck(!harness.module.observed.statsResolved && !harness.module.observed.snapshot, "pending patient count retains existing metric loading and snapshot semantics");
+  progressiveCheck(initial.every(row => row.id && row.patientId && row.appointmentId && row.patient && row.date && row.time), "initial rows include all cells and navigation targets");
+  progressiveCheck(initial.every(row => row.initials === "MP" && row.avatarUrl === ""), "initial rows use the real initials/avatar fallback");
+  progressiveCheck(harness.avatars.length === 1, "only one batched avatar lookup starts after schedule processing");
+  const interactiveRuntime = hookRuntime();
+  const menuStub = () => null;
+  const interactive = await load(homeSource, "progressive-home.jsx", {
+    react: interactiveRuntime.react, "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
+    icon: { Icon: () => null }, avatar, menu: { default: menuStub },
+  });
+  let visible = initial, target;
+  const renderProgressiveHome = () => interactive.default({ ...base, sessionsState: "data", upcomingSessions: visible, setActivePage: (page, options) => { target = { page, options }; } });
+  interactiveRuntime.mount(renderProgressiveHome);
+  nodes(interactiveRuntime.current(), node => node.type === menuStub)[0].props.onToggle();
+  progressiveCheck(nodes(interactiveRuntime.current(), node => node.type === menuStub)[0].props.open, "initial rows already have a usable action menu");
+  harness.avatars[0].resolve(avatarMapFor(harness.avatars[0].rows)); await flush();
+  const enriched = harness.module.observed.sessions;
+  progressiveCheck(enriched.every(row => row.avatarUrl.startsWith("https://example.test/avatar/")), "avatars enrich while patient count is still pending");
+  progressiveCheck(enriched.map(row => row.id).join() === initial.map(row => row.id).join(), "avatar enrichment retains row order and IDs");
+  for (const field of ["appointmentId", "patientId", "patient", "date", "time", "initials", "avatarClass"]) {
+    progressiveCheck(enriched.every((row, index) => row[field] === initial[index][field]), "avatar enrichment preserves " + field);
+  }
+  progressiveCheck(enriched.every((row, index) => JSON.stringify({ ...row, avatarUrl: "" }) === JSON.stringify(initial[index])), "only avatarUrl changes during enrichment");
+  progressiveCheck(!harness.module.observed.metricUpdates && !harness.module.observed.statsResolved, "avatar enrichment does not rebuild metrics or bypass pending patient count");
+  progressiveCheck(harness.module.observed.sessionsResolved && harness.batches.length === 1, "enrichment never resets table loading or repeats primary queries");
+  visible = enriched; interactiveRuntime.mount(renderProgressiveHome);
+  progressiveCheck(nodes(interactiveRuntime.current(), node => node.type === menuStub)[0].props.open, "avatar enrichment keeps the open menu state");
+  const actionButtons = nodes(interactiveRuntime.current(), node => node.props.role === "menuitem");
+  for (const [index, row] of enriched.entries()) {
+    actionButtons[index * 2].props.onClick();
+    const appointmentTarget = row.appointmentId === "MA ID not assigned" ? row.id : row.appointmentId;
+    progressiveCheck(target.page === "appointments" && target.options.path === "/doctor/appointments?appointmentId=" + encodeURIComponent(appointmentTarget), "enriched View Appointment target preserved");
+    actionButtons[index * 2 + 1].props.onClick();
+    progressiveCheck(target.page === "patients" && target.options.path === "/doctor/patients/" + row.patientId, "enriched View Patient target preserved");
+  }
+  harness.batches[0].patients.resolve({ count: 17, error: null }); await work;
+  const expected = priorDashboardResults(progressiveRows, new Date(refreshTime), 17);
+  progressiveCheck(JSON.stringify(harness.module.observed.stats) === JSON.stringify(expected.stats), "all Dashboard metric definitions match prior calculations");
+  progressiveCheck(harness.module.observed.metricUpdates === 1 && !harness.module.observed.failed, "metrics commit once when both primary results succeed");
+  progressiveCheck(harness.module.observed.snapshot.upcomingSessions === enriched, "successful snapshot contains enriched visible sessions");
+  progressiveCheck(harness.batches.length === 1 && harness.avatars.length === 1, "progressive rendering adds no extra requests");
+  scope.stop();
+}
+for (const failure of ["returned RPC error", "rejected avatar promise"]) {
+  const harness = await progressiveHarness(); const work = harness.module.loadDashboardStats(); await flush();
+  harness.batches[0].schedule.resolve(scheduleSuccess()); harness.batches[0].patients.resolve({ count: 17, error: null }); await flush();
+  const initial = harness.module.observed.sessions;
+  if (failure === "returned RPC error") harness.avatars[0].resolve(null);
+  else harness.avatars[0].reject(new Error("Synthetic avatar failure"));
+  await work;
+  progressiveCheck(harness.module.observed.sessions === initial && initial.every(row => !row.avatarUrl && row.initials), failure + ": usable initials rows remain visible");
+  progressiveCheck(!harness.module.observed.failed && harness.module.observed.message === "", failure + ": avatars never make the Dashboard unavailable");
+  progressiveCheck(harness.module.observed.snapshot.upcomingSessions === initial, failure + ": valid fallback sessions are snapshotted");
+}
+{
+  const harness = await progressiveHarness(); const work = harness.module.loadDashboardStats(); await flush();
+  harness.batches[0].schedule.resolve(scheduleSuccess([])); await flush();
+  progressiveCheck(harness.module.observed.sessionsResolved && harness.module.observed.sessions.length === 0, "successful empty state appears before count completion");
+  progressiveCheck(harness.avatars.length === 0, "empty sessions issue no avatar lookup");
+  harness.batches[0].patients.resolve({ count: 17, error: null }); await work;
+  progressiveCheck(harness.module.observed.stats.todaysAppointments === 0 && harness.module.observed.stats.completedSessions === 0, "empty schedule preserves zero appointment metrics");
+}
+for (const failure of ["returned count error", "rejected count promise"]) {
+  const harness = await progressiveHarness(); const work = harness.module.loadDashboardStats(); await flush();
+  harness.batches[0].schedule.resolve(scheduleSuccess()); await flush();
+  const initial = harness.module.observed.sessions;
+  harness.avatars[0].resolve(null);
+  if (failure === "returned count error") harness.batches[0].patients.resolve({ error: { message: "Synthetic count failure" } });
+  else harness.batches[0].patients.reject(new Error("Synthetic count failure"));
+  await work;
+  progressiveCheck(harness.module.observed.sessions === initial && harness.module.observed.sessionsResolved, failure + ": valid schedule rows survive patient failure");
+  progressiveCheck(harness.module.observed.failed && !harness.module.observed.statsResolved && !harness.module.observed.snapshot, failure + ": existing metric error and full-snapshot rules retained");
+  progressiveCheck(harness.module.observed.message === "Unable to refresh the dashboard. Please try again later.", failure + ": existing friendly error retained");
+  progressiveCheck(dashboardSectionState({ hasData: true, failed: true, count: initial.length }) === "data", failure + ": valid sessions are independently presentable");
+}
+{
+  const harness = await progressiveHarness(), coordinator = createDashboardRefreshCoordinator();
+  const scope = coordinator.activate(harness.module.loadDashboardStats);
+  const first = scope.request(); await flush();
+  harness.batches[0].schedule.resolve(scheduleSuccess()); harness.batches[0].patients.resolve({ count: 17, error: null }); await flush();
+  harness.avatars[0].resolve(avatarMapFor(harness.avatars[0].rows)); await first;
+  const previous = { ...harness.module.observed };
+  const second = scope.request(); await flush();
+  progressiveCheck(harness.module.observed.sessions === previous.sessions && harness.module.observed.sessionsResolved, "background refresh keeps valid rows while schedule is pending");
+  harness.batches[1].schedule.reject(new Error("Synthetic schedule failure")); harness.batches[1].patients.resolve({ count: 23, error: null }); await second;
+  progressiveCheck(harness.module.observed.sessions === previous.sessions && harness.module.observed.stats === previous.stats && harness.module.observed.snapshot === previous.snapshot, "failed schedule preserves current and cached content");
+  progressiveCheck(harness.module.observed.failed && harness.avatars.length === 1, "failed schedule keeps friendly error behavior without another avatar request");
+  scope.stop();
+}
+{
+  // Artificially advance the request generation to exercise stale-avatar defenses independently of serialization.
+  const harness = await progressiveHarness(); const first = harness.module.loadDashboardStats(); await flush();
+  harness.batches[0].schedule.resolve(scheduleSuccess()); harness.batches[0].patients.resolve({ count: 17, error: null }); await flush();
+  const second = harness.module.loadDashboardStats(); await flush();
+  const newerRows = progressiveRows.map(row => ({ ...row, id: "new-" + row.id, patient_id: "new-" + row.patient_id }));
+  harness.batches[1].schedule.resolve(scheduleSuccess(newerRows)); harness.batches[1].patients.resolve({ count: 23, error: null }); await flush();
+  harness.avatars[1].resolve(avatarMapFor(harness.avatars[1].rows, "new")); await second;
+  const newerSessions = harness.module.observed.sessions, newerSnapshot = harness.module.observed.snapshot;
+  harness.avatars[0].resolve(avatarMapFor(harness.avatars[0].rows, "old")); await first;
+  progressiveCheck(harness.module.observed.sessions === newerSessions && newerSessions.every(row => row.id.startsWith("new-")), "late old avatars cannot replace newer session rows");
+  progressiveCheck(harness.module.observed.snapshot === newerSnapshot && harness.module.observed.stats.totalPatients === 23, "late old avatars cannot overwrite newer snapshot or metrics");
+}
+for (const reason of ["Doctor change", "session loss", "section leave", "unmount"]) {
+  const harness = await progressiveHarness(), coordinator = createDashboardRefreshCoordinator();
+  const scope = coordinator.activate(harness.module.loadDashboardStats);
+  const work = scope.request(); await flush(); scope.request();
+  harness.batches[0].schedule.resolve(scheduleSuccess()); await flush();
+  const initial = harness.module.observed.sessions;
+  scope.stop(); harness.module.invalidateDoctor(reason === "Doctor change" ? "doctor-b" : "");
+  harness.avatars[0].resolve(avatarMapFor(harness.avatars[0].rows, "stale"));
+  harness.batches[0].patients.resolve({ count: 99, error: null }); await work;
+  progressiveCheck(harness.module.observed.sessions === initial && initial.every(row => !row.avatarUrl), reason + ": stale avatar enrichment is rejected");
+  progressiveCheck(!harness.module.observed.snapshot && !harness.module.observed.statsResolved && harness.batches.length === 1, reason + ": old metrics/snapshot and queued refresh cannot revive");
+}
+{
+  const harness = await progressiveHarness(), coordinator = createDashboardRefreshCoordinator();
+  const scope = coordinator.activate(harness.module.loadDashboardStats);
+  const work = scope.request(); await flush();
+  for (let index = 0; index < 5; index++) scope.request();
+  harness.batches[0].patients.reject(new Error("Synthetic early count rejection")); await flush();
+  progressiveCheck(harness.batches.length === 1, "early count failure does not unlock while schedule is outstanding");
+  harness.batches[0].schedule.resolve(scheduleSuccess()); await flush();
+  progressiveCheck(harness.batches.length === 1 && harness.module.observed.sessionsResolved, "progressive rows do not unlock the full refresh before avatars settle");
+  harness.avatars[0].resolve(null); await flush();
+  progressiveCheck(harness.batches.length === 2, "five queued triggers still produce exactly one trailing full refresh");
+  harness.batches[1].schedule.resolve(scheduleSuccess()); await flush(); scope.request();
+  harness.batches[1].patients.resolve({ count: 23, error: null }); harness.avatars[1].resolve(null); await flush();
+  progressiveCheck(harness.batches.length === 3, "trigger during progressive trailing work queues one further refresh");
+  harness.batches[2].schedule.resolve(scheduleSuccess([])); harness.batches[2].patients.resolve({ count: 23, error: null }); await work;
+  progressiveCheck(harness.batches.length === 3 && harness.avatars.length === 2, "full refresh drains without retries or unnecessary empty-avatar lookup");
+  scope.stop();
+}
+
+// Keep known patient photos through progressive refreshes, using real mapped rows.
+let avatarContinuityChecks = 0;
+const avatarContinuityCheck = (ok, message) => { check(ok, message); avatarContinuityChecks++; };
+const continuityRows = Array.from({ length: 4 }, (_, index) => ({
+  ...appointment("session-" + index, "scheduled", "2026-10-04T" + (13 + index) + ":00:00+08:00"),
+  patient_id: "known-patient-" + index, patient_name: "Patient " + index,
+  maternal_appointment_id: "MA-" + index,
+}));
+async function startContinuityRefresh(harness, rows = continuityRows) {
+  const batchIndex = harness.batches.length, avatarIndex = harness.avatars.length;
+  const work = harness.module.loadDashboardStats(); await flush();
+  const batch = harness.batches[batchIndex];
+  batch.schedule.resolve(scheduleSuccess(rows)); await flush();
+  return { work, batch, avatar: harness.avatars[avatarIndex], sessions: harness.module.observed.sessions };
+}
+async function finishContinuityRefresh(refresh, avatarResult, patientResult = { count: 17, error: null }) {
+  refresh.avatar?.resolve(avatarResult);
+  refresh.batch.patients.resolve(patientResult);
+  await refresh.work;
+}
+async function primeKnownAvatars(harness) {
+  const refresh = await startContinuityRefresh(harness);
+  await finishContinuityRefresh(refresh, avatarMapFor(continuityRows));
+  return harness.module.observed.sessions;
+}
+const withoutAvatar = rows => JSON.stringify(rows.map(row => ({ ...row, avatarUrl: "" })));
+{
+  const harness = await progressiveHarness();
+  const first = await startContinuityRefresh(harness);
+  avatarContinuityCheck(first.sessions.length === 4 && first.sessions.every(row => !row.avatarUrl && row.initials), "true first load publishes initials before avatars/count settle");
+  avatarContinuityCheck(!harness.module.observed.statsResolved && Boolean(first.avatar), "first-load sessions do not wait on patient count or avatar RPC");
+  await finishContinuityRefresh(first, avatarMapFor(continuityRows));
+  const known = harness.module.observed.sessions;
+  avatarContinuityCheck(known.every(row => row.avatarUrl === avatarMapFor(continuityRows).get(row.patientId)), "first-load RPC enriches each patient correctly");
+
+  // Change every display/navigation field and reorder sessions. Only the photo is retained.
+  const freshRows = continuityRows.map((row, index) => ({
+    ...row, maternal_appointment_id: "NEW-MA-" + index, patient_name: "Renamed Person " + index,
+    start_time: "2026-10-05T" + (16 - index) + ":30:00+08:00",
+    end_time: "2026-10-05T" + (16 - index) + ":45:00+08:00", status: "accepted",
+  })).reverse();
+  const background = await startContinuityRefresh(harness, freshRows);
+  const expectedRows = priorDashboardResults(freshRows, new Date(refreshTime), 17).upcomingRows;
+  avatarContinuityCheck(background.sessions.every(row => row.avatarUrl === avatarMapFor(continuityRows).get(row.patientId)), "background schedule publication keeps all known photos while RPC is pending");
+  avatarContinuityCheck(withoutAvatar(background.sessions) === withoutAvatar(expectedRows.map(row => sessionMapper.mapUpcomingSession(row))), "all non-avatar fields come from fresh schedule rows");
+  avatarContinuityCheck(background.sessions.map(row => row.id).join() === expectedRows.map(row => row.id).join(), "reordering preserves fresh ordering and correct patient/photo association");
+  avatarContinuityCheck(background.sessions.every(row => row.appointmentId.startsWith("NEW-MA-") && row.patient.startsWith("Renamed Person")), "fresh appointment/name navigation fields are retained with old photos");
+  const updates = harness.module.observed.sessionUpdates;
+  const refreshedMap = avatarMapFor(freshRows, "updated");
+  await finishContinuityRefresh(background, refreshedMap);
+  const changed = harness.module.observed.sessions;
+  avatarContinuityCheck(changed.every(row => row.avatarUrl === refreshedMap.get(row.patientId)), "changed RPC URLs replace preserved photos");
+  avatarContinuityCheck(withoutAvatar(changed) === withoutAvatar(background.sessions), "changed avatars affect no schedule fields");
+  avatarContinuityCheck(harness.module.observed.sessionUpdates === updates + 1, "changed avatar result publishes exactly one enrichment");
+  avatarContinuityCheck(harness.module.observed.snapshot.upcomingSessions === changed, "snapshot records refreshed authoritative photos");
+
+  const same = await startContinuityRefresh(harness, freshRows);
+  avatarContinuityCheck(same.sessions.every(row => row.avatarUrl === refreshedMap.get(row.patientId)), "next refresh uses current authoritative URLs");
+  const unchangedUpdates = harness.module.observed.sessionUpdates;
+  await finishContinuityRefresh(same, refreshedMap);
+  avatarContinuityCheck(harness.module.observed.sessions === same.sessions && harness.module.observed.sessionUpdates === unchangedUpdates, "identical RPC URLs do not republish rows");
+
+  // A DashboardHome remount on section navigation still receives the shell's current rows.
+  harness.module.invalidateDoctor("synthetic");
+  const returning = await startContinuityRefresh(harness, freshRows);
+  avatarContinuityCheck(returning.sessions.every(row => row.avatarUrl === refreshedMap.get(row.patientId)), "section leave/reentry retains shell photos during progressive publication");
+  await finishContinuityRefresh(returning, null);
+
+  harness.module.remountDashboard();
+  const restored = await startContinuityRefresh(harness, freshRows);
+  avatarContinuityCheck(restored.sessions.every(row => row.avatarUrl === refreshedMap.get(row.patientId)), "fresh shell restores known photos from doctor-keyed snapshot before RPC");
+  avatarContinuityCheck(!harness.module.observed.statsResolved, "snapshot-backed photo continuity does not bypass pending metrics");
+  await finishContinuityRefresh(restored, refreshedMap);
+}
+for (const failure of ["returned RPC error", "rejected avatar promise"]) {
+  const harness = await progressiveHarness(); const known = await primeKnownAvatars(harness);
+  const refresh = await startContinuityRefresh(harness);
+  avatarContinuityCheck(withoutAvatar(refresh.sessions) === withoutAvatar(known) && refresh.sessions.every((row, index) => row.avatarUrl === known[index].avatarUrl), failure + ": known photos are present before RPC settles");
+  if (failure === "returned RPC error") refresh.avatar.resolve(null);
+  else refresh.avatar.reject(new Error("Synthetic continuity avatar failure"));
+  refresh.batch.patients.resolve({ count: 17, error: null }); await refresh.work;
+  avatarContinuityCheck(harness.module.observed.sessions === refresh.sessions && refresh.sessions.every((row, index) => row.avatarUrl === known[index].avatarUrl), failure + ": known photos survive avatar failure");
+  avatarContinuityCheck(!harness.module.observed.failed && harness.module.observed.snapshot.upcomingSessions === refresh.sessions, failure + ": avatar failure remains non-fatal and snapshots visible rows");
+}
+{
+  const harness = await progressiveHarness(); await primeKnownAvatars(harness);
+  const refresh = await startContinuityRefresh(harness);
+  const removedPatient = continuityRows[0].patient_id;
+  const authoritativeMap = avatarMapFor(continuityRows);
+  authoritativeMap.set(removedPatient, "");
+  await finishContinuityRefresh(refresh, authoritativeMap, { error: { message: "Synthetic count failure" } });
+  const removed = harness.module.observed.sessions;
+  avatarContinuityCheck(removed.find(row => row.patientId === removedPatient).avatarUrl === "", "explicit authoritative no-avatar clears preserved photo even if patient count fails");
+  avatarContinuityCheck(removed.filter(row => row.patientId !== removedPatient).every(row => row.avatarUrl), "avatar removal does not clear other patients' photos");
+  avatarContinuityCheck(harness.module.observed.snapshot.upcomingSessions.find(row => row.patientId === removedPatient).avatarUrl, "failed primary query preserves the old full snapshot");
+  const retry = await startContinuityRefresh(harness);
+  avatarContinuityCheck(retry.sessions.find(row => row.patientId === removedPatient).avatarUrl === "", "current no-avatar result takes precedence over older snapshot photo");
+  await finishContinuityRefresh(retry, new Map());
+  avatarContinuityCheck(harness.module.observed.sessions.every(row => !row.avatarUrl && row.initials), "successful empty avatar map authoritatively clears all old URLs");
+  const afterRemoval = await startContinuityRefresh(harness);
+  avatarContinuityCheck(afterRemoval.sessions.every(row => !row.avatarUrl), "later refresh cannot resurrect removed avatars");
+  await finishContinuityRefresh(afterRemoval, null);
+}
+{
+  const harness = await progressiveHarness(); const known = await primeKnownAvatars(harness);
+  const freshRows = [
+    // Identical session ID and display name, different patient: never inherit old photo.
+    { ...continuityRows[0], patient_id: "different-patient" },
+    // Same patient in a new appointment: avatar belongs to that patient, not the old row.
+    { ...continuityRows[1], id: "new-session-same-patient", maternal_appointment_id: "NEW-MA" },
+    { ...continuityRows[1], id: "second-session-same-patient", start_time: "2026-10-04T17:00:00+08:00" },
+    { ...continuityRows[2], id: "missing-patient", patient_id: null, start_time: "2026-10-04T18:00:00+08:00" },
+  ];
+  const refresh = await startContinuityRefresh(harness, freshRows);
+  avatarContinuityCheck(refresh.sessions.find(row => row.id === continuityRows[0].id).avatarUrl === "", "matching session/name never reuses a different patient's photo");
+  avatarContinuityCheck(refresh.sessions.find(row => row.id === "missing-patient").avatarUrl === "", "missing patient ID never inherits a named patient's photo");
+  const repeated = refresh.sessions.filter(row => row.patientId === continuityRows[1].patient_id);
+  avatarContinuityCheck(repeated.length === 2 && repeated.every(row => row.avatarUrl === known[1].avatarUrl), "same patient in multiple/new appointments receives the correct known photo");
+  avatarContinuityCheck(refresh.sessions.every(row => freshRows.some(fresh => fresh.id === row.id)) && !refresh.sessions.some(row => row.id === continuityRows[3].id), "removed sessions do not survive avatar preservation");
+  avatarContinuityCheck(refresh.avatar.rows.length === 4 && harness.batches.length === 2 && harness.avatars.length === 2, "avatar preservation adds no database requests and retains batched lookup");
+  await finishContinuityRefresh(refresh, avatarMapFor(freshRows, "fresh"));
+  avatarContinuityCheck(harness.module.observed.sessions.filter(row => row.patientId === continuityRows[1].patient_id).every(row => row.avatarUrl.includes("/fresh/")), "one authoritative patient URL refreshes both appointments correctly");
+}
+{
+  const harness = await progressiveHarness(); await primeKnownAvatars(harness);
+  const old = await startContinuityRefresh(harness);
+  const newer = await startContinuityRefresh(harness);
+  await finishContinuityRefresh(newer, avatarMapFor(continuityRows, "newer"));
+  const current = harness.module.observed.sessions, snapshot = harness.module.observed.snapshot;
+  await finishContinuityRefresh(old, avatarMapFor(continuityRows, "stale"));
+  avatarContinuityCheck(harness.module.observed.sessions === current && harness.module.observed.snapshot === snapshot, "late avatar result cannot replace newer preserved rows or snapshot");
+  const followup = await startContinuityRefresh(harness);
+  avatarContinuityCheck(followup.sessions.every(row => row.avatarUrl.includes("/newer/")), "late old enrichment cannot poison the current-row ref for the next refresh");
+  await finishContinuityRefresh(followup, null);
+}
+{
+  const harness = await progressiveHarness(); await primeKnownAvatars(harness);
+  const old = await startContinuityRefresh(harness);
+  harness.module.invalidateDoctor("doctor-b");
+  const newDoctor = await startContinuityRefresh(harness);
+  avatarContinuityCheck(newDoctor.sessions.every(row => !row.avatarUrl), "other Doctor's current rows and snapshot never supply preserved photos");
+  await finishContinuityRefresh(newDoctor, avatarMapFor(continuityRows, "doctor-b"));
+  const current = harness.module.observed.sessions;
+  await finishContinuityRefresh(old, avatarMapFor(continuityRows, "doctor-a-stale"));
+  avatarContinuityCheck(harness.module.observed.sessions === current, "old Doctor's pending avatar result cannot modify new Doctor rows");
+  const followup = await startContinuityRefresh(harness);
+  avatarContinuityCheck(followup.sessions.every(row => row.avatarUrl.includes("/doctor-b/")), "new Doctor's own current photos are preserved safely");
+  await finishContinuityRefresh(followup, null);
+  harness.module.invalidateDoctor(""); harness.module.clearSnapshots(); harness.module.remountDashboard();
+  harness.module.invalidateDoctor("synthetic");
+  const newSession = await startContinuityRefresh(harness);
+  avatarContinuityCheck(newSession.sessions.every(row => !row.avatarUrl && row.initials), "session reset with cache clearing and shell remount cannot reuse old-session photos");
+  await finishContinuityRefresh(newSession, null);
+}
+{
+  const runtime = hookRuntime();
+  const avatarComponent = await load(avatarSource, "continuity-avatar.jsx", { react: runtime.react, "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" } });
+  const url = "https://example.test/known.webp";
+  runtime.mount(() => avatarComponent.default({ src: url, fallback: "PT" }));
+  const before = runtime.current();
+  runtime.mount(() => avatarComponent.default({ src: url, fallback: "RP" }));
+  const after = runtime.current();
+  avatarContinuityCheck(before.type === "img" && after.type === "img" && before.props.src === after.props.src && before.key === after.key, "unchanged URL keeps the image element type/key/src without an initials interval");
+  runtime.unmount();
+  const homeRuntime = hookRuntime();
+  const homeComponent = await load(homeSource, "continuity-home.jsx", { react: homeRuntime.react, "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" }, icon: { Icon: () => null }, avatar, menu: { default: () => null } });
+  let visible = continuityRows.map(row => sessionMapper.mapUpcomingSession(row, avatarMapFor(continuityRows)));
+  homeRuntime.mount(() => homeComponent.default({ ...base, sessionsState: "data", upcomingSessions: visible }));
+  const beforeRows = nodes(homeRuntime.current(), node => node.type === "tr" && node.key);
+  visible = visible.map(row => ({ ...row, patient: "Fresh name" }));
+  homeRuntime.mount(() => homeComponent.default({ ...base, sessionsState: "data", upcomingSessions: visible }));
+  const afterRows = nodes(homeRuntime.current(), node => node.type === "tr" && node.key);
+  avatarContinuityCheck(beforeRows.length === 4 && beforeRows.every((row, index) => row.key === visible[index].id && row.key === afterRows[index].key), "Dashboard rows retain stable schedule-ID keys across fresh row objects");
+  const beforeAvatars = beforeRows.flatMap(row => nodes(row, node => node.type === avatar.default));
+  const afterAvatars = afterRows.flatMap(row => nodes(row, node => node.type === avatar.default));
+  avatarContinuityCheck(beforeAvatars.length === 4 && beforeAvatars.every((node, index) => node.type === afterAvatars[index].type && node.key === afterAvatars[index].key && node.props.src === afterAvatars[index].props.src), "avatar component identity and source stay stable during photo-preserving refresh");
+  homeRuntime.unmount();
+}
+
 const homeRuntime=hookRuntime();
 const interactiveHome=await load(homeSource,"DashboardHome.jsx",{react:homeRuntime.react,"react/jsx-runtime":{jsx,jsxs:jsx,Fragment:"fragment"},icon:{Icon:()=>null},avatar:avatar,menu:{default:()=>null}});
 let destination=null;
@@ -598,4 +962,4 @@ check(destination.page==="patients" && destination.options.path==="/doctor/patie
 const changed=spawnSync("git",["diff","--name-only"],{cwd:new URL("../",import.meta.url),encoding:"utf8",windowsHide:true});
 check(changed.status===0 && !/AppointmentVisitForm|StaffPreConsultationForm|src\/pages\/staff/.test(changed.stdout),"shared visit forms and Staff pages remain untouched");
 
-console.log("Doctor Dashboard regression: "+checks+" assertions passed, including "+concurrencyChecks+" deterministic concurrency assertions.");
+console.log("Doctor Dashboard regression: "+checks+" assertions passed, including "+concurrencyChecks+" concurrency, "+progressiveChecks+" progressive-rendering and "+avatarContinuityChecks+" avatar-continuity deterministic assertions.");

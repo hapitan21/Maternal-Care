@@ -700,6 +700,7 @@ function Doctor_Dashboard() {
   const [doctorPatientHeaderAction, setDoctorPatientHeaderAction] = useState(null);
   const dashboardStatsRequestRef = useRef(0);
   const dashboardRefreshCoordinatorRef = useRef(null);
+  const dashboardSessionsRef = useRef(null);
   const navigate = useNavigate();
   const authenticatedDoctorId =
     doctorIdentity.authUser?.id || doctorIdentity.profile?.id || "";
@@ -755,22 +756,127 @@ function Doctor_Dashboard() {
 
     const requestId = dashboardStatsRequestRef.current + 1;
     dashboardStatsRequestRef.current = requestId;
+    let patientsRequest;
+    let scheduleProcessingRequest;
+    let avatarEnrichmentRequest;
 
     try {
-      const [patientsResult, scheduleResult] = await Promise.all([
+      patientsRequest = Promise.resolve(
         supabase
           .rpc("get_doctor_patient_directory", {}, { count: "exact", head: true })
           .select("id")
-          .ilike("status", "active"),
+          .ilike("status", "active")
+      ).catch((error) => ({ error }));
+      const scheduleRequest = Promise.resolve(
         supabase
           .from("schedule")
           .select(
             "id, maternal_appointment_id, patient_id, patient_name, start_time, end_time, status"
           )
           .eq("doctor_id", doctorId)
-          .order("start_time", { ascending: true }),
-      ]);
+          .order("start_time", { ascending: true })
+      ).catch((error) => ({ error }));
+      let scheduleStats;
+      let snapshotSessions;
+      scheduleProcessingRequest = scheduleRequest.then((scheduleResult) => {
+        if (dashboardStatsRequestRef.current !== requestId || scheduleResult.error) {
+          return scheduleResult;
+        }
 
+        const scheduleRows = scheduleResult.data || [];
+        const refreshNow = new Date();
+        const classifiedScheduleRows = scheduleRows.map((row) => ({
+          row,
+          classification: classifyAppointment(row, refreshNow),
+        }));
+
+        // Keep all of today's rows for completion metrics, but only count
+        // appointments that still need clinic action in "Today's Active Appointments".
+        // Terminal rows such as completed, cancelled, and no-show/missed remain
+        // available through their status tabs without inflating the active-today count.
+        const allTodayAppointments = classifiedScheduleRows.filter(
+          ({ classification }) => classification.isToday
+        );
+        const actionableTodayAppointments = allTodayAppointments.filter(
+          ({ classification }) => classification.isActionable
+        );
+
+        const completedSessions = scheduleRows.filter(
+          (appointment) =>
+            normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
+        ).length;
+        const completedToday = allTodayAppointments.filter(
+          ({ row }) =>
+            normalizeAppointmentStatus(row.status) === appointmentStatuses.completed
+        ).length;
+
+        scheduleStats = {
+          todaysAppointments: actionableTodayAppointments.length,
+          completedSessions,
+          completionProgress: allTodayAppointments.length
+            ? Math.min(
+                100,
+                Math.round((completedToday / allTodayAppointments.length) * 100)
+              )
+            : 0,
+        };
+
+        const upcomingRows = classifiedScheduleRows
+          .filter(({ classification }) => classification.isUpcoming)
+          .map(({ row }) => row)
+          .sort(compareUpcomingAppointments)
+          .slice(0, 4);
+
+        // Mirror the current rows without making refresh callbacks depend on state.
+        // On a shell remount, use the existing doctor-scoped snapshot instead.
+        const knownSessions = dashboardSessionsRef.current?.doctorId === doctorId
+          ? dashboardSessionsRef.current.sessions
+          : doctorDashboardSnapshots.get(doctorId)?.upcomingSessions || [];
+        const knownAvatarMap = new Map(
+          knownSessions
+            .filter((session) => session.patientId)
+            .map((session) => [String(session.patientId), session.avatarUrl || ""])
+        );
+        // Avatars belong to patients; derive every schedule field from the fresh row.
+        const initialSessions = upcomingRows.map((appointment) =>
+          mapUpcomingSession(appointment, knownAvatarMap)
+        );
+        snapshotSessions = initialSessions;
+        dashboardSessionsRef.current = { doctorId, sessions: initialSessions };
+        setUpcomingSessions(initialSessions);
+        setSessionsResolved(true);
+
+        if (upcomingRows.length) {
+          avatarEnrichmentRequest = fetchDashboardPatientAvatarMap(upcomingRows)
+            .then((avatarMap) => {
+              if (dashboardStatsRequestRef.current !== requestId || !avatarMap) return;
+              const enrichedSessions = initialSessions.map((session) => {
+                const avatarUrl = avatarMap.get(String(session.patientId || "")) || "";
+                return avatarUrl === (session.avatarUrl || "") ? session : { ...session, avatarUrl };
+              });
+              snapshotSessions = enrichedSessions;
+              if (enrichedSessions.some((session, index) => session !== initialSessions[index])) {
+                if (dashboardSessionsRef.current?.sessions === initialSessions) {
+                  dashboardSessionsRef.current = { doctorId, sessions: enrichedSessions };
+                }
+                setUpcomingSessions((current) =>
+                  dashboardStatsRequestRef.current === requestId && current === initialSessions
+                    ? enrichedSessions
+                    : current
+                );
+              }
+            })
+            .catch((error) => {
+              if (import.meta.env.DEV) console.warn("Load Doctor dashboard patient profile pictures failed:", error);
+            });
+        }
+        return scheduleResult;
+      });
+
+      const [patientsResult, scheduleResult] = await Promise.all([
+        patientsRequest,
+        scheduleProcessingRequest,
+      ]);
       if (dashboardStatsRequestRef.current !== requestId) return;
 
       const errors = [patientsResult.error, scheduleResult.error]
@@ -780,74 +886,18 @@ function Doctor_Dashboard() {
       setDashboardMessage(errors.length ? "Unable to refresh the dashboard. Please try again later." : "");
       if (errors.length && import.meta.env.DEV) console.warn("Doctor dashboard refresh failed:", errors);
 
-      const scheduleRows = scheduleResult.error ? [] : scheduleResult.data || [];
-      const refreshNow = new Date();
-      const classifiedScheduleRows = scheduleRows.map((row) => ({
-        row,
-        classification: classifyAppointment(row, refreshNow),
-      }));
-
-      // Keep all of today's rows for completion metrics, but only count
-      // appointments that still need clinic action in "Today's Active Appointments".
-      // Terminal rows such as completed, cancelled, and no-show/missed remain
-      // available through their status tabs without inflating the active-today count.
-      const allTodayAppointments = classifiedScheduleRows.filter(
-        ({ classification }) => classification.isToday
-      );
-      const actionableTodayAppointments = allTodayAppointments.filter(
-        ({ classification }) => classification.isActionable
-      );
-
-      const completedSessions = scheduleRows.filter(
-        (appointment) =>
-          normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
-      ).length;
-      const completedToday = allTodayAppointments.filter(
-        ({ row }) =>
-          normalizeAppointmentStatus(row.status) === appointmentStatuses.completed
-      ).length;
-
-      const nextDashboardStats = {
-        totalPatients: patientsResult.count ?? 0,
-        todaysAppointments: actionableTodayAppointments.length,
-        completedSessions,
-        completionProgress: allTodayAppointments.length
-          ? Math.min(
-              100,
-              Math.round((completedToday / allTodayAppointments.length) * 100)
-            )
-          : 0,
-      };
-
+      const nextDashboardStats = { totalPatients: patientsResult.count ?? 0, ...scheduleStats };
       if (errors.length === 0) {
         setDashboardStats(nextDashboardStats);
         setDashboardStatsResolved(true);
       }
 
-      const upcomingRows = classifiedScheduleRows
-        .filter(({ classification }) => classification.isUpcoming)
-        .map(({ row }) => row)
-        .sort(compareUpcomingAppointments)
-        .slice(0, 4);
-
-      if (scheduleResult.error) {
-        return;
-      }
-
-      const avatarMap = await fetchDashboardPatientAvatarMap(upcomingRows);
-
+      await avatarEnrichmentRequest;
       if (dashboardStatsRequestRef.current !== requestId) return;
-
-      const nextUpcomingSessions = upcomingRows.map((appointment) =>
-        mapUpcomingSession(appointment, avatarMap)
-      );
-      setUpcomingSessions(nextUpcomingSessions);
-      setSessionsResolved(true);
-
       if (errors.length === 0) {
         doctorDashboardSnapshots.set(doctorId, {
           dashboardStats: nextDashboardStats,
-          upcomingSessions: nextUpcomingSessions,
+          upcomingSessions: snapshotSessions,
         });
       }
     } catch (error) {
@@ -855,6 +905,9 @@ function Doctor_Dashboard() {
       setDashboardFailed(true);
       setDashboardMessage("Unable to refresh the dashboard. Please try again later.");
       if (import.meta.env.DEV) console.warn("Doctor dashboard refresh failed:", error);
+    } finally {
+      // Keep the full-refresh lock until every started stage has settled, even on failure.
+      await Promise.allSettled([patientsRequest, scheduleProcessingRequest, avatarEnrichmentRequest]);
     }
   }, [authenticatedDoctorId]);
 
