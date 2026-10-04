@@ -732,16 +732,21 @@ function Doctor_Dashboard() {
       if (errors.length && import.meta.env.DEV) console.warn("Doctor dashboard refresh failed:", errors);
 
       const scheduleRows = scheduleResult.error ? [] : scheduleResult.data || [];
+      const refreshNow = new Date();
+      const classifiedScheduleRows = scheduleRows.map((row) => ({
+        row,
+        classification: classifyAppointment(row, refreshNow),
+      }));
 
       // Keep all of today's rows for completion metrics, but only count
       // appointments that still need clinic action in "Today's Active Appointments".
       // Terminal rows such as completed, cancelled, and no-show/missed remain
       // available through their status tabs without inflating the active-today count.
-      const allTodayAppointments = scheduleRows.filter(
-        (appointment) => classifyAppointment(appointment).isToday
+      const allTodayAppointments = classifiedScheduleRows.filter(
+        ({ classification }) => classification.isToday
       );
       const actionableTodayAppointments = allTodayAppointments.filter(
-        (appointment) => classifyAppointment(appointment).isActionable
+        ({ classification }) => classification.isActionable
       );
 
       const completedSessions = scheduleRows.filter(
@@ -749,8 +754,8 @@ function Doctor_Dashboard() {
           normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
       ).length;
       const completedToday = allTodayAppointments.filter(
-        (appointment) =>
-          normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
+        ({ row }) =>
+          normalizeAppointmentStatus(row.status) === appointmentStatuses.completed
       ).length;
 
       const nextDashboardStats = {
@@ -770,8 +775,9 @@ function Doctor_Dashboard() {
         setDashboardStatsResolved(true);
       }
 
-      const upcomingRows = scheduleRows
-        .filter((appointment) => classifyAppointment(appointment).isUpcoming)
+      const upcomingRows = classifiedScheduleRows
+        .filter(({ classification }) => classification.isUpcoming)
+        .map(({ row }) => row)
         .sort(compareUpcomingAppointments)
         .slice(0, 4);
 

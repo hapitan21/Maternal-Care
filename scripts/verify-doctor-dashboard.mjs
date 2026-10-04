@@ -1,5 +1,5 @@
-/* global process */
 import assert from "node:assert/strict";
+import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import * as vm from "node:vm";
@@ -8,6 +8,12 @@ import * as jsxRuntime from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import { transformWithOxc } from "vite";
 import { dashboardSectionState, positionDashboardMenu } from "../src/lib/doctorDashboardPresentation.js";
+import {
+  appointmentStatuses,
+  classifyAppointment,
+  compareUpcomingAppointments,
+  normalizeAppointmentStatus,
+} from "../src/lib/appointmentDate.js";
 if (!vm.SourceTextModule) {
   const result = spawnSync(process.execPath, ["--experimental-vm-modules", ...process.argv.slice(1)], { stdio: "inherit", windowsHide: true });
   if (result.error) throw result.error;
@@ -215,6 +221,131 @@ reject=true; await loader.loadDashboardStats();
 check(loader.observed.stats===cachedStats && loader.observed.sessions===cachedSessions,"failed refresh leaves valid content untouched");
 check(dashboardSectionState({hasData:loader.observed.sessionsResolved,failed:loader.observed.failed,count:loader.observed.sessions.length})==="data","valid content remains visible after failed refresh");
 
+// Compare the actual loader with its prior calculations using the real shared helpers.
+// Only the test clock is fixed; production classification/status/date rules are reused.
+function priorDashboardResults(rows, now, totalPatients) {
+  let classificationCount = 0;
+  const classify = row => { classificationCount++; return classifyAppointment(row, now); };
+  const today = rows.filter(row => classify(row).isToday);
+  const actionableToday = today.filter(row => classify(row).isActionable);
+  const completed = rows.filter(row => normalizeAppointmentStatus(row.status) === appointmentStatuses.completed).length;
+  const completedToday = today.filter(row => normalizeAppointmentStatus(row.status) === appointmentStatuses.completed).length;
+  return {
+    stats: {
+      totalPatients,
+      todaysAppointments: actionableToday.length,
+      completedSessions: completed,
+      completionProgress: today.length ? Math.min(100, Math.round(completedToday / today.length * 100)) : 0,
+    },
+    upcomingRows: rows.filter(row => classify(row).isUpcoming).sort(compareUpcomingAppointments).slice(0, 4),
+    classificationCount,
+    todayCount: today.length,
+  };
+}
+
+let refreshTime = "2026-10-04T12:00:00+08:00";
+let clockCaptures = 0;
+class DashboardTestDate extends Date {
+  constructor(...args) {
+    super(...(args.length ? args : [refreshTime]));
+    if (!args.length) clockCaptures++;
+  }
+}
+let classificationCalls = [];
+let avatarRows = [];
+const realLoader = await load(loaderSource, "classification-loader.js", {
+  db: { supabase: { rpc: () => query("patients"), from: () => query("schedule") } },
+  dependencies: {
+    appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments,
+    classifyAppointment: (row, now) => {
+      classificationCalls.push({ row, now });
+      return classifyAppointment(row, now);
+    },
+    fetchDashboardPatientAvatarMap: async rows => { avatarRows = rows; return new Map(); },
+    mapUpcomingSession: row => row,
+  },
+}, { Date: DashboardTestDate });
+
+async function compareRefresh(label, rows, time = refreshTime, totalPatients = 17) {
+  refreshTime = time;
+  classificationCalls = [];
+  avatarRows = [];
+  clockCaptures = 0;
+  reject = false;
+  results = { patients: { count: totalPatients, error: null }, schedule: { data: rows, error: null } };
+  const before = JSON.stringify(rows);
+  const prior = priorDashboardResults(rows, new Date(time), totalPatients);
+  await realLoader.loadDashboardStats();
+  assert.deepEqual(JSON.parse(JSON.stringify(realLoader.observed.stats)), prior.stats); checks++;
+  assert.deepEqual(Array.from(realLoader.observed.sessions), prior.upcomingRows); checks++;
+  assert.deepEqual(classificationCalls.map(call => call.row), rows); checks++;
+  check(clockCaptures === 1, label + ": reference time captured once per refresh");
+  check(classificationCalls.every(call => call.now === classificationCalls[0].now && call.now.getTime() === Date.parse(time)), label + ": every row uses the same current reference time");
+  check(prior.classificationCount === rows.length * 2 + prior.todayCount, label + ": prior calls were two per row plus one per today's row");
+  assert.deepEqual(Array.from(avatarRows), prior.upcomingRows); checks++;
+  check(avatarRows.every(row => rows.includes(row)), label + ": avatar lookup receives original schedule rows");
+  check(JSON.stringify(rows) === before, label + ": schedule input is not mutated");
+  check(!realLoader.observed.failed && realLoader.observed.statsResolved && realLoader.observed.sessionsResolved, label + ": successful loading flags preserved");
+  assert.deepEqual(JSON.parse(JSON.stringify(realLoader.observed.snapshot)), {
+    dashboardStats: prior.stats, upcomingSessions: prior.upcomingRows,
+  }); checks++;
+  return { stats: realLoader.observed.stats, sessions: Array.from(realLoader.observed.sessions), calls: classificationCalls };
+}
+
+const appointment = (id, status, start, end = start) => ({ id, status, start_time: start, end_time: end });
+const fixtures = [
+  appointment("future-later", "accepted", "2026-10-04T14:00:00+08:00"),
+  appointment("cancelled", "cancelled", "2026-10-04T13:00:00+08:00"),
+  appointment("current", "pending", "2026-10-04T11:45:00+08:00", "2026-10-04T12:15:00+08:00"),
+  appointment("missed", "missed", "2026-10-04T13:00:00+08:00"),
+  appointment("overdue", "scheduled", "2026-10-04T10:00:00+08:00", "2026-10-04T10:30:00+08:00"),
+  appointment("completed", "completed", "2026-10-04T09:00:00+08:00"),
+  appointment("historic-completed", " done ", "2026-09-01T09:00:00+08:00"),
+  appointment("no-show", "no-show", "2026-10-04T13:00:00+08:00"),
+  appointment("overdue-checked-in", "checked-in", "2026-10-04T09:00:00+08:00"),
+  appointment("current-checked-in", "check_in", "2026-10-04T11:00:00+08:00", "2026-10-04T12:30:00+08:00"),
+  appointment("future-earlier", "scheduled", "2026-10-04T13:00:00+08:00"),
+  appointment("next-day", "scheduled", "2026-10-05T00:05:00+08:00"),
+  appointment("start-boundary", "scheduled", "2026-10-04T12:00:00+08:00", "2026-10-04T12:30:00+08:00"),
+  appointment("end-boundary", "scheduled", "2026-10-04T11:00:00+08:00", "2026-10-04T12:00:00+08:00"),
+  appointment("cancel-alias", "canceled", "2026-10-04T13:00:00+08:00"),
+  appointment("invalid", "scheduled", "invalid"),
+  appointment("no-start", "scheduled", null),
+  { id: "no-end", status: "scheduled", start_time: "2026-10-04T15:00:00+08:00" },
+  appointment("invalid-completed", "complete", "invalid"),
+  appointment("future-tied", "scheduled", "2026-10-04T13:00:00+08:00"),
+];
+const midday = await compareRefresh("mixed same-day statuses", fixtures);
+assert.deepEqual(JSON.parse(JSON.stringify(midday.stats)), {
+  totalPatients: 17, todaysAppointments: 8, completedSessions: 3, completionProgress: 7,
+}); checks++;
+assert.deepEqual(midday.sessions.map(row => row.id), ["current-checked-in", "end-boundary", "current", "start-boundary"]); checks++;
+check(!midday.sessions.some(row => ["cancelled", "cancel-alias", "missed", "no-show", "completed", "overdue", "overdue-checked-in"].includes(row.id)), "terminal and overdue rows stay excluded from upcoming sessions");
+const afterCurrent = await compareRefresh("current becomes overdue", fixtures, "2026-10-04T12:30:00.001+08:00");
+check(!afterCurrent.sessions.some(row => ["current", "current-checked-in", "start-boundary", "end-boundary"].includes(row.id)), "elapsed sessions retain existing overdue/checked-in handling");
+check(midday.calls[0].now !== afterCurrent.calls[0].now && midday.calls[0].now.getTime() < afterCurrent.calls[0].now.getTime(), "each refresh captures a fresh timestamp, never a global stale time");
+await compareRefresh("stable ordering for equal start times", fixtures.slice().reverse(), "2026-10-04T12:30:00.001+08:00");
+const noRows = await compareRefresh("empty schedule", [], "2026-10-04T12:00:00+08:00", 0);
+assert.deepEqual(JSON.parse(JSON.stringify(noRows.stats)), { totalPatients: 0, todaysAppointments: 0, completedSessions: 0, completionProgress: 0 }); checks++;
+check(noRows.sessions.length === 0, "empty schedule retains empty upcoming sessions");
+for (const row of fixtures) await compareRefresh("single row: " + row.id, [row], "2026-10-04T12:00:00+08:00");
+
+const midnightRows = [
+  appointment("previous-day-current", "scheduled", "2026-10-03T23:59:00+08:00", "2026-10-04T00:01:00+08:00"),
+  appointment("midnight-start", "scheduled", "2026-10-03T16:00:00Z", "2026-10-03T16:10:00Z"),
+  appointment("previous-day-completed", "completed", "2026-10-03T15:59:59Z"),
+  appointment("new-day-completed", "done", "2026-10-03T16:00:00Z"),
+  appointment("just-after-midnight", "scheduled", "2026-10-04T00:00:00.001+08:00"),
+];
+for (const time of ["2026-10-03T23:59:59.999+08:00", "2026-10-04T00:00:00+08:00", "2026-10-04T00:00:00.001+08:00"]) {
+  const boundary = await compareRefresh("Manila midnight: " + time, midnightRows, time);
+  check(boundary.stats.todaysAppointments === (time.startsWith("2026-10-03") ? 1 : 2), "Manila day transition preserves active-today count");
+  check(boundary.stats.completedSessions === 2, "Manila day transition preserves all-time completed count");
+  check(boundary.stats.completionProgress === (time.startsWith("2026-10-03") ? 50 : 33), "Manila day transition preserves completion denominator");
+}
+const largeRows = Array.from({ length: 2000 }, (_, index) => ({ ...fixtures[index % fixtures.length], id: "large-" + index }));
+await compareRefresh("large 2,000-row schedule", largeRows, "2026-10-04T12:00:00+08:00");
+
 
 const homeRuntime=hookRuntime();
 const interactiveHome=await load(homeSource,"DashboardHome.jsx",{react:homeRuntime.react,"react/jsx-runtime":{jsx,jsxs:jsx,Fragment:"fragment"},icon:{Icon:()=>null},avatar:avatar,menu:{default:()=>null}});
@@ -228,4 +359,4 @@ check(destination.page==="patients" && destination.options.path==="/doctor/patie
 const changed=spawnSync("git",["diff","--name-only"],{cwd:new URL("../",import.meta.url),encoding:"utf8",windowsHide:true});
 check(changed.status===0 && !/AppointmentVisitForm|StaffPreConsultationForm|src\/pages\/staff/.test(changed.stdout),"shared visit forms and Staff pages remain untouched");
 
-console.log("Doctor Dashboard Batch 2: "+checks+" assertions passed.");
+console.log("Doctor Dashboard Batch 2 and classification regression: "+checks+" assertions passed.");
