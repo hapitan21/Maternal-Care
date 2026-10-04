@@ -6,6 +6,8 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import DashboardSessionActions from "../../components/doctor/DashboardSessionActions";
+import { dashboardSectionState } from "../../lib/doctorDashboardPresentation";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import {
   appointmentStatuses,
@@ -391,37 +393,16 @@ function DashboardHome({
   dashboardMessage,
   accountName,
   dashboardStatsLoading,
+  dashboardStatsUnavailable,
+  sessionsState,
 }) {
   const [activeSessionActionId, setActiveSessionActionId] = useState("");
 
-  useEffect(() => {
-    const closeSessionActions = (event) => {
-      if (event.type === "keydown" && event.key !== "Escape") {
-        return;
-      }
-
-      if (
-        event.type === "mousedown" &&
-        event.target.closest?.(".doctor-session-actions")
-      ) {
-        return;
-      }
-
-      setActiveSessionActionId("");
-    };
-
-    document.addEventListener("mousedown", closeSessionActions);
-    document.addEventListener("keydown", closeSessionActions);
-
-    return () => {
-      document.removeEventListener("mousedown", closeSessionActions);
-      document.removeEventListener("keydown", closeSessionActions);
-    };
-  }, []);
+  const closeSessionActions = useCallback(() => setActiveSessionActionId(""), []);
 
   const statusCards = dashboardStatusCards.map((card) => ({
     ...card,
-    value: String(dashboardStats[card.statKey] ?? 0),
+    value: dashboardStatsUnavailable ? "Unavailable" : String(dashboardStats[card.statKey] ?? 0),
     progress: card.progressKey ? dashboardStats[card.progressKey] : card.progress,
   }));
 
@@ -453,6 +434,8 @@ function DashboardHome({
                   <span className="doctor-loading-bar" />
                   <span className="doctor-loading-bar" />
                 </span>
+              ) : dashboardStatsUnavailable ? (
+                <span>Appointment totals are currently unavailable.</span>
               ) : (
                 <>
                   You have{" "}
@@ -531,8 +514,15 @@ function DashboardHome({
           </button>
         </div>
 
-        <div className="doctor-sessions-card">
-          <div className="doctor-sessions-scroll">
+        <div className={`doctor-sessions-card${sessionsState !== "data" ? " doctor-sessions-card--status" : ""}`} aria-busy={sessionsState === "loading" || undefined}>
+          {sessionsState !== "data" ? (
+            <div className="doctor-sessions-status" role="status">
+              {sessionsState === "loading" ? (
+                <><span className="doctor-loading-bar doctor-sessions-loading" aria-hidden="true" /><span>Loading upcoming sessions...</span></>
+              ) : sessionsState === "error" ? "Upcoming sessions are currently unavailable. Please try again later." : "No upcoming sessions."}
+            </div>
+          ) : (
+          <div className="doctor-sessions-scroll" role="region" aria-label="Upcoming sessions table; scroll horizontally to see all columns" tabIndex={0}>
             <table className="doctor-sessions-table">
               <thead>
                 <tr>
@@ -565,25 +555,7 @@ function DashboardHome({
                             overflow: "hidden",
                           }}
                         >
-                          {session.avatarUrl ? (
-                            <img
-                              src={session.avatarUrl}
-                              alt=""
-                              aria-hidden="true"
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                maxWidth: "100%",
-                                maxHeight: "100%",
-                                objectFit: "cover",
-                                objectPosition: "center",
-                                display: "block",
-                                borderRadius: "inherit",
-                              }}
-                            />
-                          ) : (
-                            session.initials
-                          )}
+                          <ProfileAvatarContent src={session.avatarUrl} fallback={session.initials} />
                         </span>
 
                         <span>{session.patient}</span>
@@ -597,32 +569,10 @@ function DashboardHome({
                     </td>
 
                     <td>
-                      <div
-                        className={`doctor-session-actions ${
-                          activeSessionActionId === session.id ? "is-open" : ""
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          className="doctor-table-action"
-                          aria-label={`Open actions for ${session.patient}`}
-                          aria-haspopup="menu"
-                          aria-expanded={activeSessionActionId === session.id}
-                          onClick={() =>
-                            setActiveSessionActionId((current) =>
-                              current === session.id ? "" : session.id
-                            )
-                          }
-                        >
-                          <Icon icon="solar:menu-dots-bold" />
-                        </button>
-
-                        {activeSessionActionId === session.id ? (
-                          <div
-                            className="doctor-session-action-menu"
-                            role="menu"
-                            aria-label={`Actions for ${session.patient}`}
-                          >
+                      <DashboardSessionActions patient={session.patient}
+                        open={activeSessionActionId === session.id}
+                        onClose={closeSessionActions}
+                        onToggle={() => setActiveSessionActionId(current => current === session.id ? "" : session.id)}>
                             <button
                               type="button"
                               role="menuitem"
@@ -661,21 +611,15 @@ function DashboardHome({
                                 <span>View Patient</span>
                               </button>
                             ) : null}
-                          </div>
-                        ) : null}
-                      </div>
+                      </DashboardSessionActions>
                     </td>
                   </tr>
                 ))}
 
-                {!upcomingSessions.length ? (
-                  <tr>
-                    <td colSpan="5">No upcoming sessions.</td>
-                  </tr>
-                ) : null}
               </tbody>
             </table>
           </div>
+          )}
         </div>
       </section>
     </div>
@@ -698,6 +642,8 @@ function Doctor_Dashboard() {
     completionProgress: 0,
   });
   const [dashboardStatsResolved, setDashboardStatsResolved] = useState(false);
+  const [sessionsResolved, setSessionsResolved] = useState(false);
+  const [dashboardFailed, setDashboardFailed] = useState(false);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [dashboardMessage, setDashboardMessage] = useState("");
   const [medicalRecordTarget, setMedicalRecordTarget] = useState(() =>
@@ -761,91 +707,99 @@ function Doctor_Dashboard() {
     const requestId = dashboardStatsRequestRef.current + 1;
     dashboardStatsRequestRef.current = requestId;
 
-    const [patientsResult, scheduleResult] = await Promise.all([
-      supabase
-        .rpc("get_doctor_patient_directory", {}, { count: "exact", head: true })
-        .select("id")
-        .ilike("status", "active"),
-      supabase
-        .from("schedule")
-        .select(
-          "id, maternal_appointment_id, patient_id, patient_name, start_time, end_time, status"
-        )
-        .eq("doctor_id", doctorId)
-        .order("start_time", { ascending: true }),
-    ]);
-
-    if (dashboardStatsRequestRef.current !== requestId) return;
-
-    const errors = [patientsResult.error, scheduleResult.error]
-      .filter(Boolean)
-      .map((error) => error.message);
-    setDashboardMessage(
-      errors.length ? `Unable to load dashboard totals: ${errors.join(" ")}` : ""
-    );
-
-    const scheduleRows = scheduleResult.error ? [] : scheduleResult.data || [];
-
-    // Keep all of today's rows for completion metrics, but only count
-    // appointments that still need clinic action in "Today's Active Appointments".
-    // Terminal rows such as completed, cancelled, and no-show/missed remain
-    // available through their status tabs without inflating the active-today count.
-    const allTodayAppointments = scheduleRows.filter(
-      (appointment) => classifyAppointment(appointment).isToday
-    );
-    const actionableTodayAppointments = allTodayAppointments.filter(
-      (appointment) => classifyAppointment(appointment).isActionable
-    );
-
-    const completedSessions = scheduleRows.filter(
-      (appointment) =>
-        normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
-    ).length;
-    const completedToday = allTodayAppointments.filter(
-      (appointment) =>
-        normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
-    ).length;
-
-    const nextDashboardStats = {
-      totalPatients: patientsResult.count ?? 0,
-      todaysAppointments: actionableTodayAppointments.length,
-      completedSessions,
-      completionProgress: allTodayAppointments.length
-        ? Math.min(
-            100,
-            Math.round((completedToday / allTodayAppointments.length) * 100)
+    try {
+      const [patientsResult, scheduleResult] = await Promise.all([
+        supabase
+          .rpc("get_doctor_patient_directory", {}, { count: "exact", head: true })
+          .select("id")
+          .ilike("status", "active"),
+        supabase
+          .from("schedule")
+          .select(
+            "id, maternal_appointment_id, patient_id, patient_name, start_time, end_time, status"
           )
-        : 0,
-    };
+          .eq("doctor_id", doctorId)
+          .order("start_time", { ascending: true }),
+      ]);
 
-    if (errors.length === 0) {
-      setDashboardStats(nextDashboardStats);
-      setDashboardStatsResolved(true);
-    }
+      if (dashboardStatsRequestRef.current !== requestId) return;
 
-    const upcomingRows = scheduleRows
-      .filter((appointment) => classifyAppointment(appointment).isUpcoming)
-      .sort(compareUpcomingAppointments)
-      .slice(0, 4);
+      const errors = [patientsResult.error, scheduleResult.error]
+        .filter(Boolean)
+        .map((error) => error.message);
+      setDashboardFailed(errors.length > 0);
+      setDashboardMessage(errors.length ? "Unable to refresh the dashboard. Please try again later." : "");
+      if (errors.length && import.meta.env.DEV) console.warn("Doctor dashboard refresh failed:", errors);
 
-    if (scheduleResult.error) {
-      return;
-    }
+      const scheduleRows = scheduleResult.error ? [] : scheduleResult.data || [];
 
-    const avatarMap = await fetchDashboardPatientAvatarMap(upcomingRows);
+      // Keep all of today's rows for completion metrics, but only count
+      // appointments that still need clinic action in "Today's Active Appointments".
+      // Terminal rows such as completed, cancelled, and no-show/missed remain
+      // available through their status tabs without inflating the active-today count.
+      const allTodayAppointments = scheduleRows.filter(
+        (appointment) => classifyAppointment(appointment).isToday
+      );
+      const actionableTodayAppointments = allTodayAppointments.filter(
+        (appointment) => classifyAppointment(appointment).isActionable
+      );
 
-    if (dashboardStatsRequestRef.current !== requestId) return;
+      const completedSessions = scheduleRows.filter(
+        (appointment) =>
+          normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
+      ).length;
+      const completedToday = allTodayAppointments.filter(
+        (appointment) =>
+          normalizeAppointmentStatus(appointment.status) === appointmentStatuses.completed
+      ).length;
 
-    const nextUpcomingSessions = upcomingRows.map((appointment) =>
-      mapUpcomingSession(appointment, avatarMap)
-    );
-    setUpcomingSessions(nextUpcomingSessions);
+      const nextDashboardStats = {
+        totalPatients: patientsResult.count ?? 0,
+        todaysAppointments: actionableTodayAppointments.length,
+        completedSessions,
+        completionProgress: allTodayAppointments.length
+          ? Math.min(
+              100,
+              Math.round((completedToday / allTodayAppointments.length) * 100)
+            )
+          : 0,
+      };
 
-    if (errors.length === 0) {
-      doctorDashboardSnapshots.set(doctorId, {
-        dashboardStats: nextDashboardStats,
-        upcomingSessions: nextUpcomingSessions,
-      });
+      if (errors.length === 0) {
+        setDashboardStats(nextDashboardStats);
+        setDashboardStatsResolved(true);
+      }
+
+      const upcomingRows = scheduleRows
+        .filter((appointment) => classifyAppointment(appointment).isUpcoming)
+        .sort(compareUpcomingAppointments)
+        .slice(0, 4);
+
+      if (scheduleResult.error) {
+        return;
+      }
+
+      const avatarMap = await fetchDashboardPatientAvatarMap(upcomingRows);
+
+      if (dashboardStatsRequestRef.current !== requestId) return;
+
+      const nextUpcomingSessions = upcomingRows.map((appointment) =>
+        mapUpcomingSession(appointment, avatarMap)
+      );
+      setUpcomingSessions(nextUpcomingSessions);
+      setSessionsResolved(true);
+
+      if (errors.length === 0) {
+        doctorDashboardSnapshots.set(doctorId, {
+          dashboardStats: nextDashboardStats,
+          upcomingSessions: nextUpcomingSessions,
+        });
+      }
+    } catch (error) {
+      if (dashboardStatsRequestRef.current !== requestId) return;
+      setDashboardFailed(true);
+      setDashboardMessage("Unable to refresh the dashboard. Please try again later.");
+      if (import.meta.env.DEV) console.warn("Doctor dashboard refresh failed:", error);
     }
   }, [authenticatedDoctorId]);
 
@@ -1111,10 +1065,12 @@ function Doctor_Dashboard() {
           <DashboardHome
             setActivePage={navigateDoctorPage}
             dashboardStats={dashboardStatsResolved ? dashboardStats : dashboardSnapshot?.dashboardStats || dashboardStats}
-            upcomingSessions={dashboardStatsResolved ? upcomingSessions : dashboardSnapshot?.upcomingSessions || upcomingSessions}
-            dashboardMessage={doctorIdentity.error?.message || dashboardMessage}
+            upcomingSessions={sessionsResolved ? upcomingSessions : dashboardSnapshot?.upcomingSessions || upcomingSessions}
+            dashboardMessage={doctorIdentity.error ? "Unable to load your dashboard. Please try again later." : dashboardMessage}
             accountName={profile.displayName}
-            dashboardStatsLoading={!dashboardStatsResolved && !dashboardSnapshot}
+            dashboardStatsLoading={!dashboardStatsResolved && !dashboardSnapshot && !dashboardFailed && !doctorIdentity.error}
+            dashboardStatsUnavailable={!dashboardStatsResolved && !dashboardSnapshot && (dashboardFailed || Boolean(doctorIdentity.error))}
+            sessionsState={dashboardSectionState({ hasData: sessionsResolved || Boolean(dashboardSnapshot), failed: dashboardFailed || Boolean(doctorIdentity.error), count: (sessionsResolved ? upcomingSessions : dashboardSnapshot?.upcomingSessions || upcomingSessions).length })}
           />
         );
     }

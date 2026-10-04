@@ -2275,3 +2275,143 @@ body:has(.doctor-dashboard) {
     max-height: 136px;
   }
 }
+
+/* Batch 2: Doctor Dashboard sessions only; Staff does not use this modifier. */
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-card {
+  min-height: 0;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-scroll {
+  max-width: 100%;
+  overflow: auto;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-scroll:focus-visible {
+  outline: 3px solid rgb(251 56 126 / 35%);
+  outline-offset: -3px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table {
+  min-width: 900px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table th,
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table td {
+  padding: 14px 24px;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table :is(th, td):nth-child(1) { width: 18%; }
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table :is(th, td):nth-child(2) { width: 32%; }
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table :is(th, td):nth-child(3) { width: 20%; }
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table :is(th, td):nth-child(4) { width: 16%; }
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table :is(th, td):nth-child(5) { width: 14%; }
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table td:first-child,
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-patient-cell > span:last-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-patient-cell > span:last-child {
+  min-width: 0;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-patient-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-time-pill {
+  width: max-content;
+  white-space: nowrap;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-status {
+  min-height: 144px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 28px 20px;
+  color: var(--doctor-muted);
+  text-align: center;
+}
+
+.doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-loading {
+  width: min(320px, 80%);
+  height: 18px;
+}
+
+@media (max-width: 1180px) {
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table th,
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table td {
+    padding: 12px 16px;
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table th:last-child,
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    box-shadow: -4px 0 8px rgb(26 31 44 / 8%);
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table th:last-child {
+    z-index: 2;
+    background: #fb2f7d;
+  }
+
+  .doctor-dashboard .doctor-dashboard-home--responsive .doctor-sessions-table td:last-child {
+    background: var(--doctor-white);
+  }
+}
+
+/* Body portal: unique Doctor Dashboard class avoids shared Staff menu styles. */
+.doctor-dashboard-session-menu {
+  position: fixed;
+  z-index: 50010;
+  box-sizing: border-box;
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  overflow-y: auto;
+  border: 1px solid #e7e9ef;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 16px 34px rgba(17, 24, 39, 0.14);
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+.doctor-dashboard-session-menu button {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #4b5160;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doctor-dashboard-session-menu button:hover,
+.doctor-dashboard-session-menu button:focus-visible {
+  background: #fff0f5;
+  color: #c52361;
+  outline: 2px solid #fb387e;
+  outline-offset: -2px;
+}
+
+.doctor-dashboard-session-menu button svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
