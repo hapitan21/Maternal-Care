@@ -7,13 +7,14 @@ import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
 import "../../styles/doctor-patients.css";
 
 const patientSelectColumns =
-  "id, full_name, patient_id, date_of_birth, age, contact_number, email, address, status, expected_delivery_date, gestational_age, blood_type, risk_level, created_at";
+  "id, full_name, patient_id, date_of_birth, age, contact_number, email, address, status, archived_at, expected_delivery_date, gestational_age, blood_type, risk_level, created_at";
 
 const doctorPatientSnapshots = createDoctorSessionCache();
+const doctorPatientDirectoryErrors = createDoctorSessionCache();
 
 function isActivePatientRow(row) {
   const status = String(row?.status || "").trim().toLowerCase();
-  return !["inactive", "deleted", "archived"].includes(status);
+  return !row?.archived_at && !["inactive", "deleted", "archived"].includes(status);
 }
 
 function getPatientInitials(name) {
@@ -82,21 +83,23 @@ async function fetchPatientAvatarMap(patientRows) {
 
   if (!patientIds.length) return new Map();
 
-  const { data, error } = await supabase.rpc("get_patient_avatar_urls", {
-    p_patient_ids: patientIds,
-  });
+  try {
+    const { data, error } = await supabase.rpc("get_patient_avatar_urls", {
+      p_patient_ids: patientIds,
+    });
 
-  if (error) {
+    if (error) throw error;
+
+    return new Map(
+      (data || []).map((row) => [
+        String(row.patient_id || ""),
+        String(row.avatar_url || "").trim(),
+      ])
+    );
+  } catch (error) {
     console.warn("Load Doctor patient profile pictures failed:", error);
     return null;
   }
-
-  return new Map(
-    (data || []).map((row) => [
-      String(row.patient_id || ""),
-      String(row.avatar_url || "").trim(),
-    ])
-  );
 }
 
 function mergePatientAvatarMap(patientRows, avatarMap) {
@@ -187,11 +190,20 @@ function PatientListPage({
   searchTerm,
   setSearchTerm,
   onViewRecord,
-  statusMessage,
+  navigationNotice,
+  directoryError,
+  identityError,
+  onRetry,
+  retryPending,
   loadState,
   headerAction,
 }) {
-  const showLoadingSkeleton = useDoctorDelayedLoader(loadState === "loading");
+  const showDirectoryTable = !identityError &&
+    !(directoryError && patients.length === 0);
+  const isDirectoryLoading = showDirectoryTable && loadState === "loading";
+  const showLoadingSkeleton = useDoctorDelayedLoader(isDirectoryLoading);
+  const isBackgroundRefreshError = Boolean(directoryError) &&
+    patients.length > 0;
   const filteredPatients = useMemo(() => {
     const value = searchTerm.trim().toLowerCase();
     if (!value) return patients;
@@ -223,20 +235,46 @@ function PatientListPage({
         />
       </label>
 
-      {loadState === "loading" ? (
+      {isDirectoryLoading ? (
         <p className="app-sr-only" role="status">Loading patients...</p>
       ) : null}
 
-      {statusMessage ? (
-        <p
-          className="doctor-patients-status-message"
-          role={statusMessage.startsWith("Unable to load patients:") ? "alert" : "status"}
+      {identityError ? (
+        <div className="doctor-patients-request-error" role="alert" aria-label="Doctor account error">
+          <p>{identityError}</p>
+        </div>
+      ) : null}
+
+      {!identityError && directoryError ? (
+        <div
+          className={`doctor-patients-request-error${isBackgroundRefreshError ? " doctor-patients-refresh-warning" : ""}`}
+          role="alert"
+          aria-label={isBackgroundRefreshError
+            ? "Patient directory refresh warning"
+            : "Patient directory error"}
         >
-          {statusMessage}
+          <p>{directoryError}</p>
+          {onRetry ? (
+            <button
+              className="doctor-patients-retry-btn"
+              type="button"
+              onClick={onRetry}
+              disabled={retryPending}
+              aria-busy={retryPending || undefined}
+            >
+              {retryPending ? "Retrying..." : "Retry"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {navigationNotice ? (
+        <p className="doctor-patients-status-message" role="status">
+          {navigationNotice}
         </p>
       ) : null}
 
-      <div className="doctor-patients-table-card">
+      {showDirectoryTable ? <div className="doctor-patients-table-card">
         <div className="doctor-patients-table-scroll">
           <table className="doctor-patients-table">
             <thead>
@@ -255,7 +293,7 @@ function PatientListPage({
             </thead>
 
             <tbody>
-              {loadState === "loaded" ? filteredPatients.map((patient) => (
+              {loadState === "loaded" || isBackgroundRefreshError ? filteredPatients.map((patient) => (
                 <tr key={patient.recordId}>
                   <td>
                     <div className="doctor-patient-info-cell">
@@ -280,11 +318,11 @@ function PatientListPage({
                 </tr>
               )) : null}
 
-              {loadState === "loading" ? (
+              {isDirectoryLoading && !patients.length ? (
                 <PatientTableSkeleton isVisible={showLoadingSkeleton} />
               ) : null}
 
-              {loadState === "loaded" && !filteredPatients.length ? (
+              {(loadState === "loaded" || isBackgroundRefreshError) && !filteredPatients.length ? (
                 <tr>
                   <td colSpan="4" className="doctor-patients-empty-cell">
                     No patient found.
@@ -294,7 +332,7 @@ function PatientListPage({
             </tbody>
           </table>
         </div>
-      </div>
+      </div> : null}
     </section>
   );
 }
@@ -305,13 +343,22 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
   const patientSnapshot = authenticatedDoctorId
     ? doctorPatientSnapshots.get(authenticatedDoctorId) || null
     : null;
+  const cachedDirectoryError = authenticatedDoctorId
+    ? doctorPatientDirectoryErrors.get(authenticatedDoctorId) || ""
+    : "";
   const [patients, setPatients] = useState(() => patientSnapshot || []);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
+  const [navigationNotice, setNavigationNotice] = useState("");
+  const [directoryError, setDirectoryError] = useState(() => cachedDirectoryError);
+  const [retryPending, setRetryPending] = useState(false);
   const [loadState, setLoadState] = useState(() =>
-    patientSnapshot ? "loaded" : "loading"
+    patientSnapshot ? "loaded" : cachedDirectoryError ? "error" : "loading"
   );
   const dashboardPatientTargetRef = useRef("");
+  const directoryLoaderRef = useRef(null);
+  const manualRetryPendingRef = useRef(false);
+  const identityUnavailable = !doctorIdentity?.loading &&
+    (Boolean(doctorIdentity?.error) || !authenticatedDoctorId);
 
   useEffect(() => {
     if (!authenticatedDoctorId || loadState !== "loaded") return;
@@ -332,55 +379,68 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (doctorIdentity?.loading || !authenticatedDoctorId) {
+    if (doctorIdentity?.loading || doctorIdentity?.error || !authenticatedDoctorId) {
       return undefined;
     }
 
     let active = true;
+    let hasLoadedPatients = doctorPatientSnapshots.has(authenticatedDoctorId);
 
     const loadPatients = async () => {
-      const hasSnapshot = doctorPatientSnapshots.has(authenticatedDoctorId);
-      if (!hasSnapshot) {
+      if (!active) return;
+      if (!hasLoadedPatients) {
         setLoadState("loading");
       }
-      setStatusMessage("");
+      setNavigationNotice("");
 
-      const { data, error } = await supabase
-        .rpc("get_doctor_patient_directory")
-        .select(patientSelectColumns)
-        .order("created_at", { ascending: false });
+      let mappedPatients;
+      try {
+        const { data, error } = await supabase
+          .rpc("get_doctor_patient_directory")
+          .select(patientSelectColumns)
+          .order("created_at", { ascending: false });
 
-      if (!active) return;
+        if (!active) return;
+        if (error) throw error;
 
-      if (error) {
+        mappedPatients = (data || [])
+          .filter(isActivePatientRow)
+          .map(mapSupabasePatient);
+
+        hasLoadedPatients = true;
+        setPatients((current) =>
+          mergePatientDirectoryRows(current, mappedPatients)
+        );
+        setLoadState("loaded");
+        doctorPatientDirectoryErrors.delete(authenticatedDoctorId);
+        setDirectoryError("");
+        setNavigationNotice("");
+      } catch (error) {
+        if (!active) return;
         console.error("Load doctor patients failed:", error);
-        if (!hasSnapshot) {
+        if (!hasLoadedPatients) {
           setPatients([]);
           setLoadState("error");
         } else {
           setLoadState("loaded");
         }
-        setStatusMessage(`Unable to load patients: ${error.message}`);
+        const nextDirectoryError = hasLoadedPatients
+          ? "Unable to refresh the patient directory. Your previously loaded list is still available. Please try again."
+          : "Unable to load patients. Please try again.";
+        doctorPatientDirectoryErrors.set(authenticatedDoctorId, nextDirectoryError);
+        setDirectoryError(nextDirectoryError);
         return;
       }
 
-      const mappedPatients = (data || [])
-        .filter(isActivePatientRow)
-        .map(mapSupabasePatient);
-
-      setPatients((current) =>
-        mergePatientDirectoryRows(current, mappedPatients)
-      );
-      setLoadState("loaded");
-      setStatusMessage("");
-
+      // Avatar enrichment is independent of directory request recovery.
       const avatarMap = await fetchPatientAvatarMap(mappedPatients);
       if (!active || !avatarMap) return;
 
       setPatients((current) => mergePatientAvatarMap(current, avatarMap));
     };
 
-    loadPatients();
+    directoryLoaderRef.current = loadPatients;
+    void loadPatients();
 
     const patientsChannel = supabase
       .channel(`doctor-patients-list-${authenticatedDoctorId}`)
@@ -393,12 +453,17 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
 
     return () => {
       active = false;
-      supabase.removeChannel(patientsChannel);
+      directoryLoaderRef.current = null;
+      void supabase.removeChannel(patientsChannel).catch((error) => {
+        console.warn("Remove Doctor patient subscription failed:", error);
+      });
     };
-  }, [authenticatedDoctorId, doctorIdentity?.loading]);
+  }, [authenticatedDoctorId, doctorIdentity?.loading, doctorIdentity?.error]);
 
   useEffect(() => {
-    if (!patients.length) return undefined;
+    if (doctorIdentity?.loading || doctorIdentity?.error || !authenticatedDoctorId || !patients.length) {
+      return undefined;
+    }
 
     let active = true;
 
@@ -425,7 +490,7 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
       window.removeEventListener("focus", refreshPatientAvatars);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [authenticatedDoctorId, patients]);
+  }, [authenticatedDoctorId, doctorIdentity?.loading, doctorIdentity?.error, patients]);
 
   useEffect(() => {
     if (loadState !== "loaded") return undefined;
@@ -449,18 +514,32 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
 
       if (!target) {
         setSearchTerm("");
-        setStatusMessage(
+        setNavigationNotice(
           `Patient ${dashboardPatientTarget} could not be found.`
         );
         return;
       }
 
       setSearchTerm(target.patientId || target.name);
-      setStatusMessage("");
+      setNavigationNotice("");
     }, 0);
 
     return () => window.clearTimeout(timer);
   }, [dashboardPatientTarget, loadState, patients]);
+
+  const handleRetry = async () => {
+    const loadPatients = directoryLoaderRef.current;
+    if (!loadPatients || manualRetryPendingRef.current) return;
+
+    manualRetryPendingRef.current = true;
+    setRetryPending(true);
+    try {
+      await loadPatients();
+    } finally {
+      manualRetryPendingRef.current = false;
+      setRetryPending(false);
+    }
+  };
 
   const handleViewRecord = (recordId) => {
     const patient = patients.find((item) => item.recordId === recordId);
@@ -488,8 +567,14 @@ function DoctorPatientsContent({ headerAction = null, doctorIdentity = null }) {
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         onViewRecord={handleViewRecord}
-        statusMessage={statusMessage}
-        loadState={loadState}
+        navigationNotice={navigationNotice}
+        directoryError={directoryError}
+        identityError={identityUnavailable
+          ? "Unable to verify your Doctor account. Please reload the page and try again."
+          : ""}
+        onRetry={identityUnavailable || doctorIdentity?.loading ? null : handleRetry}
+        retryPending={retryPending}
+        loadState={identityUnavailable ? "error" : loadState}
         headerAction={headerAction}
       />
     </section>

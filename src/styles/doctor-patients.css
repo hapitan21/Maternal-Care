@@ -693,6 +693,59 @@
   filter: none !important;
 }
 
+/* Compact request feedback, scoped to Doctor Patients to preserve Staff styling. */
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-request-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--patients-line-strong);
+  border-radius: 12px;
+  background: #fff5f8;
+  color: #9c0f63;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-request-error p {
+  flex: 1 1 220px;
+  min-width: 0;
+  margin: 0;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-refresh-warning {
+  border-color: #e6ce91;
+  background: #fff9eb;
+  color: #75500c;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-retry-btn {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1.5px solid var(--patients-pink);
+  border-radius: 9px;
+  background: #fff;
+  color: #9c0f63;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-retry-btn:hover:not(:disabled) {
+  background: #ffe5ee;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-retry-btn:focus-visible {
+  outline: 2px solid var(--patients-pink);
+  outline-offset: 3px;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-retry-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 /* Paint both intentionally reserved gutters behind the sticky patient header. */
 .doctor-patients-page .doctor-patients-table-scroll {
   background-color: #ffffff !important;
