@@ -82,9 +82,9 @@
   font-size: 20px;
   font-weight: 900;
   line-height: 1.1;
-  white-space: nowrap;
+  white-space: normal;
   word-break: normal;
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
 }
 
 .staff-preconsult-warning,
@@ -156,6 +156,7 @@
 }
 
 .staff-preconsult-card {
+  min-width: 0;
   padding: 21px 22px;
   border: 1px solid #e0e4ed;
   border-radius: 11px;
@@ -303,6 +304,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.staff-preconsult-field-grid > .staff-preconsult-field {
+  margin-top: 0;
+}
+
 .staff-preconsult-choice-group,
 .staff-preconsult-risk {
   display: grid;
@@ -426,8 +431,17 @@
     padding: 28px 22px 42px;
   }
 
-  .staff-preconsult-header,
   .staff-preconsult-top-grid.is-follow-up {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .staff-preconsult-top-grid.is-follow-up > .staff-preconsult-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .staff-preconsult-header {
     grid-template-columns: 1fr;
   }
 
@@ -440,10 +454,8 @@
     grid-column: auto;
     justify-self: center;
   }
-}
-
-@media (max-width: 900px) {
   .staff-preconsult-top-grid,
+  .staff-preconsult-top-grid.is-follow-up,
   .staff-preconsult-field-grid.is-three {
     grid-template-columns: 1fr;
   }

@@ -16,6 +16,7 @@ const patientColumns =
 const initialFields = {
   visitDate: "",
   visitTime: "",
+  // Retain legacy intake values when older Initial records are loaded/resaved.
   hpvVaccinated: "",
   lastPapSmear: "",
   otherDetails: "",
@@ -38,6 +39,8 @@ const followUpFields = {
   temperature: "",
   weight: "",
   fetalHeartRate: "",
+  respiratoryRate: "",
+  oxygenSaturation: "",
 };
 
 const pregnancyStatusOptions = ["Low Risk", "Moderate Risk", "High Risk"];
@@ -238,7 +241,6 @@ function validateStaffIntake(visitType, form) {
   if (!trimValue(form.visitTime)) errors.visitTime = "Time of visit is required.";
 
   if (visitType === "initial") {
-    if (!trimValue(form.hpvVaccinated)) errors.hpvVaccinated = "HPV vaccination status is required.";
     validateRange(errors, form, "height", "Height", 80, 250, "cm");
     validateRange(errors, form, "weight", "Weight", 25, 250, "kg");
     validateRange(errors, form, "temperature", "Temperature", 30, 45, "C");
@@ -253,6 +255,8 @@ function validateStaffIntake(visitType, form) {
     validateRange(errors, form, "temperature", "Temperature", 30, 45, "C");
     validateRange(errors, form, "weight", "Weight", 25, 250, "kg");
     validateRange(errors, form, "fetalHeartRate", "Fetal heart rate", 60, 220, "bpm");
+    validateRange(errors, form, "respiratoryRate", "Respiratory rate", 5, 60, "/min");
+    validateRange(errors, form, "oxygenSaturation", "Oxygen saturation", 1, 100, "%");
   }
 
   if (!trimValue(form.bloodPressure)) {
@@ -333,28 +337,6 @@ function DateField({ label, value, onChange, error = "", readOnly = false }) {
       </div>
       {error ? <small>{error}</small> : null}
     </label>
-  );
-}
-
-function RadioGroup({ label, value, onChange, options, error = "", readOnly = false }) {
-  return (
-    <fieldset className={`staff-preconsult-choice-group${error ? " has-error" : ""}`}>
-      <legend>{label}</legend>
-      <div>
-        {options.map((option) => (
-          <label key={option}>
-            <input
-              type="radio"
-              checked={value === option}
-              disabled={readOnly}
-              onChange={() => onChange(option)}
-            />
-            <span>{option}</span>
-          </label>
-        ))}
-      </div>
-      {error ? <small>{error}</small> : null}
-    </fieldset>
   );
 }
 
@@ -710,31 +692,12 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
             <TextField label="Temperature" value={form.temperature} placeholder="e.g. 36.7 C" onChange={(value) => updateForm("temperature", value)} error={validationErrors.temperature} readOnly={isReadOnly} />
             <TextField label="Weight" value={form.weight} placeholder="e.g. 65 kg" onChange={(value) => updateForm("weight", value)} error={validationErrors.weight} readOnly={isReadOnly} />
             <TextField label="Fetal Heart Rate" value={form.fetalHeartRate} placeholder="e.g. 140 bpm" onChange={(value) => updateForm("fetalHeartRate", value)} error={validationErrors.fetalHeartRate} readOnly={isReadOnly} />
+            <TextField label="Respiratory Rate" value={form.respiratoryRate} placeholder="Enter /min" onChange={(value) => updateForm("respiratoryRate", value)} error={validationErrors.respiratoryRate} readOnly={isReadOnly} />
+            <TextField label="Oxygen Saturation" value={form.oxygenSaturation} placeholder="Enter %" onChange={(value) => updateForm("oxygenSaturation", value)} error={validationErrors.oxygenSaturation} readOnly={isReadOnly} />
           </div>
         ) : (
           <>
             <div className="staff-preconsult-field-grid is-three">
-              <RadioGroup
-                label="HPV Vaccination"
-                value={form.hpvVaccinated}
-                options={["Yes", "No"]}
-                onChange={(value) => updateForm("hpvVaccinated", value)}
-                error={validationErrors.hpvVaccinated}
-                readOnly={isReadOnly}
-              />
-              <DateField
-                label="Last Pap Smear"
-                value={form.lastPapSmear}
-                onChange={(value) => updateForm("lastPapSmear", value)}
-                readOnly={isReadOnly}
-              />
-              <TextField
-                label="Others"
-                value={form.otherDetails}
-                placeholder="Enter details (if any)"
-                onChange={(value) => updateForm("otherDetails", value)}
-                readOnly={isReadOnly}
-              />
               <TextField label="Height" value={form.height} placeholder="Enter cm" onChange={(value) => updateForm("height", value)} error={validationErrors.height} readOnly={isReadOnly} />
               <TextField label="Weight" value={form.weight} placeholder="Enter kg" onChange={(value) => updateForm("weight", value)} error={validationErrors.weight} readOnly={isReadOnly} />
               <TextField label="Blood Pressure" value={form.bloodPressure} placeholder="--- / ---" onChange={(value) => updateForm("bloodPressure", value)} error={validationErrors.bloodPressure} readOnly={isReadOnly} />
