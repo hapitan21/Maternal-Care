@@ -422,6 +422,107 @@
   border-bottom: 0;
 }
 
+.appointment-visit-page .appointment-visit-history-card h3,
+.appointment-visit-page .appointment-visit-clinical-subheading {
+  margin: 16px 0 10px;
+  color: #50596c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-visit-page .appointment-visit-clinical-subheading {
+  margin-top: 0;
+}
+
+.appointment-visit-page .appointment-visit-history-note {
+  margin: 0 0 12px;
+  color: #6f7889;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.appointment-visit-page .appointment-visit-history-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 0 0 14px;
+}
+
+.appointment-visit-page .appointment-visit-history-fields > div {
+  min-width: 0;
+}
+
+.appointment-visit-page .appointment-visit-history-fields dt {
+  margin-bottom: 5px;
+  color: #50596c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-visit-page .appointment-visit-history-fields dd,
+.appointment-visit-page .appointment-visit-history-text {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #e9ebf1;
+  border-radius: 6px;
+  background: #f5f7fa;
+  color: #586276;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.appointment-visit-page .appointment-visit-history-paired {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.appointment-visit-page .appointment-visit-history-paired > section {
+  min-width: 0;
+}
+
+.appointment-visit-page .appointment-visit-history-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.appointment-visit-page .appointment-visit-history-table-wrap:focus-visible {
+  outline: 3px solid rgba(255, 63, 128, 0.3);
+  outline-offset: 2px;
+}
+
+.appointment-visit-page .appointment-visit-history-table {
+  min-width: 860px;
+  table-layout: fixed;
+}
+
+.appointment-visit-page .appointment-visit-history-table caption {
+  padding: 9px 13px;
+  color: #6f7889;
+  font-size: 11px;
+  text-align: left;
+}
+
+.appointment-visit-page .appointment-visit-history-table td,
+.appointment-visit-page .appointment-visit-allergy-table td {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  vertical-align: top;
+}
+
+.appointment-visit-page .appointment-visit-allergy-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.appointment-visit-page .appointment-visit-initial-clinical-history {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef0f4;
+}
+
 .appointment-visit-table-actions {
   width: 82px;
   white-space: nowrap;
@@ -870,6 +971,10 @@
 }
 
 @media (max-width: 840px) {
+  .appointment-visit-page .appointment-visit-history-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .appointment-visit-header {
     grid-template-columns: 1fr auto;
   }
@@ -912,6 +1017,11 @@
 }
 
 @media (max-width: 640px) {
+  .appointment-visit-page .appointment-visit-history-fields,
+  .appointment-visit-page .appointment-visit-history-paired {
+    grid-template-columns: 1fr;
+  }
+
   .appointment-visit-page {
     padding: 0 0 32px;
   }

@@ -23,6 +23,12 @@ const patientColumns =
   "id, patient_id, full_name, age, contact_number, address, gestational_age, expected_delivery_date, risk_level";
 const recordColumns =
   "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, form_data, uploaded_at, uploaded_by";
+const obstetricHistoryColumns =
+  "id, patient_id, gravida, para, age_at_menarche, menstrual_pattern, cycle_length_days, menstruation_duration_days, sexually_active, contraceptive_method, last_menstrual_period, expected_delivery_date, pregnancy_records, created_at, updated_at";
+const medicalHistoryColumns =
+  "id, patient_id, allergies, allergy_records, medical_conditions, other_medical_condition, family_history, other_family_history, created_at, updated_at";
+const initialAssessmentColumns =
+  "id, patient_id, hpv_vaccinated, last_pap_smear, assessment_others, remarks, created_at, updated_at";
 const MEDICAL_RECORDS_BUCKET = "medical-records";
 const MAX_REPORT_FILE_SIZE = 10 * 1024 * 1024;
 const DATABASE_UUID_PATTERN =
@@ -47,6 +53,9 @@ const emptyForm = {
   fetalMovement: "",
   babyPosition: "",
   additionalFindings: "",
+  hpvVaccinationStatus: "",
+  lastPapSmear: "",
+  otherClinicalNotes: "",
   lifestyleAssessment: "",
   smokingStatus: "",
   drugUse: "",
@@ -76,6 +85,7 @@ const emptyForm = {
   prescription: "",
   medications: [],
   prescriptionInstructions: "",
+  doctorOrder: "",
   treatmentPlan: "",
 };
 
@@ -419,6 +429,185 @@ function FormCard({ title, action, className = "", children }) {
       {children}
     </section>
   );
+}
+
+async function loadLatestRegistrationHistory(table, columns, patientId) {
+  return supabase
+    .from(table)
+    .select(columns)
+    .eq("patient_id", patientId)
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+}
+
+function isUnavailableBloodTypeColumn(error) {
+  if (!error) return false;
+  const message = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`.toLowerCase();
+  return message.includes("blood_type") && (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    (!error.code && (message.includes("schema cache") || message.includes("column")) &&
+      /could not find|does not exist|not found/.test(message))
+  );
+}
+
+async function loadVisitPatient(patientId, includeBloodType) {
+  const query = (columns) => supabase
+    .rpc("get_doctor_patient_directory")
+    .select(columns)
+    .eq("id", patientId)
+    .maybeSingle();
+  const result = await query(includeBloodType ? `${patientColumns}, blood_type` : patientColumns);
+  if (!includeBloodType || !isUnavailableBloodTypeColumn(result.error)) return result;
+  return query(patientColumns);
+}
+
+function formatHistoryValue(value) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  if (value == null || typeof value === "object") return "Not recorded";
+  return String(value).trim() || "Not recorded";
+}
+
+function formatHistoryDate(value) {
+  return value ? formatClinicalDate(String(value).slice(0, 10)) : "Not recorded";
+}
+
+function HistoryFields({ fields }) {
+  return (
+    <dl className="appointment-visit-history-fields">
+      {fields.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{formatHistoryValue(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function getPastPregnancies(obstetric) {
+  return Array.isArray(obstetric?.pregnancy_records)
+    ? obstetric.pregnancy_records.filter((row) =>
+        row && typeof row === "object" && !Array.isArray(row) &&
+        ["birthdate", "termPreterm", "deliveryType", "complications"]
+          .some((field) => formatHistoryValue(row[field]) !== "Not recorded")
+      )
+    : [];
+}
+
+function getRecordedTermCounts(rows) {
+  const terms = rows.map((row) => String(row.termPreterm || "")
+    .trim().toLowerCase().replace(/[_-]+/g, " "));
+  // An incomplete/unknown outcome must not produce a misleading zero count.
+  if (!terms.length || terms.some((term) =>
+    !["term", "full term", "preterm", "pre term", "postterm", "post term"].includes(term)
+  )) return { fullTerm: null, preterm: null };
+  return {
+    fullTerm: terms.filter((term) => ["term", "full term"].includes(term)).length,
+    preterm: terms.filter((term) => ["preterm", "pre term"].includes(term)).length,
+  };
+}
+
+function ObstetricHistorySection({ obstetric, expectedDeliveryDate }) {
+  const pregnancies = getPastPregnancies(obstetric);
+  const counts = getRecordedTermCounts(pregnancies);
+  return (
+    <FormCard title="Reproductive & Obstetric History" className="appointment-visit-history-card">
+      <p className="appointment-visit-history-note">Patient registration history - Read-only</p>
+      <h3>Reproductive History</h3>
+      <HistoryFields fields={[
+        ["Age at Menarche", obstetric?.age_at_menarche],
+        ["Menstrual Pattern", obstetric?.menstrual_pattern],
+        ["Cycle Length (days)", obstetric?.cycle_length_days],
+        ["Duration of Menstruation (days)", obstetric?.menstruation_duration_days],
+        ["Sexually Active", obstetric?.sexually_active],
+        ["Contraceptive Method Used", obstetric?.contraceptive_method],
+      ]} />
+      <h3>Obstetric Index</h3>
+      <HistoryFields fields={[
+        ["Gravida", obstetric?.gravida], ["Para", obstetric?.para],
+        ["Full Term", counts.fullTerm], ["Preterm", counts.preterm],
+        ["Abortion", null], ["Living", null],
+      ]} />
+      <HistoryFields fields={[
+        ["Last Menstrual Period", formatHistoryDate(obstetric?.last_menstrual_period)],
+        ["Expected Delivery Date", formatHistoryDate(expectedDeliveryDate)],
+      ]} />
+      <p className="appointment-visit-history-note">Expected Delivery Date follows Pregnancy Status for this visit.</p>
+      <h3>Past Pregnancies</h3>
+      <div className="appointment-visit-table-wrap appointment-visit-history-table-wrap" tabIndex={0} role="region" aria-label="Past pregnancies, scroll horizontally for more columns">
+        <table className="appointment-visit-table appointment-visit-history-table">
+          <caption>Registered past pregnancies</caption>
+          <thead><tr><th scope="col">Birthdate</th><th scope="col">Term / Preterm</th><th scope="col">Type of Delivery</th><th scope="col">Place of Delivery</th><th scope="col">Complications</th><th scope="col">NBS Result</th></tr></thead>
+          <tbody>
+            {pregnancies.length ? pregnancies.map((row, index) => (
+              <tr key={`${row.id || "pregnancy"}-${index}`}>
+                <td>{formatHistoryDate(row.birthdate)}</td><td>{formatHistoryValue(row.termPreterm)}</td>
+                <td>{formatHistoryValue(row.deliveryType)}</td><td>Not recorded</td>
+                <td>{formatHistoryValue(row.complications)}</td><td>Not recorded</td>
+              </tr>
+            )) : <tr><td colSpan="6" className="appointment-visit-empty-row">No past pregnancies recorded.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </FormCard>
+  );
+}
+
+function getHistoryList(value) {
+  return (Array.isArray(value) ? value : [value])
+    .filter((item) => item != null && typeof item !== "object")
+    .map((item) => String(item).trim()).filter(Boolean);
+}
+
+function MedicalHistorySection({ medical, bloodType }) {
+  const structuredAllergies = Array.isArray(medical?.allergy_records)
+    ? medical.allergy_records.filter((row) => row && typeof row === "object" &&
+        ["type", "allergen", "reaction"].some((field) => formatHistoryValue(row[field]) !== "Not recorded"))
+    : [];
+  const allergies = getHistoryList(medical?.allergies);
+  const conditions = [...getHistoryList(medical?.medical_conditions), ...getHistoryList(medical?.other_medical_condition)];
+  const family = [...getHistoryList(medical?.family_history), ...getHistoryList(medical?.other_family_history)];
+  return (
+    <FormCard title="Medical & Family History" className="appointment-visit-history-card">
+      <p className="appointment-visit-history-note">Patient registration history - Read-only</p>
+      <HistoryFields fields={[["Blood Type", bloodType]]} />
+      <h3>Allergies</h3>
+      {structuredAllergies.length ? (
+        <div className="appointment-visit-table-wrap">
+          <table className="appointment-visit-table appointment-visit-allergy-table">
+            <thead><tr><th scope="col">Type</th><th scope="col">Allergen</th><th scope="col">Reaction</th></tr></thead>
+            <tbody>{structuredAllergies.map((row, index) => (
+              <tr key={`${row.id || "allergy"}-${index}`}><td>{formatHistoryValue(row.type)}</td><td>{formatHistoryValue(row.allergen)}</td><td>{formatHistoryValue(row.reaction)}</td></tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ) : <p className="appointment-visit-history-text">{allergies.length ? allergies.join("; ") : "Not recorded"}</p>}
+      <div className="appointment-visit-history-paired">
+        <section><h3>History of Medical Conditions</h3><p className="appointment-visit-history-text">{conditions.length ? conditions.join("; ") : "Not recorded"}</p></section>
+        <section><h3>Family Medical History</h3><p className="appointment-visit-history-text">{family.length ? family.join("; ") : "Not recorded"}</p></section>
+      </div>
+    </FormCard>
+  );
+}
+
+function getHpvVaccinationStatus(value) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  const status = String(value || "").trim().toLowerCase();
+  return status === "yes" ? "Yes" : status === "no" ? "No" : "";
+}
+
+function buildInitialAssessmentDefaults(assessment) {
+  return {
+    hpvVaccinationStatus: getHpvVaccinationStatus(assessment?.hpv_vaccinated),
+    lastPapSmear: assessment?.last_pap_smear ? String(assessment.last_pap_smear).slice(0, 10) : "",
+    otherClinicalNotes: typeof assessment?.assessment_others === "string" ? assessment.assessment_others : "",
+  };
 }
 
 function ReadOnlyField({ id, label, value }) {
@@ -772,6 +961,8 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   const [routing, setRouting] = useState(null);
   const [existingRecord, setExistingRecord] = useState(null);
   const [previousBaseline, setPreviousBaseline] = useState(null);
+  const [registrationHistory, setRegistrationHistory] = useState({});
+  const [historyWarning, setHistoryWarning] = useState("");
   const [currentPregnancy, setCurrentPregnancy] = useState({
     obstetricHistoryId: "",
     expectedDeliveryDate: "",
@@ -835,6 +1026,8 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     setUltrasoundFile(null);
     setPrescriptionFile(null);
     setEddConfirmation(null);
+    setRegistrationHistory({});
+    setHistoryWarning("");
 
     const { data: routingData, error: routingError } = await supabase.rpc(
       "get_appointment_visit_form_type",
@@ -890,12 +1083,10 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       baselineResult,
       staffIntakeResult,
       obstetricResult,
+      medicalHistoryResult,
+      initialAssessmentResult,
     ] = await Promise.all([
-      supabase
-        .rpc("get_doctor_patient_directory")
-        .select(patientColumns)
-        .eq("id", schedule.patient_id)
-        .maybeSingle(),
+      loadVisitPatient(schedule.patient_id, requestedType === "initial"),
       supabase
         .from("medical_records")
         .select(recordColumns)
@@ -908,14 +1099,24 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         .order("uploaded_at", { ascending: false })
         .limit(30),
       supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
-      supabase
-        .from("patient_obstetric_history")
-        .select("id, patient_id, expected_delivery_date")
-        .eq("patient_id", schedule.patient_id)
-        .limit(1)
-        .maybeSingle(),
+      loadLatestRegistrationHistory("patient_obstetric_history",
+        requestedType === "initial" ? obstetricHistoryColumns : "id, patient_id, expected_delivery_date",
+        schedule.patient_id),
+      requestedType === "initial"
+        ? loadLatestRegistrationHistory("patient_medical_history", medicalHistoryColumns, schedule.patient_id)
+        : Promise.resolve({ data: null, error: null }),
+      requestedType === "initial"
+        ? loadLatestRegistrationHistory("patient_initial_assessment", initialAssessmentColumns, schedule.patient_id)
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
+    if (requestIdRef.current !== requestId) return;
+    // Optional history columns must not break the established pregnancy load.
+    // If the expanded Initial query fails, retry the original EDD projection
+    // with the same deterministic row selection.
+    const pregnancyResult = requestedType === "initial" && obstetricResult.error
+      ? await loadLatestRegistrationHistory("patient_obstetric_history", "id, patient_id, expected_delivery_date", schedule.patient_id)
+      : obstetricResult;
     if (requestIdRef.current !== requestId) return;
     const staffIntakeError =
       staffIntakeResult.error && !isMissingStaffIntakeSupport(staffIntakeResult.error)
@@ -925,7 +1126,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       patientResult.error ||
       recordResult.error ||
       baselineResult.error ||
-      obstetricResult.error ||
+      pregnancyResult.error ||
       staffIntakeError;
     if (loadError) {
       logVisitError("visit information load failed", loadError);
@@ -939,7 +1140,17 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     const staffIntake = Array.isArray(staffIntakeResult.data)
       ? staffIntakeResult.data[0]
       : staffIntakeResult.data;
-    const obstetricHistory = obstetricResult.data || null;
+    const obstetricHistory = pregnancyResult.data || null;
+    if (requestedType === "initial") {
+      const historyErrors = [obstetricResult, medicalHistoryResult, initialAssessmentResult]
+        .filter((result) => result.error);
+      historyErrors.forEach((result) => logVisitError("optional registration history load failed", result.error));
+      setHistoryWarning(historyErrors.length ? "Some registration history could not be loaded. Unavailable values are shown as Not recorded." : "");
+      setRegistrationHistory({
+        obstetric: obstetricHistory,
+        medical: medicalHistoryResult.error ? null : medicalHistoryResult.data,
+      });
+    }
     const completedPriorRecords = (baselineResult.data || []).filter((candidate) => {
       if (!isCompletedClinicalVisitRecord(candidate)) return false;
       return candidate?.schedule_id !== appointmentId;
@@ -991,6 +1202,11 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         : "";
 
     const staffIntakeDefaults = buildStaffIntakeDefaults(staffIntake);
+    // Only a new Initial visit may use the registration assessment as prefill.
+    // Baseline remarks/vitals never replace today's Staff or Doctor findings.
+    const initialAssessmentDefaults = requestedType === "initial"
+      ? buildInitialAssessmentDefaults(record?.id || initialAssessmentResult.error ? null : initialAssessmentResult.data)
+      : {};
     const currentExpectedDeliveryDate = obstetricHistory?.expected_delivery_date
       ? getManilaDateKey(obstetricHistory.expected_delivery_date)
       : patientRow?.expected_delivery_date
@@ -999,6 +1215,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
 
     const defaults = {
       ...previousVisitDefaults,
+      ...initialAssessmentDefaults,
 
       // Today's completed Staff pre-consultation is the current-visit source
       // of truth. Use it before patient/baseline values when a Doctor record
@@ -1524,7 +1741,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             {isReadOnly
               ? "Completed visit record."
               : !isFollowUp
-                ? "Record initial consultation or initial visit."
+                ? "Record initial information for initial visit."
                 : "Record comprehensive follow-up information for any type of visit."}
           </p>
         </div>
@@ -1576,7 +1793,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             </div>
           </FormCard>
 
-          <FormCard title="Current Pregnancy" className="appointment-visit-summary-card">
+          <FormCard title="Pregnancy Status" className="appointment-visit-summary-card">
             <div className="appointment-visit-field-grid">
               <TextField id="gestational-age" label="Gestational Age" value={form.gestationalAge} placeholder="e.g. 28 weeks" readOnly={isReadOnly} onChange={(value) => updateForm("gestationalAge", value)} />
               <TextField id="expected-delivery-date" label="Expected Delivery Date" value={form.expectedDeliveryDate} type="date" readOnly={isReadOnly} error={validationErrors.expectedDeliveryDate} onChange={(value) => updateForm("expectedDeliveryDate", value)} />
@@ -1590,7 +1807,25 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
           <TextAreaField id="chief-complaint" label="Chief Complaint details" required maxLength={500} size="compact" value={form.chiefComplaint} placeholder="Enter chief complaint details..." readOnly={isReadOnly} error={validationErrors.chiefComplaint} onChange={(value) => updateForm("chiefComplaint", value)} />
         </FormCard>
 
+        {!isFollowUp ? (
+          <>
+            {historyWarning ? <p className="appointment-visit-message" role="status">{historyWarning}</p> : null}
+            <ObstetricHistorySection obstetric={registrationHistory.obstetric} expectedDeliveryDate={form.expectedDeliveryDate} />
+            <MedicalHistorySection medical={registrationHistory.medical} bloodType={patient?.blood_type} />
+          </>
+        ) : null}
+
         <FormCard title="Clinical Findings">
+          {!isFollowUp ? (
+            <div className="appointment-visit-initial-clinical-history">
+              <div className="appointment-visit-field-grid is-two-columns">
+                <ChoiceGroup label="HPV Vaccination" value={getHpvVaccinationStatus(form.hpvVaccinationStatus)} options={["Yes", "No"]} readOnly={isReadOnly} onChange={(value) => updateForm("hpvVaccinationStatus", value)} />
+                <TextField id="last-pap-smear" label="Last Pap Smear" type="date" value={form.lastPapSmear} readOnly={isReadOnly} onChange={(value) => updateForm("lastPapSmear", value)} />
+              </div>
+              <TextAreaField id="other-clinical-notes" label="Other Clinical Notes" size="compact" value={form.otherClinicalNotes} readOnly={isReadOnly} onChange={(value) => updateForm("otherClinicalNotes", value)} />
+            </div>
+          ) : null}
+          {!isFollowUp ? <h3 className="appointment-visit-clinical-subheading">Physical Vitals / Current Visit</h3> : null}
           <div className="appointment-visit-field-grid is-three-columns">
             <TextField id="blood-pressure" label="Blood Pressure" value={form.bloodPressure} placeholder="--/-- mmHg" readOnly={isReadOnly} error={validationErrors.bloodPressure} onChange={(value) => updateForm("bloodPressure", value)} />
             <TextField id="temperature" label="Temperature" value={form.temperature} placeholder="--.- C" readOnly={isReadOnly} error={validationErrors.temperature} onChange={(value) => updateForm("temperature", value)} />
@@ -1604,7 +1839,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             <TextField id="estimated-fetal-weight" label="Estimated Fetal Weight" value={form.estimatedFetalWeight} placeholder="-- kg" readOnly={isReadOnly} error={validationErrors.estimatedFetalWeight} onChange={(value) => updateForm("estimatedFetalWeight", value)} />
           </div>
           <div className="appointment-visit-clinical-row">
-            <ChoiceGroup id="fetal-movement" label="Fetal Movement" value={form.fetalMovement} options={["Present", "Absent", "Not Applicable"]} readOnly={isReadOnly} onChange={(value) => updateForm("fetalMovement", value)} />
+            <ChoiceGroup id="fetal-movement" label="Fetal Movement" value={form.fetalMovement} options={isFollowUp ? ["Present", "Absent", "Not Applicable"] : ["Active / Present", "Reduced / Sluggish", "Absent"]} readOnly={isReadOnly} onChange={(value) => updateForm("fetalMovement", value)} />
             {!isFollowUp ? <TextField id="baby-position" label="Baby Position" value={form.babyPosition} placeholder="e.g. Cephalic" readOnly={isReadOnly} onChange={(value) => updateForm("babyPosition", value)} /> : null}
           </div>
           {isFollowUp ? (
@@ -1620,19 +1855,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
           <TextAreaField id="additional-findings" label="Additional Findings" maxLength={500} size="compact" value={form.additionalFindings} placeholder="Enter additional findings..." readOnly={isReadOnly} onChange={(value) => updateForm("additionalFindings", value)} />
         </FormCard>
 
-        {isFollowUp ? (
-          <details className="appointment-visit-optional-disclosure appointment-visit-lifestyle-disclosure">
-            <summary>Additional Lifestyle Assessment</summary>
-            <div className="appointment-visit-field-grid is-three-columns">
-              <SelectField id="smoking-status" label="Smoking Status" value={form.smokingStatus} options={["Never", "Former", "Current"]} readOnly={isReadOnly} onChange={(value) => updateForm("smokingStatus", value)} />
-              <SelectField id="drug-use" label="Drug Use" value={form.drugUse} options={["No", "Yes"]} readOnly={isReadOnly} onChange={(value) => updateForm("drugUse", value)} />
-              <SelectField id="physical-activity" label="Physical Activity" value={form.physicalActivity} options={["Low", "Moderate", "High"]} readOnly={isReadOnly} onChange={(value) => updateForm("physicalActivity", value)} />
-              <SelectField id="alcohol-intake" label="Alcohol Intake" value={form.alcoholIntake} options={["Never", "Occasionally", "Regularly"]} readOnly={isReadOnly} onChange={(value) => updateForm("alcoholIntake", value)} />
-              <SelectField id="diet" label="Diet" value={form.diet} options={["Balanced", "Needs Improvement", "Special Diet"]} readOnly={isReadOnly} onChange={(value) => updateForm("diet", value)} />
-            </div>
-            {form.lifestyleAssessment ? <p className="appointment-visit-legacy-note"><strong>Previous notes:</strong> {form.lifestyleAssessment}</p> : null}
-          </details>
-        ) : (
+        {!isFollowUp ? (
           <FormCard title="Lifestyle Assessment">
             <div className="appointment-visit-field-grid is-three-columns">
               <SelectField id="smoking-status" label="Smoking Status" value={form.smokingStatus} options={["Never", "Former", "Current"]} readOnly={isReadOnly} onChange={(value) => updateForm("smokingStatus", value)} />
@@ -1643,7 +1866,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             </div>
             {form.lifestyleAssessment ? <p className="appointment-visit-legacy-note"><strong>Previous notes:</strong> {form.lifestyleAssessment}</p> : null}
           </FormCard>
-        )}
+        ) : null}
 
         <FormCard
           title="Vaccination Status"
@@ -1700,23 +1923,23 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
           </FormCard>
         </div>
 
-        <FormCard title="Assessment">
+        <FormCard title="Clinical Assessment">
           <TextAreaField id="assessment" label="Assessment details" required maxLength={500} size="medium" value={form.assessment} placeholder="Enter assessment..." readOnly={isReadOnly} error={validationErrors.assessment} onChange={(value) => updateForm("assessment", value)} />
         </FormCard>
 
-        <FormCard title="Diagnosis">
+        <FormCard title="Final Diagnosis">
           <TextAreaField id="diagnosis" label="Diagnosis details" required maxLength={500} size="compact" value={form.diagnosis} placeholder="Enter diagnosis..." readOnly={isReadOnly} error={validationErrors.diagnosis} onChange={(value) => updateForm("diagnosis", value)} />
         </FormCard>
 
         <div className="appointment-visit-paired-grid">
-          <FormCard title="Actions Taken">
+          <FormCard title="Actions Taken Today">
             <CheckboxGrid id="actions-taken" options={actionOptions} selected={form.actionSelections} readOnly={isReadOnly} onChange={(value) => updateForm("actionSelections", value)} />
             {Array.isArray(form.actionSelections) && form.actionSelections.includes("Other") ? (
               <TextField id="actions-other-details" label="Other action details" value={form.actionsOtherDetails} placeholder="Enter other action details" readOnly={isReadOnly} onChange={(value) => updateForm("actionsOtherDetails", value)} />
             ) : null}
             {form.actionsTaken ? <p className="appointment-visit-legacy-note"><strong>Previous notes:</strong> {form.actionsTaken}</p> : null}
           </FormCard>
-          <FormCard title="Pregnancy Journey Update">
+          <FormCard title="Pregnancy Journey Milestones">
             <CheckboxGrid id="journey-milestones" options={journeyOptions} selected={form.journeyMilestones} readOnly={isReadOnly} onChange={(value) => updateForm("journeyMilestones", value)} />
             {form.pregnancyJourneyUpdate ? <p className="appointment-visit-legacy-note"><strong>Previous notes:</strong> {form.pregnancyJourneyUpdate}</p> : null}
           </FormCard>
@@ -1763,7 +1986,11 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
           <AttachmentField id="prescription-file" label="Prescription attachment" file={prescriptionFile} readOnly={isReadOnly} onChange={setPrescriptionFile} onClear={() => setPrescriptionFile(null)} />
         </FormCard>
 
-        <FormCard title="Plan / Treatment">
+        <FormCard title="Doctor's Order">
+          <TextAreaField id="doctor-order" label="Doctor's Order" maxLength={600} size="compact" value={form.doctorOrder} placeholder="Enter doctor's orders..." readOnly={isReadOnly} onChange={(value) => updateForm("doctorOrder", value)} />
+        </FormCard>
+
+        <FormCard title="Plan / Treatment & Advice">
           <TextAreaField id="treatment-plan" label="Plan and treatment details" required maxLength={600} size="large" value={form.treatmentPlan} placeholder="Enter plan and treatment..." readOnly={isReadOnly} error={validationErrors.treatmentPlan} onChange={(value) => updateForm("treatmentPlan", value)} />
         </FormCard>
 
