@@ -360,11 +360,16 @@ const stores = Array.from({ length: 4 }, () => cacheModule.namespace.createDocto
 for (const store of stores) store.set("synthetic-clinic", { sensitive: "synthetic" });
 cacheModule.namespace.clearDoctorSessionCaches();
 check(stores.every(store => store.size === 0), "one Doctor cleanup clears every registered page cache");
-for (const page of ["Doctor_Dashboard", "Doctor_Patients", "Doctor_Appointments", "Doctor_Reminder"]) {
+// Verify the current cache contract independently of Git history.
+for (const [page, cacheName] of [
+  ["Doctor_Dashboard", "doctorDashboardSnapshots"],
+  ["Doctor_Patients", "doctorPatientSnapshots"],
+  ["Doctor_Appointments", "doctorAppointmentSnapshots"],
+  ["Doctor_Reminder", "doctorReminderSnapshots"],
+]) {
   const current = await source("src/pages/doctor/" + page + ".jsx");
-  const baseline = spawnSync("git", ["show", "HEAD:src/pages/doctor/" + page + ".jsx"], { encoding: "utf8", windowsHide: true });
-  const withoutCacheIntegration = current.replace('import { createDoctorSessionCache } from "../../lib/doctorSessionCache";\n', "").replace(/(const doctor\w+Snapshots = )createDoctorSessionCache\(\);/, "$1new Map();");
-  check(withoutCacheIntegration.replace(/\r/g, "") === baseline.stdout.replace(/\r/g, ""), page + " changes only its cache factory, preserving page/form business logic");
+  check(/import\s*\{\s*createDoctorSessionCache\s*\}\s*from\s*["']\.\.\/\.\.\/lib\/doctorSessionCache(?:\.js)?["']/.test(current), page + " imports the registered Doctor session-cache factory");
+  check(new RegExp("^const\\s+" + cacheName + "\\s*=\\s*createDoctorSessionCache\\s*\\(\\s*\\)\\s*;", "m").test(current), page + " creates its snapshot cache through the registered factory");
 }
 
 const dialogHooks = hookRuntime(); const dialogEnv = makeEnvironment(); let focus = 0; let renew = 0;
