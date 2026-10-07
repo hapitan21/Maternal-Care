@@ -78,6 +78,8 @@ const blankForm = {
   company: "",
   workContactNumber: "",
   email: "",
+  philHealthMember: "",
+  philHealthPin: "",
   husbandPartner: "",
   partnerContactNumber: "",
   emergencyContactPerson: "",
@@ -92,6 +94,10 @@ const blankForm = {
   contraceptiveMethod: "",
   gravida: "",
   para: "",
+  fullTerm: "",
+  preterm: "",
+  abortionMiscarriage: "",
+  livingChildren: "",
   lmp: "",
   edd: "",
   pregnancyRecords: [],
@@ -110,6 +116,13 @@ const blankForm = {
   paternalFamilyHistory: [],
   paternalFamilyOther: "",
 };
+
+const optionalObstetricCountFields = [
+  { key: "fullTerm", label: "Full Term (T)" },
+  { key: "preterm", label: "Preterm (P)" },
+  { key: "abortionMiscarriage", label: "Abortion / Miscarriage (A)" },
+  { key: "livingChildren", label: "Living Children (L)" },
+];
 
 const civilStatusOptions = [
   "Single",
@@ -683,13 +696,34 @@ function normalizeHumanReadableText(value) {
     .join("");
 }
 
+function normalizeRegistrationHistoryFields(form) {
+  const membership = form.philHealthMember;
+  const philHealthMember = membership === true || membership === "Yes"
+    ? "Yes"
+    : membership === false || membership === "No" ? "No" : "";
+
+  return {
+    philHealthMember,
+    philHealthPin: philHealthMember === "Yes"
+      ? String(form.philHealthPin ?? "").trim()
+      : "",
+    ...Object.fromEntries(optionalObstetricCountFields.map(({ key }) => [
+      key, String(form[key] ?? "").trim(),
+    ])),
+  };
+}
+
 function normalizeRegistrationText(form) {
   return humanReadableRegistrationFields.reduce(
     (nextForm, field) => ({
       ...nextForm,
       [field]: normalizeHumanReadableText(nextForm[field]),
     }),
-    { ...form, email: String(form.email || "").trim() }
+    {
+      ...form,
+      ...normalizeRegistrationHistoryFields(form),
+      email: String(form.email || "").trim(),
+    }
   );
 }
 
@@ -777,6 +811,12 @@ function getStepTwoValidationErrors(form) {
   } else if (gravida !== null && para > gravida) {
     errors.para = "Para should not exceed Gravida.";
   }
+  optionalObstetricCountFields.forEach(({ key }) => {
+    const value = String(form[key] ?? "").trim();
+    if (value && (!/^\d+$/.test(value) || Number(value) > 2147483647)) {
+      errors[key] = "Enter a nonnegative whole number, or leave blank if unknown.";
+    }
+  });
   if (cycleLength !== null && (cycleLength < 15 || cycleLength > 60)) {
     errors.cycleLength = "Enter 15 to 60 days, or leave blank if unknown.";
   }
@@ -1219,6 +1259,7 @@ function InputField({
   inputRef,
   fieldId,
   readOnly = false,
+  disabled = false,
   inputMode,
   autoComplete,
 }) {
@@ -1243,6 +1284,7 @@ function InputField({
           onBlur={onBlur}
           placeholder={placeholder}
           readOnly={readOnly}
+          disabled={disabled}
           inputMode={inputMode}
           autoComplete={autoComplete}
           aria-invalid={Boolean(error)}
@@ -1445,15 +1487,16 @@ function ContraceptiveMethodSelect({ value, onChange }) {
   );
 }
 
-function RadioGroup({ label, value, onChange, options }) {
+function RadioGroup({ label, value, onChange, options, name }) {
   return (
-    <div className="staff-register-radio-group">
+    <div className="staff-register-radio-group" role={name ? "group" : undefined} aria-label={name ? label : undefined}>
       <span>{label}</span>
       <div>
         {options.map((option) => (
           <label key={option}>
             <input
               type="radio"
+              name={name}
               checked={value === option}
               onChange={() => onChange(option)}
             />
@@ -2360,6 +2403,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
       setForm({
         ...blankForm,
         ...restoredForm,
+        ...normalizeRegistrationHistoryFields(restoredForm),
         sexAtBirth: "Female",
         medicalConditions: restoredForm.medicalConditions || [],
         familyHistory: restoredForm.familyHistory || [],
@@ -2493,7 +2537,11 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
   };
 
   const updateForm = (field, value) => {
-    const nextForm = { ...form, [field]: value };
+    const nextForm = {
+      ...form,
+      [field]: value,
+      ...(field === "philHealthMember" && value !== "Yes" ? { philHealthPin: "" } : {}),
+    };
     setForm(nextForm);
     clearResolvedRegistrationError(field, nextForm);
     if (field === "nationality" && value !== "Other") {
@@ -3503,6 +3551,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
           "ageMenarche",
           "gravida",
           "para",
+          ...optionalObstetricCountFields.map(({ key }) => key),
           "cycleLength",
           "durationMenstruation",
           "lmp",
@@ -3970,6 +4019,27 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               autoComplete="email"
             />
 
+            <div className="staff-register-field is-full">
+              <RadioGroup
+                label="Are you a PhilHealth member?"
+                name="registration-philhealth-membership"
+                value={form.philHealthMember}
+                onChange={(value) => updateForm("philHealthMember", value)}
+                options={["Yes", "No"]}
+              />
+              {form.philHealthMember === "Yes" ? (
+                <InputField
+                  label="PhilHealth Identification Number (PIN)"
+                  value={form.philHealthPin}
+                  onChange={(value) => updateForm("philHealthPin", value)}
+                  onBlur={() => updateForm("philHealthPin", form.philHealthPin.trim())}
+                  placeholder="Enter PhilHealth PIN, if available"
+                  fieldId="registration-philhealth-pin"
+                  disabled={form.philHealthMember !== "Yes"}
+                />
+              ) : null}
+            </div>
+
             <div className="staff-register-subsection-heading is-full">
               <h4>Employment Information</h4>
               <p>Optional employment details.</p>
@@ -4152,6 +4222,19 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                 inputRef={setRegistrationFieldRef("para")}
                 inputMode="numeric"
               />
+              {optionalObstetricCountFields.map(({ key, label }) => (
+                <InputField
+                  key={key}
+                  label={label}
+                  value={form[key]}
+                  onChange={(value) => updateForm(key, value)}
+                  placeholder="Enter number, if known"
+                  error={registrationErrors[key]}
+                  fieldId={`registration-${key}`}
+                  inputRef={setRegistrationFieldRef(key)}
+                  inputMode="numeric"
+                />
+              ))}
               <InputField
                 label="Last Menstrual Period (LMP)"
                 type="date"
@@ -4592,6 +4675,8 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <div><dt>Contact</dt><dd>{form.contactNumber}</dd></div>
             <div><dt>Email</dt><dd>{form.email || "Not provided"}</dd></div>
             <div><dt>Address</dt><dd>{form.address}</dd></div>
+            <div><dt>PhilHealth member</dt><dd>{form.philHealthMember || "Not recorded"}</dd></div>
+            <div><dt>PhilHealth PIN</dt><dd>{form.philHealthMember === "Yes" ? form.philHealthPin || "Not recorded" : "Not recorded"}</dd></div>
             <div><dt>Emergency Contact</dt><dd>{form.emergencyContactPerson}</dd></div>
             <div><dt>Relationship</dt><dd>{form.emergencyContactRelationship}</dd></div>
             <div><dt>Emergency Number</dt><dd>{form.emergencyContactNumber}</dd></div>
@@ -4602,6 +4687,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
           <h4>Reproductive &amp; Obstetric</h4>
           <dl>
             <div><dt>Gravida / Para</dt><dd>{form.gravida} / {form.para}</dd></div>
+            {optionalObstetricCountFields.map(({ key, label }) => (
+              <div key={key}><dt>{label}</dt><dd>{String(form[key] ?? "").trim() || "Not recorded"}</dd></div>
+            ))}
             <div><dt>Menstrual pattern</dt><dd>{form.menstrualPattern}</dd></div>
             <div><dt>LMP</dt><dd>{form.lmp || "Not provided"}</dd></div>
             <div><dt>EDD</dt><dd>{form.edd || "Not provided"}</dd></div>

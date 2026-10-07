@@ -106,6 +106,9 @@ export function mapPatientProfileSummary(summary, account = {}) {
   const nationality = cleanValue(patient.nationality) || cleanValue(personal.nationality);
   const gravida = obstetric.gravida ?? null;
   const para = obstetric.para ?? null;
+  const philHealthMember = patient.philhealth_member === true
+    ? true
+    : patient.philhealth_member === false ? false : null;
 
   return {
     recordId: patient.id || "",
@@ -121,6 +124,8 @@ export function mapPatientProfileSummary(summary, account = {}) {
     civilStatus: civilStatus || missingValue,
     nationality: nationality || missingValue,
     bloodType: cleanValue(patient.blood_type) || missingValue,
+    philHealthMember,
+    philHealthPin: philHealthMember === true ? cleanValue(patient.philhealth_pin) : "",
     email: cleanValue(account.email) || missingValue,
     phone: cleanValue(patient.contact_number) || missingValue,
     address: cleanValue(patient.address) || missingValue,

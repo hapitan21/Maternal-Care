@@ -480,8 +480,6 @@ function PatientCreateAccount() {
               </div>
             </div>
 
-            <CreateAccountPasswordGuide password={form.password} />
-
             <div className="patient-access-field">
               <label htmlFor="patient-create-confirm">Confirm password</label>
               <div className="patient-access-input-wrap">
@@ -547,6 +545,8 @@ function PatientCreateAccount() {
                 </p>
               ) : null}
             </div>
+
+            <CreateAccountPasswordGuide password={form.password} />
 
             <div className="patient-legal-section">
               <p className="patient-legal-copy">

@@ -27,6 +27,8 @@ const defaultProfile = {
   email: "",
   address: "",
   bloodType: "",
+  philHealthMember: null,
+  philHealthPin: "",
   civilStatus: "",
   phone: "",
 
@@ -420,6 +422,21 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange, onProfi
           onChange={updatePersonalDraft}
           wide
         />
+        <Info
+          label="PhilHealth Member"
+          value={profileData.philHealthMember === true
+            ? "Yes"
+            : profileData.philHealthMember === false ? "No" : "Not provided"}
+          icon="solar:shield-check-linear"
+        />
+        {profileData.philHealthMember === true ? (
+          <Info
+            label="PhilHealth Identification Number (PIN)"
+            value={profileData.philHealthPin}
+            icon="solar:card-linear"
+            wide
+          />
+        ) : null}
       </InfoCard>
 
       <InfoCard title="Pregnancy Information" icon="solar:heart-bold-duotone">

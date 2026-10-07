@@ -59,21 +59,6 @@ function toList(value) {
     .filter(Boolean);
 }
 
-function joinValues(values, fallback = "-") {
-  const cleanValues = values
-    .flatMap((value) => (Array.isArray(value) ? value : [value]))
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
-
-  return cleanValues.length ? cleanValues.join(", ") : fallback;
-}
-
-function formatYesNo(value) {
-  if (value === true) return "Yes";
-  if (value === false) return "No";
-  return "-";
-}
-
 function normalizeDateSource(value, fallback) {
   return value || fallback || "";
 }
@@ -459,130 +444,26 @@ function hasMeaningfulRecordValue(value) {
   );
 }
 
-function mapRegistrationMedicalRecord(patient, obstetric, medicalHistory, assessment) {
-  const createdAt =
-    assessment?.updated_at ||
-    obstetric?.updated_at ||
-    medicalHistory?.updated_at ||
-    patient?.created_at ||
-    new Date().toISOString();
-  const findings = [
+function buildRegistrationObstetricHistory(patient, obstetric) {
+  return [
+    { label: "Gravida (G)", value: obstetric?.gravida ?? "Not provided" },
+    { label: "Para (P)", value: obstetric?.para ?? "Not provided" },
+    { label: "Full Term (T)", value: obstetric?.full_term ?? "Not provided" },
+    { label: "Preterm (P)", value: obstetric?.preterm ?? "Not provided" },
+    { label: "Abortion/Miscarriage (A)", value: obstetric?.abortion_miscarriage ?? "Not provided" },
+    { label: "Living Children (L)", value: obstetric?.living_children ?? "Not provided" },
     {
-      label: "Blood Pressure",
-      value: assessment?.blood_pressure || "-",
-      unit: "mmHg",
+      label: "Last Menstrual Period",
+      value: formatLongDate(obstetric?.last_menstrual_period, "Not provided"),
     },
     {
-      label: "Weight",
-      value: assessment?.weight_kg || "-",
-      unit: "kg",
-    },
-    {
-      label: "Temp",
-      value: assessment?.temperature_celsius || "-",
-      unit: "C",
-    },
-    {
-      label: "Resp. Rate",
-      value: assessment?.respiratory_rate || "-",
-      unit: "breaths/min",
-    },
-    {
-      label: "Oxygen Saturation",
-      value: assessment?.oxygen_saturation || "-",
-      unit: "%",
-    },
-    {
-      label: "Blood Type",
-      value: patient?.blood_type || "-",
-      unit: "",
+      label: "Expected Delivery Date",
+      value: formatLongDate(
+        obstetric?.expected_delivery_date || patient?.expected_delivery_date,
+        "Not provided"
+      ),
     },
   ];
-  const assessmentItems = [
-    patient?.medical_notes,
-    assessment?.assessment_others,
-    assessment?.remarks,
-    medicalHistory?.other_medical_condition
-      ? `Other medical condition: ${medicalHistory.other_medical_condition}`
-      : "",
-    medicalHistory?.other_family_history
-      ? `Other family history: ${medicalHistory.other_family_history}`
-      : "",
-  ];
-  const allergies = joinValues(
-    [medicalHistory?.allergies, patient?.allergies],
-    ""
-  );
-  const conditions = joinValues(
-    [medicalHistory?.medical_conditions, patient?.chronic_illness],
-    ""
-  );
-  const familyHistory = joinValues([medicalHistory?.family_history], "");
-  const treatment = [
-    allergies ? `Allergies: ${allergies}` : "",
-    conditions ? `Medical conditions: ${conditions}` : "",
-    familyHistory ? `Family history: ${familyHistory}` : "",
-    "Continue clinic follow-up and prescribed prenatal care.",
-  ].filter(Boolean);
-
-  return {
-    id: `registration-${patient.id}`,
-    date: formatLongDate(createdAt),
-    dayTime: formatDayTime(createdAt),
-    visitType: "Patient Registration Summary",
-    gestationalAge: patient?.gestational_age || "Not recorded",
-    doctor: "Doctor not recorded",
-    appointmentReference: "No appointment reference",
-    createdDate: formatLongDate(createdAt, "Not recorded"),
-    updatedDate: "Not recorded",
-    recordStatus: "Not recorded",
-    complaint:
-      assessment?.remarks ||
-      assessment?.assessment_others ||
-      patient?.medical_notes ||
-      "Patient registration and initial maternal health assessment.",
-    findings,
-    assessment: toList(assessmentItems.join("\n")).length
-      ? toList(assessmentItems.join("\n"))
-      : ["Registered patient profile and baseline maternal care information."],
-    obstetric: [
-      {
-        label: "Gravida / Para",
-        value: `G${obstetric?.gravida ?? "-"} / P${obstetric?.para ?? "-"}`,
-      },
-      {
-        label: "Last Menstrual Period",
-        value: formatLongDate(obstetric?.last_menstrual_period, "-"),
-      },
-      {
-        label: "Expected Delivery Date",
-        value: formatLongDate(
-          obstetric?.expected_delivery_date || patient?.expected_delivery_date,
-          "-"
-        ),
-        wide: true,
-      },
-      {
-        label: "Contraceptive Method",
-        value: obstetric?.contraceptive_method || "-",
-        wide: true,
-      },
-      {
-        label: "Sexually Active",
-        value: formatYesNo(obstetric?.sexually_active),
-      },
-      {
-        label: "Menstrual Pattern",
-        value: obstetric?.menstrual_pattern || "-",
-      },
-    ],
-    treatment,
-    diagnosis: patient?.trimester || patient?.status || "Registered Maternal Care Patient",
-    attachments: [],
-    prescriptions: [],
-    diagnosticResults: [],
-    sortTime: toValidDate(createdAt)?.getTime() || 0,
-  };
 }
 
 async function loadPatientRow() {
@@ -606,7 +487,7 @@ async function loadPatientRow() {
   return data || null;
 }
 
-async function loadPatientDetailRow(table, patientId) {
+async function loadPatientDetailRow(table, patientId, onError) {
   if (!patientId) return null;
 
   const { data, error } = await supabase
@@ -618,6 +499,7 @@ async function loadPatientDetailRow(table, patientId) {
 
   if (error) {
     console.warn(`Patient medical record ${table} lookup failed:`, error);
+    onError?.(error);
     return null;
   }
 
@@ -632,13 +514,18 @@ export default function PatientPWAMedicalRecords({ profile }) {
   const initialCacheRef = useRef(initialCache);
   const [query, setQuery] = useState("");
   const [patientRecords, setPatientRecords] = useState(
-    () => initialCache?.patientRecords || []
+    () => (initialCache?.patientRecords || []).filter(
+      (record) => record.id !== `registration-${patientId}`
+    )
   );
   const [selectedRecordId, setSelectedRecordId] = useState(
     () => initialCache?.selectedRecordId || ""
   );
   const [isLoading, setIsLoading] = useState(() => !initialCache);
   const [loadError, setLoadError] = useState("");
+  const [registrationHistory, setRegistrationHistory] = useState(
+    () => initialCache?.registrationHistory || null
+  );
 
   useEffect(() => {
     let active = true;
@@ -687,9 +574,12 @@ export default function PatientPWAMedicalRecords({ profile }) {
         }
       }
 
-      const [obstetric, medicalHistory, initialAssessment] = patient?.id
+      let obstetricError = null;
+      const [obstetric] = patient?.id
         ? await Promise.all([
-            loadPatientDetailRow("patient_obstetric_history", patient.id),
+            loadPatientDetailRow("patient_obstetric_history", patient.id, (detailError) => {
+              obstetricError = detailError;
+            }),
             loadPatientDetailRow("patient_medical_history", patient.id),
             loadPatientDetailRow("patient_initial_assessment", patient.id),
           ])
@@ -698,6 +588,15 @@ export default function PatientPWAMedicalRecords({ profile }) {
       if (!active) return;
 
       setIsLoading(false);
+      setRegistrationHistory(!patient || obstetricError
+        ? {
+            status: "error",
+            error: "Registration / obstetric history could not be loaded. Please reopen this page to try again.",
+          }
+        : {
+            status: "ready",
+            items: buildRegistrationObstetricHistory(patient, obstetric),
+          });
 
       if (error) {
         console.error("Patient medical records load failed:", error);
@@ -714,25 +613,9 @@ export default function PatientPWAMedicalRecords({ profile }) {
         )
       );
 
-      // Keep registration information only as a fallback for patients who do not
-      // have a formal Doctor medical record yet. Once clinical records exist,
-      // the Patient PWA timeline mirrors the Doctor clinical record timeline.
-      const registrationRecord = patient
-        ? mapRegistrationMedicalRecord(
-            patient,
-            obstetric,
-            medicalHistory,
-            initialAssessment
-          )
-        : null;
-
-      const nextRecords = (
-        mappedRecords.length
-          ? mappedRecords
-          : registrationRecord
-            ? [registrationRecord]
-            : []
-      ).sort((first, second) => second.sortTime - first.sortTime);
+      const nextRecords = mappedRecords.sort(
+        (first, second) => second.sortTime - first.sortTime
+      );
 
       setPatientRecords(nextRecords);
       setSelectedRecordId((current) =>
@@ -817,10 +700,10 @@ export default function PatientPWAMedicalRecords({ profile }) {
   useEffect(() => {
     if (isLoading) return;
 
-    const snapshot = { patientRecords, selectedRecordId };
+    const snapshot = { patientRecords, selectedRecordId, registrationHistory };
     initialCacheRef.current = snapshot;
     setPatientPwaSessionCache(patientId, "medical-records", snapshot);
-  }, [isLoading, patientId, patientRecords, selectedRecordId]);
+  }, [isLoading, patientId, patientRecords, selectedRecordId, registrationHistory]);
 
   const filteredRecords = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -858,6 +741,9 @@ export default function PatientPWAMedicalRecords({ profile }) {
         subtitle="Review visit summaries, clinical findings, and care plans from your clinic."
         className="pwa-medical-title"
       />
+
+      <RegistrationObstetricHistory history={registrationHistory} />
+      <div className="pwa-record-divider" aria-hidden="true" />
 
       <label className="pwa-medical-search" aria-label="Search medical records">
         <Icon icon="solar:magnifer-linear" />
@@ -922,6 +808,32 @@ export default function PatientPWAMedicalRecords({ profile }) {
         </section>
       ) : (
         <MedicalRecordCard record={selectedRecord} />
+      )}
+    </section>
+  );
+}
+
+function RegistrationObstetricHistory({ history }) {
+  return (
+    <section
+      className="pwa-record-section"
+      aria-labelledby="pwa-registration-history-title"
+      aria-busy={!history}
+    >
+      <h3 id="pwa-registration-history-title">Registration / Obstetric History</h3>
+      {!history ? (
+        <p role="status">Loading registration history...</p>
+      ) : history.status === "error" ? (
+        <p className="pwa-medical-alert" role="alert">{history.error}</p>
+      ) : (
+        <div className="pwa-obstetric-grid">
+          {history.items.map((item) => (
+            <div key={item.label}>
+              <small>{item.label}</small>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
       )}
     </section>
   );

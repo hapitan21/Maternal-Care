@@ -4795,3 +4795,13 @@
   }
 }
 
+/* Registration owns one bottom gutter; avoid stacked shell/page spacing. */
+.staff-dashboard-shell .doctor-main:has(.staff-register-page:not(.staff-walkin-page)) {
+  padding-bottom: 0 !important;
+}
+
+.staff-dashboard-shell .staff-register-page:not(.staff-walkin-page) {
+  min-height: 0;
+  padding-bottom: 24px !important;
+}
+
