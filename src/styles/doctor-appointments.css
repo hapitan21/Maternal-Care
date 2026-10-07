@@ -46,7 +46,7 @@
   color: var(--doctor-appointments-text);
   font-family: "Poppins", sans-serif;
   padding: 38px 42px 48px;
-  animation: appointment-page-in 260ms ease both;
+  animation: appointment-page-in 260ms ease backwards;
 }
 
 .doctor-appointments-page--embedded {

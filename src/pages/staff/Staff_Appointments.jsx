@@ -13,6 +13,8 @@ import SendPatientNotificationAction from "../../components/notifications/SendPa
 import AppointmentNoShowDialog from "../../components/appointments/AppointmentNoShowDialog";
 import AppointmentStatusPopover from "../../components/appointments/AppointmentStatusPopover";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
+import { buildAppointmentSuccessFeedback } from "../../lib/appointmentSuccessFeedback";
+import { useAppointmentToastPlacement } from "../../hooks/useAppointmentToastPlacement";
 import {
   appointmentSmsEvents,
   requestAppointmentSms,
@@ -2169,7 +2171,9 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   const [statusMenuPosition, setStatusMenuPosition] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [successTitle, setSuccessTitle] = useState("");
   const [statusMessageVersion, setStatusMessageVersion] = useState(0);
+  const successToastRef = useAppointmentToastPlacement(successMessage, statusMessageVersion);
   const [noShowConfirmationAppointment, setNoShowConfirmationAppointment] = useState(null);
   const [isMarkingNoShow, setIsMarkingNoShow] = useState(false);
   const [cancelConfirmationAppointment, setCancelConfirmationAppointment] = useState(null);
@@ -2200,8 +2204,10 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   }, []);
 
   const showSuccessMessage = useCallback(
-    (message) => {
+    (feedback) => {
+      const message = typeof feedback === "string" ? feedback : feedback.message;
       clearSuccessTimer();
+      setSuccessTitle(typeof feedback === "string" ? "" : feedback.title);
       setSuccessMessage(message);
       setStatusMessage(message);
       setStatusMessageVersion((current) => current + 1);
@@ -2209,10 +2215,16 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
         successTimerRef.current = null;
         setStatusMessage((current) => (current === message ? "" : current));
         setSuccessMessage((current) => (current === message ? "" : current));
-      }, 4000);
+      }, 5000);
     },
     [clearSuccessTimer]
   );
+
+  const dismissSuccessMessage = useCallback(() => {
+    clearSuccessTimer();
+    setStatusMessage((current) => (current === successMessage ? "" : current));
+    setSuccessMessage("");
+  }, [clearSuccessTimer, successMessage]);
 
   useEffect(
     () => () => {
@@ -3359,7 +3371,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
         }
       );
       if (saved.notificationResult?.ok || saved.notificationResult?.skipped) {
-        showSuccessMessage(cancellationMessage);
+        showSuccessMessage(buildAppointmentSuccessFeedback("cancelled", saved.savedSchedule, appointment));
       } else {
         setStatusMessage(cancellationMessage);
       }
@@ -3569,7 +3581,9 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
             notificationResult?.ok ||
             notificationResult?.skipped)
         ) {
-          showSuccessMessage(notificationMessage);
+          showSuccessMessage(rescheduleResult.rescheduled
+            ? buildAppointmentSuccessFeedback("rescheduled", savedSchedule)
+            : notificationMessage);
         } else {
           setStatusMessage(notificationMessage);
         }
@@ -3686,7 +3700,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
       if (saved) {
         setNoShowConfirmationAppointment(null);
         setCurrentPage(1);
-        setStatusMessage("Appointment marked as No Show.");
+        showSuccessMessage(buildAppointmentSuccessFeedback("no-show", saved.savedSchedule, appointment));
       }
     } finally {
       setIsMarkingNoShow(false);
@@ -4141,7 +4155,12 @@ setMiniMonthDate(
       notificationResult?.ok ||
       notificationResult?.skipped
     ) {
-      showSuccessMessage(notificationMessage);
+      showSuccessMessage(wasEditing && !savedResult?.rescheduled
+        ? notificationMessage
+        : buildAppointmentSuccessFeedback(wasEditing ? "rescheduled" : "created", savedSchedule, payload));
+      if (!notificationResult?.ok && !notificationResult?.skipped && (!wasEditing || savedResult?.rescheduled)) {
+        setStatusMessage(notificationMessage);
+      }
     } else {
       setStatusMessage(notificationMessage);
     }
@@ -4462,11 +4481,20 @@ setMiniMonthDate(
         <div
           key={statusMessageVersion}
           className="appointment-success-toast"
+          ref={successToastRef}
           role="status"
           aria-live="polite"
+          aria-atomic="true"
         >
           <Icon icon="solar:check-circle-bold" aria-hidden="true" />
-          <span>{successMessage}</span>
+          <div className="appointment-success-toast__copy">
+            {successTitle ? <strong>{successTitle}</strong> : null}
+            <span>{successMessage}</span>
+          </div>
+          <button type="button" className="appointment-success-toast__close"
+            aria-label="Dismiss success notification" onClick={dismissSuccessMessage}>
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
       ) : null}
 

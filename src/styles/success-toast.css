@@ -1,0 +1,61 @@
+.mc-success-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 112px);
+  right: clamp(18px, 3vw, 42px);
+  z-index: 2200;
+  box-sizing: border-box;
+  width: min(380px, calc(100vw - 24px));
+  max-height: calc(100dvh - 120px);
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 40px;
+  align-items: start;
+  gap: 10px;
+  padding: 12px 10px 12px 14px;
+  border: 1px solid #c3e3d1;
+  border-radius: 14px;
+  background: #fbfefc;
+  box-shadow: 0 8px 24px rgba(31, 60, 44, 0.1);
+  color: #25553d;
+  font-family: "Poppins", "Inter", sans-serif;
+  pointer-events: none;
+  animation: mc-success-toast-in 180ms ease-out both;
+}
+.mc-success-toast--top-right { width: min(380px, calc(100% - 24px)); }
+.mc-success-toast__icon {
+  width: 22px;
+  height: 22px;
+  margin-top: 3px;
+  stroke: #21835a;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mc-success-toast__copy { min-width: 0; overflow-wrap: anywhere; }
+.mc-success-toast__copy strong { display: block; font-size: 13px; line-height: 1.5; }
+.mc-success-toast__copy p { margin: 4px 0; font-size: 12px; line-height: 1.6; }
+.mc-success-toast__copy small { display: block; font-size: 11px; line-height: 1.6; color: #496354; }
+.mc-success-toast button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  color: #496354;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.mc-success-toast button:hover { background: #eaf5ee; }
+.mc-success-toast button:focus-visible { outline: 2px solid #21835a; outline-offset: 2px; }
+.mc-success-toast button svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+.mc-success-toast.is-closing { animation: mc-success-toast-out 180ms ease-in both; }
+@keyframes mc-success-toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes mc-success-toast-out { to { opacity: 0; transform: translateY(-4px); } }
+@media (max-width: 640px) {
+  .mc-success-toast { top: calc(env(safe-area-inset-top, 0px) + 84px); right: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mc-success-toast, .mc-success-toast.is-closing { animation: none; }
+}

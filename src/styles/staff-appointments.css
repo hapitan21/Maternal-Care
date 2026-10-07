@@ -3746,6 +3746,21 @@
   transform: none !important;
 }
 
+/* Match the existing Doctor pagination arrangement on mobile. */
+@media (max-width: 640px) {
+  .staff-appointments-page .staff-appointments-pagination {
+    grid-template-columns: 1fr !important;
+    justify-items: center !important;
+    gap: 10px !important;
+  }
+
+  .staff-appointments-page .staff-appointments-pagination > :first-child,
+  .staff-appointments-page .staff-appointments-pagination > label,
+  .staff-appointments-page .staff-appointments-pagination > :last-child {
+    justify-self: center !important;
+  }
+}
+
 /* =========================================================
    STAFF — UNIFIED PROFILE DROPDOWN
    ---------------------------------------------------------

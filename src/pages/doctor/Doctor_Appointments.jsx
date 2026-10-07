@@ -35,6 +35,8 @@ import {
   getAppointmentTypeCategory,
 } from "../../lib/appointmentTypes";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
+import { buildAppointmentSuccessFeedback } from "../../lib/appointmentSuccessFeedback";
+import { useAppointmentToastPlacement } from "../../hooks/useAppointmentToastPlacement";
 import {
   AppointmentControlGroup,
   AppointmentPageHeader,
@@ -1289,7 +1291,9 @@ export function DoctorAppointmentsContent({
   const [addAppointmentError, setAddAppointmentError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [successTitle, setSuccessTitle] = useState("");
   const [statusMessageVersion, setStatusMessageVersion] = useState(0);
+  const successToastRef = useAppointmentToastPlacement(successMessage, statusMessageVersion);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
   const [appointmentPolicy, setAppointmentPolicy] = useState(null);
@@ -1341,8 +1345,10 @@ export function DoctorAppointmentsContent({
   }, []);
 
   const showSuccessMessage = useCallback(
-    (message) => {
+    (feedback) => {
+      const message = typeof feedback === "string" ? feedback : feedback.message;
       clearSuccessTimer();
+      setSuccessTitle(typeof feedback === "string" ? "" : feedback.title);
       setSuccessMessage(message);
       setStatusMessage(message);
       setStatusMessageVersion((current) => current + 1);
@@ -1350,10 +1356,16 @@ export function DoctorAppointmentsContent({
         successTimerRef.current = null;
         setStatusMessage((current) => (current === message ? "" : current));
         setSuccessMessage((current) => (current === message ? "" : current));
-      }, 4000);
+      }, 5000);
     },
     [clearSuccessTimer]
   );
+
+  const dismissSuccessMessage = useCallback(() => {
+    clearSuccessTimer();
+    setStatusMessage((current) => (current === successMessage ? "" : current));
+    setSuccessMessage("");
+  }, [clearSuccessTimer, successMessage]);
 
   const dispatchAutomaticAppointmentNotification = useCallback(
     ({ patientId, scheduleId, notificationType, appointmentEventId = null }, onSettled) => {
@@ -2180,7 +2192,10 @@ export function DoctorAppointmentsContent({
     setIsAdding(false);
     setActiveTab("All");
     selectCalendarDate(form.appointment_date);
-    showSuccessMessage("Appointment created successfully.");
+    showSuccessMessage(buildAppointmentSuccessFeedback("created", data, {
+      patient_name: selectedPatient.full_name,
+      start_time: clinicStartIso,
+    }));
     revalidateAppointmentsInBackground();
     dispatchAutomaticAppointmentNotification(
       {
@@ -2199,9 +2214,7 @@ export function DoctorAppointmentsContent({
               "Appointment was saved, but the Patient notification could not be sent.",
           }
         );
-        if (notificationResult?.ok || notificationResult?.skipped) {
-          showSuccessMessage(appointmentMessage);
-        } else {
+        if (!notificationResult?.ok && !notificationResult?.skipped) {
           setStatusMessage(appointmentMessage);
         }
       }
@@ -2521,11 +2534,10 @@ export function DoctorAppointmentsContent({
     setCancelConfirmationSchedule(null);
     setCancelReason("");
     setCancelReasonError("");
-    showSuccessMessage("Appointment cancelled successfully.");
-
     const updatedSchedule = saved === true
       ? cancelConfirmationSchedule
       : saved.updatedSchedule;
+    showSuccessMessage(buildAppointmentSuccessFeedback("cancelled", updatedSchedule, cancelConfirmationSchedule));
     dispatchAutomaticAppointmentNotification(
       {
         patientId: updatedSchedule?.patient_id,
@@ -2543,9 +2555,7 @@ export function DoctorAppointmentsContent({
               "Appointment cancelled successfully, but the Patient notification could not be sent.",
           }
         );
-        if (notificationResult?.ok || notificationResult?.skipped) {
-          showSuccessMessage(cancellationMessage);
-        } else {
+        if (!notificationResult?.ok && !notificationResult?.skipped) {
           setStatusMessage(cancellationMessage);
         }
       }
@@ -2582,7 +2592,7 @@ export function DoctorAppointmentsContent({
       setDetailActionError("");
       setActiveTab("Missed");
       setCurrentPage(1);
-      showSuccessMessage("Appointment marked as No Show.");
+      showSuccessMessage(buildAppointmentSuccessFeedback("no-show", saved.updatedSchedule, schedule));
     }
   };
 
@@ -2761,7 +2771,9 @@ export function DoctorAppointmentsContent({
       notificationResult?.ok ||
       notificationResult?.skipped
     ) {
-      showSuccessMessage(rescheduleMessage);
+      showSuccessMessage(rescheduleResult.rescheduled
+        ? buildAppointmentSuccessFeedback("rescheduled", updatedSchedule)
+        : rescheduleMessage);
     } else {
       setStatusMessage(rescheduleMessage);
     }
@@ -2801,11 +2813,20 @@ export function DoctorAppointmentsContent({
         <div
           key={statusMessageVersion}
           className="appointment-success-toast"
+          ref={successToastRef}
           role="status"
           aria-live="polite"
+          aria-atomic="true"
         >
           <Icon icon="solar:check-circle-bold" aria-hidden="true" />
-          <span>{successMessage}</span>
+          <div className="appointment-success-toast__copy">
+            {successTitle ? <strong>{successTitle}</strong> : null}
+            <span>{successMessage}</span>
+          </div>
+          <button type="button" className="appointment-success-toast__close"
+            aria-label="Dismiss success notification" onClick={dismissSuccessMessage}>
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
       ) : null}
 

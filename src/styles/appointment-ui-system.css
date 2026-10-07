@@ -56,6 +56,27 @@
   color: var(--appointment-ui-primary-dark);
 }
 
+.appointment-success-toast__copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.appointment-success-toast__copy strong { display: block; margin-bottom: 4px; }
+.appointment-success-toast__copy span { font-weight: 400; }
+.appointment-success-toast__close {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 22px;
+  cursor: pointer;
+}
+.appointment-success-toast__close:hover { background: #fff0f6; }
+.appointment-success-toast__close:focus-visible { outline: 2px solid #c91668; outline-offset: 2px; }
+
 @keyframes appointment-success-toast-in {
   from {
     opacity: 0;
@@ -89,6 +110,10 @@
     opacity: 1;
     transform: translate(-50%, 0);
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appointment-success-toast { animation: none; }
 }
 
 .appointment-ui-header {
@@ -402,6 +427,11 @@
   background: #ffffff;
   color: #414755;
   font: inherit;
+}
+
+.appointment-ui-pagination select {
+  /* Leave room for two digits and the native arrow inside the 52px control. */
+  padding: 0 5px !important;
 }
 
 .appointment-ui-pagination button:disabled {
