@@ -47,7 +47,7 @@ function createRetryStore(initial: SmsDispatchRecoveryRow) {
       return current;
     },
     store: {
-      tryClaim: async ({
+      tryClaim: ({
         dispatchId,
         expectedDispatchKey,
         staleBefore,
@@ -80,7 +80,7 @@ function createRetryStore(initial: SmsDispatchRecoveryRow) {
           current.channel !== "sms" ||
           ((!safeProcessing || !hasNoTerminalEvidence) && !safeFailed)
         ) {
-          return { data: null, error: null };
+          return Promise.resolve({ data: null, error: null });
         }
 
         current = {
@@ -93,7 +93,7 @@ function createRetryStore(initial: SmsDispatchRecoveryRow) {
           updated_at: attemptedAt,
           last_error: null,
         };
-        return { data: { ...current }, error: null };
+        return Promise.resolve({ data: { ...current }, error: null });
       },
       load: () => Promise.resolve({ data: { ...current }, error: null }),
     },
@@ -103,6 +103,29 @@ function createRetryStore(initial: SmsDispatchRecoveryRow) {
 Deno.test("recent processing without provider is not retried prematurely", () => {
   assertEquals(classifySmsDispatch(dispatch(), NOW), "recent_processing");
 });
+
+for (const provider of ["semaphore", "iprogsms", "future-provider"]) {
+  Deno.test(`${provider} reservation cannot acquire a reconciliation retry`, async () => {
+    for (const status of ["processing", "failed"]) {
+      const initial = dispatch({
+        provider,
+        status,
+        processing_started_at: "2026-09-23T11:00:00.000Z",
+        failed_at: status === "failed" ? "2026-09-23T11:00:00.000Z" : null,
+      });
+      const fixture = createRetryStore(initial);
+      const result = await claimSmsDispatchRetry(
+        fixture.store,
+        DISPATCH_ID,
+        DISPATCH_KEY,
+        NOW,
+      );
+      assertEquals(result.maySend, false);
+      assertEquals(fixture.current.provider, provider);
+      assertEquals(fixture.current.attempt_count, 1);
+    }
+  });
+}
 
 Deno.test("stale processing with failed_at null is a safe retry candidate", async () => {
   const safeDispatch = dispatch({
@@ -234,9 +257,7 @@ for (const status of ["processing", "failed"] as const) {
       const updates: Partial<SmsDispatchRecoveryRow> = {
         status,
         processing_started_at: "2026-09-23T10:00:00.000Z",
-        failed_at: status === "failed"
-          ? "2026-09-23T10:00:00.000Z"
-          : null,
+        failed_at: status === "failed" ? "2026-09-23T10:00:00.000Z" : null,
         [field]: value,
       };
 

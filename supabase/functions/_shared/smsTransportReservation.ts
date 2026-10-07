@@ -65,7 +65,9 @@ export async function reserveSmsTransport(
   if (
     current.data.channel === "sms" &&
     current.data.status === "processing" &&
-    current.data.provider === "semaphore"
+    // Any previous provider reservation is evidence of a possibly submitted SMS.
+    // A provider cutover must never turn that evidence into a fresh send.
+    current.data.provider !== null
   ) {
     return { outcome: "already_started", dispatch: current.data };
   }
@@ -73,7 +75,7 @@ export async function reserveSmsTransport(
   return { outcome: "not_sendable", dispatch: current.data };
 }
 
-export function mayContactSemaphore(
+export function mayContactSmsProvider(
   reservation: SmsTransportReservation,
 ): reservation is Extract<SmsTransportReservation, { outcome: "reserved" }> {
   return reservation.outcome === "reserved";
@@ -83,7 +85,7 @@ export async function executeWithSmsTransportReservation<T>(
   reservation: SmsTransportReservation,
   transport: () => Promise<T>,
 ): Promise<{ executed: false } | { executed: true; value: T }> {
-  if (!mayContactSemaphore(reservation)) {
+  if (!mayContactSmsProvider(reservation)) {
     return { executed: false };
   }
 
@@ -93,10 +95,11 @@ export async function executeWithSmsTransportReservation<T>(
 export function buildSmsDispatchSuccessUpdate(
   providerMessageId: string,
   updatedAt: string,
+  provider: string,
 ): Record<string, string | null> {
   return {
     status: "sent",
-    provider: "semaphore",
+    provider,
     provider_message_id: providerMessageId,
     sent_at: updatedAt,
     failed_at: null,
@@ -108,10 +111,11 @@ export function buildSmsDispatchSuccessUpdate(
 export function buildSmsDispatchFailureUpdate(
   safeError: string,
   updatedAt: string,
+  provider: string,
 ): Record<string, string> {
   return {
     status: "failed",
-    provider: "semaphore",
+    provider,
     failed_at: updatedAt,
     last_error: safeError,
     updated_at: updatedAt,

@@ -2,16 +2,18 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   maskPhoneNumber,
   normalizePhilippinePhoneNumber,
-  parseSemaphoreResponse,
-  type ParsedSemaphoreResponse,
-  SEMAPHORE_MESSAGES_ENDPOINT,
-  SemaphoreResponseError,
 } from "../_shared/semaphoreSms.ts";
+import {
+  type AcceptedSmsResult,
+  IPROGSMS_PROVIDER,
+  IprogSmsError,
+  sendIprogSms,
+} from "../_shared/iprogSms.ts";
 import {
   buildSmsDispatchFailureUpdate,
   buildSmsDispatchSuccessUpdate,
   executeWithSmsTransportReservation,
-  mayContactSemaphore,
+  mayContactSmsProvider,
   reserveSmsTransport,
   type SmsDispatchRow,
   SmsTransportReservationError,
@@ -24,8 +26,6 @@ import {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_MESSAGE_LENGTH = 1000;
-const MAX_PROVIDER_RESPONSE_LENGTH = 100_000;
-const PROVIDER_TIMEOUT_MS = 12_000;
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
@@ -77,17 +77,6 @@ function getRequiredEnvironment(name: string): string {
   return value;
 }
 
-function getOptionalSenderName(): string | null {
-  const senderName = Deno.env.get("SEMAPHORE_SENDER_NAME")?.trim() || "";
-  if (!senderName) return null;
-
-  if (!/^[a-z0-9]{1,11}$/i.test(senderName)) {
-    throw new RequestFailure(500, "invalid_sender_configuration");
-  }
-
-  return senderName;
-}
-
 function getDispatchRequest(payload: unknown): {
   dispatchId: string;
   messageValue: unknown;
@@ -129,11 +118,11 @@ async function markDispatchFailed(
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("notification_dispatches")
-    .update(buildSmsDispatchFailureUpdate(safeError, now))
+    .update(buildSmsDispatchFailureUpdate(safeError, now, IPROGSMS_PROVIDER))
     .eq("id", dispatchId)
     .eq("channel", "sms")
     .eq("status", "processing")
-    .eq("provider", "semaphore")
+    .eq("provider", IPROGSMS_PROVIDER)
     .select("id")
     .maybeSingle();
 
@@ -149,11 +138,13 @@ async function markDispatchSent(
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("notification_dispatches")
-    .update(buildSmsDispatchSuccessUpdate(providerMessageId, now))
+    .update(
+      buildSmsDispatchSuccessUpdate(providerMessageId, now, IPROGSMS_PROVIDER),
+    )
     .eq("id", dispatchId)
     .eq("channel", "sms")
     .eq("status", "processing")
-    .eq("provider", "semaphore")
+    .eq("provider", IPROGSMS_PROVIDER)
     .select("id")
     .maybeSingle();
 
@@ -171,7 +162,7 @@ async function reserveDispatchTransport(
         tryReserve: async (id, updatedAt) => {
           const { data, error } = await supabase
             .from("notification_dispatches")
-            .update({ provider: "semaphore", updated_at: updatedAt })
+            .update({ provider: IPROGSMS_PROVIDER, updated_at: updatedAt })
             .eq("id", id)
             .eq("channel", "sms")
             .eq("status", "processing")
@@ -289,7 +280,7 @@ async function handleAuthenticatedSmsRequest(
       loadedDispatch.id,
     );
 
-    if (!mayContactSemaphore(reservation)) {
+    if (!mayContactSmsProvider(reservation)) {
       if (reservation.outcome === "not_found") {
         throw new RequestFailure(404, "dispatch_not_found");
       }
@@ -315,7 +306,7 @@ async function handleAuthenticatedSmsRequest(
             error: "transport_already_started",
             dispatch_id: currentDispatch.id,
             status: currentDispatch.status,
-            provider: "semaphore",
+            provider: currentDispatch.provider,
           },
           409,
         );
@@ -389,85 +380,49 @@ async function handleAuthenticatedSmsRequest(
       );
     }
 
-    const semaphoreApiKey = Deno.env.get("SEMAPHORE_API_KEY")?.trim() || "";
-    if (!semaphoreApiKey) {
-      return await failDispatchResponse(
-        supabase,
-        dispatch.id,
-        "semaphore_api_key_missing",
-        "server_configuration_error",
-        500,
-      );
-    }
-
-    let senderName: string | null;
-    try {
-      senderName = getOptionalSenderName();
-    } catch (error) {
-      if (error instanceof RequestFailure) {
-        return await failDispatchResponse(
-          supabase,
-          dispatch.id,
-          error.publicCode,
-          "server_configuration_error",
-          error.status,
-        );
-      }
-      throw error;
-    }
-
-    const providerParameters = new URLSearchParams({
-      apikey: semaphoreApiKey,
-      number: normalizedPhone,
-      message,
-    });
-    if (senderName) providerParameters.set("sendername", senderName);
-
-    console.info("Semaphore SMS dispatch started", {
+    console.info("SMS dispatch started", {
       executionId,
       dispatchId: dispatch.id,
       patientId: dispatch.patient_id,
       phone: maskPhoneNumber(normalizedPhone),
     });
 
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(
-      () => abortController.abort(),
-      PROVIDER_TIMEOUT_MS,
-    );
-
-    let providerResponse: Response | null = null;
+    let parsedProviderResponse: AcceptedSmsResult | null = null;
     try {
       const transportExecution = await executeWithSmsTransportReservation(
         reservation,
-        () =>
-          fetch(SEMAPHORE_MESSAGES_ENDPOINT, {
-            method: "POST",
-            headers: {
-              "content-type":
-                "application/x-www-form-urlencoded;charset=UTF-8",
-            },
-            body: providerParameters.toString(),
-            signal: abortController.signal,
-          }),
+        () => sendIprogSms({ phoneNumber: normalizedPhone, message }),
       );
       if (transportExecution.executed) {
-        providerResponse = transportExecution.value;
+        parsedProviderResponse = transportExecution.value;
       }
-    } catch {
-      const timedOut = abortController.signal.aborted;
+    } catch (error) {
+      const safeError = error instanceof IprogSmsError
+        ? error.publicCode
+        : "iprogsms_network_error";
+      const publicError = safeError === "iprogsms_missing_api_token"
+        ? "server_configuration_error"
+        : safeError === "iprogsms_timeout"
+        ? "provider_timeout"
+        : safeError === "iprogsms_network_error"
+        ? "provider_unavailable"
+        : safeError.startsWith("iprogsms_http_")
+        ? "provider_rejected_request"
+        : safeError === "iprogsms_rejected"
+        ? "provider_rejected_message"
+        : "provider_invalid_response";
+      // Preserve the reservation on every failure, including ambiguous sends.
+      // Reconciliation requires review; this handler never retries the provider.
       return await failDispatchResponse(
         supabase,
         dispatch.id,
-        timedOut ? "semaphore_timeout" : "semaphore_network_error",
-        timedOut ? "provider_timeout" : "provider_unavailable",
-        502,
+        safeError,
+        publicError,
+        safeError === "iprogsms_missing_api_token" ? 500 : 502,
       );
-    } finally {
-      clearTimeout(timeoutId);
     }
 
-    if (!providerResponse) {
+    if (!parsedProviderResponse) {
       return jsonResponse(
         {
           ok: false,
@@ -476,87 +431,14 @@ async function handleAuthenticatedSmsRequest(
           error: "transport_already_started",
           dispatch_id: dispatch.id,
           status: "processing",
-          provider: "semaphore",
+          provider: IPROGSMS_PROVIDER,
         },
         409,
       );
     }
 
-    if (!providerResponse.ok) {
-      return await failDispatchResponse(
-        supabase,
-        dispatch.id,
-        `semaphore_http_${providerResponse.status}`,
-        "provider_rejected_request",
-        502,
-      );
-    }
-
-    let providerResponseText: string;
-    try {
-      providerResponseText = await providerResponse.text();
-    } catch {
-      return await failDispatchResponse(
-        supabase,
-        dispatch.id,
-        "semaphore_response_read_failed",
-        "provider_invalid_response",
-        502,
-      );
-    }
-    if (
-      !providerResponseText ||
-      providerResponseText.length > MAX_PROVIDER_RESPONSE_LENGTH
-    ) {
-      return await failDispatchResponse(
-        supabase,
-        dispatch.id,
-        "semaphore_invalid_response",
-        "provider_invalid_response",
-        502,
-      );
-    }
-
-    let providerPayload: unknown;
-    try {
-      providerPayload = JSON.parse(providerResponseText);
-    } catch {
-      return await failDispatchResponse(
-        supabase,
-        dispatch.id,
-        "semaphore_invalid_json",
-        "provider_invalid_response",
-        502,
-      );
-    }
-
-    let parsedProviderResponse: ParsedSemaphoreResponse;
-    try {
-      parsedProviderResponse = parseSemaphoreResponse(providerPayload);
-    } catch (error) {
-      const safeError = error instanceof SemaphoreResponseError
-        ? error.publicCode
-        : "semaphore_invalid_response";
-      return await failDispatchResponse(
-        supabase,
-        dispatch.id,
-        safeError,
-        "provider_invalid_response",
-        502,
-      );
-    }
-
-    if (parsedProviderResponse.dispatchStatus === "failed") {
-      return await failDispatchResponse(
-        supabase,
-        dispatch.id,
-        `semaphore_status_${parsedProviderResponse.providerStatus}`,
-        "provider_rejected_message",
-        502,
-      );
-    }
-
-    // Once Semaphore has accepted the request, a database-write failure leaves
+    // "sent" means accepted/queued by the provider, not delivered to the handset.
+    // Once iProgSMS has accepted the request, a database-write failure leaves
     // the reservation in its uncertain processing state for later reconciliation.
     providerAcceptanceConfirmed = true;
     await markDispatchSent(
@@ -565,7 +447,7 @@ async function handleAuthenticatedSmsRequest(
       parsedProviderResponse.messageId,
     );
 
-    console.info("Semaphore SMS dispatch accepted", {
+    console.info("SMS dispatch accepted", {
       executionId,
       dispatchId: dispatch.id,
       providerStatus: parsedProviderResponse.providerStatus,
@@ -576,7 +458,7 @@ async function handleAuthenticatedSmsRequest(
       sent: true,
       dispatch_id: dispatch.id,
       status: "sent",
-      provider: "semaphore",
+      provider: IPROGSMS_PROVIDER,
       provider_message_id: parsedProviderResponse.messageId,
       provider_status: parsedProviderResponse.providerStatus,
     });
@@ -594,7 +476,7 @@ async function handleAuthenticatedSmsRequest(
           "unexpected_transport_error",
         );
       } catch {
-        console.error("Semaphore SMS unexpected failure could not be recorded", {
+        console.error("SMS unexpected failure could not be recorded", {
           executionId,
           dispatchId: reservationToFail.dispatchId,
         });
@@ -609,12 +491,12 @@ async function handleAuthenticatedSmsRequest(
     }
 
     if (error instanceof DatabaseFailure) {
-      console.error("Semaphore SMS database operation failed", {
+      console.error("SMS database operation failed", {
         executionId,
         operation: error.operation,
       });
     } else {
-      console.error("Semaphore SMS request failed", {
+      console.error("SMS request failed", {
         executionId,
         error: "internal_error",
       });
@@ -648,7 +530,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
-    console.error("Semaphore SMS authentication failed", {
+    console.error("SMS authentication failed", {
       error: "internal_error",
     });
     return jsonResponse({ ok: false, error: "internal_error" }, 500);

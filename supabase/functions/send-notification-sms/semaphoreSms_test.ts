@@ -9,15 +9,15 @@ import {
   buildSmsDispatchFailureUpdate,
   buildSmsDispatchSuccessUpdate,
   executeWithSmsTransportReservation,
-  mayContactSemaphore,
+  mayContactSmsProvider,
   reserveSmsTransport,
   type SmsDispatchRow,
   type SmsTransportReservationStore,
 } from "../_shared/smsTransportReservation.ts";
 import {
   authenticateSupabaseSecretRequest,
-  executeWithSupabaseSecretAuthentication,
   type EnvironmentReader,
+  executeWithSupabaseSecretAuthentication,
 } from "../_shared/supabaseSecretAuth.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
@@ -64,10 +64,11 @@ function createReservationStore(
 
         return Promise.resolve({ data: null, error: null });
       },
-      load: (dispatchId) => Promise.resolve({
-        data: dispatch.id === dispatchId ? { ...dispatch } : null,
-        error: null,
-      }),
+      load: (dispatchId) =>
+        Promise.resolve({
+          data: dispatch.id === dispatchId ? { ...dispatch } : null,
+          error: null,
+        }),
     },
     getDispatch: () => ({ ...dispatch }),
   };
@@ -126,10 +127,12 @@ Deno.test("missing apikey header is rejected", async () => {
 });
 
 Deno.test("publishable and anon-style credentials are rejected", async () => {
-  for (const credential of [
-    "sb_publishable_browser_test_key",
-    "eyJhbGciOiJIUzI1NiJ9.anon-user-jwt.signature",
-  ]) {
+  for (
+    const credential of [
+      "sb_publishable_browser_test_key",
+      "eyJhbGciOiJIUzI1NiJ9.anon-user-jwt.signature",
+    ]
+  ) {
     const authenticatedSecret = await authenticateSupabaseSecretRequest(
       new Request("https://example.test/send-notification-sms", {
         headers: { apikey: credential },
@@ -198,10 +201,10 @@ Deno.test("only the first invocation obtains the SMS transport reservation", asy
   const second = await reserveSmsTransport(store, TEST_DISPATCH_ID);
 
   assertEquals(first.outcome, "reserved");
-  assertEquals(mayContactSemaphore(first), true);
+  assertEquals(mayContactSmsProvider(first), true);
   assertEquals(getDispatch().provider, "semaphore");
   assertEquals(second.outcome, "already_started");
-  assertEquals(mayContactSemaphore(second), false);
+  assertEquals(mayContactSmsProvider(second), false);
 });
 
 Deno.test("sent and delivered dispatches cannot contact Semaphore", async () => {
@@ -210,7 +213,7 @@ Deno.test("sent and delivered dispatches cannot contact Semaphore", async () => 
     const reservation = await reserveSmsTransport(store, TEST_DISPATCH_ID);
 
     assertEquals(reservation.outcome, "idempotent");
-    assertEquals(mayContactSemaphore(reservation), false);
+    assertEquals(mayContactSmsProvider(reservation), false);
   }
 });
 
@@ -220,16 +223,21 @@ Deno.test("pending, failed, and cancelled dispatches cannot send", async () => {
     const reservation = await reserveSmsTransport(store, TEST_DISPATCH_ID);
 
     assertEquals(reservation.outcome, "not_sendable");
-    assertEquals(mayContactSemaphore(reservation), false);
+    assertEquals(mayContactSmsProvider(reservation), false);
   }
 });
 
 Deno.test("success and failure updates preserve the Semaphore reservation", () => {
   const timestamp = "2026-09-22T12:00:00.000Z";
-  const success = buildSmsDispatchSuccessUpdate("12345", timestamp);
+  const success = buildSmsDispatchSuccessUpdate(
+    "12345",
+    timestamp,
+    "semaphore",
+  );
   const failure = buildSmsDispatchFailureUpdate(
     "semaphore_timeout",
     timestamp,
+    "semaphore",
   );
 
   assertEquals(success.provider, "semaphore");
