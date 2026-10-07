@@ -1,0 +1,60 @@
+.mc-reminder-picker {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  margin: 16px 0 0;
+  padding: 14px;
+  border: 1px solid #efcedc;
+  border-radius: 14px;
+  background: #fffafd;
+  font-family: "Poppins", "Inter", sans-serif;
+  color: var(--clinical-ink, #20232b);
+}
+.mc-reminder-picker legend { padding: 0 6px; font-size: 13px; font-weight: 650; }
+.mc-reminder-picker__layout { display: grid; grid-template-columns: minmax(294px, 1.2fr) minmax(0, 1fr); gap: 16px; }
+.mc-reminder-picker__date, .mc-reminder-picker__time { min-width: 0; }
+.mc-reminder-picker__label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 600; }
+.mc-reminder-picker__date-value { min-height: 46px; display: flex; align-items: center; padding: 0 12px; border: 1px solid #e4e8ef; border-radius: 11px; background: white; font-size: 13px; }
+.mc-reminder-picker__calendar { margin-top: 10px; }
+.mc-reminder-picker__calendar header { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; }
+.mc-reminder-picker__calendar header strong { font-size: 13px; text-align: center; }
+.mc-reminder-picker .mc-reminder-picker__calendar button { box-sizing: border-box; grid-column: auto; display: grid; place-items: center; min-width: 0; min-height: 42px; padding: 0; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #354154; font: inherit; font-size: 12px; cursor: pointer; }
+.mc-reminder-picker__calendar header button { width: 42px; font-size: 22px; }
+.mc-reminder-picker__weekdays, .mc-reminder-picker__days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.mc-reminder-picker__weekdays { margin-bottom: 4px; color: #707b8c; font-size: 10px; text-align: center; }
+.mc-reminder-picker__calendar button:hover:not(:disabled) { background: #ffeaf2; }
+.mc-reminder-picker__calendar button.is-today { border-color: #db83a8; font-weight: 700; }
+.mc-reminder-picker__calendar button.is-selected { background: var(--clinical-primary-dark, #c91668); color: white; border-color: var(--clinical-primary-dark, #c91668); }
+.mc-reminder-picker__calendar button:disabled { color: #9ca3af; background: #f4f4f6; cursor: not-allowed; }
+.mc-reminder-picker__calendar button:focus-visible { outline: 2px solid var(--clinical-primary-dark, #c91668); outline-offset: 1px; }
+.mc-reminder-picker__preview { display: grid; gap: 6px; margin-top: 14px; padding: 12px; border-radius: 10px; background: #fff0f6; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.mc-reminder-picker__preview strong { font-size: 12px; }
+.mc-reminder-picker .appointment-time-picker__trigger {
+  grid-column: auto;
+  display: flex;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid #e4e8ef;
+  border-radius: 11px;
+  background: white;
+  color: #273244;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+  transform: none;
+}
+.mc-reminder-picker .appointment-time-picker__trigger:focus-visible {
+  outline: 2px solid var(--clinical-primary-dark, #c91668);
+  outline-offset: 2px;
+}
+.mc-reminder-picker .appointment-time-picker__actions button { min-height: 40px; }
+.mc-reminder-picker .appointment-time-picker__cancel { border: 1px solid #ead4dd; background: white; color: #c32262; }
+.mc-reminder-picker .appointment-time-picker__cancel:hover { background: #fff5f8; }
+.mc-reminder-picker .appointment-time-picker__apply { border: 1px solid #fa2f7a; background: #fa2f7a; color: white; }
+@media (max-width: 760px) {
+  /* Recover the surrounding clinical card's inset for seven touch targets. */
+  .mc-reminder-picker { width: calc(100% + 32px); margin-inline: -16px; padding: 10px 0; }
+  .mc-reminder-picker__layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .mc-reminder-picker__label, .mc-reminder-picker__date-value, .mc-reminder-picker__time { margin-inline: 8px; }
+  .mc-reminder-picker__weekdays, .mc-reminder-picker__days { gap: 1px; }
+}

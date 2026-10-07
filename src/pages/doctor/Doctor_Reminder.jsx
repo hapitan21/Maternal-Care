@@ -4,6 +4,10 @@ import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
 
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
+import ReminderDateTimePicker from "../../components/appointments/ReminderDateTimePicker";
+import SuccessToast from "../../components/common/SuccessToast";
+import { useSuccessToast } from "../../hooks/useSuccessToast";
+import { buildReminderSuccessToast } from "../../lib/reminderFeedback";
 import { ClinicalWorkflowHeader } from "../../components/clinical/ClinicalWorkflowUi";
 import { supabase } from "../../lib/supabaseClient";
 import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
@@ -981,6 +985,7 @@ function ReminderProfileMenu({ doctorIdentity }) {
 }
 
 function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
+  const { toast, showSuccessToast, dismissToast } = useSuccessToast();
   const authenticatedDoctorId = doctorIdentity?.authUser?.id || "";
   const reminderSnapshot = authenticatedDoctorId
     ? doctorReminderSnapshots.get(authenticatedDoctorId) || null
@@ -1109,14 +1114,6 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const medicationRemindersLoadRef = React.useRef({ requestId: 0, promise: null, trailingRequested: false });
   const medicationOccurrencesLoadRef = React.useRef({ requestId: 0, promise: null, trailingRequested: false });
   const healthTipsLoadRef = React.useRef({ requestId: 0, promise: null, trailingRequested: false });
-
-  React.useEffect(() => {
-    const reminderStatusTimer = window.setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 60000);
-
-    return () => window.clearInterval(reminderStatusTimer);
-  }, []);
 
   const loadAppointments = React.useCallback(() => runCoalescedLoad(
     appointmentsLoadRef,
@@ -1292,6 +1289,25 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       setIsLoadingAppointmentReminders(false);
     }
   ), [authenticatedDoctorId]);
+
+  React.useEffect(() => {
+    const refreshReminderStatus = () => {
+      setCurrentTime(Date.now());
+      if (reminderMountedRef.current && document.visibilityState === "visible") {
+        loadAppointmentReminders();
+      }
+    };
+    // Recover missed realtime events without changing any reminder timing.
+    const reminderStatusTimer = window.setInterval(refreshReminderStatus, 60000);
+    window.addEventListener("focus", refreshReminderStatus);
+    document.addEventListener("visibilitychange", refreshReminderStatus);
+
+    return () => {
+      window.clearInterval(reminderStatusTimer);
+      window.removeEventListener("focus", refreshReminderStatus);
+      document.removeEventListener("visibilitychange", refreshReminderStatus);
+    };
+  }, [loadAppointmentReminders]);
 
   const loadMedicationReminderRows = React.useCallback(() => runCoalescedLoad(
     medicationRemindersLoadRef,
@@ -1566,7 +1582,9 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
         { event: "*", schema: "public", table: remindersTableName },
         loadAppointmentReminders
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") loadAppointmentReminders();
+      });
 
     const medicationDataChannel = supabase
       .channel(`doctor-reminder-medication-data-${authenticatedDoctorId}`)
@@ -2016,7 +2034,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
     await loadMedicationReminderData();
     resetMedicationForm();
-    setMedicationStatusMessage("Medication reminder saved successfully.");
+    setMedicationStatusMessage("");
+    showSuccessToast({ title: "Medication reminder scheduled", message: "Medication reminder saved successfully." });
     setIsMedicationFormOpen(false);
   };
 
@@ -2184,7 +2203,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
         const { error } = await reminderQuery;
         if (error) throw error;
 
-        results.push({ appointment, success: true, updated: Boolean(existingReminder) });
+        results.push({ appointment, success: true, updated: Boolean(existingReminder), savedReminder: payload, appointmentAt: scheduleAt });
       } catch (error) {
         console.error("Appointment reminder save failed:", {
           appointmentId: appointment.id,
@@ -2220,11 +2239,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
       resetAppointmentReminderForm();
       setIsReminderFormOpen(false);
-      setAppointmentRemindersMessage(
-        result.updated
-          ? `Appointment reminder updated successfully. Repeat: ${repeatLabel}.`
-          : `Appointment reminder saved successfully. Repeat: ${repeatLabel}.`
-      );
+      showSuccessToast(buildReminderSuccessToast(result));
       return;
     }
 
@@ -2233,9 +2248,11 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     if (!failureCount) {
       resetAppointmentReminderForm();
       setIsReminderFormOpen(false);
-      setAppointmentRemindersMessage(
-        `${successCount} appointment reminder${successCount === 1 ? "" : "s"} scheduled successfully.`
-      );
+      showSuccessToast({
+        title: "Reminders scheduled",
+        message: `${successCount} appointment reminder${successCount === 1 ? "" : "s"} scheduled successfully.`,
+        details: [`Repeat: ${repeatLabel}`],
+      });
       return;
     }
 
@@ -2398,11 +2415,12 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       setHealthTipFilter("All");
       setIsHealthTipFormOpen(false);
       setHealthTipManagementFilter("Active");
-      setHealthTipsMessage(
-        healthTipFormMode === "edit"
+      showSuccessToast({
+        title: healthTipFormMode === "edit" ? "Health tip updated" : "Health tip added",
+        message: healthTipFormMode === "edit"
           ? "Health tip updated successfully."
-          : "Health tip added successfully."
-      );
+          : "Health tip added successfully.",
+      });
     } catch (error) {
       console.error("Health tip save failed:", error);
       setHealthTipsMessage(
@@ -2441,11 +2459,12 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
     await loadHealthTipRows();
     setHealthTipManagementFilter(isActive ? "Active" : "Archived");
-    setHealthTipsMessage(
-      isActive
+    showSuccessToast({
+      title: isActive ? "Health tip restored" : "Health tip archived",
+      message: isActive
         ? "Health tip restored successfully."
-        : "Health tip archived successfully."
-    );
+        : "Health tip archived successfully.",
+    });
   };
 
   const deleteHealthTip = async () => {
@@ -2471,7 +2490,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
     setDeleteHealthTipTarget(null);
     await loadHealthTipRows();
-    setHealthTipsMessage("Health tip deleted permanently.");
+    showSuccessToast({ title: "Health tip deleted", message: "Health tip deleted permanently." });
   };
 
   const todayDateKey = getLocalDateKey();
@@ -2805,6 +2824,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
   return (
     <section className="doctor-reminder-page clinical-workflow clinical-workflow--reminders">
+      <SuccessToast toast={toast} onDismiss={dismissToast} placement="top-right" />
       <ClinicalWorkflowHeader
         title="Reminders"
         subtitle="Manage appointment alerts, medication schedules, and patient health guidance."
@@ -3559,13 +3579,13 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 {APPOINTMENT_REMINDER_LEAD_GUIDANCE} Times are in Manila.
               </p>
               {form.reminderLeadTime === "custom" ? (
-                <input
-                  className="doctor-reminder-custom-time"
-                  name="customNotifyAt"
+                <ReminderDateTimePicker
+                  key={form.appointmentId}
                   aria-describedby="appointment-reminder-lead-guidance"
-                  type="datetime-local"
                   value={form.customNotifyAt}
-                  onChange={handleChange}
+                  appointmentAt={toManilaISOString(form.scheduleDate, form.scheduleTime)}
+                  now={new Date(currentTime)}
+                  onChange={(value) => handleChange({ target: { name: "customNotifyAt", value } })}
                 />
               ) : null}
             </div>

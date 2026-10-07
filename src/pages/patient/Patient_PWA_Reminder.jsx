@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import SuccessToast from "../../components/common/SuccessToast";
+import { useSuccessToast } from "../../hooks/useSuccessToast";
 import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -776,7 +778,7 @@ export default function PatientPWAReminder({ profile }) {
       : "";
   });
   const [skipTarget, setSkipTarget] = useState(null);
-  const [medicationActionSuccess, setMedicationActionSuccess] = useState("");
+  const { toast, showSuccessToast, dismissToast } = useSuccessToast();
   const [patientRecordId, setPatientRecordId] = useState(
     initialCache?.patientRecordId || profilePatientId
   );
@@ -1050,7 +1052,7 @@ export default function PatientPWAReminder({ profile }) {
 
     setMedicationActionState({ key: actionKey, action });
     setMedicationActionError({ key: "", message: "" });
-    setMedicationActionSuccess("");
+    dismissToast();
     if (action === "skipped") {
       setSkipTarget(null);
     }
@@ -1090,11 +1092,12 @@ export default function PatientPWAReminder({ profile }) {
       )
     );
     setMedicationActionState({ key: "", action: "" });
-    setMedicationActionSuccess(
-      action === "skipped"
+    showSuccessToast({
+      title: "Dose recorded",
+      message: action === "skipped"
         ? "Medication dose recorded as skipped."
-        : "Medication dose recorded as taken."
-    );
+        : "Medication dose recorded as taken.",
+    });
 
     await loadMedicationOccurrenceRows(item.patientId || patientRecordId);
   };
@@ -1741,6 +1744,7 @@ export default function PatientPWAReminder({ profile }) {
   if (isMedicationScheduleScreen) {
     return (
       <>
+        <SuccessToast toast={toast} onDismiss={dismissToast} />
         <MedicationScheduleAdherenceScreen
           actionError={medicationActionError}
           actionState={medicationActionState}
@@ -1757,7 +1761,6 @@ export default function PatientPWAReminder({ profile }) {
             reminderRefreshRef.current?.();
           }}
           summary={todaySummary}
-          successMessage={medicationActionSuccess}
         />
         <SkipMedicationDialog
           actionState={medicationActionState}
@@ -1775,6 +1778,7 @@ export default function PatientPWAReminder({ profile }) {
 
   return (
     <section className="pwa-page pwa-reminders-page">
+      <SuccessToast toast={toast} onDismiss={dismissToast} />
       <PatientPageHeader
         title="My Reminders"
         subtitle="See your next visit, medication schedule, and daily care guidance."
@@ -2122,7 +2126,6 @@ function MedicationScheduleAdherenceScreen({
   onRefresh,
   onTabChange,
   summary,
-  successMessage,
 }) {
   const recordedDoses = summary.taken + summary.skipped + summary.missed;
   const adherencePercentage = recordedDoses
@@ -2230,10 +2233,6 @@ function MedicationScheduleAdherenceScreen({
           Refresh
         </button>
       </section>
-
-      {successMessage ? (
-        <p className="pwa-medication-success" role="status">{successMessage}</p>
-      ) : null}
 
       <section className="pwa-medication-schedule-card">
         <header>
