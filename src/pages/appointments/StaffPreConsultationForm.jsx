@@ -6,6 +6,7 @@ import {
   getManilaDateKey,
   getManilaTimeKey,
 } from "../../lib/appointmentDate";
+import { isMeaningfulClinicalValue, normalizeRiskLevel } from "../../lib/clinicalVisitData";
 import "../../styles/staff-preconsultation.css";
 
 const scheduleColumns =
@@ -173,9 +174,18 @@ function buildPreviousDoctorVisitDefaults(record, appointment) {
 
   return {
     gestationalAge: gestationalAge || String(record?.gestational_age || ""),
-    expectedDeliveryDate: String(record?.expected_delivery_date || ""),
-    pregnancyStatus: String(record?.pregnancy_status || ""),
+    expectedDeliveryDate: isMeaningfulClinicalValue(record?.expected_delivery_date)
+      ? toInputDate(record.expected_delivery_date)
+      : "",
+    pregnancyStatus: normalizePregnancyRisk(
+      [record?.riskLevel, record?.pregnancyStatus, record?.pregnancy_status]
+        .find(isMeaningfulClinicalValue)
+    ),
   };
+}
+
+function normalizePregnancyRisk(value) {
+  return normalizeRiskLevel(String(value ?? "").replace(/[\s_-]+/g, " ").trim());
 }
 
 function normalizeLoadedForm(visitType, appointment, intake, previousRecord = null) {
@@ -198,6 +208,15 @@ function normalizeLoadedForm(visitType, appointment, intake, previousRecord = nu
       ])
     ),
   };
+
+  if (visitType === "follow_up") {
+    ["expectedDeliveryDate", "pregnancyStatus"].forEach((field) => {
+      loaded[field] = [data[field], baselineDefaults[field]]
+        .find(isMeaningfulClinicalValue) ?? "";
+    });
+    loaded.expectedDeliveryDate = toInputDate(loaded.expectedDeliveryDate);
+    loaded.pregnancyStatus = normalizePregnancyRisk(loaded.pregnancyStatus);
+  }
 
   // Gestational age is a calculated pregnancy timeline value. Recalculate it
   // from the Doctor anchor even when an older Staff intake saved a stale age.

@@ -11,6 +11,7 @@ import {
 import {
   buildCanonicalClinicalVisitFormData,
   isCompletedClinicalVisitRecord,
+  isMeaningfulClinicalValue,
   normalizeClinicalVisitFormData,
   normalizeRiskLevel,
 } from "../../lib/clinicalVisitData";
@@ -24,7 +25,7 @@ const patientColumns =
 const recordColumns =
   "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, form_data, uploaded_at, uploaded_by";
 const obstetricHistoryColumns =
-  "id, patient_id, gravida, para, age_at_menarche, menstrual_pattern, cycle_length_days, menstruation_duration_days, sexually_active, contraceptive_method, last_menstrual_period, expected_delivery_date, pregnancy_records, created_at, updated_at";
+  "id, patient_id, gravida, para, full_term, preterm, abortion_miscarriage, living_children, age_at_menarche, menstrual_pattern, cycle_length_days, menstruation_duration_days, sexually_active, contraceptive_method, last_menstrual_period, expected_delivery_date, pregnancy_records, created_at, updated_at";
 const medicalHistoryColumns =
   "id, patient_id, allergies, allergy_records, medical_conditions, other_medical_condition, family_history, other_family_history, created_at, updated_at";
 const initialAssessmentColumns =
@@ -260,6 +261,13 @@ function buildStaffIntakeDefaults(intake) {
     "oxygenSaturation",
     "fetalHeartRate",
   ].forEach((field) => {
+    if (field === "expectedDeliveryDate") {
+      if (isMeaningfulClinicalValue(intakeData[field])) {
+        const date = getManilaDateKey(intakeData[field]);
+        if (date) defaults[field] = date;
+      }
+      return;
+    }
     if (String(intakeData[field] || "").trim()) defaults[field] = intakeData[field];
   });
 
@@ -398,6 +406,7 @@ function normalizeFormData(record, defaults = {}) {
     ...emptyForm,
     ...defaults,
     ...data,
+    expectedDeliveryDate: data.expectedDeliveryDate || normalizedDefaults.expectedDeliveryDate || "",
     riskLevel: data.riskLevel || normalizedDefaults.riskLevel || "",
     babyPosition: data.babyPosition || normalizedDefaults.babyPosition || "",
     fetalHeartRate: data.fetalHeartRate || normalizedDefaults.fetalHeartRate || "",
@@ -530,8 +539,9 @@ function ObstetricHistorySection({ obstetric, expectedDeliveryDate }) {
       <h3>Obstetric Index</h3>
       <HistoryFields fields={[
         ["Gravida", obstetric?.gravida], ["Para", obstetric?.para],
-        ["Full Term", counts.fullTerm], ["Preterm", counts.preterm],
-        ["Abortion", null], ["Living", null],
+        ["Full Term", obstetric?.full_term ?? counts.fullTerm],
+        ["Preterm", obstetric?.preterm ?? counts.preterm],
+        ["Abortion", obstetric?.abortion_miscarriage], ["Living", obstetric?.living_children],
       ]} />
       <HistoryFields fields={[
         ["Last Menstrual Period", formatHistoryDate(obstetric?.last_menstrual_period)],
@@ -1207,11 +1217,10 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     const initialAssessmentDefaults = requestedType === "initial"
       ? buildInitialAssessmentDefaults(record?.id || initialAssessmentResult.error ? null : initialAssessmentResult.data)
       : {};
-    const currentExpectedDeliveryDate = obstetricHistory?.expected_delivery_date
-      ? getManilaDateKey(obstetricHistory.expected_delivery_date)
-      : patientRow?.expected_delivery_date
-        ? getManilaDateKey(patientRow.expected_delivery_date)
-        : "";
+    const currentExpectedDeliveryDate = [
+      obstetricHistory?.expected_delivery_date,
+      patientRow?.expected_delivery_date,
+    ].filter(isMeaningfulClinicalValue).map(getManilaDateKey).find(Boolean) || "";
 
     const defaults = {
       ...previousVisitDefaults,
@@ -1237,6 +1246,9 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
               ""
             ),
       expectedDeliveryDate:
+        // A legacy blank Doctor record may prefill the authoritative date on
+        // edit. Loading never persists it; a meaningful saved Doctor EDD wins.
+        (record?.id ? currentExpectedDeliveryDate : "") ||
         staffIntakeDefaults.expectedDeliveryDate ||
         currentExpectedDeliveryDate ||
         previousVisitDefaults.expectedDeliveryDate ||

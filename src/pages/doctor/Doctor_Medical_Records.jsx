@@ -8,7 +8,7 @@ import { usePatientMedicalOverview } from "../../hooks/usePatientMedicalOverview
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
 import MedicationAdherenceTrendCharts from "../../components/doctor/MedicationAdherenceTrendCharts";
 import AppointmentSummaryPrintableReport from "../../components/reports/AppointmentSummaryPrintableReport";
-import { buildDoctorAppointmentSummary } from "../../lib/doctorAppointmentSummary";
+import { buildDoctorAppointmentSummary, formatRecordedGestationalAge } from "../../lib/doctorAppointmentSummary";
 import "../../styles/doctor-appointment-summary.css";
 import MedicationAdherencePrintableReport from "../../components/reports/MedicationAdherencePrintableReport";
 import "../../styles/patient-record-ui-system.css";
@@ -492,6 +492,9 @@ function mapSupabaseMedicalRecord(
   const bmi =
     calculateClinicalBmi(weight, displayHeight) ||
     getClinicalValue(clinicalFindings, "bmi", "bmi", formData);
+  // The current visit form writes this field in kg. Legacy nested/snake-case
+  // measurements and explicitly labelled findings retain their existing units.
+  const hasCurrentFetalWeight = isMeaningfulClinicalValue(formData.estimatedFetalWeight);
   const findings = Array.isArray(formData.findings)
     ? [
         ...formData.findings
@@ -517,7 +520,7 @@ function mapSupabaseMedicalRecord(
         ["BMI", bmi, "kg/m²"],
         ["Fetal Heart Rate", getClinicalValue(clinicalFindings, "fetalHeartRate", "fetal_heart_rate", formData), "bpm"],
         ["Fundal Height", getClinicalValue(clinicalFindings, "fundalHeight", "fundal_height", formData), "cm"],
-        ["Estimated Fetal Weight", getClinicalValue(clinicalFindings, "estimatedFetalWeight", "estimated_fetal_weight", formData), "g"],
+        ["Estimated Fetal Weight", hasCurrentFetalWeight ? formData.estimatedFetalWeight : getClinicalValue(clinicalFindings, "estimatedFetalWeight", "estimated_fetal_weight", formData), hasCurrentFetalWeight ? "kg" : "g"],
         ["Baby Position", getFirstRecordValue(formData.babyPosition, clinicalFindings.babyPosition, clinicalFindings.baby_position, clinicalFindings.fetalPosition, clinicalFindings.fetal_position), ""],
         ["Fetal Movement", getClinicalValue(clinicalFindings, "fetalMovement", "fetal_movement", formData), ""],
         ["Additional Findings", getFirstRecordValue(clinicalFindings.additionalFindings, clinicalFindings.additional_findings, formData.additionalFindings, formData.additional_findings), ""],
@@ -585,8 +588,14 @@ function mapSupabaseMedicalRecord(
       ? formatAppointmentTime(linkedAppointmentStart)
       : "Not recorded",
     visitType,
+    visitFormType: formData.visitFormType || formData.visit_form_type || "",
     gestationalAge: visitGestationalAge || patient?.gestational_age || "Not recorded",
     riskLevel: formData.riskLevel || "Not recorded",
+    smokingStatus: formData.smokingStatus,
+    alcoholIntake: formData.alcoholIntake,
+    drugUse: formData.drugUse,
+    physicalActivity: formData.physicalActivity,
+    diet: formData.diet,
     visitGestationalAge,
     visitDateValue: validVisitDate ? validVisitDate.toISOString() : "",
     doctor: linkedDoctorName || formData.doctor || formData.attendingPhysician || formData.attending_physician || row.uploaded_by || "Doctor not recorded",
@@ -1262,12 +1271,6 @@ function formatObstetricValue(value) {
   return String(number);
 }
 
-function formatBooleanPatientValue(value) {
-  if (value === true) return "Yes";
-  if (value === false) return "No";
-  return displayPatientValue(value);
-}
-
 const REGISTRATION_MEDICAL_CONDITIONS = [
   "Hypertension",
   "Diabetes Mellitus",
@@ -1436,10 +1439,38 @@ function buildPrenatalVisitRows(records, patient, obstetric) {
     });
 }
 
+function isPrenatalClinicalVisit(record) {
+  // Completion is already checked by the page; classify visits only for this panel.
+  const workflowType = normalizeLabelText(record.visitFormType);
+  if (workflowType) {
+    return ["initial", "initialvisit", "followup", "followupvisit"].includes(workflowType);
+  }
+
+  return [
+    "initial",
+    "initialvisit",
+    "followup",
+    "followupvisit",
+    "prenatalcheckup",
+    "prenatalvisit",
+    "prenatalconsultation",
+  ].includes(normalizeLabelText(record.visitType));
+}
+
 function buildPrenatalData(patient, patientRelated, records) {
   const obstetric = patientRelated?.obstetric || {};
   const medicalHistory = patientRelated?.medicalHistory || {};
   const initialAssessment = patientRelated?.initialAssessment || {};
+  const clinicalRecords = records
+    .filter(isPrenatalClinicalVisit)
+    .sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
+  const getLifestyleValue = (field, legacyValue) =>
+    getLatestRecordValue(clinicalRecords, [field]) ||
+    (isMeaningfulClinicalValue(legacyValue) ? cleanRecordValue(legacyValue) : "");
+  const patientRisk = cleanRecordValue(patient?.risk_level);
+  const riskLevel = isMeaningfulClinicalValue(patientRisk)
+    ? patientRisk
+    : getLatestRecordValue(clinicalRecords, ["riskLevel", "Risk Level"]);
   const pregnancyNumber = parseNumericValue(obstetric.gravida);
   const currentPregnancyLabel = pregnancyNumber
     ? `Pregnancy ${pregnancyNumber}`
@@ -1466,22 +1497,23 @@ function buildPrenatalData(patient, patientRelated, records) {
     .sort((a, b) => (parseDateValue(b.dateGiven)?.getTime() || 0) - (parseDateValue(a.dateGiven)?.getTime() || 0))
     .map((row) => [row.vaccine, formatCompactPatientDate(row.dateGiven)]);
   const lifestyleRows = [
-    ["Smoker", initialAssessment.smoking_status],
-    ["Alcohol Use", initialAssessment.alcohol_intake],
-    ["Drug Use", initialAssessment.drug_use],
+    ["Smoker", getLifestyleValue("smokingStatus", initialAssessment.smoking_status)],
+    ["Alcohol Use", getLifestyleValue("alcoholIntake", initialAssessment.alcohol_intake)],
+    ["Drug Use", getLifestyleValue("drugUse", initialAssessment.drug_use)],
     ["Occupation", patientRelated?.personal?.occupation],
-    ["Physical Activity", initialAssessment.physical_activity],
-    ["Diet", initialAssessment.diet],
+    ["Physical Activity", getLifestyleValue("physicalActivity", initialAssessment.physical_activity)],
+    ["Diet", getLifestyleValue("diet", initialAssessment.diet)],
   ];
   const hasLifestyleData = lifestyleRows.some(([, value]) => cleanRecordValue(value));
 
   return {
     obstetricStats: [
-      ["Gravida", formatObstetricValue(obstetric.gravida)],
-      ["Para", formatObstetricValue(obstetric.para)],
-      ["Abortion/Miscarriage", formatObstetricValue(obstetric.abortion_miscarriage)],
-      ["Living Children", formatObstetricValue(obstetric.living_children)],
-      ["Multiple Pregnancy", formatBooleanPatientValue(obstetric.multiple_pregnancy)],
+      ["Gravida (G)", formatObstetricValue(obstetric.gravida)],
+      ["Para (P)", formatObstetricValue(obstetric.para)],
+      ["Full Term (T)", formatObstetricValue(obstetric.full_term)],
+      ["Preterm (P)", formatObstetricValue(obstetric.preterm)],
+      ["Abortion/Miscarriage (A)", formatObstetricValue(obstetric.abortion_miscarriage)],
+      ["Living Children (L)", formatObstetricValue(obstetric.living_children)],
     ],
     pregnancyHistoryRows: normalizePregnancyHistoryRows(obstetric, pregnancyNumber),
     currentPregnancyDetails: [
@@ -1492,7 +1524,7 @@ function buildPrenatalData(patient, patientRelated, records) {
       ],
       [
         ["Pregnancy Number", currentPregnancyLabel],
-        ["Risk Level", buildRiskBadge(patient?.risk_level || getLatestRecordValue(records, ["riskLevel", "Risk Level"]))],
+        ["Risk Level", buildRiskBadge(riskLevel)],
       ],
     ],
     conditions,
@@ -1500,7 +1532,7 @@ function buildPrenatalData(patient, patientRelated, records) {
     allergyRows,
     lifestyleRows: hasLifestyleData ? lifestyleRows : [],
     immunizationRows,
-    prenatalVisitRows: buildPrenatalVisitRows(records, patient, obstetric),
+    prenatalVisitRows: buildPrenatalVisitRows(clinicalRecords, patient, obstetric),
   };
 }
 
@@ -3150,7 +3182,7 @@ function MedicalRecordEntry({
           <div>
             <Icon className="mr-medical-detail-icon" icon="tabler:clock" />
             <dt>Gestational Age</dt>
-            <dd>{record.gestationalAge}</dd>
+            <dd>{formatRecordedGestationalAge(record.gestationalAge)}</dd>
           </div>
           <div>
             <Icon className="mr-medical-detail-icon" icon="healthicons:doctor-outline-24px" />
@@ -3218,7 +3250,7 @@ function MedicalRecordEntry({
               {record.obstetric.map(([label, value]) => (
                 <div key={label}>
                   <dt>{label}</dt>
-                  <dd>{value}</dd>
+                  <dd>{normalizeLabelText(label) === "gestationalage" ? formatRecordedGestationalAge(value) : value}</dd>
                 </div>
               ))}
             </dl>
@@ -4457,6 +4489,8 @@ export default function Doctor_Medical_Records({
           {activeTab === "Prenatal History" && (
             visibleRecordsLoading || visiblePrenatalDetailsLoading ? (
               <div className="mr-empty-tab">Loading prenatal history...</div>
+            ) : medicalRecordsError ? (
+              <div className="mr-empty-tab" role="alert">{recordMessage}</div>
             ) : (
               <>
                 {prenatalDetailsError ? (

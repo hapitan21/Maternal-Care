@@ -3,7 +3,8 @@ import { classifyAppointment, compareHistoryAppointments, compareUpcomingAppoint
 import { isCompletedClinicalVisitRecord, isMeaningfulClinicalValue, normalizeClinicalVisitFormData } from "./clinicalVisitData.js";
 
 // Display only: retain the saved numbers while normalizing their unit labels.
-function formatRecordedGestationalAge(value) {
+export function formatRecordedGestationalAge(value) {
+  if (!isMeaningfulClinicalValue(value)) return "Not recorded";
   const text = String(value).trim();
   if (/^\d+(?:\.\d+)?$/.test(text)) return text + " Weeks";
   return text.replace(/\bweeks?\b/gi, "Weeks").replace(/\bdays?\b/gi, "Days");
