@@ -8,6 +8,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import { transformWithOxc } from "vite";
 import { dashboardSectionState, positionDashboardMenu } from "../src/lib/doctorDashboardPresentation.js";
+import { fetchDoctorDashboardSchedule, isDoctorDashboardActiveStatus } from "../src/lib/doctorDashboardSchedule.js";
 import {
   appointmentStatuses,
   classifyAppointment,
@@ -116,7 +117,7 @@ const home = await load(homeSource, "DashboardHome.jsx", {
   react: React, "react/jsx-runtime": jsxRuntime, icon: { Icon: () => null },
   avatar: avatar, menu: { default: ({children}) => React.createElement("div", null, children) },
 });
-const base = {setActivePage: () => {}, dashboardStats: { totalPatients: 4, todaysAppointments: 1, completedSessions: 3 }, upcomingSessions: [], accountName: "Synthetic Doctor", dashboardMessage: "", dashboardStatsLoading: false};
+const base = {setActivePage: () => {}, onOpenMedicalRecord: () => {}, dashboardStats: { totalPatients: 4, todaysAppointments: 1, completedSessions: 3 }, upcomingSessions: [], accountName: "Synthetic Doctor", dashboardMessage: "", dashboardStatsLoading: false};
 const render = props => renderToStaticMarkup(React.createElement(home.default, {...base, ...props}));
 const loading = render({sessionsState:"loading", dashboardStatsLoading:true});
 check(loading.includes("Loading upcoming sessions...") && !loading.includes("No upcoming sessions."), "initial load never flashes empty state");
@@ -201,12 +202,21 @@ check(!events.has("pointerdown"),"closed menu removes global listeners");
 
 // Exercise the production loader itself, including returned errors and rejected requests.
 const loaderBody=source.slice(source.indexOf("  const loadDashboardStats = useCallback(async () => {"),source.indexOf("  }, [authenticatedDoctorId]);")+"  }, [authenticatedDoctorId]);".length).replace("  const loadDashboardStats = useCallback(async () => {","export async function loadDashboardStats() {").replace("  }, [authenticatedDoctorId]);","}");
-const loaderSource='import {supabase} from "db"; import {classifyAppointment,compareUpcomingAppointments,normalizeAppointmentStatus,appointmentStatuses,fetchDashboardPatientAvatarMap,mapUpcomingSession} from "dependencies";\n'
+const loaderSource='import {supabase} from "db"; import {classifyAppointment,compareUpcomingAppointments,normalizeAppointmentStatus,appointmentStatuses,fetchDoctorDashboardSchedule,isDoctorDashboardActiveStatus,fetchDashboardPatientAvatarMap,mapUpcomingSession} from "dependencies";\n'
  + 'const authenticatedDoctorId="synthetic"; const dashboardStatsRequestRef={current:0}; const dashboardSessionsRef={current:null}; export const observed={}; const snapshots=new Map(); const doctorDashboardSnapshots={get:id=>snapshots.get(id),set:(id,value)=>{snapshots.set(id,value);observed.snapshot=value;}}; const setDashboardStats=value=>observed.stats=value; const setDashboardStatsResolved=value=>observed.statsResolved=value; const setDashboardFailed=value=>observed.failed=value; const setDashboardMessage=value=>observed.message=value; const setUpcomingSessions=value=>{observed.sessions=typeof value==="function"?value(observed.sessions):value;observed.sessionUpdates=(observed.sessionUpdates||0)+1;}; const setSessionsResolved=value=>observed.sessionsResolved=value;\n'+loaderBody;
 let results={patients:{count:4,error:null},schedule:{data:[{id:"synthetic"}],error:null}};
 let reject=false;
-function query(which){const builder={}; for(const method of ["select","ilike","eq","order"]) builder[method]=()=>builder; builder.then=(resolve,rejectFn)=>reject?Promise.reject(new Error("INTERNAL RPC SECRET")).then(resolve,rejectFn):Promise.resolve(results[which]).then(resolve,rejectFn);return builder;}
-const loader=await load(loaderSource,"loader.js",{db:{supabase:{rpc:()=>query("patients"),from:()=>query("schedule")}},dependencies:{classifyAppointment:()=>({isToday:true,isActionable:true,isUpcoming:true}),compareUpcomingAppointments:()=>0,normalizeAppointmentStatus:()=>"scheduled",appointmentStatuses:{completed:"completed"},fetchDashboardPatientAvatarMap:async()=>new Map(),mapUpcomingSession:row=>row}});
+function query(which) {
+  let afterCursor = false;
+  const builder = {};
+  for (const method of ["select", "ilike", "eq", "order", "limit"]) builder[method] = () => builder;
+  for (const method of ["or", "is", "gt"]) builder[method] = () => { afterCursor = true; return builder; };
+  builder.then = (resolve, rejectFn) => reject
+    ? Promise.reject(new Error("INTERNAL RPC SECRET")).then(resolve, rejectFn)
+    : Promise.resolve(which === "schedule" && afterCursor ? { data: [], error: null } : results[which]).then(resolve, rejectFn);
+  return builder;
+}
+const loader=await load(loaderSource,"loader.js",{db:{supabase:{rpc:()=>query("patients"),from:()=>query("schedule")}},dependencies:{fetchDoctorDashboardSchedule,isDoctorDashboardActiveStatus,classifyAppointment:()=>({isToday:true,isActionable:true,isUpcoming:true}),compareUpcomingAppointments:()=>0,normalizeAppointmentStatus:()=>"scheduled",appointmentStatuses:{completed:"completed"},fetchDashboardPatientAvatarMap:async()=>new Map(),mapUpcomingSession:row=>row}});
 results={patients:{error:{message:"INTERNAL RPC SECRET"}},schedule:{error:{message:"INTERNAL DATABASE URL"}}};
 await loader.loadDashboardStats();
 check(loader.observed.failed===true,"returned query errors mark load failed");
@@ -258,7 +268,7 @@ let avatarRows = [];
 const realLoader = await load(loaderSource, "classification-loader.js", {
   db: { supabase: { rpc: () => query("patients"), from: () => query("schedule") } },
   dependencies: {
-    appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments,
+    fetchDoctorDashboardSchedule, isDoctorDashboardActiveStatus, appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments,
     classifyAppointment: (row, now) => {
       classificationCalls.push({ row, now });
       return classifyAppointment(row, now);
@@ -516,8 +526,10 @@ for (const trigger of triggers) concurrencyCheck(trigger() === undefined, "captu
 async function productionRefreshHarness() {
   const batches = [], avatars = [];
   function builder(promise) {
-    const query = { then: (yes, no) => promise.then(yes, no) };
-    for (const method of ["select", "ilike", "eq", "order"]) query[method] = () => query;
+    let afterCursor = false;
+    const query = { then: (yes, no) => (afterCursor ? Promise.resolve({ data: [], error: null }) : promise).then(yes, no) };
+    for (const method of ["select", "ilike", "eq", "order", "limit"]) query[method] = () => query;
+    for (const method of ["or", "is", "gt"]) query[method] = () => { afterCursor = true; return query; };
     return query;
   }
   const harnessSource = loaderSource.replace('const authenticatedDoctorId="synthetic"', 'let authenticatedDoctorId="synthetic"')
@@ -528,7 +540,7 @@ async function productionRefreshHarness() {
       from: () => builder(batches.at(-1).promise.then(result => result.schedule)),
     } },
     dependencies: {
-      appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments, classifyAppointment,
+      fetchDoctorDashboardSchedule, isDoctorDashboardActiveStatus, appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments, classifyAppointment,
       fetchDashboardPatientAvatarMap: async rows => { const work = deferred(); avatars.push({ ...work, rows }); return work.promise; },
       mapUpcomingSession: row => row,
     },
@@ -604,8 +616,10 @@ const progressiveRows = fixtures.map((row, index) => ({
 async function progressiveHarness() {
   const batches = [], avatars = [];
   function builder(work) {
-    const query = { then: (yes, no) => { work.started = true; return work.promise.then(yes, no); } };
-    for (const method of ["select", "ilike", "eq", "order"]) query[method] = () => query;
+    let afterCursor = false;
+    const query = { then: (yes, no) => { work.started = true; return (afterCursor ? Promise.resolve({ data: [], error: null }) : work.promise).then(yes, no); } };
+    for (const method of ["select", "ilike", "eq", "order", "limit"]) query[method] = () => query;
+    for (const method of ["or", "is", "gt"]) query[method] = () => { afterCursor = true; return query; };
     return query;
   }
   const harnessSource = loaderSource.replace('const authenticatedDoctorId="synthetic"', 'let authenticatedDoctorId="synthetic"')
@@ -620,7 +634,7 @@ async function progressiveHarness() {
       from: () => builder(batches.at(-1).schedule),
     } },
     dependencies: {
-      appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments, classifyAppointment,
+      fetchDoctorDashboardSchedule, isDoctorDashboardActiveStatus, appointmentStatuses, normalizeAppointmentStatus, compareUpcomingAppointments, classifyAppointment,
       mapUpcomingSession: sessionMapper.mapUpcomingSession,
       fetchDashboardPatientAvatarMap: async rows => { const work = deferred(); avatars.push({ ...work, rows }); return work.promise; },
     },
@@ -649,7 +663,7 @@ const scheduleSuccess = (rows = progressiveRows) => ({ data: rows, error: null }
     icon: { Icon: () => null }, avatar, menu: { default: menuStub },
   });
   let visible = initial, target;
-  const renderProgressiveHome = () => interactive.default({ ...base, sessionsState: "data", upcomingSessions: visible, setActivePage: (page, options) => { target = { page, options }; } });
+  const renderProgressiveHome = () => interactive.default({ ...base, sessionsState: "data", upcomingSessions: visible, setActivePage: (page, options) => { target = { page, options }; }, onOpenMedicalRecord: record => { target = { record }; } });
   interactiveRuntime.mount(renderProgressiveHome);
   nodes(interactiveRuntime.current(), node => node.type === menuStub)[0].props.onToggle();
   progressiveCheck(nodes(interactiveRuntime.current(), node => node.type === menuStub)[0].props.open, "initial rows already have a usable action menu");
@@ -671,14 +685,14 @@ const scheduleSuccess = (rows = progressiveRows) => ({ data: rows, error: null }
     const appointmentTarget = row.appointmentId === "MA ID not assigned" ? row.id : row.appointmentId;
     progressiveCheck(target.page === "appointments" && target.options.path === "/doctor/appointments?appointmentId=" + encodeURIComponent(appointmentTarget), "enriched View Appointment target preserved");
     actionButtons[index * 2 + 1].props.onClick();
-    progressiveCheck(target.page === "patients" && target.options.path === "/doctor/patients/" + row.patientId, "enriched View Patient target preserved");
+    progressiveCheck(target.record.patientId === row.patientId && target.record.activeTab === "Overview" && target.record.returnPage === "dashboard", "enriched View Patient opens the exact patient Overview with Dashboard return");
   }
   harness.batches[0].patients.resolve({ count: 17, error: null }); await work;
   const expected = priorDashboardResults(progressiveRows, new Date(refreshTime), 17);
   progressiveCheck(JSON.stringify(harness.module.observed.stats) === JSON.stringify(expected.stats), "all Dashboard metric definitions match prior calculations");
   progressiveCheck(harness.module.observed.metricUpdates === 1 && !harness.module.observed.failed, "metrics commit once when both primary results succeed");
   progressiveCheck(harness.module.observed.snapshot.upcomingSessions === enriched, "successful snapshot contains enriched visible sessions");
-  progressiveCheck(harness.batches.length === 1 && harness.avatars.length === 1, "progressive rendering adds no extra requests");
+  progressiveCheck(harness.batches.length === 1 && harness.avatars.length === 1, "progressive rendering adds no extra refresh or avatar batches");
   scope.stop();
 }
 for (const failure of ["returned RPC error", "rejected avatar promise"]) {
@@ -953,12 +967,12 @@ for (const failure of ["returned RPC error", "rejected avatar promise"]) {
 const homeRuntime=hookRuntime();
 const interactiveHome=await load(homeSource,"DashboardHome.jsx",{react:homeRuntime.react,"react/jsx-runtime":{jsx,jsxs:jsx,Fragment:"fragment"},icon:{Icon:()=>null},avatar:avatar,menu:{default:()=>null}});
 let destination=null;
-homeRuntime.mount(()=>interactiveHome.default({...base,sessionsState:"data",upcomingSessions:[session(1)],setActivePage:(page,options)=>{destination={page,options};}}));
+homeRuntime.mount(()=>interactiveHome.default({...base,sessionsState:"data",upcomingSessions:[session(1)],setActivePage:(page,options)=>{destination={page,options};},onOpenMedicalRecord:record=>{destination={record};}}));
 const actions=nodes(homeRuntime.current(),node=>node.props.role==="menuitem");
 actions[0].props.onClick();
 check(destination.page==="appointments" && destination.options.path==="/doctor/appointments?appointmentId="+encodeURIComponent(session(1).appointmentId),"View Appointment preserves encoded appointment destination");
 actions[1].props.onClick();
-check(destination.page==="patients" && destination.options.path==="/doctor/patients/synthetic","View Patient preserves destination");
+check(destination.record.patientId==="synthetic" && destination.record.activeTab==="Overview" && destination.record.returnPage==="dashboard","View Patient opens selected patient Overview with Dashboard return");
 const changed=spawnSync("git",["diff","--name-only"],{cwd:new URL("../",import.meta.url),encoding:"utf8",windowsHide:true});
 check(changed.status===0 && !/AppointmentVisitForm|StaffPreConsultationForm|src\/pages\/staff/.test(changed.stdout),"shared visit forms and Staff pages remain untouched");
 

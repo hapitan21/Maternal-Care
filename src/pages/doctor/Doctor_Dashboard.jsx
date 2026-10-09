@@ -8,6 +8,7 @@ import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import DashboardSessionActions from "../../components/doctor/DashboardSessionActions";
 import { dashboardSectionState } from "../../lib/doctorDashboardPresentation";
+import { fetchDoctorDashboardSchedule, isDoctorDashboardActiveStatus } from "../../lib/doctorDashboardSchedule";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import {
   appointmentStatuses,
@@ -436,6 +437,7 @@ function DoctorHeaderControls({ setActivePage, profile, profileKey, isLoading })
 
 function DashboardHome({
   setActivePage,
+  onOpenMedicalRecord,
   dashboardStats,
   upcomingSessions,
   dashboardMessage,
@@ -650,8 +652,10 @@ function DashboardHome({
                                 role="menuitem"
                                 onClick={() => {
                                   setActiveSessionActionId("");
-                                  setActivePage("patients", {
-                                    path: `/doctor/patients/${session.patientId}`,
+                                  onOpenMedicalRecord({
+                                    patientId: session.patientId,
+                                    activeTab: "Overview",
+                                    returnPage: "dashboard",
                                   });
                                 }}
                               >
@@ -767,14 +771,10 @@ function Doctor_Dashboard() {
           .select("id")
           .ilike("status", "active")
       ).catch((error) => ({ error }));
-      const scheduleRequest = Promise.resolve(
-        supabase
-          .from("schedule")
-          .select(
-            "id, maternal_appointment_id, patient_id, patient_name, start_time, end_time, status"
-          )
-          .eq("doctor_id", doctorId)
-          .order("start_time", { ascending: true })
+      const scheduleRequest = fetchDoctorDashboardSchedule(
+        supabase,
+        doctorId,
+        () => dashboardStatsRequestRef.current === requestId
       ).catch((error) => ({ error }));
       let scheduleStats;
       let snapshotSessions;
@@ -798,7 +798,8 @@ function Doctor_Dashboard() {
           ({ classification }) => classification.isToday
         );
         const actionableTodayAppointments = allTodayAppointments.filter(
-          ({ classification }) => classification.isActionable
+          ({ row, classification }) =>
+            isDoctorDashboardActiveStatus(row.status) && classification.isActionable
         );
 
         const completedSessions = scheduleRows.filter(
@@ -822,7 +823,9 @@ function Doctor_Dashboard() {
         };
 
         const upcomingRows = classifiedScheduleRows
-          .filter(({ classification }) => classification.isUpcoming)
+          .filter(({ row, classification }) =>
+            isDoctorDashboardActiveStatus(row.status) && classification.isUpcoming
+          )
           .map(({ row }) => row)
           .sort(compareUpcomingAppointments)
           .slice(0, 4);
@@ -1177,6 +1180,7 @@ function Doctor_Dashboard() {
         return (
           <DashboardHome
             setActivePage={navigateDoctorPage}
+            onOpenMedicalRecord={openMedicalRecordTarget}
             dashboardStats={dashboardStatsResolved ? dashboardStats : dashboardSnapshot?.dashboardStats || dashboardStats}
             upcomingSessions={sessionsResolved ? upcomingSessions : dashboardSnapshot?.upcomingSessions || upcomingSessions}
             dashboardMessage={doctorIdentity.error ? "Unable to load your dashboard. Please try again later." : dashboardMessage}
