@@ -2,6 +2,7 @@ import React from "react";
 import { DoctorSignOutContext } from "../../context/roleInactivityContext";
 import { createAuthenticatedMutation, requireFullOtp } from "../../lib/authenticatedMutation";
 import { getLogicalSessionIdentity } from "../../lib/roleInactivity";
+import { doctorSettingsFields, parseDoctorCalendarDate, saveDoctorSettingsSection, validateDoctorSettingsDraft } from "../../lib/doctorSettingsData";
 
 import PasswordSecurityFeedback from "../../components/common/PasswordSecurityFeedback";
 import { supabase } from "../../lib/supabaseClient";
@@ -17,11 +18,6 @@ import {
   getAvailabilityDayIndex,
 } from "../../lib/availabilitySchedule";
 import "../../styles/doctor-settings.css";
-
-const DOCTOR_PERSONAL_INFORMATION_TABLE =
-  "doctor_personal_information";
-const DOCTOR_PROFESSIONAL_INFORMATION_TABLE =
-  "doctor_professional_information";
 
 const defaultDoctorSettings = {
   displayName: "",
@@ -77,9 +73,8 @@ function formatDateForDisplay(value) {
 
   if (isoMatch) {
     const [, year, month, day] = isoMatch;
-    const date = new Date(
-      Date.UTC(Number(year), Number(month) - 1, Number(day))
-    );
+    const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+    try { parseDoctorCalendarDate(value); } catch { return String(value); }
 
     return new Intl.DateTimeFormat("en-US", {
       month: "long",
@@ -90,30 +85,6 @@ function formatDateForDisplay(value) {
   }
 
   return String(value);
-}
-
-function parseDateForDatabase(value) {
-  const normalizedValue = String(value || "").trim();
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
-    return normalizedValue;
-  }
-
-  const parsedDate = new Date(normalizedValue);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return null;
-  }
-
-  const year = parsedDate.getFullYear();
-  const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
-  const day = String(parsedDate.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
 }
 
 function formatYearsExperience(value) {
@@ -128,16 +99,6 @@ function formatYearsExperience(value) {
   }
 
   return `${numberValue} ${numberValue === 1 ? "Year" : "Years"}`;
-}
-
-function parseYearsExperience(value) {
-  const match = String(value || "").match(/\d+/);
-
-  if (!match) {
-    return null;
-  }
-
-  return Number(match[0]);
 }
 
 function formatDatabaseTime(value) {
@@ -287,10 +248,8 @@ function createDoctorSettingsSnapshot(
     ...defaultDoctorSettings,
 
     displayName:
-      personal.full_name ||
-      profile.full_name ||
-      doctorIdentity?.doctorDisplayName ||
-      "",
+      Object.hasOwn(personal, "full_name") ? personal.full_name ?? ""
+        : profile.full_name ?? doctorIdentity?.doctorDisplayName ?? "",
 
     email:
       authUser.email ||
@@ -323,10 +282,8 @@ function createDoctorSettingsSnapshot(
     clinicAddress: professional.clinic_address || "",
 
     contactNumber:
-      professional.contact_number ||
-      profile.contact_number ||
-      doctorIdentity?.doctorContactNumber ||
-      "",
+      Object.hasOwn(professional, "contact_number") ? professional.contact_number ?? ""
+        : profile.contact_number ?? doctorIdentity?.doctorContactNumber ?? "",
 
     accountStatus:
       profile.account_status ||
@@ -751,135 +708,6 @@ function getFriendlyAuthError(error) {
   return "The request could not be completed. Please try again.";
 }
 
-
-function nullableText(value) {
-  const cleanedValue = String(value ?? "").trim();
-  return cleanedValue || null;
-}
-
-async function saveDoctorInformationRecords(
-  nextSettings,
-  scope
-) {
-  const user = await scope.getUser();
-  const authenticatedDoctor = await loadAuthenticatedDoctor(user);
-  await scope.check();
-
-  if (user.id !== authenticatedDoctor.authUser.id) {
-    throw new Error("The supplied account does not match the authenticated Doctor.");
-  }
-
-  const birthdateText = String(
-    nextSettings.birthdate ?? ""
-  ).trim();
-  const parsedBirthdate = parseDateForDatabase(birthdateText);
-
-  if (birthdateText && !parsedBirthdate) {
-    throw new Error(
-      "Enter a valid birthdate, such as January 1, 2003 or 2003-01-01."
-    );
-  }
-
-  const parsedYears =
-    parseYearsExperience(nextSettings.yearsExperience) ?? 0;
-
-  if (parsedYears < 0 || parsedYears > 100) {
-    throw new Error(
-      "Years of experience must be between 0 and 100."
-    );
-  }
-
-  const confirmedEmail =
-    normalizeEmail(user.email) ||
-    normalizeEmail(nextSettings.email) ||
-    null;
-
-  const personalPayload = {
-    auth_user_id: user.id,
-    full_name:
-      nullableText(nextSettings.displayName) ||
-      authenticatedDoctor.doctorDisplayName,
-    birthdate: parsedBirthdate,
-    civil_status: nullableText(nextSettings.civilStatus),
-    gender: nullableText(nextSettings.gender),
-    nationality: nullableText(nextSettings.nationality),
-    years_of_experience: parsedYears,
-  };
-
-  const professionalPayload = {
-    auth_user_id: user.id,
-    doctor_code: nullableText(nextSettings.doctorId),
-    board_certification: nullableText(
-      nextSettings.boardCertification
-    ),
-    license_number: nullableText(nextSettings.licenseNumber),
-    email_address: confirmedEmail,
-    clinic_hospital_name: nullableText(nextSettings.clinicName),
-    contact_number: nullableText(nextSettings.contactNumber),
-    clinic_address: nullableText(nextSettings.clinicAddress),
-  };
-
-  const [personalResult, professionalResult] = await Promise.all([
-    scope.client
-      .from(DOCTOR_PERSONAL_INFORMATION_TABLE)
-      .upsert(personalPayload, {
-        onConflict: "auth_user_id",
-      })
-      .select("id, auth_user_id")
-      .single(),
-
-    scope.client
-      .from(DOCTOR_PROFESSIONAL_INFORMATION_TABLE)
-      .upsert(professionalPayload, {
-        onConflict: "auth_user_id",
-      })
-      .select("id, auth_user_id")
-      .single(),
-  ]);
-
-  await scope.check();
-
-  if (personalResult.error) {
-    throw new Error(
-      `Unable to save personal information: ${personalResult.error.message}`
-    );
-  }
-
-  if (professionalResult.error) {
-    throw new Error(
-      `Unable to save professional information: ${professionalResult.error.message}`
-    );
-  }
-
-  // Keep the shared profile values synchronized for the dashboard header
-  // and other Doctor pages. The two doctor information tables remain the
-  // source used by this Settings page.
-  const { error: sharedProfileError } = await scope.client
-    .from("profiles")
-    .update({
-      full_name: personalPayload.full_name,
-      contact_number: professionalPayload.contact_number,
-    })
-    .eq("id", user.id);
-
-  await scope.check();
-
-  const { error: sharedEmailError } = await scope.client.rpc(
-    "sync_current_profile_email"
-  );
-
-  await scope.check();
-
-  if (sharedProfileError || sharedEmailError) {
-    console.warn(
-      "Doctor information was saved, but the shared profile was not synchronized:",
-      sharedProfileError || sharedEmailError
-    );
-  }
-
-  return user;
-}
-
 function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const requestDoctorSignOut = React.useContext(DoctorSignOutContext);
   const [activePanel, setActivePanel] = React.useState("profile");
@@ -890,6 +718,14 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const [settings, setSettings] = React.useState(() =>
     createDoctorSettingsSnapshot(doctorIdentity, [])
   );
+  const canonicalRef = React.useRef(settings);
+  const [drafts, setDrafts] = React.useState({ personal: {}, professional: {}, account: {} });
+  const draftsRef = React.useRef({ personal: {}, professional: {}, account: {} });
+  const partialSectionsRef = React.useRef(new Set());
+  const availabilityWriteRevisionRef = React.useRef(0);
+  const [fieldErrors, setFieldErrors] = React.useState({ personal: {}, professional: {}, account: {} });
+  const [loadError, setLoadError] = React.useState("");
+  const [loadRevision, setLoadRevision] = React.useState(0);
   const [message, setMessage] = React.useState("");
   const [toast, setToast] = React.useState(null);
   const [passwordFieldError, setPasswordFieldError] = React.useState("");
@@ -932,6 +768,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     if (operationRef.current || !owner || !mountedRef.current) return;
     const operation = {};
     operationRef.current = operation;
+    setIsSaving(true);
     let scope;
     const isCurrent = () => mountedRef.current && mutationOwnerRef.current === owner;
     try {
@@ -951,7 +788,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         scopesRef.current.delete(scope);
         if (operationRef.current === operation) operationRef.current = null;
       };
-      if (scope) void scope.whenIdle().then(release);
+      if (scope && operation.timedOut && isCurrent()) void scope.whenIdle().then(release);
       else release();
     }
   };
@@ -966,6 +803,17 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       const owner = mutationOwnerRef.current;
       if (owner && getLogicalSessionIdentity(session) !== owner.identity) {
         mutationOwnerRef.current = null;
+        operationRef.current = null;
+        canonicalRef.current = defaultDoctorSettings;
+        draftsRef.current = { personal: {}, professional: {}, account: {} };
+        partialSectionsRef.current.clear();
+        setDrafts(draftsRef.current);
+        setFieldErrors({ personal: {}, professional: {}, account: {} });
+        setScheduleDraft(null);
+        setScheduleFieldError("");
+        setAvailabilityError("");
+        setMessage("");
+        setLoadError("");
         emailFlowRef.current = null;
         passwordFlowRef.current = null;
         for (const scope of scopesRef.current) scope.dispose();
@@ -981,6 +829,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     });
     return () => {
       mountedRef.current = false;
+      operationRef.current = null;
       abortController.abort();
       subscription.unsubscribe();
       for (const scope of scopes) scope.dispose();
@@ -1043,103 +892,89 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     }
   }, []);
 
+  const applyCanonicalIdentity = (identity, nextAvailability = canonicalRef.current.availability) => {
+    const next = createDoctorSettingsSnapshot(identity, nextAvailability);
+    canonicalRef.current = next;
+    setSettings(next);
+  };
+
+  const applySavedIdentity = (identity, section) => {
+    const snapshot = createDoctorSettingsSnapshot(identity, canonicalRef.current.availability);
+    const patch = Object.fromEntries(Object.keys(doctorSettingsFields[section]).map(field => [field, snapshot[field]]));
+    if ("email" in patch) patch.emailVerification = snapshot.emailVerification;
+    const next = { ...canonicalRef.current, ...patch };
+    canonicalRef.current = next;
+    setSettings(next);
+  };
+
+  const getDraftValue = (section, field) =>
+    Object.hasOwn(drafts[section], field) ? drafts[section][field] : settings[field];
+
+  const clearSavedDraft = (section, submitted) => {
+    const next = { ...draftsRef.current, [section]: { ...draftsRef.current[section] } };
+    for (const [field, value] of Object.entries(submitted)) {
+      if (Object.is(next[section][field], value)) delete next[section][field];
+    }
+    draftsRef.current = next;
+    setDrafts(next);
+    partialSectionsRef.current.delete(section);
+    setFieldErrors(current => ({ ...current, [section]: {} }));
+    if (section !== "account" && !Object.keys(next[section]).length) {
+      setEditingProfileCards(current => ({ ...current, [section]: false }));
+    }
+  };
+
   React.useEffect(() => {
     let isCancelled = false;
     let loadScope;
-
+    const controller = new AbortController();
     const loadSettings = async () => {
       setIsLoading(true);
-      setMessage("");
-      setAvailabilityError("");
-
-      let authenticatedDoctor;
-
+      setLoadError("");
       try {
         loadScope = await createAuthenticatedMutation(supabase, {
-          signal: abortRef.current?.signal,
+          signal: controller.signal,
           expectedUserId: doctorIdentity?.authUser?.id || "",
           isCurrent: () => !isCancelled && mountedRef.current,
         });
         const user = await loadScope.getUser();
-        authenticatedDoctor = await loadAuthenticatedDoctor(user);
+        const authenticatedDoctor = await loadAuthenticatedDoctor(user);
         await loadScope.check();
-      } catch {
-        if (!isCancelled) {
-          setIsLoading(false);
-          setMessage("Doctor settings could not be loaded. Please refresh and try again.");
+        if (isCancelled) return;
+        // Preserve the owner object during a refresh of the same logical session.
+        // Pending valid saves keep their original fence; dirty values are separate.
+        if (mutationOwnerRef.current?.identity !== loadScope.identity) {
+          mutationOwnerRef.current = { userId: user.id, identity: loadScope.identity };
         }
-        return;
-      }
-
-      if (isCancelled) {
-        return;
-      }
-
-      /*
-       * Show the already-resolved Doctor profile immediately.
-       *
-       * Previously the page waited for the availability query before
-       * populating Settings, so every empty field rendered as "Not set"
-       * for a moment. Applying the identity first keeps Profile and
-       * Account information stable while availability loads.
-       */
-      setSettings((current) =>
-        createDoctorSettingsSnapshot(
-          authenticatedDoctor,
-          current.availability
-        )
-      );
-
-      const user = authenticatedDoctor.authUser;
-      mutationOwnerRef.current = { userId: user.id, identity: loadScope.identity };
-
-      const availabilityResult = await loadScope.client
-        .from("user_availability")
-        .select(
-          "day_of_week, start_time, end_time, is_available"
-        )
-        .eq("profile_id", user.id)
-        .order("day_of_week", { ascending: true });
-
-      if (isCancelled) {
-        return;
-      }
-
-      await loadScope.check();
-
-      const loadedAvailability = mapAvailabilityRows(
-        availabilityResult.data
-      );
-
-      setSettings(
-        createDoctorSettingsSnapshot(
-          authenticatedDoctor,
-          loadedAvailability
-        )
-      );
-
-      setIsLoading(false);
-      setAvailabilityError(availabilityResult.error?.message || "");
-
-      const secondaryErrors = [availabilityResult.error].filter(Boolean);
-
-      if (secondaryErrors.length > 0) {
-        setMessage("Some Doctor settings could not be loaded. Please refresh and try again.");
+        applyCanonicalIdentity(authenticatedDoctor);
+        const availabilityWriteRevision = availabilityWriteRevisionRef.current;
+        const result = await loadScope.client.from("user_availability")
+          .select("day_of_week, start_time, end_time, is_available")
+          .eq("profile_id", user.id).order("day_of_week", { ascending: true });
+        await loadScope.check();
+        if (isCancelled) return;
+        if (result.error) throw result.error;
+        if (!Array.isArray(result.data)) throw new Error("Availability could not be read.");
+        // A late availability read must not restore an earlier profile snapshot.
+        const next = { ...canonicalRef.current, availability: availabilityWriteRevision === availabilityWriteRevisionRef.current
+          ? mapAvailabilityRows(result.data) : canonicalRef.current.availability };
+        canonicalRef.current = next;
+        setSettings(next);
+        setAvailabilityError("");
+      } catch {
+        if (!isCancelled && mountedRef.current) {
+          setLoadError("Doctor settings could not be refreshed. Your existing values are preserved. Please retry.");
+          if (mutationOwnerRef.current) setAvailabilityError("Availability could not be refreshed. Please retry.");
+        }
+      } finally {
+        loadScope?.dispose();
+        if (!isCancelled && mountedRef.current) setIsLoading(false);
       }
     };
-
-    void loadSettings().catch(() => {
-      if (!isCancelled) {
-        setIsLoading(false);
-        setMessage("Doctor settings could not be loaded. Please refresh and try again.");
-      }
-    }).finally(() => loadScope?.dispose());
-
-    return () => {
-      isCancelled = true;
-      loadScope?.dispose();
-    };
-  }, [doctorIdentity?.authUser?.id, authRevision]);
+    void loadSettings();
+    return () => { isCancelled = true; controller.abort(); loadScope?.dispose(); };
+  }, [doctorIdentity?.authUser, doctorIdentity?.profile, doctorIdentity?.personalInformation,
+    doctorIdentity?.professionalInformation, authRevision, loadRevision]);
 
   React.useEffect(() => {
     if (!changeEmailState.isOpen) {
@@ -1183,43 +1018,59 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     await request;
   };
 
-  const updateSetting = (field, value) => {
-    setSettings((current) => ({
-      ...current,
-      [field]: value,
-    }));
+  const updateSetting = (field, value, suppliedSection = null) => {
+    if (operationRef.current && !operationRef.current.timedOut) return;
+    const section = suppliedSection || (activePanel === "account" ? "account"
+      : Object.hasOwn(doctorSettingsFields.personal, field) ? "personal" : "professional");
+    if (!Object.hasOwn(doctorSettingsFields[section], field)) return;
+    const next = { ...draftsRef.current, [section]: { ...draftsRef.current[section] } };
+    if (Object.is(value, canonicalRef.current[field]) && !partialSectionsRef.current.has(section)) delete next[section][field];
+    else next[section][field] = value;
+    draftsRef.current = next;
+    setDrafts(next);
+    setFieldErrors(current => ({ ...current, [section]: { ...current[section], [field]: "" } }));
     setMessage("");
   };
 
   const syncProfileRecord = (nextSettings, scope) =>
-    saveDoctorInformationRecords(nextSettings, scope);
+    saveDoctorSettingsSection(scope, loadAuthenticatedDoctor, "email", { email: nextSettings.email });
 
-  const persistSettings = (kind, card = null) => runSecurityAction(async (scope) => {
-    setIsSaving(true);
-    setMessage("");
-    const user = await scope.getUser();
-    if (normalizeEmail(settings.email) !== normalizeEmail(user.email)) {
-      setMessage("Use Account > Change Email to update your login email with OTP verification.");
-      return;
-    }
-    const nextSettings = {
-      ...settings,
-      displayName: kind === "Account" ? settings.displayName : settings.displayName.trim() || doctorIdentity?.doctorDisplayName || "Doctor",
-      email: normalizeEmail(user.email),
-      contactNumber: settings.contactNumber.trim(),
-      yearsExperience: kind === "Account" ? settings.yearsExperience : formatYearsExperience(parseYearsExperience(settings.yearsExperience)),
-    };
-    await syncProfileRecord(nextSettings, scope);
-    await scope.check();
-    setSettings(nextSettings);
-    notifyDoctorProfileUpdated();
-    if (card) setEditingProfileCards(current => ({ ...current, [card]: false }));
-    else if (kind === "Profile") setEditingProfileCards({ personal: false, professional: false });
-    showToast("success", kind + " information updated successfully.");
-  }, () => showToast("error", kind + " information could not be updated. Please try again."));
+  const persistSettings = (sections) => {
+    const submitted = Object.fromEntries(sections.map(section => [section, { ...draftsRef.current[section] }]));
+    sections = sections.filter(section => Object.keys(submitted[section]).length);
+    if (!sections.length) { setMessage("No changes to save."); return; }
+    const completed = [];
+    return runSecurityAction(async scope => {
+      setMessage("");
+      for (const section of sections) validateDoctorSettingsDraft(section, submitted[section], canonicalRef.current.email);
+      for (const section of sections) {
+        const result = await saveDoctorSettingsSection(scope, loadAuthenticatedDoctor, section, submitted[section]);
+        await scope.check();
+        applySavedIdentity(result.identity, section);
+        clearSavedDraft(section, submitted[section]);
+        completed.push(section);
+      }
+      notifyDoctorProfileUpdated();
+      showToast("success", "Changes saved successfully.");
+    }, error => {
+      if (error.fieldErrors) setFieldErrors(current => ({ ...current, [error.section]: error.fieldErrors }));
+      if (error.canonicalIdentity) {
+        applySavedIdentity(error.canonicalIdentity, error.section);
+        partialSectionsRef.current.add(error.section);
+      }
+      const feedback = completed.length
+        ? "Some selected cards were saved. The remaining changes could not be confirmed. Retry to finish saving."
+        : error.code?.startsWith("doctor_settings_") ? error.message : "Changes could not be confirmed. Please retry.";
+      setMessage(feedback);
+      showToast("error", feedback);
+    });
+  };
 
-  const saveProfileSettings = (event) => { event.preventDefault(); return persistSettings("Profile"); };
-  const saveAccountSettings = (event) => { event.preventDefault(); return persistSettings("Account"); };
+  // Only an explicit footer click saves both Profile drafts. Each card owns
+  // its form submission (including Enter); Done never submits another card.
+  // Account drafts are independent even for shared fields.
+  const saveProfileSettings = event => { event.preventDefault(); return persistSettings(["personal", "professional"]); };
+  const saveAccountSettings = event => { event.preventDefault(); return persistSettings(["account"]); };
 
   const setChangeEmailField = (field, value) => {
     setChangeEmailState((current) => ({
@@ -1255,7 +1106,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const completeEmailChange = async (scope, pendingEmail) => {
     const user = await scope.getUser();
     if (normalizeEmail(user.email) !== pendingEmail) return false;
-    const nextSettings = { ...settings, email: normalizeEmail(user.email), emailVerification: user.email_confirmed_at ? "Verified" : "Pending" };
+    const nextSettings = { ...canonicalRef.current, email: normalizeEmail(user.email), emailVerification: user.email_confirmed_at ? "Verified" : "Pending" };
     // Never copy unverified addresses into profile tables or announce success.
     try {
       await syncProfileRecord(nextSettings, scope);
@@ -1266,6 +1117,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     }
     await scope.check();
     emailFlowRef.current = null;
+    canonicalRef.current = nextSettings;
     setSettings(nextSettings);
     notifyDoctorProfileUpdated();
     setChangeEmailState(current => ({ ...current, step: "complete", isLoading: true,
@@ -1420,6 +1272,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   });
 
   const openScheduleEditor = (availabilityItem = null) => {
+    if (operationRef.current || isLoading || identityUnavailable) return;
     setScheduleDraft(
       availabilityItem
         ? { ...availabilityItem }
@@ -1429,116 +1282,51 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     setScheduleFieldError("");
   };
 
-  const saveScheduleDraft = async (event) => {
+  const saveScheduleDraft = event => {
     event.preventDefault();
-    setScheduleFieldError("");
-
-    if (!scheduleDraft?.day || !scheduleDraft?.status) {
-      setScheduleFieldError("Complete the schedule details.");
-      return;
-    }
-
-    const isAvailable =
-      scheduleDraft.status === "Available";
-    const parsedTimeRange = isAvailable
-      ? parseScheduleTimeRange(scheduleDraft.time)
-      : null;
-
-    if (isAvailable && !parsedTimeRange) {
-      setScheduleFieldError(
-        'Enter a valid time range such as "8:00 AM - 12:00 PM".'
-      );
-      return;
-    }
-
-    const dayOfWeek = getAvailabilityDayIndex(scheduleDraft.day);
-
-    if (dayOfWeek < 0) {
-      setScheduleFieldError("Select a valid day.");
-      return;
-    }
-
-    setIsSaving(true);
-    setMessage("");
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setIsSaving(false);
-      showToast("error", "Your account could not be verified. Please try again.");
-      return;
-    }
-
-    const availabilityPayload = {
-      profile_id: user.id,
-      day_of_week: dayOfWeek,
-      start_time: isAvailable
-        ? parsedTimeRange.startTime
-        : null,
-      end_time: isAvailable
-        ? parsedTimeRange.endTime
-        : null,
-      is_available: isAvailable,
-    };
-
-    const { error } = await supabase
-      .from("user_availability")
-      .upsert(availabilityPayload, {
-        onConflict: "profile_id,day_of_week",
-      });
-
-    setIsSaving(false);
-
-    if (error) {
-      showToast("error", "Schedule availability could not be updated. Please try again.");
-      return;
-    }
-
-    const savedScheduleItem = isAvailable
-      ? {
-          ...scheduleDraft,
-          time: `${formatDatabaseTime(
-            parsedTimeRange.startTime
-          )} - ${formatDatabaseTime(
-            parsedTimeRange.endTime
-          )}`,
-          status: "Available",
-        }
-      : {
-          ...scheduleDraft,
-          time: "No appointments scheduled",
-          status: "Closed",
-        };
-
-    const existingSchedule = availability.some(
-      (availabilityItem) =>
-        availabilityItem.day === savedScheduleItem.day
-    );
-    const nextAvailability = (
-      existingSchedule
-        ? availability.map((availabilityItem) =>
-            availabilityItem.day === savedScheduleItem.day
-              ? savedScheduleItem
-              : availabilityItem
-          )
-        : [...availability, savedScheduleItem]
-    ).sort(
-      (left, right) =>
-        availabilityDayOptions.indexOf(left.day) -
-        availabilityDayOptions.indexOf(right.day)
-    );
-
-    const nextSettings = {
-      ...settings,
-      availability: nextAvailability,
-    };
-
-    setSettings(nextSettings);
-    setScheduleDraft(null);
-    showToast("success", "Schedule availability updated successfully.");
+    if (operationRef.current) return;
+    const submitted = scheduleDraft ? { ...scheduleDraft } : null;
+    return runSecurityAction(async scope => {
+      setScheduleFieldError("");
+      if (!submitted?.day || !["Available", "Closed"].includes(submitted.status)) {
+        setScheduleFieldError("Complete the schedule details."); return;
+      }
+      const isAvailable = submitted.status === "Available";
+      const range = isAvailable ? parseScheduleTimeRange(submitted.time) : null;
+      if (isAvailable && !range) {
+        setScheduleFieldError('Enter a valid time range such as "8:00 AM - 12:00 PM".'); return;
+      }
+      const dayOfWeek = getAvailabilityDayIndex(submitted.day);
+      if (dayOfWeek < 0) { setScheduleFieldError("Select a valid day."); return; }
+      const user = await scope.getUser();
+      await loadAuthenticatedDoctor(user);
+      await scope.check();
+      const result = await scope.client.from("user_availability").upsert({
+        profile_id: user.id, day_of_week: dayOfWeek,
+        start_time: isAvailable ? range.startTime : null,
+        end_time: isAvailable ? range.endTime : null, is_available: isAvailable,
+      }, { onConflict: "profile_id,day_of_week" })
+        .select("profile_id, day_of_week, start_time, end_time, is_available").single();
+      await scope.check();
+      if (result.error) throw result.error;
+      if (result.data?.profile_id !== user.id || Number(result.data.day_of_week) !== dayOfWeek ||
+          typeof result.data.is_available !== "boolean") {
+        throw new Error("The saved availability could not be read back.");
+      }
+      const saved = mapAvailabilityRows([result.data])[0];
+      if (!saved) throw new Error("The saved availability could not be read back.");
+      const next = { ...canonicalRef.current, availability: [
+        ...canonicalRef.current.availability.filter(item => item.day !== saved.day), saved,
+      ].sort((a,b) => availabilityDayOptions.indexOf(a.day) - availabilityDayOptions.indexOf(b.day)) };
+      availabilityWriteRevisionRef.current += 1;
+      canonicalRef.current = next;
+      setSettings(next);
+      setScheduleDraft(null);
+      showToast("success", "Schedule availability updated successfully.");
+    }, () => {
+      setScheduleFieldError("The schedule save could not be confirmed. Your draft is preserved. Please retry.");
+      showToast("error", "Schedule availability could not be confirmed. Please retry.");
+    });
   };
 
   const activeSectionLabel = settingsSections.find((section) => section.id === activePanel)?.label || "Profile";
@@ -1581,31 +1369,43 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       setMessage("");
       return;
     }
-    return persistSettings("Profile", card);
+    if (!Object.keys(draftsRef.current[card]).length) {
+      setEditingProfileCards(current => ({ ...current, [card]: false }));
+      return;
+    }
+    return persistSettings([card]);
   };
 
-  const renderProfileSettingsField = (field, isEditing) => (
-    <label className="doctor-settings-info-item" key={field.field}>
-      <strong>{field.label}</strong>
-      {isEditing ? (
-        field.options ? (
-          <select value={field.value} onChange={(event) => updateSetting(field.field, event.target.value)}>
-            {field.options.map((option) => (
-              <option key={option}>{option}</option>
-            ))}
+  const submitProfileCard = (event, card) => {
+    event.preventDefault();
+    if (editingProfileCards[card]) return toggleProfileCardEdit(card);
+  };
+
+  const renderProfileSettingsField = (field, isEditing) => {
+    const section = Object.hasOwn(doctorSettingsFields.personal, field.field) ? "personal" : "professional";
+    const value = getDraftValue(section, field.field);
+    const error = fieldErrors[section][field.field];
+    const errorId = "doctor-settings-" + field.field + "-error";
+    return (
+      <label className="doctor-settings-info-item" key={field.field}>
+        <strong>{field.label}</strong>
+        {isEditing ? field.options ? (
+          <select value={value} disabled={isSaving || isLoading || identityUnavailable}
+            aria-invalid={error ? "true" : undefined} aria-describedby={error ? errorId : undefined}
+            onChange={event => updateSetting(field.field, event.target.value, section)}>
+            <option value="">Not set</option>
+            {value && !field.options.includes(value) ? <option value={value}>{value}</option> : null}
+            {field.options.map(option => <option key={option}>{option}</option>)}
           </select>
         ) : (
-          <input
-            type={field.type || "text"}
-            value={field.value}
-            onChange={(event) => updateSetting(field.field, event.target.value)}
-          />
-        )
-      ) : (
-        <span>{field.value || (isLoading ? "Loading..." : "Not set")}</span>
-      )}
-    </label>
-  );
+          <input type={field.type || "text"} value={value} disabled={isSaving || isLoading || identityUnavailable}
+            aria-invalid={error ? "true" : undefined} aria-describedby={error ? errorId : undefined}
+            onChange={event => updateSetting(field.field, event.target.value, section)} />
+        ) : <span>{value || (isLoading ? "Loading..." : "Not set")}</span>}
+        {error ? <span id={errorId} className="doctor-settings-field-error" role="alert">{error}</span> : null}
+      </label>
+    );
+  };
 
   return (
     <section className="doctor-settings-page" data-panel={activePanel}>
@@ -1616,6 +1416,14 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         </div>
         {headerAction ?? <SettingsHeaderAction settings={settings} />}
       </header>
+
+      {loadError ? (
+        <div className="doctor-settings-inline-actions" role="alert">
+          <p>{loadError}</p>
+          <button type="button" disabled={isLoading || isSaving}
+            onClick={() => setLoadRevision(current => current + 1)}>Retry loading settings</button>
+        </div>
+      ) : null}
 
       {toast ? (
         <aside
@@ -1659,7 +1467,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
         <section className="doctor-settings-content">
           {activePanel === "profile" ? (
-            <form className="doctor-settings-profile-form" onSubmit={saveProfileSettings}>
+            <div className="doctor-settings-profile-form">
               <header className="doctor-settings-section-header">
                 <span><DoctorIcon name="profile" /></span>
                 <div>
@@ -1669,7 +1477,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
               </header>
 
               <div className="doctor-settings-info-stack">
-                <section className="doctor-settings-info-card doctor-settings-info-card--personal">
+                <form className="doctor-settings-info-card doctor-settings-info-card--personal"
+                  onSubmit={event => submitProfileCard(event, "personal")}>
                   <header>
                     <h3>Personal Information</h3>
                     <button
@@ -1690,9 +1499,10 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                   <div className={`doctor-settings-info-grid${editingProfileCards.personal ? " is-editing" : ""}`}>
                     {personalProfileFields.map((field) => renderProfileSettingsField(field, editingProfileCards.personal))}
                   </div>
-                </section>
+                </form>
 
-                <section className="doctor-settings-info-card doctor-settings-info-card--professional">
+                <form className="doctor-settings-info-card doctor-settings-info-card--professional"
+                  onSubmit={event => submitProfileCard(event, "professional")}>
                   <header>
                     <h3>Professional Information</h3>
                     <button
@@ -1713,14 +1523,14 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                   <div className={`doctor-settings-info-grid${editingProfileCards.professional ? " is-editing" : ""}`}>
                     {professionalProfileFields.map((field) => renderProfileSettingsField(field, editingProfileCards.professional))}
                   </div>
-                </section>
+                </form>
               </div>
 
               <div className="doctor-settings-footer">
                 {message ? <p>{message}</p> : <span />}
-                <button type="submit" disabled={isSaving || isLoading || identityUnavailable}>{isSaving ? "Saving..." : "Save Changes"}</button>
+                <button type="button" onClick={saveProfileSettings} disabled={isSaving || isLoading || identityUnavailable}>{isSaving ? "Saving..." : "Save Profile Changes"}</button>
               </div>
-            </form>
+            </div>
           ) : null}
 
           {activePanel === "account" ? (
@@ -1738,11 +1548,15 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                 <div className="doctor-settings-form-grid">
                   <label>
                     <span>Email Address</span>
-                    <input type="email" value={settings.email} onChange={(event) => updateSetting("email", event.target.value)} />
+                    <input type="email" value={getDraftValue("account", "email")} disabled={isSaving || isLoading || identityUnavailable}
+                      aria-invalid={fieldErrors.account.email ? "true" : undefined}
+                      onChange={event => updateSetting("email", event.target.value, "account")} />
+                    {fieldErrors.account.email ? <span className="doctor-settings-field-error" role="alert">{fieldErrors.account.email}</span> : null}
                   </label>
                   <label>
                     <span>Contact Number</span>
-                    <input value={settings.contactNumber} onChange={(event) => updateSetting("contactNumber", event.target.value)} />
+                    <input value={getDraftValue("account", "contactNumber")} disabled={isSaving || isLoading || identityUnavailable}
+                      onChange={event => updateSetting("contactNumber", event.target.value, "account")} />
                   </label>
                 </div>
                 <div className="doctor-settings-inline-actions">
@@ -2290,12 +2104,13 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       {scheduleDraft ? (
         <div className="doctor-settings-edit-overlay" role="dialog" aria-modal="true" aria-labelledby="doctor-schedule-edit-title">
           <form className="doctor-settings-edit-modal" onSubmit={saveScheduleDraft}>
-            <button type="button" aria-label="Close schedule editor" onClick={() => setScheduleDraft(null)}>X</button>
+            <button type="button" aria-label="Close schedule editor" disabled={isSaving} onClick={() => { if (!operationRef.current) setScheduleDraft(null); }}>X</button>
             <h2 id="doctor-schedule-edit-title">Edit Schedule</h2>
 
             <label>
               Select Day:
               <select
+                disabled={isSaving}
                 value={scheduleDraft.day}
                 onChange={(event) => {
                   setScheduleFieldError("");
@@ -2318,6 +2133,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
               <input
                 type="text"
                 placeholder="8:00 AM - 12:00 PM"
+                disabled={isSaving}
                 value={scheduleDraft.time}
                 onChange={(event) => {
                   setScheduleFieldError("");
@@ -2331,6 +2147,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
             <label>
               Status
               <select
+                disabled={isSaving}
                 value={scheduleDraft.status}
                 onChange={(event) => {
                   setScheduleFieldError("");
@@ -2353,8 +2170,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
             ) : null}
 
             <div>
-              <button type="submit">Save</button>
-              <button type="button" onClick={() => setScheduleDraft(null)}>Cancel</button>
+              <button type="submit" disabled={isSaving}>{isSaving ? "Saving..." : "Save"}</button>
+              <button type="button" disabled={isSaving} onClick={() => { if (!operationRef.current) setScheduleDraft(null); }}>Cancel</button>
             </div>
           </form>
         </div>

@@ -672,7 +672,8 @@
   padding: 0;
 }
 
-.doctor-settings-content form,
+/* Only section-level forms fill the page; nested Profile card forms fit their contents. */
+.doctor-settings-content > form,
 .doctor-settings-content > section {
   min-height: calc(100vh - 130px);
   display: flex;
@@ -1674,7 +1675,7 @@
     display: none;
   }
 
-  .doctor-settings-content form,
+  .doctor-settings-content > form,
   .doctor-settings-content > section,
   .doctor-settings-profile-form {
     min-height: auto;
