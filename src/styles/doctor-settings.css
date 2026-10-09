@@ -120,7 +120,8 @@
 .doctor-settings-page .doctor-otp-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  /* Above Doctor profile controls (50010); below clinic inactivity (2147483647). */
+  z-index: 60000;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -1518,7 +1519,8 @@
 .doctor-settings-edit-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  /* Above Doctor profile controls (50010); below clinic inactivity (2147483647). */
+  z-index: 60000;
   display: grid;
   place-items: center;
   background: rgba(26, 22, 24, 0.54);

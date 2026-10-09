@@ -1,4 +1,5 @@
 import React from "react";
+import { rememberDoctorSettingsDialogTrigger, useDoctorSettingsDialog } from "../../hooks/useDoctorSettingsDialog";
 import { DoctorSignOutContext } from "../../context/roleInactivityContext";
 import { createAuthenticatedMutation, requireFullOtp } from "../../lib/authenticatedMutation";
 import { getLogicalSessionIdentity } from "../../lib/roleInactivity";
@@ -752,6 +753,9 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const [changePasswordOtp, setChangePasswordOtp] = React.useState(
     CHANGE_PASSWORD_INITIAL_STATE
   );
+  const emailDialogTriggerRef = React.useRef(null);
+  const passwordDialogTriggerRef = React.useRef(null);
+  const scheduleDialogTriggerRef = React.useRef(null);
   const toastTimerRef = React.useRef(null);
   const toastVersionRef = React.useRef(0);
   const mountedRef = React.useRef(false);
@@ -1329,6 +1333,13 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     });
   };
 
+  const closeScheduleEditor = () => {
+    if (!isSaving && !operationRef.current) setScheduleDraft(null);
+  };
+  const emailDialogRef = useDoctorSettingsDialog(changeEmailState.isOpen, closeChangeEmailModal, emailDialogTriggerRef);
+  const passwordDialogRef = useDoctorSettingsDialog(changePasswordOtp.isOpen, closeChangePasswordOtpModal, passwordDialogTriggerRef);
+  const scheduleDialogRef = useDoctorSettingsDialog(Boolean(scheduleDraft), closeScheduleEditor, scheduleDialogTriggerRef);
+
   const activeSectionLabel = settingsSections.find((section) => section.id === activePanel)?.label || "Profile";
   const breadcrumbLabel = activeSectionLabel;
   const availability = Array.isArray(settings.availability)
@@ -1561,7 +1572,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                 </div>
                 <div className="doctor-settings-inline-actions">
                   <button type="submit" disabled={isSaving || isLoading || identityUnavailable}>{isSaving ? "Saving..." : "Save Changes"}</button>
-                  <button type="button" onClick={changeEmail} disabled={isSaving || isLoading || identityUnavailable}>Change Email</button>
+                  <button type="button" onClick={event => { rememberDoctorSettingsDialogTrigger(emailDialogTriggerRef, event); return changeEmail(); }} disabled={isSaving || isLoading || identityUnavailable}>Change Email</button>
                 </div>
               </section>
 
@@ -1604,7 +1615,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
           ) : null}
 
           {activePanel === "security" ? (
-            <form className="doctor-settings-security-form" onSubmit={handlePasswordSubmit}>
+            <form className="doctor-settings-security-form" onSubmit={event => { rememberDoctorSettingsDialogTrigger(passwordDialogTriggerRef, event); return handlePasswordSubmit(event); }}>
               <header className="doctor-settings-section-header">
                 <span><DoctorIcon name="lock" /></span>
                 <div>
@@ -1715,7 +1726,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => openScheduleEditor(availability[0] || null)}
+                  onClick={event => { rememberDoctorSettingsDialogTrigger(scheduleDialogTriggerRef, event); openScheduleEditor(availability[0] || null); }}
                   disabled={isLoading || Boolean(availabilityError) || isSaving}
                 >
                   <DoctorIcon name="calendarEdit" />
@@ -1752,7 +1763,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                       type="button"
                       className={item.status === "Closed" ? "is-closed" : ""}
                       key={item.day}
-                      onClick={() => openScheduleEditor(item)}
+                      onClick={event => { rememberDoctorSettingsDialogTrigger(scheduleDialogTriggerRef, event); openScheduleEditor(item); }}
                     >
                       <span className="doctor-settings-schedule-day">
                         <i />
@@ -1800,6 +1811,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="doctor-change-email-title"
+            ref={emailDialogRef}
+            tabIndex={-1}
           >
             <header className="doctor-otp-modal-header">
               <div>
@@ -1848,13 +1861,13 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
             </div>
 
             {changeEmailState.error ? (
-              <p className="doctor-otp-modal-message is-error">
+              <p className="doctor-otp-modal-message is-error" role="alert" aria-atomic="true">
                 {changeEmailState.error}
               </p>
             ) : null}
 
             {changeEmailState.success ? (
-              <p className="doctor-otp-modal-message is-success">
+              <p className="doctor-otp-modal-message is-success" role="status" aria-atomic="true">
                 {changeEmailState.success}
               </p>
             ) : null}
@@ -1870,6 +1883,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                   <input
                     type="password"
                     autoComplete="current-password"
+                    data-dialog-initial-focus
                     value={changeEmailState.currentPassword}
                     onChange={(event) => setChangeEmailField("currentPassword", event.target.value)}
                     disabled={changeEmailState.isLoading}
@@ -1908,6 +1922,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                   <input
                     inputMode="numeric"
                     autoComplete="one-time-code"
+                    data-dialog-initial-focus
                     value={changeEmailState.currentEmailOtp}
                     onChange={(event) => setChangeEmailField("currentEmailOtp", normalizeOtp(event.target.value))}
                     disabled={changeEmailState.isLoading}
@@ -1948,6 +1963,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                   <input
                     inputMode="numeric"
                     autoComplete="one-time-code"
+                    data-dialog-initial-focus
                     value={changeEmailState.newEmailOtp}
                     onChange={(event) => setChangeEmailField("newEmailOtp", normalizeOtp(event.target.value))}
                     disabled={changeEmailState.isLoading}
@@ -2001,6 +2017,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="doctor-change-password-title"
+            ref={passwordDialogRef}
+            tabIndex={-1}
           >
             <header className="doctor-otp-modal-header">
               <div>
@@ -2044,11 +2062,11 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
             </div>
 
             {changePasswordOtp.error ? (
-              <p className="doctor-otp-modal-message is-error">{changePasswordOtp.error}</p>
+              <p className="doctor-otp-modal-message is-error" role="alert" aria-atomic="true">{changePasswordOtp.error}</p>
             ) : null}
 
             {changePasswordOtp.success ? (
-              <p className="doctor-otp-modal-message is-success">{changePasswordOtp.success}</p>
+              <p className="doctor-otp-modal-message is-success" role="status" aria-atomic="true">{changePasswordOtp.success}</p>
             ) : null}
 
             {changePasswordOtp.step === "otp" ? (
@@ -2061,6 +2079,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                   <input
                     inputMode="numeric"
                     autoComplete="one-time-code"
+                    data-dialog-initial-focus
                     value={changePasswordOtp.otp}
                     onChange={(event) => setChangePasswordOtpField("otp", normalizeOtp(event.target.value))}
                     disabled={changePasswordOtp.isLoading}
@@ -2102,15 +2121,17 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       ) : null}
 
       {scheduleDraft ? (
-        <div className="doctor-settings-edit-overlay" role="dialog" aria-modal="true" aria-labelledby="doctor-schedule-edit-title">
-          <form className="doctor-settings-edit-modal" onSubmit={saveScheduleDraft}>
-            <button type="button" aria-label="Close schedule editor" disabled={isSaving} onClick={() => { if (!operationRef.current) setScheduleDraft(null); }}>X</button>
+        <div className="doctor-settings-edit-overlay">
+          <form className="doctor-settings-edit-modal" onSubmit={saveScheduleDraft}
+            ref={scheduleDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="doctor-schedule-edit-title">
+            <button type="button" aria-label="Close schedule editor" disabled={isSaving} onClick={closeScheduleEditor}>X</button>
             <h2 id="doctor-schedule-edit-title">Edit Schedule</h2>
 
             <label>
               Select Day:
               <select
                 disabled={isSaving}
+                data-dialog-initial-focus
                 value={scheduleDraft.day}
                 onChange={(event) => {
                   setScheduleFieldError("");
@@ -2171,7 +2192,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
 
             <div>
               <button type="submit" disabled={isSaving}>{isSaving ? "Saving..." : "Save"}</button>
-              <button type="button" disabled={isSaving} onClick={() => { if (!operationRef.current) setScheduleDraft(null); }}>Cancel</button>
+              <button type="button" disabled={isSaving} onClick={closeScheduleEditor}>Cancel</button>
             </div>
           </form>
         </div>

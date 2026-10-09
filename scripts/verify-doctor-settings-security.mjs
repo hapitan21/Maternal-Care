@@ -162,7 +162,9 @@ async function settingsHarness(configure = () => {}) {
   const ctx=vm.createContext({console,window:env.window,Event,URL,AbortController});
   const scopedSecurity={...security,createAuthenticatedMutation:(client,options)=>{factory=env.factory;return security.createAuthenticatedMutation(client,{...options,setTimer:env.window.setTimeout,clearTimer:env.window.clearTimeout});}};
   const react={...hooks.runtime};react.default=react;
+  const dialogs=await evaluate(await source("src/hooks/useDoctorSettingsDialog.js"),"settings-dialogs.js",{react},ctx);
   const mod=await evaluate(exposed,"settings.jsx",{
+    "../../hooks/useDoctorSettingsDialog":dialogs,
     react,"react/jsx-runtime":jsx,"../../context/roleInactivityContext":{DoctorSignOutContext:{value:()=>{logout++;return Promise.resolve();}}},
     "../../lib/doctorSettingsData":settingsData,
     "../../lib/authenticatedMutation":scopedSecurity,"../../lib/roleInactivity":role,
