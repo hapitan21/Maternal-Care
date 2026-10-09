@@ -43,10 +43,10 @@ for (const token of ["", "1", "12345", "1234567", "12a456", "abcdef"]) {
 check(security.requireFullOtp("123456") === "123456", "Only a complete numeric OTP reaches server verification");
 function environment() {
   let current = session(); let authoritative = {...current.user};
-  const subscribers = new Set(), writes=[], authCalls=[], timers=new Map(), notices=[];
+  const subscribers = new Set(), writes=[], reads=[], authCalls=[], timers=new Map(), notices=[];
   let timer=0, pendingEmail="", completeOtp=true;
   const env = {
-    writes,authCalls,timers,notices,subscribers,
+    writes,reads,authCalls,timers,notices,subscribers,
     get current(){return current;}, get authoritative(){return authoritative;},
     set authoritative(user){authoritative=user;},
     get pendingEmail(){return pendingEmail;}, set completeOtp(value){completeOtp=value;},
@@ -79,6 +79,7 @@ function environment() {
         const token=await options.accessToken();
         const readSnapshot = env.captureAvailabilityRead && table==="user_availability" && action==="select" ? [...env.rows.user_availability] : null;
         if(action!=="select")writes.push({table,action,payload,filter,token});
+        else reads.push({table,filter});
         if(env.readGate && table==="user_availability" && action==="select")await env.readGate.promise;
         if(env.writeGate && table===env.writeGateTable && action!=="select")await env.writeGate.promise;
         if(env.failure?.table===table && (!env.failure.action || env.failure.action===action)) {
@@ -172,7 +173,7 @@ async function settingsHarness(configure = () => {}) {
     "../../lib/passwordSecurity":password,"../../lib/availabilitySchedule":availability,"../../components/common/PasswordSecurityFeedback":{default:"Feedback"},
   },ctx);
   hooks.mount(mod.default,{doctorIdentity:identity});await settle(hooks);
-  check(!hooks.result.isLoading,"Doctor Settings initial data loaded in mock");
+  check(env.expectInitialPending ? hooks.result.isLoading : !hooks.result.isLoading, "Doctor Settings initial request has expected pending/loaded state in mock");
   env.hooks=hooks;env.identity=identity;env.logout=()=>logout;
   env.requestEmail=async()=>{await hooks.result.changeEmail();await settle(hooks);hooks.result.setChangeEmailField("newEmail","new@example.test");hooks.result.setChangeEmailField("currentPassword","synthetic-password");hooks.flush();await hooks.result.requestEmailChangeOtp();await settle(hooks);};
   return env;
@@ -657,6 +658,100 @@ for(const saveVia of ["Done","form submission"]){
  check(footer.node.props.type==="button"&&!footer.ancestors.some(parent=>parent.type==="form"),"Bulk Profile footer requires an explicit click and cannot receive an implicit card submit");h.hooks.unmount();
 }
 console.log("Rendered draft isolation verification passed: "+(checks-isolationStart)+" assertions.");
-console.log("Batch 1 security assertions preserved: "+batch1Checks+"; Batch 2 reliability assertions: "+(checks-batch1Checks)+".");
+// Production effects, Auth callbacks and rendered schedule rows with deferred
+// synthetic queries. No browser interaction or live Supabase writes.
+const availabilityRefreshStart=checks;
+const weeklyRows=()=>[
+ {profile_id:"doctor-a",day_of_week:1,start_time:"08:00:00",end_time:"12:00:00",is_available:true},
+ {profile_id:"doctor-a",day_of_week:2,start_time:null,end_time:null,is_available:false},
+];
+const availabilityHarness=configure=>settingsHarness(env=>{env.rows.user_availability=weeklyRows();configure?.(env);});
+const scheduleTree=h=>renderedNodes(h.hooks.result.renderTree()).find(({node})=>node.props.className==="doctor-settings-schedule-table").node;
+const scheduleRows=h=>renderedNodes(scheduleTree(h)).filter(({node})=>node.type==="button"&&node.props["aria-label"]?.startsWith("Edit schedule. Day:"));
+const scheduleText=h=>JSON.stringify(scheduleTree(h));
+const showAvailability=h=>{h.hooks.result.setActivePanel("availability");h.hooks.flush();};
+const availabilityReads=h=>h.reads.filter(read=>read.table==="user_availability");
+const retrySettings=async h=>{
+ const retry=renderedNodes(h.hooks.result.renderTree()).find(({node})=>node.type==="button"&&node.props.children==="Retry loading settings");
+ check(Boolean(retry)&&!retry.node.props.disabled,"Rendered settings Retry is available after failure");await renderedClick(h,retry);await settle(h.hooks);
+};
+{
+ const gate=deferred(),h=await availabilityHarness(env=>{env.readGate=gate;env.expectInitialPending=true;});showAvailability(h);
+ check(scheduleText(h).includes("Loading availability...")&&scheduleRows(h).length===0,"Initial request shows loading without fabricated rows or empty success");
+ gate.resolve();await settle(h.hooks);
+ check(scheduleRows(h).length===2&&!scheduleText(h).includes("Loading availability..."),"Initial authoritative result renders weekly rows");
+ check(availabilityReads(h).every(read=>read.filter.column==="profile_id"&&read.filter.value==="doctor-a"),"Availability reads retain initiating Doctor scope");
+ check(scheduleText(h).includes("Monday")&&scheduleText(h).includes("Tuesday")&&scheduleText(h).includes("AVAILABLE")&&scheduleText(h).includes("CLOSED")&&scheduleText(h).includes("No appointments scheduled"),"Weekdays and existing availability/status wording remain unchanged");h.hooks.unmount();
+}
+{
+ const h=await availabilityHarness();showAvailability(h);const before=availabilityReads(h).length;
+ h.hooks.update({doctorIdentity:{...h.identity,authUser:{...h.identity.authUser}}});await settle(h.hooks);
+ check(availabilityReads(h).length===before&&scheduleRows(h).length===2,"Fresh same-Doctor authUser reference alone does not reset or query availability");
+ for(let cycle=0;cycle<3;cycle++){
+  const gate=deferred();h.readGate=gate;const before=availabilityReads(h).length;
+  for(let event=0;event<3;event++){
+   // SDK visibility recovery emits SIGNED_IN; the identity hook publishes a
+   // new authUser while preserving profile/personal/professional references.
+   h.emit("SIGNED_IN",session());h.hooks.update({doctorIdentity:{...h.identity,authUser:{...h.current.user}}});await settle(h.hooks);
+  }
+  check(h.hooks.result.isLoading&&scheduleRows(h).length===2&&!scheduleText(h).includes("Loading availability..."),"Focus refresh retains verified rows: cycle "+cycle);
+  check(availabilityReads(h).length===before+1,"Duplicate tab-return notifications coalesce: cycle "+cycle);
+  if(cycle===2)h.rows.user_availability=[...weeklyRows(),{profile_id:"doctor-a",day_of_week:3,start_time:"13:00:00",end_time:"17:00:00",is_available:true}];
+  gate.resolve();await settle(h.hooks);
+  check(!h.hooks.result.isLoading&&scheduleRows(h).length===(cycle===2?3:2),"Successful refresh publishes canonical rows: cycle "+cycle);
+ }
+ const beforeToken=availabilityReads(h).length;h.emit("TOKEN_REFRESHED",session());h.hooks.update({doctorIdentity:{...h.identity,authUser:{...h.current.user}}});await settle(h.hooks);
+ check(availabilityReads(h).length===beforeToken&&scheduleRows(h).length===3,"Token refresh retains logical-session rows without redundant query");h.hooks.unmount();check(h.subscribers.size===0,"Focus refresh listeners clean up on unmount");
+}
+for(const kind of ["returned","thrown"]){
+ const h=await availabilityHarness();showAvailability(h);h.failure={table:"user_availability",action:"select",kind};h.emit("SIGNED_IN",session());await settle(h.hooks);await settle(h.hooks);
+ check(scheduleRows(h).length===2&&!scheduleText(h).includes("Loading availability...")&&scheduleText(h).includes("may be out of date"),"Failed background refresh retains rows with stale warning: "+kind);
+ check(renderedNodes(scheduleTree(h)).some(({node})=>node.props.role==="alert"),"Stale feedback is announced accessibly: "+kind);
+ h.failure=null;h.rows.user_availability=[weeklyRows()[0]];await retrySettings(h);
+ check(scheduleRows(h).length===1&&!h.hooks.result.availabilityError&&!h.hooks.result.loadError,"Rendered Retry loads canonical schedule and clears warnings: "+kind);h.hooks.unmount();
+}
+{
+ const h=await availabilityHarness();showAvailability(h);h.hooks.result.openScheduleEditor(h.hooks.result.settings.availability[0]);h.hooks.flush();h.hooks.result.setScheduleDraft({...h.hooks.result.scheduleDraft,time:"9:00 AM - 2:00 PM"});h.hooks.flush();
+ const draft=JSON.stringify(h.hooks.result.scheduleDraft),gate=deferred();h.readGate=gate;h.emit("SIGNED_IN",session());await settle(h.hooks);await settle(h.hooks);
+ h.rows.user_availability=[{...weeklyRows()[0],start_time:"10:00:00",end_time:"15:00:00"},weeklyRows()[1]];
+ check(JSON.stringify(h.hooks.result.scheduleDraft)===draft&&scheduleRows(h).length===2,"Background refresh preserves unsaved Schedule inputs");gate.resolve();await settle(h.hooks);
+ check(JSON.stringify(h.hooks.result.scheduleDraft)===draft&&h.hooks.result.settings.availability[0].time.includes("10:00"),"Canonical schedule refreshes independently of unsaved dialog draft");check(h.writes.length===0,"Refresh never automatically persists a draft");h.hooks.unmount();
+}
+{
+ const h=await availabilityHarness();showAvailability(h);h.captureAvailabilityRead=true;const old=deferred();h.readGate=old;h.hooks.result.setLoadRevision(n=>n+1);h.hooks.flush();await settle(h.hooks);
+ const newer=deferred();h.readGate=newer;h.rows.user_availability=[{...weeklyRows()[0],start_time:"11:00:00",end_time:"16:00:00"}];h.hooks.result.setLoadRevision(n=>n+1);h.hooks.flush();await settle(h.hooks);newer.resolve();await settle(h.hooks);const latest=JSON.stringify(h.hooks.result.settings.availability);
+ check(scheduleRows(h).length===1&&latest.includes("11:00"),"Newer availability response publishes first");old.resolve();await settle(h.hooks);
+ check(JSON.stringify(h.hooks.result.settings.availability)===latest&&!h.hooks.result.isLoading&&!h.hooks.result.availabilityError,"Out-of-order response cannot overwrite new rows or loading/error state");h.hooks.unmount();
+}
+{
+ const h=await availabilityHarness();showAvailability(h);h.hooks.result.openScheduleEditor(h.hooks.result.settings.availability[0]);h.hooks.flush();h.hooks.result.setScheduleDraft({...h.hooks.result.scheduleDraft,time:"9:00 AM - 3:00 PM"});h.hooks.flush();
+ const old=deferred();h.captureAvailabilityRead=true;h.readGate=old;h.emit("SIGNED_IN",session());await settle(h.hooks);await settle(h.hooks);await h.hooks.result.saveScheduleDraft(submitEvent);await settle(h.hooks);const saved=JSON.stringify(h.hooks.result.settings.availability);
+ check(saved.includes("9:00")&&h.hooks.result.toast.type==="success"&&!h.hooks.result.scheduleDraft,"Schedule save completes during older pending refresh");old.resolve();await settle(h.hooks);
+ check(JSON.stringify(h.hooks.result.settings.availability)===saved&&scheduleRows(h).length===2,"Pre-save read cannot overwrite successfully saved schedule");h.hooks.unmount();
+}
+for(const next of [null,session("doctor-b","session-b"),session("doctor-a","replacement")]){
+ const h=await availabilityHarness();showAvailability(h);const old=deferred();h.readGate=old;h.captureAvailabilityRead=true;h.emit("SIGNED_IN",session());await settle(h.hooks);await settle(h.hooks);
+ h.emit(next?"SIGNED_IN":"SIGNED_OUT",next);h.hooks.flush();check(scheduleRows(h).length===0&&h.hooks.result.settings.availability.length===0,"Logout or actual Doctor/session replacement immediately clears rows");
+ if(next){h.rows.user_availability=[];h.hooks.update({doctorIdentity:{...h.identity,authUser:{...next.user},profile:{id:next.user.id,role:"doctor",account_status:"active"}}});await settle(h.hooks);}
+ old.resolve();await settle(h.hooks);check(scheduleRows(h).length===0&&!scheduleText(h).includes("may be out of date"),"Old session response cannot restore previous Doctor availability");
+ if(next)check(!h.hooks.result.isLoading&&scheduleText(h).includes("No availability configured"),"Replacement session shows only its own canonical empty availability");h.hooks.unmount();check(h.subscribers.size===0,"Replaced session request subscriptions clean up");
+}
+{
+ const gate=deferred(),h=await availabilityHarness(env=>{env.readGate=gate;env.expectInitialPending=true;});const before=JSON.stringify(h.hooks.result.settings);h.hooks.unmount();gate.resolve();await settle();
+ check(JSON.stringify(h.hooks.result.settings)===before&&h.subscribers.size===0,"Unmounted availability request cannot publish and cleans listeners");
+}
+{
+ const h=await settingsHarness();showAvailability(h);const gate=deferred();h.readGate=gate;h.emit("SIGNED_IN",session());await settle(h.hooks);await settle(h.hooks);
+ check(scheduleText(h).includes("No availability configured")&&!scheduleText(h).includes("Loading availability..."),"Verified empty schedule remains visible during background refresh");gate.resolve();await settle(h.hooks);h.hooks.unmount();
+}
+
+for(const kind of ["returned","thrown"]){
+ const h=await availabilityHarness(env=>{env.failure={table:"user_availability",action:"select",kind};});showAvailability(h);
+ check(scheduleRows(h).length===0&&scheduleText(h).includes("Availability could not be loaded")&&!scheduleText(h).includes("No availability configured")&&!scheduleText(h).includes("Loading availability..."),"Failed initial read shows unavailable rather than fabricated empty/loading: "+kind);
+ h.failure=null;await retrySettings(h);check(scheduleRows(h).length===2&&!h.hooks.result.availabilityError,"Failed initial availability request recovers through Retry: "+kind);h.hooks.unmount();
+}
+console.log("Availability refresh verification passed: "+(checks-availabilityRefreshStart)+" assertions (synthetic Auth/queries, production effects/rendering).");
+
+console.log("Batch 1 security assertions preserved: "+batch1Checks+"; Batch 2 reliability assertions: "+(availabilityRefreshStart-batch1Checks)+".");
 console.log("Doctor Profile & Settings security and reliability verification passed: "+checks+" assertions.");
 console.log("Production handlers/helpers and installed SDK exercised with mocked Auth, queries and timers; no live Supabase/browser verification.");

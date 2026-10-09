@@ -724,6 +724,9 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const draftsRef = React.useRef({ personal: {}, professional: {}, account: {} });
   const partialSectionsRef = React.useRef(new Set());
   const availabilityWriteRevisionRef = React.useRef(0);
+  const settingsLoadRef = React.useRef(null);
+  const [availabilityOwner, setAvailabilityOwner] = React.useState(null);
+  const [availabilitySession, setAvailabilitySession] = React.useState("");
   const [fieldErrors, setFieldErrors] = React.useState({ personal: {}, professional: {}, account: {} });
   const [loadError, setLoadError] = React.useState("");
   const [loadRevision, setLoadRevision] = React.useState(0);
@@ -803,9 +806,14 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     abortRef.current = abortController;
     const scopes = scopesRef.current;
     const deferredTimers = deferredTimersRef.current;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const owner = mutationOwnerRef.current;
-      if (owner && getLogicalSessionIdentity(session) !== owner.identity) {
+      const identity = getLogicalSessionIdentity(session);
+      const loadingIdentity = settingsLoadRef.current?.identity;
+      if ((owner && identity !== owner.identity) || (loadingIdentity && identity !== loadingIdentity)) {
+        settingsLoadRef.current = null;
+        setAvailabilityOwner(null);
+        setAvailabilitySession("");
         mutationOwnerRef.current = null;
         operationRef.current = null;
         canonicalRef.current = defaultDoctorSettings;
@@ -829,6 +837,11 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         setIsSaving(false);
         setIsLoading(true);
         setAuthRevision(current => current + 1);
+      } else if (event === "SIGNED_IN" && owner && !settingsLoadRef.current) {
+        // Supabase recovers the same session on tab visibility. Revalidate once;
+        // duplicate notifications while queued/in flight share that request.
+        settingsLoadRef.current = { queued: true };
+        setLoadRevision(current => current + 1);
       }
     });
     return () => {
@@ -931,6 +944,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   React.useEffect(() => {
     let isCancelled = false;
     let loadScope;
+    const request = {};
+    settingsLoadRef.current = request;
     const controller = new AbortController();
     const loadSettings = async () => {
       setIsLoading(true);
@@ -939,8 +954,11 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         loadScope = await createAuthenticatedMutation(supabase, {
           signal: controller.signal,
           expectedUserId: doctorIdentity?.authUser?.id || "",
-          isCurrent: () => !isCancelled && mountedRef.current,
+          isCurrent: () => !isCancelled && mountedRef.current && settingsLoadRef.current === request,
         });
+        loadScope.assertCurrent();
+        request.identity = loadScope.identity;
+        setAvailabilitySession(loadScope.identity);
         const user = await loadScope.getUser();
         const authenticatedDoctor = await loadAuthenticatedDoctor(user);
         await loadScope.check();
@@ -964,20 +982,35 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
           ? mapAvailabilityRows(result.data) : canonicalRef.current.availability };
         canonicalRef.current = next;
         setSettings(next);
+        setAvailabilityOwner({ userId: user.id, identity: loadScope.identity });
         setAvailabilityError("");
-      } catch {
-        if (!isCancelled && mountedRef.current) {
+      } catch (error) {
+        if (!isCancelled && mountedRef.current && settingsLoadRef.current === request) {
+          if (error?.code === "mutation_cancelled") {
+            // A session check may discover replacement even without an Auth event.
+            setAvailabilityOwner(null);
+            canonicalRef.current = { ...canonicalRef.current, availability: [] };
+            setSettings(canonicalRef.current);
+          }
           setLoadError("Doctor settings could not be refreshed. Your existing values are preserved. Please retry.");
-          if (mutationOwnerRef.current) setAvailabilityError("Availability could not be refreshed. Please retry.");
+          setAvailabilityError("Availability could not be refreshed. Please retry.");
         }
       } finally {
         loadScope?.dispose();
-        if (!isCancelled && mountedRef.current) setIsLoading(false);
+        if (!isCancelled && mountedRef.current && settingsLoadRef.current === request) {
+          settingsLoadRef.current = null;
+          setIsLoading(false);
+        }
       }
     };
     void loadSettings();
-    return () => { isCancelled = true; controller.abort(); loadScope?.dispose(); };
-  }, [doctorIdentity?.authUser, doctorIdentity?.profile, doctorIdentity?.personalInformation,
+    return () => {
+      isCancelled = true;
+      controller.abort();
+      loadScope?.dispose();
+      if (settingsLoadRef.current === request) settingsLoadRef.current = null;
+    };
+  }, [doctorIdentity?.authUser?.id, doctorIdentity?.profile, doctorIdentity?.personalInformation,
     doctorIdentity?.professionalInformation, authRevision, loadRevision]);
 
   React.useEffect(() => {
@@ -1345,6 +1378,11 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   const availability = Array.isArray(settings.availability)
     ? settings.availability
     : [];
+  // Empty availability is also verified data. Retention is component-local and
+  // belongs to the initiating Doctor and logical session, never just an ID.
+  const hasVerifiedAvailability = Boolean(availabilityOwner &&
+    availabilityOwner.userId === doctorIdentity?.authUser?.id &&
+    availabilityOwner.identity === availabilitySession);
   const personalProfileFields = [
     { label: "Full Name", field: "displayName", value: settings.displayName },
     { label: "Birthdate", field: "birthdate", value: settings.birthdate },
@@ -1734,27 +1772,32 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                 </button>
               </header>
 
-              <div className="doctor-settings-schedule-table">
+              <div className="doctor-settings-schedule-table" aria-busy={isLoading}>
                 <h3>WEEKLY SCHEDULE</h3>
                 <div className="doctor-settings-schedule-head">
                   <span>Day</span>
                   <span>Time</span>
                   <span>Status</span>
                 </div>
-                {isLoading ? (
-                  <div className="doctor-settings-schedule-empty">
+                {availabilityError && hasVerifiedAvailability ? (
+                  <p className="doctor-settings-page-message" role="alert">
+                    The last verified schedule is shown and may be out of date. Use Retry loading settings above.
+                  </p>
+                ) : null}
+                {!hasVerifiedAvailability && (isLoading || !availabilityError) ? (
+                  <div className="doctor-settings-schedule-empty" role="status">
                     <DoctorIcon name="clock" />
                     <div>
                       <strong>Loading availability...</strong>
                       <p>Retrieving the saved schedule from Supabase.</p>
                     </div>
                   </div>
-                ) : availabilityError ? (
-                  <div className="doctor-settings-schedule-empty">
+                ) : !hasVerifiedAvailability && availabilityError ? (
+                  <div className="doctor-settings-schedule-empty" role="alert">
                     <DoctorIcon name="info" />
                     <div>
                       <strong>Availability could not be loaded</strong>
-                      <p>Refresh the page to try loading the saved schedule again.</p>
+                      <p>Use Retry loading settings above to try loading the saved schedule again.</p>
                     </div>
                   </div>
                 ) : availability.length > 0 ? (
