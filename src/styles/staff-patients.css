@@ -3110,6 +3110,14 @@
   line-height: 1.4 !important;
 }
 
+.staff-patients-status-message.is-loading {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #596174 !important;
+  font-weight: 500 !important;
+}
+
 .staff-next-btn:disabled,
 .staff-prev-btn:disabled {
   cursor: wait !important;

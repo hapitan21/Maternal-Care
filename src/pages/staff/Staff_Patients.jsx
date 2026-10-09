@@ -1694,6 +1694,11 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
   const [isLoadingPatients, setIsLoadingPatients] = useState(
     !initialPatientsSnapshot
   );
+  const [hasLoadedPatientDirectory, setHasLoadedPatientDirectory] = useState(
+    Boolean(initialPatientsSnapshot)
+  );
+  const [patientLoadError, setPatientLoadError] = useState("");
+  const [patientLoadRetryKey, setPatientLoadRetryKey] = useState(0);
   const [isSavingPatient, setIsSavingPatient] = useState(false);
   const [patientStatusFilter, setPatientStatusFilter] = useState("All");
   const [patientActionMenu, setPatientActionMenu] = useState(null);
@@ -2033,75 +2038,92 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
+    // Wait for the authorized Staff identity before starting protected queries.
+    // A temporary missing identity during route transitions must not turn into
+    // a permanent empty directory on the first request.
+    if (!staffUserId) return undefined;
     let active = true;
 
     const loadPatients = async () => {
-      if (!initialPatientsSnapshot) {
+      setPatientLoadError("");
+      if (!initialPatientsSnapshot || patientLoadRetryKey > 0) {
         setIsLoadingPatients(true);
       }
 
-      const [patientsResult, patientLoginResult] = await Promise.all([
-        supabase
+      let directoryRows;
+      try {
+        const { data, error } = await supabase
           .rpc("get_staff_patient_directory")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("patient_login")
-          .select(patientLoginSelectColumns),
-      ]);
-
-      if (!active) return;
-
-      setIsLoadingPatients(false);
-
-      if (patientsResult.error) {
-        console.error("Load staff patients failed:", patientsResult.error);
-        setStatusMessage(`Unable to load patients: ${patientsResult.error.message}`);
+          .order("created_at", { ascending: false });
+        if (!active) return;
+        if (error) throw error;
+        if (!Array.isArray(data)) {
+          throw new Error("Patient directory response was not a list.");
+        }
+        directoryRows = data;
+      } catch (error) {
+        if (!active) return;
+        console.error("Load staff patients failed:", error);
+        setPatientLoadError("Unable to load patients. Please try again.");
+        setIsLoadingPatients(false);
+        // Do not clear existing patients or cache an unsuccessful empty load.
         return;
       }
 
-      if (
-        patientLoginResult.error &&
-        !isMissingPatientLoginTableError(patientLoginResult.error)
-      ) {
-        console.warn("Load patient login credentials failed:", patientLoginResult.error);
+      const mappedPatients = directoryRows.map(mapSupabasePatient);
+      setPatients((current) => mergePatientDirectoryRows(current, mappedPatients));
+      setHasLoadedPatientDirectory(true);
+      setIsLoadingPatients(false);
+
+      // Credentials are optional for displaying the directory. A slow or
+      // unavailable patient_login lookup must not leave the Patients table blank.
+      let loginCredentials = [];
+      try {
+        const { data, error } = await supabase
+          .from("patient_login")
+          .select(patientLoginSelectColumns);
+        if (!active) return;
+        if (error) {
+          if (!isMissingPatientLoginTableError(error)) {
+            console.warn("Load patient login credentials failed:", error);
+          }
+        } else {
+          loginCredentials = (data || []).map(toCredentialEntry);
+        }
+      } catch (error) {
+        if (!active) return;
+        console.warn("Load patient login credentials failed:", error);
       }
 
-      const supabasePatients = patientsResult.data || [];
-      const mappedPatients = supabasePatients.map(mapSupabasePatient);
-      const patientLoginCredentials = patientLoginResult.error
-        ? []
-        : (patientLoginResult.data || []).map(toCredentialEntry);
-      const nextCredentialPool = [
-        ...supabasePatients.map(toCredentialEntry),
-        ...patientLoginCredentials,
-      ];
+      setCredentialPool([
+        ...directoryRows.map(toCredentialEntry),
+        ...loginCredentials,
+      ]);
 
-      setPatients((current) =>
-        mergePatientDirectoryRows(current, mappedPatients)
-      );
-      setCredentialPool(nextCredentialPool);
-
-      const avatarMap = await fetchPatientAvatarMap(mappedPatients);
-      if (!active || !avatarMap) return;
-
-      setPatients((current) => mergePatientAvatarMap(current, avatarMap));
+      try {
+        const avatarMap = await fetchPatientAvatarMap(mappedPatients);
+        if (!active || !avatarMap) return;
+        setPatients((current) => mergePatientAvatarMap(current, avatarMap));
+      } catch (error) {
+        if (active) console.warn("Load patient avatars failed:", error);
+      }
     };
 
-    loadPatients();
+    void loadPatients();
 
     return () => {
       active = false;
     };
-  }, [initialPatientsSnapshot]);
+  }, [initialPatientsSnapshot, patientLoadRetryKey, staffUserId]);
 
   useEffect(() => {
-    if (isLoadingPatients || !staffUserId) return;
+    if (!hasLoadedPatientDirectory || isLoadingPatients || !staffUserId) return;
 
     setStaffSessionSnapshot(staffUserId, "patients", {
       patients,
       credentialPool,
     });
-  }, [credentialPool, isLoadingPatients, patients, staffUserId]);
+  }, [credentialPool, hasLoadedPatientDirectory, isLoadingPatients, patients, staffUserId]);
 
   useEffect(() => {
     if (screen !== "list" || !patients.length) return undefined;
@@ -5289,9 +5311,24 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
         ) : null}
       </div>
 
-      {isLoadingPatients || statusMessage ? (
-        <p className="staff-patients-status-message">
-          {isLoadingPatients ? "Loading patients from Supabase..." : statusMessage}
+      {patientLoadError || statusMessage ? (
+        <p
+          className={`staff-patients-status-message ${
+            patientLoadError ? "is-error" : ""
+          }`}
+          role={patientLoadError ? "alert" : "status"}
+        >
+          {patientLoadError || statusMessage}
+          {patientLoadError ? (
+            <button
+              type="button"
+              disabled={isLoadingPatients}
+              onClick={() => setPatientLoadRetryKey((current) => current + 1)}
+              style={{ marginLeft: 12, padding: "4px 12px", borderRadius: 6 }}
+            >
+              Retry
+            </button>
+          ) : null}
         </p>
       ) : null}
 
@@ -5435,7 +5472,11 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                 </tr>
               ))}
 
-              {!isLoadingPatients && !statusMessage && !filteredPatients.length ? (
+              {hasLoadedPatientDirectory &&
+                !isLoadingPatients &&
+                !patientLoadError &&
+                !statusMessage &&
+                !filteredPatients.length ? (
                 <tr>
                   <td colSpan="5" className="staff-patients-empty-cell">
                     <Icon icon="solar:magnifer-linear" aria-hidden="true" />
