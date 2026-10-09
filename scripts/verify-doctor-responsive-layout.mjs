@@ -228,9 +228,9 @@ check(Boolean(labelExpression), 'Interactive schedule row has an explicit access
 const accessibleName = new Function('item', 'return ' + labelExpression);
 for (const [item, expected] of [
   [{day:'Monday',time:'8:00 AM - 12:00 PM',status:'Available'}, 'Edit schedule. Day: Monday. Time: 8:00 AM - 12:00 PM. Status: Available.'],
-  [{day:'Tuesday',time:'',status:'Closed'}, 'Edit schedule. Day: Tuesday. Time: No appointments scheduled. Status: Closed.'],
+  [{day:'Tuesday',time:'',status:'Closed'}, 'Edit schedule. Day: Tuesday. Time: Unavailable for booking. Status: Closed.'],
 ]) check(accessibleName(item) === expected, 'Action/day/time/status accessible association: ' + item.status);
-check(rowSource.includes('{item.status === "Closed" ? "No appointments scheduled" : item.time}'), 'Visible closed-day wording and time values unchanged');
+check(rowSource.includes('{item.status === "Closed" ? "Unavailable for booking" : item.time}'), 'Accurate closed-day booking wording and time values preserved');
 check(rowSource.includes('{item.status.toUpperCase()}'), 'Visible status badge wording preserved');
 check(settingsPage.includes('<span>Day</span>\n                  <span>Time</span>\n                  <span>Status</span>'), 'Desktop column header labels retained in DOM');
 console.table(report);

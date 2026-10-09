@@ -36,7 +36,7 @@ const defaultDoctorSettings = {
   clinicAddress: "",
   contactNumber: "",
   accountStatus: "Active",
-  emailVerification: "Verified",
+  emailVerification: "Unknown",
   lastLogin: "Not available",
   avatarUrl: "",
   availability: [],
@@ -190,7 +190,7 @@ function mapAvailabilityRows(rows) {
       if (!row.is_available) {
         return {
           day,
-          time: "No appointments scheduled",
+          time: "Unavailable for booking",
           status: "Closed",
         };
       }
@@ -216,10 +216,15 @@ function mapAvailabilityRows(rows) {
 }
 
 function formatLastLogin(value) {
-  if (!value) {
+  if (!value || typeof value !== "string") {
     return "Not available";
   }
 
+  // Auth timestamps are ISO instants. Reject impossible calendar dates before
+  // Date can normalize them into a different, invented login day.
+  const calendarDate = value.match(/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i)?.[1];
+  if (!calendarDate) return "Not available";
+  try { parseDoctorCalendarDate(calendarDate); } catch { return "Not available"; }
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -232,6 +237,7 @@ function formatLastLogin(value) {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "Asia/Manila",
   }).format(date);
 }
 
@@ -296,11 +302,9 @@ function createDoctorSettingsSnapshot(
       "",
 
     emailVerification:
-      authUser.email_confirmed_at
-        ? "Verified"
-        : authUser.id
-          ? "Pending"
-          : defaultDoctorSettings.emailVerification,
+      authUser.id && authUser.email && !doctorIdentity?.loading
+        ? authUser.email_confirmed_at ? "Verified" : "Pending"
+        : defaultDoctorSettings.emailVerification,
 
     lastLogin:
       authUser.id
@@ -1625,7 +1629,11 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                     <span className="doctor-settings-status-icon"><DoctorIcon name="mail" /></span>
                     <div>
                       <strong>Email Verification</strong>
-                      <p>Your email address is verified.</p>
+                      <p>{settings.emailVerification === "Verified"
+                        ? "Your email address is verified."
+                        : settings.emailVerification === "Pending"
+                          ? "Your email address is awaiting verification."
+                          : "Email verification status is not available."}</p>
                     </div>
                     <mark>{settings.emailVerification}</mark>
                   </article>
@@ -1643,7 +1651,6 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                       <strong>Last Login</strong>
                       <p>{settings.lastLogin}</p>
                     </div>
-                    <mark className="is-blue">Today</mark>
                   </article>
                 </div>
               </section>
@@ -1806,7 +1813,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                       type="button"
                       className={item.status === "Closed" ? "is-closed" : ""}
                       key={item.day}
-                      aria-label={`Edit schedule. Day: ${item.day}. Time: ${item.status === "Closed" ? "No appointments scheduled" : item.time}. Status: ${item.status}.`}
+                      aria-label={`Edit schedule. Day: ${item.day}. Time: ${item.status === "Closed" ? "Unavailable for booking" : item.time}. Status: ${item.status}.`}
                       onClick={event => { rememberDoctorSettingsDialogTrigger(scheduleDialogTriggerRef, event); openScheduleEditor(item); }}
                     >
                       <span className="doctor-settings-schedule-day">
@@ -1815,7 +1822,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                       </span>
                       <span className="doctor-settings-schedule-time">
                         <DoctorIcon name={item.status === "Closed" ? "noEntry" : "clock"} />
-                        {item.status === "Closed" ? "No appointments scheduled" : item.time}
+                        {item.status === "Closed" ? "Unavailable for booking" : item.time}
                       </span>
                       <mark className={item.status === "Closed" ? "is-closed" : ""}>
                         {item.status === "Closed" ? null : <DoctorIcon name="checkCircle" />}

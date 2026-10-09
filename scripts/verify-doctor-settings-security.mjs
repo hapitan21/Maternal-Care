@@ -158,7 +158,7 @@ const password=await import("../src/lib/passwordSecurity.js");
 const availability=await import("../src/lib/availabilitySchedule.js");
 async function settingsHarness(configure = () => {}) {
   const env=environment(),hooks=hookRuntime();configure(env);let logout=0;
-  const identity={authUser:session().user,profile:{id:"doctor-a",role:"doctor",account_status:"active"},doctorDisplayName:"Doctor A",personalInformation:{full_name:"Doctor A"},professionalInformation:{}};
+  const identity=Object.hasOwn(env,"initialIdentity") ? env.initialIdentity : {authUser:session().user,profile:{id:"doctor-a",role:"doctor",account_status:"active"},doctorDisplayName:"Doctor A",personalInformation:{full_name:"Doctor A"},professionalInformation:{}};
   env.loadGate=null;
   const ctx=vm.createContext({console,window:env.window,Event,URL,AbortController});
   const scopedSecurity={...security,createAuthenticatedMutation:(client,options)=>{factory=env.factory;return security.createAuthenticatedMutation(client,{...options,setTimer:env.window.setTimeout,clearTimer:env.window.clearTimeout});}};
@@ -681,7 +681,7 @@ const retrySettings=async h=>{
  gate.resolve();await settle(h.hooks);
  check(scheduleRows(h).length===2&&!scheduleText(h).includes("Loading availability..."),"Initial authoritative result renders weekly rows");
  check(availabilityReads(h).every(read=>read.filter.column==="profile_id"&&read.filter.value==="doctor-a"),"Availability reads retain initiating Doctor scope");
- check(scheduleText(h).includes("Monday")&&scheduleText(h).includes("Tuesday")&&scheduleText(h).includes("AVAILABLE")&&scheduleText(h).includes("CLOSED")&&scheduleText(h).includes("No appointments scheduled"),"Weekdays and existing availability/status wording remain unchanged");h.hooks.unmount();
+ check(scheduleText(h).includes("Monday")&&scheduleText(h).includes("Tuesday")&&scheduleText(h).includes("AVAILABLE")&&scheduleText(h).includes("CLOSED")&&scheduleText(h).includes("Unavailable for booking"),"Weekdays and existing availability/status wording remain unchanged");h.hooks.unmount();
 }
 {
  const h=await availabilityHarness();showAvailability(h);const before=availabilityReads(h).length;
@@ -752,6 +752,61 @@ for(const kind of ["returned","thrown"]){
 }
 console.log("Availability refresh verification passed: "+(checks-availabilityRefreshStart)+" assertions (synthetic Auth/queries, production effects/rendering).");
 
+
+// Batch 3B-4: actual rendered display fixtures, with synthetic authoritative
+// Auth users. None of these fixtures invokes credential or appointment writes.
+const displayStart=checks;
+const statusArticle=(h,label)=>renderedNodes(h.hooks.result.renderTree()).find(({node})=>node.type==="article"&&renderedNodes(node).some(({node:child})=>child.type==="strong"&&child.props.children===label)).node;
+const statusDetails=(h,label)=>{
+ const nodes=renderedNodes(statusArticle(h,label));return {copy:nodes.find(({node})=>node.type==="p").node.props.children,badge:nodes.find(({node})=>node.type==="mark")?.node.props.children};
+};
+const showAccount=h=>{h.hooks.result.setActivePanel("account");h.hooks.flush();};
+for(const [confirmed,status,copy] of [
+ ["2026-01-01T00:00:00Z","Verified","Your email address is verified."],
+ [null,"Pending","Your email address is awaiting verification."],
+ [undefined,"Pending","Your email address is awaiting verification."],
+]){
+ const h=await settingsHarness(env=>{env.authoritative={...env.authoritative,email_confirmed_at:confirmed};});showAccount(h);
+ const displayed=statusDetails(h,"Email Verification");
+ check(displayed.badge===status&&displayed.copy===copy,"Email badge and explanation agree with authoritative Auth confirmation: "+status);
+ check(h.writes.length===0&&h.authCalls.length===0,"Email display fixture performs no writes or credential changes: "+status);h.hooks.unmount();
+}
+for(const initialIdentity of [null,{authUser:{id:"doctor-a",email:"doctor-a@example.test",email_confirmed_at:"2026-01-01T00:00:00Z"},loading:true}]){
+ const gate=deferred(),h=await settingsHarness(env=>{env.initialIdentity=initialIdentity;env.userGate=gate;env.expectInitialPending=true;});showAccount(h);
+ const displayed=statusDetails(h,"Email Verification");
+ check(displayed.badge==="Unknown"&&displayed.copy==="Email verification status is not available.","Unresolved/loading Auth identity never presents Verified");
+ check(statusDetails(h,"Last Login").copy==="Not available","Unresolved Auth identity never invents a Last Login");h.hooks.unmount();gate.resolve();await settle();
+}
+{
+ const h=await settingsHarness(env=>{env.authoritative={...env.authoritative,email:undefined,email_confirmed_at:undefined};});showAccount(h);
+ check(statusDetails(h,"Email Verification").badge==="Unknown","Profile-table email fallback cannot establish Auth email verification");h.hooks.unmount();
+}
+const today=new Date().toISOString();
+const todayInManila=new Intl.DateTimeFormat("en-US",{month:"long",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",timeZone:"Asia/Manila"}).format(new Date(today));
+for(const [timestamp,expected,label] of [
+ ["2019-06-03T01:20:00Z","June 3, 2019 at 9:20 AM","old"],
+ ["2026-01-01T16:30:00Z","January 2, 2026 at 12:30 AM","Manila day rollover"],
+ ["2026-01-02T00:30:00+08:00","January 2, 2026 at 12:30 AM","explicit offset"],
+ [today,todayInManila,"today"],
+ [undefined,"Not available","missing"],[null,"Not available","null"],["","Not available","blank"],
+ ["not-a-date","Not available","invalid text"],["2026-02-30T01:00:00Z","Not available","impossible date"],
+ ["2026-01-01T99:00:00Z","Not available","invalid time"],[0,"Not available","non-string"],
+ ["2026-01-01T12:00:00","Not available","missing timezone"],["2026-01-01","Not available","date without time"],
+]){
+ const h=await settingsHarness(env=>{env.authoritative={...env.authoritative,last_sign_in_at:timestamp};});showAccount(h);
+ const displayed=statusDetails(h,"Last Login");check(displayed.copy===expected,"Last Login preserves truthful Manila timestamp/unavailable fallback: "+label);
+ check(displayed.badge===undefined,"Last Login never labels the timestamp with a hardcoded Today badge: "+label);
+ check(h.writes.length===0&&h.authCalls.length===0,"Last Login display fixture performs no writes or credential changes: "+label);h.hooks.unmount();
+}
+{
+ const h=await availabilityHarness();showAvailability(h);const rows=scheduleRows(h).map(({node})=>node);
+ const open=rows.find(node=>node.props["aria-label"].includes("Status: Available.")),closed=rows.find(node=>node.props["aria-label"].includes("Status: Closed."));
+ check(open.props["aria-label"].includes("8:00 AM - 12:00 PM")&&!JSON.stringify(open).includes("Unavailable for booking"),"Open row keeps actual working hours and Available status");
+ check(closed.props["aria-label"].includes("Time: Unavailable for booking.")&&JSON.stringify(closed).includes("Unavailable for booking")&&JSON.stringify(closed).includes("CLOSED"),"Closed row has consistent visible and accessible booking-unavailability wording");
+ check(h.hooks.result.settings.availability.find(item=>item.status==="Closed").time==="Unavailable for booking","Closed canonical display value matches the rendered wording");
+ check(!scheduleText(h).includes("No appointments scheduled")&&h.writes.length===0&&!h.reads.some(read=>read.table==="appointments"),"Closed wording makes no appointment claim and introduces no appointment reads or writes");h.hooks.unmount();
+}
+console.log("Doctor Settings status/wording verification passed: "+(checks-displayStart)+" assertions (mocked Auth, actual production rendering).");
 console.log("Batch 1 security assertions preserved: "+batch1Checks+"; Batch 2 reliability assertions: "+(availabilityRefreshStart-batch1Checks)+".");
 console.log("Doctor Profile & Settings security and reliability verification passed: "+checks+" assertions.");
 console.log("Production handlers/helpers and installed SDK exercised with mocked Auth, queries and timers; no live Supabase/browser verification.");
