@@ -1380,10 +1380,29 @@
 
 .doctor-profile-summary-message {
   margin: -2px 6px 10px;
-  color: #9a516b;
+  color: #596174;
   font-size: 12px;
   line-height: 18px;
   font-weight: 600;
+}
+
+.doctor-profile-summary-message.is-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  color: #b42334;
+}
+
+.doctor-profile-summary-message button {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .doctor-profile-summary-card {

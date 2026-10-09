@@ -1,13 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
-import { supabase } from "../../lib/supabaseClient";
-import {
-  classifyAppointment,
-  normalizeAppointmentStatus,
-} from "../../lib/appointmentDate";
+import { useDoctorProfileSummary } from "../../hooks/useDoctorProfileSummary";
 import {
   clinicAccountStatuses,
   normalizeClinicAccountStatus,
@@ -71,13 +67,6 @@ function getAccountStatusPresentation(value) {
 }
 
 
-const emptyAppointmentSummary = {
-  cancelled: 0,
-  today: 0,
-  pending: 0,
-  completed: 0,
-};
-
 const appointmentSummaryCards = [
   {
     key: "cancelled",
@@ -111,43 +100,6 @@ const appointmentSummaryPeriods = [
   { value: "all-time", label: "All time" },
 ];
 
-function getAppointmentSummaryRange(period) {
-  if (period === "all-time") {
-    return null;
-  }
-
-  const now = new Date();
-  const monthOffset = period === "last-month" ? -1 : 0;
-  const start = new Date(
-    now.getFullYear(),
-    now.getMonth() + monthOffset,
-    1
-  );
-  const end = new Date(
-    now.getFullYear(),
-    now.getMonth() + monthOffset + 1,
-    1
-  );
-
-  return {
-    start: start.getTime(),
-    end: end.getTime(),
-  };
-}
-
-function isAppointmentInSummaryPeriod(appointment, period) {
-  const range = getAppointmentSummaryRange(period);
-  if (!range) return true;
-
-  const appointmentTime = new Date(appointment?.start_time || "").getTime();
-
-  return (
-    Number.isFinite(appointmentTime) &&
-    appointmentTime >= range.start &&
-    appointmentTime < range.end
-  );
-}
-
 function ProfileInfoRow({ item }) {
   return (
     <div className="doctor-profile-info-row">
@@ -178,15 +130,10 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
   const [avatarOverride, setAvatarOverride] = useState(null);
   const [appointmentSummaryPeriod, setAppointmentSummaryPeriod] =
     useState("this-month");
-  const [appointmentSummary, setAppointmentSummary] = useState(
-    emptyAppointmentSummary
-  );
-  const [appointmentSummaryMessage, setAppointmentSummaryMessage] =
-    useState("");
+  const appointmentSummary = useDoctorProfileSummary(doctorIdentity, appointmentSummaryPeriod);
   const personal = doctorIdentity?.personalInformation;
   const professional = doctorIdentity?.professionalInformation;
   const identityProfile = doctorIdentity?.profile;
-  const authenticatedDoctorId = identityProfile?.id || "";
   const accountStatus = getAccountStatusPresentation(
     identityProfile?.account_status
   );
@@ -288,113 +235,6 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
     professionalInfo.slice(0, 3),
     professionalInfo.slice(3),
   ];
-
-  useEffect(() => {
-    if (!authenticatedDoctorId) {
-      return undefined;
-    }
-
-    let active = true;
-
-    const loadAppointmentSummary = async () => {
-      const { data, error } = await supabase
-        .from("schedule")
-        .select("id, start_time, status")
-        .eq("doctor_id", authenticatedDoctorId)
-        .order("start_time", { ascending: true });
-
-      if (!active) return;
-
-      if (error) {
-        if (import.meta.env.DEV) {
-          console.warn(
-            "Unable to load Doctor appointment summary:",
-            error.message
-          );
-        }
-
-        setAppointmentSummaryMessage(
-          "Appointment summary could not be refreshed."
-        );
-        return;
-      }
-
-      setAppointmentSummaryMessage("");
-
-      const rows = data || [];
-      const nextSummary = rows.reduce(
-        (summary, appointment) => {
-          const status = normalizeAppointmentStatus(
-            appointment?.status
-          );
-          const isInSelectedPeriod = isAppointmentInSummaryPeriod(
-            appointment,
-            appointmentSummaryPeriod
-          );
-
-          /*
-           * "All Appointments Today" is intentionally always today's live count.
-           * The selected period controls Cancelled / Pending / Completed.
-           */
-          if (classifyAppointment(appointment).isToday) {
-            summary.today += 1;
-          }
-
-          if (!isInSelectedPeriod) {
-            return summary;
-          }
-
-          if (status === "cancelled" || status === "canceled") {
-            summary.cancelled += 1;
-          }
-
-          if (status === "pending" || status === "scheduled") {
-            summary.pending += 1;
-          }
-
-          if (status === "completed") {
-            summary.completed += 1;
-          }
-
-          return summary;
-        },
-        { ...emptyAppointmentSummary }
-      );
-
-      setAppointmentSummary(nextSummary);
-    };
-
-    const refresh = () => {
-      void loadAppointmentSummary();
-    };
-
-    refresh();
-
-    const scheduleChannel = supabase
-      .channel(
-        `doctor-profile-summary-${authenticatedDoctorId}-${appointmentSummaryPeriod}`
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "schedule",
-          filter: `doctor_id=eq.${authenticatedDoctorId}`,
-        },
-        refresh
-      )
-      .subscribe();
-
-    const handleWindowFocus = () => refresh();
-    window.addEventListener("focus", handleWindowFocus);
-
-    return () => {
-      active = false;
-      window.removeEventListener("focus", handleWindowFocus);
-      supabase.removeChannel(scheduleChannel);
-    };
-  }, [authenticatedDoctorId, appointmentSummaryPeriod]);
 
   const initials = getDoctorInitials(profile.displayName);
   const avatarUrl = avatarOverride ?? doctorIdentity?.avatarUrl ?? "";
@@ -536,6 +376,7 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
       <section
         className="doctor-profile-summary"
         aria-labelledby="doctor-appointment-summary-title"
+        aria-busy={appointmentSummary.status === "loading" || appointmentSummary.status === "refreshing"}
       >
         <div className="doctor-profile-summary-header">
           <div>
@@ -568,10 +409,13 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
           </label>
         </div>
 
-        {appointmentSummaryMessage ? (
-          <p className="doctor-profile-summary-message" role="status">
-            {appointmentSummaryMessage}
-          </p>
+        {appointmentSummary.status === "loading" ? (
+          <p className="app-sr-only" role="status">Loading appointment summary...</p>
+        ) : appointmentSummary.error ? (
+          <div className="doctor-profile-summary-message is-error" role="alert">
+            <span>{appointmentSummary.error}</span>
+            {appointmentSummary.status === "error" ? <button type="button" onClick={appointmentSummary.retry}>Retry</button> : null}
+          </div>
         ) : null}
 
         <div className="doctor-profile-summary-grid">
@@ -589,7 +433,9 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
 
               <div>
                 <span>{card.label}</span>
-                <strong>{appointmentSummary[card.key]}</strong>
+                <strong aria-label={appointmentSummary.status === "loading" ? "Loading" : !appointmentSummary.summary ? "Unavailable" : undefined}>
+                  {appointmentSummary.status === "loading" ? "\u2026" : appointmentSummary.summary?.[card.key] ?? "\u2014"}
+                </strong>
               </div>
             </button>
           ))}
