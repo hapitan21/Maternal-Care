@@ -2805,11 +2805,13 @@
 
 .doctor-settings-schedule-table > .doctor-settings-schedule-head,
 .doctor-settings-schedule-table > button {
-  grid-template-columns: minmax(170px, 0.9fr) minmax(260px, 1fr) minmax(150px, 0.55fr) !important;
-  padding: 0 30px !important;
+  grid-template-columns: var(--doctor-availability-columns, minmax(170px, 0.9fr) minmax(260px, 1fr) minmax(150px, 0.55fr)) !important;
+  gap: var(--doctor-availability-row-gap, 20px);
+  padding: var(--doctor-availability-row-padding, 0 30px) !important;
 }
 
 .doctor-settings-schedule-table > .doctor-settings-schedule-head {
+  display: var(--doctor-availability-column-header-display, grid);
   position: sticky !important;
   top: 58px !important;
   z-index: 3 !important;
@@ -2827,14 +2829,14 @@
 }
 
 .doctor-settings-page[data-panel="availability"] .doctor-settings-section-header--with-action {
-  grid-template-columns: 44px minmax(0, 1fr) auto !important;
+  grid-template-columns: var(--doctor-availability-header-columns, 44px minmax(0, 1fr) auto) !important;
   gap: 16px !important;
 }
 
 .doctor-settings-page[data-panel="availability"] .doctor-settings-schedule-table {
   max-height: min(650px, calc(100vh - 300px)) !important;
   overflow-y: auto !important;
-  overflow-x: hidden !important;
+  overflow-x: auto !important;
   scrollbar-width: thin;
   scrollbar-color: rgba(251, 54, 123, 0.45) rgba(207, 206, 221, 0.28);
 }
@@ -2919,10 +2921,59 @@
     justify-self: start !important;
   }
 
+  /* Stacked rows carry their own accessible day/time/status labels. */
+  .doctor-settings-page[data-panel="availability"] .doctor-settings-schedule-table {
+    --doctor-availability-column-header-display: none;
+  }
+
   .doctor-settings-schedule-table > .doctor-settings-schedule-head,
   .doctor-settings-schedule-table > button {
     grid-template-columns: 1fr !important;
     gap: 12px !important;
     padding: 18px 24px !important;
+  }
+}
+
+/* Adapt availability to its actual panel width, including both sidebars. */
+.doctor-settings-page[data-panel="availability"] .doctor-settings-availability-panel {
+  container-type: inline-size;
+  container-name: doctor-availability;
+}
+
+.doctor-settings-page[data-panel="availability"] .doctor-settings-schedule-table > .doctor-settings-schedule-head,
+.doctor-settings-page[data-panel="availability"] .doctor-settings-schedule-table > button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.doctor-settings-page[data-panel="availability"] .doctor-settings-section-header--with-action > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.doctor-settings-page[data-panel="availability"] .doctor-settings-section-header--with-action button {
+  max-width: 100%;
+}
+
+.doctor-settings-page[data-panel="availability"] .doctor-settings-schedule-day i,
+.doctor-settings-page[data-panel="availability"] .doctor-settings-schedule-time .doctor-icon {
+  flex-shrink: 0;
+}
+
+@container doctor-availability (max-width: 700px) {
+  .doctor-settings-page[data-panel="availability"] .doctor-settings-schedule-table {
+    --doctor-availability-columns: minmax(0, 1fr);
+    --doctor-availability-column-header-display: none;
+    --doctor-availability-row-gap: 12px;
+    --doctor-availability-row-padding: 18px 24px;
+  }
+
+  .doctor-settings-page[data-panel="availability"] .doctor-settings-section-header--with-action {
+    --doctor-availability-header-columns: 44px minmax(0, 1fr);
+  }
+
+  .doctor-settings-page[data-panel="availability"] .doctor-settings-section-header--with-action button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }

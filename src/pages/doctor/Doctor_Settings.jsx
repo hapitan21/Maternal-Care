@@ -1763,6 +1763,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                       type="button"
                       className={item.status === "Closed" ? "is-closed" : ""}
                       key={item.day}
+                      aria-label={`Edit schedule. Day: ${item.day}. Time: ${item.status === "Closed" ? "No appointments scheduled" : item.time}. Status: ${item.status}.`}
                       onClick={event => { rememberDoctorSettingsDialogTrigger(scheduleDialogTriggerRef, event); openScheduleEditor(item); }}
                     >
                       <span className="doctor-settings-schedule-day">

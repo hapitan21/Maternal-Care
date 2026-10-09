@@ -1130,8 +1130,8 @@
 }
 
 .doctor-dashboard .doctor-profile-row-text {
-  grid-template-columns: minmax(130px, 0.9fr) minmax(120px, 1fr) !important;
-  gap: 20px !important;
+  grid-template-columns: minmax(130px, 0.9fr) minmax(0, 1fr);
+  gap: 20px;
 }
 
 .doctor-dashboard .doctor-profile-row-text span {
@@ -1151,8 +1151,8 @@
 }
 
 .doctor-dashboard .doctor-profile-detail-row {
-  grid-template-columns: minmax(130px, 0.72fr) minmax(0, 1fr) !important;
-  gap: 22px !important;
+  grid-template-columns: minmax(130px, 0.72fr) minmax(0, 1fr);
+  gap: 22px;
 }
 
 .doctor-dashboard .doctor-profile-detail-row span {
@@ -1448,4 +1448,30 @@
 /* Keep inactive panels hidden despite the shared grid display rules. */
 .doctor-dashboard .doctor-profile-tab-content[hidden] {
   display: none;
+}
+
+/* Profile-only wrapping: long recorded values must fit their grid/flex track. */
+.doctor-dashboard .doctor-profile-info-column,
+.doctor-dashboard .doctor-profile-detail-column,
+.doctor-dashboard .doctor-profile-detail-row,
+.doctor-dashboard .doctor-profile-contact-item > div:last-child {
+  min-width: 0;
+}
+
+.doctor-dashboard .doctor-profile-contact-item strong,
+.doctor-dashboard .doctor-profile-row-text span,
+.doctor-dashboard .doctor-profile-row-text strong,
+.doctor-dashboard .doctor-profile-detail-row span,
+.doctor-dashboard .doctor-profile-detail-row strong,
+.doctor-dashboard .doctor-profile-main-info > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .doctor-dashboard .doctor-profile-row-text,
+  .doctor-dashboard .doctor-profile-detail-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
 }
