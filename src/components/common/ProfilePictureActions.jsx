@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import {
   removeProfilePicture,
@@ -23,6 +23,7 @@ export default function ProfilePictureActions({
     ownerRef.current = expectedUserId;
     return () => { mountedRef.current = false; controller.abort(); };
   }, [expectedUserId]);
+  const actionsId = useId();
   const actionsRef = useRef(null);
   const inputRef = useRef(null);
   const triggerRef = useRef(null);
@@ -40,25 +41,26 @@ export default function ProfilePictureActions({
       }
     };
 
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-        window.requestAnimationFrame(() => triggerRef.current?.focus());
-      }
-    };
-
     document.addEventListener("pointerdown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
 
     return () => {
       document.removeEventListener("pointerdown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
     };
   }, [menuOpen]);
+
+  const closeOnEscape = event => {
+    if (event.key !== "Escape" || !menuOpen) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(false);
+    const trigger = triggerRef.current;
+    if (trigger?.isConnected && !trigger.disabled && !trigger.closest("[hidden], [inert]")) trigger.focus();
+  };
 
   const choosePhoto = () => {
     setMessage("");
     setMenuOpen(false);
+    triggerRef.current?.focus();
     inputRef.current?.click();
   };
 
@@ -91,11 +93,13 @@ export default function ProfilePictureActions({
   const handleRemove = () => runPhotoAction({ type: "remove", run: removeProfilePicture });
 
   return (
-    <div className="profile-picture-actions" ref={actionsRef}>
+    <div className="profile-picture-actions" ref={actionsRef} onKeyDown={closeOnEscape}>
       <input
         ref={inputRef}
         className="profile-picture-actions__input"
         type="file"
+        tabIndex={-1}
+        aria-label="Choose a profile photo"
         accept="image/jpeg,image/png,image/webp"
         onChange={handleUpload}
         disabled={disabled || busy}
@@ -107,9 +111,8 @@ export default function ProfilePictureActions({
         className="profile-picture-actions__trigger"
         title="Edit Photo"
         aria-label="Edit profile photo"
-        aria-haspopup="menu"
         aria-expanded={menuOpen}
-        aria-controls="profile-picture-actions-menu"
+        aria-controls={menuOpen ? actionsId : undefined}
         aria-busy={busy}
         onClick={() => setMenuOpen((open) => !open)}
         disabled={disabled || busy}
@@ -123,16 +126,15 @@ export default function ProfilePictureActions({
 
       {menuOpen ? (
         <div
-          id="profile-picture-actions-menu"
+          id={actionsId}
           className="profile-picture-actions__menu"
-          role="menu"
+          role="group"
           aria-label="Profile photo actions"
         >
           <button
             type="button"
-            role="menuitem"
             onClick={choosePhoto}
-            disabled={busy}
+            disabled={disabled || busy}
           >
             <Icon icon="solar:gallery-add-linear" aria-hidden="true" />
             Choose Photo
@@ -141,10 +143,9 @@ export default function ProfilePictureActions({
           {avatarUrl ? (
             <button
               type="button"
-              role="menuitem"
               className="profile-picture-actions__remove"
               onClick={handleRemove}
-              disabled={busy}
+              disabled={disabled || busy}
             >
               <Icon icon="solar:trash-bin-minimalistic-linear" aria-hidden="true" />
               Remove Photo

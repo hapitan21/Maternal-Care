@@ -1444,3 +1444,8 @@
   appearance: none;
   color: inherit;
 }
+
+/* Keep inactive panels hidden despite the shared grid display rules. */
+.doctor-dashboard .doctor-profile-tab-content[hidden] {
+  display: none;
+}

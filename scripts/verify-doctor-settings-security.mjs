@@ -320,6 +320,7 @@ for(const abandon of ["replacement","logout","unmount"]){
  const hooks=hookRuntime(),gate=deferred();let uploads=0,changes=0,signal;
  const ctx=vm.createContext({console,AbortController,window:{requestAnimationFrame:()=>0},document:{addEventListener(){},removeEventListener(){}}});
  const react={...hooks.runtime};react.default=react;
+ react.useId=()=>hooks.runtime.useRef("synthetic-avatar-disclosure").current;
  const photo=await evaluate(await source("src/components/common/ProfilePictureActions.jsx"),"photo.jsx",{react,"react/jsx-runtime":jsx,"@iconify/react":{Icon:"Icon"},"../../lib/profilePicture":{uploadProfilePicture:async(file,options)=>{uploads++;signal=options.signal;return gate.promise;},removeProfilePicture:async()=>({displayUrl:"",storedValue:""})}},ctx);
  hooks.mount(photo.default,{expectedUserId:"doctor-a",onChange:()=>changes++});
  const input=hooks.result.props.children.find(node=>node.type==="input"),event=()=>({target:{files:[{type:"image/png",size:10}],value:"fake"}});

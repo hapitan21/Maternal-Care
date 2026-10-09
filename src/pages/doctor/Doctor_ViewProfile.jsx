@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
@@ -67,6 +67,11 @@ function getAccountStatusPresentation(value) {
 }
 
 
+const profileInformationTabs = [
+  { key: "personal", label: "Personal Information" },
+  { key: "professional", label: "Professional Information" },
+];
+
 const appointmentSummaryCards = [
   {
     key: "cancelled",
@@ -127,6 +132,7 @@ function ProfileDetailRow({ item }) {
 function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("personal");
+  const tabsId = useId();
   const [avatarOverride, setAvatarOverride] = useState(null);
   const [appointmentSummaryPeriod, setAppointmentSummaryPeriod] =
     useState("this-month");
@@ -236,6 +242,19 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
     professionalInfo.slice(3),
   ];
 
+  const handleTabKeyDown = (event, tabKey) => {
+    const currentIndex = profileInformationTabs.findIndex(tab => tab.key === tabKey);
+    let nextIndex;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % profileInformationTabs.length;
+    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + profileInformationTabs.length) % profileInformationTabs.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = profileInformationTabs.length - 1;
+    else return;
+    event.preventDefault();
+    setActiveTab(profileInformationTabs[nextIndex].key);
+    event.currentTarget.parentElement?.querySelectorAll('[role="tab"]')[nextIndex]?.focus();
+  };
+
   const initials = getDoctorInitials(profile.displayName);
   const avatarUrl = avatarOverride ?? doctorIdentity?.avatarUrl ?? "";
 
@@ -325,52 +344,59 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
 
       <section className="doctor-profile-tabs-card">
         <div className="doctor-profile-tabs" role="tablist" aria-label="Profile information">
-          <button
-            type="button"
-            className={activeTab === "personal" ? "active" : ""}
-            role="tab"
-            aria-selected={activeTab === "personal"}
-            onClick={() => setActiveTab("personal")}
-          >
-            Personal Information
-          </button>
-
-          <button
-            type="button"
-            className={activeTab === "professional" ? "active" : ""}
-            role="tab"
-            aria-selected={activeTab === "professional"}
-            onClick={() => setActiveTab("professional")}
-          >
-            Professional Information
-          </button>
+          {profileInformationTabs.map(tab => (
+            <button
+              key={tab.key}
+              id={tabsId + "-tab-" + tab.key}
+              type="button"
+              className={activeTab === tab.key ? "active" : ""}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              aria-controls={tabsId + "-panel-" + tab.key}
+              tabIndex={activeTab === tab.key ? 0 : -1}
+              onClick={() => setActiveTab(tab.key)}
+              onKeyDown={event => handleTabKeyDown(event, tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        <div className="doctor-profile-tab-content" key={activeTab} role="tabpanel">
-          {activeTab === "personal" ? (
-            <>
-              <div className="doctor-profile-info-column">
-                {personalInfo.map((item) => (
-                  <ProfileInfoRow item={item} key={item.label} />
-                ))}
-              </div>
+        {profileInformationTabs.map(tab => (
+          <div
+            className="doctor-profile-tab-content"
+            key={tab.key}
+            role="tabpanel"
+            id={tabsId + "-panel-" + tab.key}
+            aria-labelledby={tabsId + "-tab-" + tab.key}
+            hidden={activeTab !== tab.key}
+            tabIndex={0}
+          >
+            {tab.key === "personal" ? (
+              <>
+                <div className="doctor-profile-info-column">
+                  {personalInfo.map((item) => (
+                    <ProfileInfoRow item={item} key={item.label} />
+                  ))}
+                </div>
 
-              <div className="doctor-profile-info-column">
-                {personalContactInfo.map((item) => (
-                  <ProfileInfoRow item={item} key={item.label} />
-                ))}
-              </div>
-            </>
-          ) : (
-            professionalColumns.map((column, index) => (
-              <div className="doctor-profile-detail-column" key={`professional-${index}`}>
-                {column.map((item) => (
-                  <ProfileDetailRow item={item} key={item.label} />
-                ))}
-              </div>
-            ))
-          )}
-        </div>
+                <div className="doctor-profile-info-column">
+                  {personalContactInfo.map((item) => (
+                    <ProfileInfoRow item={item} key={item.label} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              professionalColumns.map((column, index) => (
+                <div className="doctor-profile-detail-column" key={`professional-${index}`}>
+                  {column.map((item) => (
+                    <ProfileDetailRow item={item} key={item.label} />
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        ))}
       </section>
 
       <section
