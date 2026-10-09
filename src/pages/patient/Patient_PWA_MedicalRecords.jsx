@@ -6,7 +6,9 @@ import {
   getClinicalVisitHeight,
   getClinicalVisitWeight,
   getLatestInitialVisitHeight,
+  isCompletedClinicalVisitRecord,
   isFollowUpClinicalVisit,
+  isMeaningfulClinicalValue,
   normalizeClinicalVisitFormData,
 } from "../../lib/clinicalVisitData";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
@@ -17,12 +19,13 @@ import {
 import "../../styles/patient-PWA-medicalrecords.css";
 
 const medicalRecordColumns =
-  "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, file_name, file_type, file_data_url, form_data, uploaded_at, uploaded_by";
+  "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, file_name, file_type, file_data_url, form_data, uploaded_at, uploaded_by, created_at";
 
 const scheduleColumns =
   "id, maternal_appointment_id, patient_id, doctor_id, doctor_name, title, start_time, end_time, status";
 
 const MANILA_TIME_ZONE = "Asia/Manila";
+const MEDICAL_RECORD_CACHE_VERSION = 2;
 
 const findingUnits = {
   "blood pressure": "mmHg",
@@ -34,6 +37,8 @@ const findingUnits = {
   bmi: "kg/m2",
   "fundal height": "cm",
   "fetal heart rate": "bpm",
+  "respiratory rate": "breaths/min",
+  "oxygen saturation": "%",
 };
 
 function getFormData(row) {
@@ -41,26 +46,29 @@ function getFormData(row) {
 }
 
 function cleanRecordValue(value) {
-  if (value === null || value === undefined || typeof value === "object") return "";
-  const clean = String(value).trim();
-  return clean && clean !== "-" ? clean : "";
+  return isMeaningfulClinicalValue(value) ? String(value).trim() : "";
 }
 
 function toList(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item || "").trim()).filter(Boolean);
-  }
-
-  if (!value) return [];
-
-  return String(value)
+  if (Array.isArray(value)) return value.flatMap(toList);
+  return cleanRecordValue(value)
     .split(/\r?\n|;/)
-    .map((item) => item.trim())
+    .map(cleanRecordValue)
     .filter(Boolean);
 }
 
-function normalizeDateSource(value, fallback) {
-  return value || fallback || "";
+function firstRecordValue(...values) {
+  return values.map(cleanRecordValue).find(Boolean) || "";
+}
+
+function firstRecordList(...values) {
+  return values.map(toList).find((items) => items.length) || [];
+}
+
+function formatGestationalAge(value, fallback = "Not recorded") {
+  const text = cleanRecordValue(value);
+  if (!text) return fallback;
+  return /^\d+(?:\.\d+)?$/.test(text) ? `${text} Weeks` : text;
 }
 
 function toValidDate(value) {
@@ -98,7 +106,7 @@ function formatDayTime(dateValue, timeValue) {
     return `${day} - ${timeValue}`;
   }
 
-  if (!date) return day;
+  if (timeValue === null || !date) return day;
 
   return `${day} - ${date.toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -107,31 +115,88 @@ function formatDayTime(dateValue, timeValue) {
   })}`;
 }
 
-function normalizeFinding(item) {
-  if (typeof item === "string") {
-    return {
-      label: item,
-      value: "-",
-      unit: "",
-    };
+function normalizeVisitTime(value) {
+  const text = cleanRecordValue(value);
+  const clock = text.match(/^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\s*(AM|PM)?$/i);
+  if (!clock) return "";
+  let hour = Number(clock[1]);
+  if (clock[4]) {
+    if (hour < 1 || hour > 12) return "";
+    hour = (hour % 12) + (clock[4].toUpperCase() === "PM" ? 12 : 0);
+  } else if (hour > 23) {
+    return "";
   }
+  return `${String(hour).padStart(2, "0")}:${clock[2]}:${clock[3] || "00"}`;
+}
 
-  const label = item?.label || item?.name || "Finding";
-  const rawValue = item?.value ?? item?.result ?? "-";
-  const normalizedLabel = String(label).trim().toLowerCase();
+function resolveVisitTiming(row, formData, linkedSchedule) {
+  const sources = [
+    [linkedSchedule?.start_time],
+    [firstRecordValue(formData.appointmentDate, formData.appointment_date),
+      firstRecordValue(formData.appointmentTime, formData.appointment_time)],
+    [firstRecordValue(formData.visitDate, formData.visit_date),
+      firstRecordValue(formData.visitTime, formData.visit_time)],
+    [row.uploaded_at],
+    [row.created_at],
+  ];
 
+  for (const [source, time] of sources) {
+    const text = cleanRecordValue(source);
+    if (!text) continue;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      const calendarDate = toValidDate(`${text}T00:00:00Z`);
+      if (!calendarDate || calendarDate.toISOString().slice(0, 10) !== text) continue;
+      const clock = normalizeVisitTime(time);
+      const date = toValidDate(`${text}T${clock || "00:00:00"}+08:00`);
+      return { date, time: clock ? time : null };
+    }
+    const date = toValidDate(text);
+    if (date) return { date, time: undefined };
+  }
+  return { date: "", time: null };
+}
+
+function normalizeMeasurement(value, unit = "", fallbackUnit = "") {
+  const rawValue = value && typeof value === "object" ? value.value ?? value.result : value;
+  const text = cleanRecordValue(rawValue);
+  const explicitUnit = firstRecordValue(value?.unit, unit);
+  const embeddedUnit = text.match(/^(-?\d+(?:\.\d+)?)\s*(kg|g|kilograms?|grams?)$/i);
   return {
-    label,
-    value: String(rawValue || "-"),
-    unit: item?.unit || findingUnits[normalizedLabel] || "",
+    value: embeddedUnit ? embeddedUnit[1] : text,
+    unit: embeddedUnit ? embeddedUnit[2] : explicitUnit || fallbackUnit,
   };
 }
 
+function getEstimatedFetalWeight(formData, clinicalFindings) {
+  // Current top-level camelCase saves use kg; the Doctor reader's legacy
+  // snake_case/nested measurements use g. Explicit stored units always win.
+  const sources = [
+    [formData.estimatedFetalWeight, "kg", formData.estimatedFetalWeightUnit],
+    [formData.estimated_fetal_weight, "g", formData.estimated_fetal_weight_unit],
+    [clinicalFindings.estimatedFetalWeight, "g", clinicalFindings.estimatedFetalWeightUnit],
+    [clinicalFindings.estimated_fetal_weight, "g", clinicalFindings.estimated_fetal_weight_unit],
+  ];
+  for (const [value, fallbackUnit, unit] of sources) {
+    const measurement = normalizeMeasurement(value, unit, fallbackUnit);
+    if (measurement.value) return measurement;
+  }
+  return { value: "", unit: "" };
+}
+
+function normalizeFinding(item) {
+  if (typeof item === "string") return { label: item, value: "-", unit: "" };
+  const label = (Array.isArray(item) ? item[0] : item?.label || item?.name) || "Finding";
+  const rawValue = Array.isArray(item) ? item[1] : item?.value ?? item?.result;
+  const unit = Array.isArray(item) ? item[2] : item?.unit;
+  const normalizedLabel = String(label).trim().toLowerCase();
+  const measurement = normalizedLabel === "estimated fetal weight"
+    ? normalizeMeasurement(rawValue, unit)
+    : { value: cleanRecordValue(rawValue), unit: cleanRecordValue(unit) || findingUnits[normalizedLabel] || "" };
+  return { label, value: measurement.value || "-", unit: measurement.unit };
+}
+
 function normalizeFindings(formData, baselineHeight = "") {
-  const clinicalFindings =
-    formData.clinicalFindings && typeof formData.clinicalFindings === "object"
-      ? formData.clinicalFindings
-      : {};
+  const clinicalFindings = formData.clinicalFindings || formData.clinical_findings || {};
   const isFollowUp = isFollowUpClinicalVisit(formData);
   const currentHeight = getClinicalVisitHeight(formData);
   const displayHeight = currentHeight || (isFollowUp ? baselineHeight : "");
@@ -142,6 +207,10 @@ function normalizeFindings(formData, baselineHeight = "") {
   const bmi =
     calculateClinicalBmi(weight, displayHeight) ||
     cleanRecordValue(clinicalFindings.bmi || formData.bmi);
+  const fetalWeight = getEstimatedFetalWeight(formData, clinicalFindings);
+  const findingValue = (camelKey, snakeKey = camelKey) => firstRecordValue(
+    formData[camelKey], formData[snakeKey], clinicalFindings[camelKey], clinicalFindings[snakeKey]
+  );
 
   if (Array.isArray(formData.findings) && formData.findings.length) {
     const findings = formData.findings
@@ -157,42 +226,71 @@ function normalizeFindings(formData, baselineHeight = "") {
   }
 
   return [
-    { label: "Blood Pressure", value: clinicalFindings.bloodPressure || formData.bloodPressure || "-", unit: "mmHg" },
+    { label: "Blood Pressure", value: findingValue("bloodPressure", "blood_pressure") || "-", unit: "mmHg" },
     { label: "Weight", value: weight || "-", unit: "kg" },
-    { label: "Temp", value: clinicalFindings.temperature || formData.temperature || "-", unit: "C" },
-    { label: "Respiratory Rate", value: clinicalFindings.respiratoryRate || formData.respiratoryRate, unit: "breaths/min" },
+    { label: "Temp", value: findingValue("temperature") || "-", unit: "C" },
+    { label: "Respiratory Rate", value: findingValue("respiratoryRate", "respiratory_rate"), unit: "breaths/min" },
     { label: heightLabel, value: displayHeight, unit: "cm" },
     { label: "BMI", value: bmi, unit: "kg/m²" },
-    { label: "Oxygen Saturation", value: clinicalFindings.oxygenSaturation || formData.oxygenSaturation, unit: "%" },
+    { label: "Oxygen Saturation", value: findingValue("oxygenSaturation", "oxygen_saturation"), unit: "%" },
     { label: "Fetal Heart Rate", value: clinicalFindings.fetalHeartRate || formData.fetalHeartRate || "-", unit: "bpm" },
     { label: "Fundal Height", value: clinicalFindings.fundalHeight || formData.fundalHeight || "-", unit: "cm" },
-    { label: "Estimated Fetal Weight", value: clinicalFindings.estimatedFetalWeight || formData.estimatedFetalWeight, unit: "kg" },
+    { label: "Estimated Fetal Weight", ...fetalWeight },
     { label: "Baby Position", value: clinicalFindings.babyPosition || formData.babyPosition, unit: "" },
     { label: "Fetal Movement", value: clinicalFindings.fetalMovement || formData.fetalMovement, unit: "" },
     { label: "Additional Findings", value: clinicalFindings.additionalFindings || formData.additionalFindings, unit: "" },
   ].filter((item) => cleanRecordValue(item.value) || ["Blood Pressure", "Weight", "Temp", "Fetal Heart Rate", "Fundal Height"].includes(item.label));
 }
 
-function normalizeAssessment(formData, row) {
-  const values = [
-    ...toList(formData.assessment),
-    ...toList(formData.dangerSigns),
-    ...toList(formData.additionalNotes),
-  ];
-
-  if (values.length) return values;
-
-  return toList(row.notes || row.title || "No assessment recorded.");
+function normalizeAssessment(formData) {
+  const values = firstRecordList(formData.assessment, formData.clinicalAssessment, formData.clinical_assessment);
+  return values.length ? values : ["No assessment recorded."];
 }
 
 function normalizeTreatment(formData) {
   const values = [
     ...toList(formData.treatment),
-    ...toList(formData.treatmentPlan),
-    ...toList(formData.followUpInstructions),
+    ...firstRecordList(formData.treatmentPlan, formData.treatment_plan, formData.planTreatment, formData.plan_treatment, formData.plan),
+    ...firstRecordList(formData.followUpInstructions, formData.follow_up_instructions),
   ];
+  return values.length ? [...new Set(values)] : ["No treatment plan recorded."];
+}
 
-  return values.length ? values : ["No treatment plan recorded."];
+function normalizeMedication(value) {
+  if (!value || typeof value !== "object") return toList(value);
+  const name = firstRecordValue(value.medication, value.name, value.medicationName, value.medication_name);
+  if (!name) return [];
+  return [[name, firstRecordValue(value.dosage, value.dose), cleanRecordValue(value.frequency),
+    cleanRecordValue(value.duration), firstRecordValue(value.instructions, value.instruction)]
+    .filter(Boolean).join(" - ")];
+}
+
+function normalizePrescriptions(formData) {
+  const prescription = formData.prescription && typeof formData.prescription === "object" && !Array.isArray(formData.prescription)
+    ? formData.prescription : {};
+  const legacy = formData.prescriptions;
+  const legacyObject = legacy && typeof legacy === "object" && !Array.isArray(legacy) ? legacy : {};
+  const medicationLists = [formData.medications, prescription.medications, legacyObject.medications];
+  const values = [
+    ...medicationLists.flatMap((items) => Array.isArray(items) ? items.flatMap(normalizeMedication) : []),
+    ...(Array.isArray(legacy) ? legacy.flatMap(normalizeMedication) : toList(legacy)),
+    ...toList(formData.prescription),
+    ...firstRecordList(formData.prescriptionInstructions, formData.prescription_instructions, prescription.instructions, legacyObject.instructions),
+  ];
+  return [...new Set(values)];
+}
+
+function normalizeDiagnosticResults(formData) {
+  const laboratory = firstRecordList(formData.laboratoryResultSummary, formData.laboratory_result_summary,
+    formData.laboratoryReview?.resultSummary, formData.laboratoryReview?.result_summary,
+    formData.laboratoryReview);
+  const ultrasound = firstRecordList(formData.ultrasoundFindings, formData.ultrasound_findings,
+    formData.ultrasoundReview?.findings, formData.ultrasoundReview);
+  return [...new Set([
+    ...toList(formData.diagnosticResults),
+    ...laboratory.map((value) => `Laboratory: ${value}`),
+    ...ultrasound.map((value) => `Ultrasound: ${value}`),
+  ])];
 }
 
 function normalizeObstetric(formData) {
@@ -204,18 +302,23 @@ function normalizeObstetric(formData) {
 
   if (obstetric.length) {
     return obstetric
-      .map((item) => ({
-        label: item.label || item.name || "Information",
-        value: item.value || "-",
-        wide: Boolean(item.wide),
-      }))
+      .map((item) => {
+        const label = (Array.isArray(item) ? item[0] : item?.label || item?.name) || "Information";
+        const value = Array.isArray(item) ? item[1] : item?.value;
+        return {
+          label,
+          value: /^(gestational age|ga)$/i.test(String(label).trim())
+            ? formatGestationalAge(value, "-") : cleanRecordValue(value) || "-",
+          wide: Boolean(item?.wide),
+        };
+      })
       .filter((item) => String(item.label).trim().toLowerCase() !== "follow-up date");
   }
 
   return [
     {
       label: "Gestational Age",
-      value: pregnancyStatus.gestationalAge || formData.gestationalAge || "-",
+      value: formatGestationalAge(formData.gestationalAge, "-"),
     },
     {
       label: "Pregnancy Status",
@@ -346,29 +449,16 @@ async function createAttachmentUrl(attachment) {
 function mapMedicalRecord(row, linkedSchedule = null, baselineHeight = "") {
   const formData = getFormData(row);
 
-  // Canonical clinical visit date/time comes from the linked appointment.
-  // uploaded_at is only the database record creation timestamp.
-  const scheduleVisitDate = linkedSchedule?.start_time || "";
-  const fallbackVisitDate = normalizeDateSource(formData.visitDate, row.uploaded_at);
-  const visitDate = scheduleVisitDate || fallbackVisitDate;
+  // The linked appointment remains authoritative. Unlinked records use the
+  // producer's saved visit date/time before the database creation timestamp.
+  const timing = resolveVisitTiming(row, formData, linkedSchedule);
+  const visitDate = timing.date;
   const displayDate = formatLongDate(visitDate);
-  const dayTime = scheduleVisitDate
-    ? formatDayTime(scheduleVisitDate)
-    : formatDayTime(fallbackVisitDate || row.uploaded_at, formData.visitTime);
-
-  const complaint =
-    formData.chiefComplaint ||
-    formData.complaint ||
-    row.notes ||
-    row.title ||
-    "No chief complaint recorded.";
-
-  const diagnosis =
-    formData.diagnosis ||
-    formData.assessment ||
-    row.title ||
-    row.type ||
-    "Medical Record";
+  const dayTime = formatDayTime(visitDate, timing.time);
+  const complaint = firstRecordValue(formData.chiefComplaint, formData.chief_complaint, formData.complaint)
+    || "No chief complaint recorded.";
+  const diagnosis = firstRecordValue(formData.diagnosis, formData.finalDiagnosis, formData.final_diagnosis)
+    || "No diagnosis recorded.";
 
   const appointmentReference = formatAppointmentReference(
     linkedSchedule?.maternal_appointment_id ||
@@ -391,24 +481,51 @@ function mapMedicalRecord(row, linkedSchedule = null, baselineHeight = "") {
     date: displayDate,
     dayTime,
     visitType: formData.visitType || row.type || row.title || "Medical Record",
-    gestationalAge: formData.gestationalAge || "Not recorded",
+    gestationalAge: formatGestationalAge(formData.gestationalAge),
     doctor: doctorName,
     appointmentReference,
     createdDate: formatLongDate(row.uploaded_at, "Not recorded"),
     updatedDate: formData.updatedAt || "Not recorded",
     recordStatus: formatStatusLabel(
-      formData.recordStatus || formData.status || linkedSchedule?.status
+      formData.recordStatus || formData.record_status || "completed"
     ),
     complaint,
     findings: normalizeFindings(formData, baselineHeight),
-    assessment: normalizeAssessment(formData, row),
+    assessment: normalizeAssessment(formData),
     obstetric: normalizeObstetric(formData),
     treatment: normalizeTreatment(formData),
     diagnosis,
-    prescriptions: toList(formData.prescriptions),
-    diagnosticResults: toList(formData.diagnosticResults),
+    doctorOrder: firstRecordValue(formData.doctorOrder, formData.doctor_order),
+    prescriptions: normalizePrescriptions(formData),
+    diagnosticResults: normalizeDiagnosticResults(formData),
     attachments: getClinicalAttachments(formData, row),
-    sortTime: toValidDate(visitDate || row.uploaded_at)?.getTime() || 0,
+    sortTime: toValidDate(visitDate)?.getTime() || 0,
+    uploadedTime: toValidDate(row.uploaded_at)?.getTime() || 0,
+    createdTime: toValidDate(row.created_at)?.getTime() || 0,
+    isDraft: formData.isDraft || formData.is_draft || false,
+    deleted: formData.deleted ?? false,
+  };
+}
+
+function compareMedicalRecords(first, second) {
+  const timeDifference = (second.sortTime || 0) - (first.sortTime || 0)
+    || (second.uploadedTime || 0) - (first.uploadedTime || 0)
+    || (second.createdTime || 0) - (first.createdTime || 0);
+  if (timeDifference) return timeDifference;
+  const firstId = String(first.id || "");
+  const secondId = String(second.id || "");
+  return secondId > firstId ? 1 : secondId < firstId ? -1 : 0;
+}
+
+function acceptMedicalRecordCache(cache, patientId) {
+  // Older mapped snapshots discarded draft/deletion flags and use the previous
+  // clinical mappings. Refresh them instead of displaying unverifiable entries.
+  if (cache?.version !== MEDICAL_RECORD_CACHE_VERSION) return null;
+  return {
+    ...cache,
+    patientRecords: (cache.patientRecords || []).filter((record) =>
+      record.id !== `registration-${patientId}` && isCompletedClinicalVisitRecord(record)
+    ).sort(compareMedicalRecords),
   };
 }
 
@@ -490,33 +607,47 @@ async function loadPatientRow() {
 async function loadPatientDetailRow(table, patientId, onError) {
   if (!patientId) return null;
 
-  const { data, error } = await supabase
-    .from(table)
-    .select("*")
-    .eq("patient_id", patientId)
-    .limit(1)
-    .maybeSingle();
+  let selectedObstetricId = "";
+  if (table === "patient_obstetric_history") {
+    // Reuse the existing server-side current pregnancy selection: EDD within
+    // current_date - 14 / + 300, then updated_at, created_at and ID descending.
+    // Fetch its full row because the summary intentionally omits T/P/A/L.
+    const { data, error } = await supabase.rpc("get_my_patient_profile_summary");
+    const summary = Array.isArray(data) ? data[0] : data;
+    if (error || summary?.patient?.id !== patientId) {
+      const selectionError = error || new Error("The obstetric summary did not match the authenticated Patient record.");
+      console.warn("Patient medical record obstetric selection failed:", selectionError);
+      onError?.(selectionError);
+      return null;
+    }
+    selectedObstetricId = summary.obstetric?.id || "";
+    if (!selectedObstetricId) return null;
+  }
 
+  let query = supabase.from(table).select("*").eq("patient_id", patientId);
+  if (selectedObstetricId) {
+    query = query.eq("id", selectedObstetricId);
+  } else {
+    query = query.limit(1);
+  }
+  const { data, error } = await query.maybeSingle();
   if (error) {
     console.warn(`Patient medical record ${table} lookup failed:`, error);
     onError?.(error);
     return null;
   }
-
   return data || null;
 }
 
 export default function PatientPWAMedicalRecords({ profile }) {
   const patientId = profile?.recordId || "";
   const [initialCache] = useState(() =>
-    getPatientPwaSessionCache(patientId, "medical-records")
+    acceptMedicalRecordCache(getPatientPwaSessionCache(patientId, "medical-records"), patientId)
   );
   const initialCacheRef = useRef(initialCache);
   const [query, setQuery] = useState("");
   const [patientRecords, setPatientRecords] = useState(
-    () => (initialCache?.patientRecords || []).filter(
-      (record) => record.id !== `registration-${patientId}`
-    )
+    () => initialCache?.patientRecords || []
   );
   const [selectedRecordId, setSelectedRecordId] = useState(
     () => initialCache?.selectedRecordId || ""
@@ -545,7 +676,7 @@ export default function PatientPWAMedicalRecords({ profile }) {
             .order("uploaded_at", { ascending: false })
         : { data: [], error: null };
 
-      const formalRecords = error ? [] : (data || []);
+      const formalRecords = error ? [] : (data || []).filter(isCompletedClinicalVisitRecord);
       const scheduleIds = [
         ...new Set(
           formalRecords
@@ -613,9 +744,7 @@ export default function PatientPWAMedicalRecords({ profile }) {
         )
       );
 
-      const nextRecords = mappedRecords.sort(
-        (first, second) => second.sortTime - first.sortTime
-      );
+      const nextRecords = mappedRecords.sort(compareMedicalRecords);
 
       setPatientRecords(nextRecords);
       setSelectedRecordId((current) =>
@@ -700,7 +829,7 @@ export default function PatientPWAMedicalRecords({ profile }) {
   useEffect(() => {
     if (isLoading) return;
 
-    const snapshot = { patientRecords, selectedRecordId, registrationHistory };
+    const snapshot = { version: MEDICAL_RECORD_CACHE_VERSION, patientRecords, selectedRecordId, registrationHistory };
     initialCacheRef.current = snapshot;
     setPatientPwaSessionCache(patientId, "medical-records", snapshot);
   }, [isLoading, patientId, patientRecords, selectedRecordId, registrationHistory]);
@@ -958,6 +1087,13 @@ function MedicalRecordCard({ record }) {
 
             <h3 className="pwa-diagnosis-title">Diagnosis</h3>
             <div className="pwa-diagnosis-box">{record.diagnosis}</div>
+
+            {record.doctorOrder ? (
+              <>
+                <h3 className="pwa-diagnosis-title">Doctor&apos;s Order</h3>
+                <p>{record.doctorOrder}</p>
+              </>
+            ) : null}
           </section>
 
           <section className="pwa-record-section">
