@@ -1,6 +1,6 @@
-/* global process */
 // Synthetic auth/DOM/storage only. Run: node scripts/verify-role-inactivity.mjs
 import assert from "node:assert/strict";
+import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { readFile, access } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
@@ -273,44 +273,150 @@ async function providerHarness() {
   register({ userId: "synthetic-clinic", role: "doctor", revalidate: async () => ({ user: client.session?.user, role: "doctor", authorized: Boolean(client.session) }) }); hooks.flush();
   return { env, hooks, client, navigations, register, get cleanups() { return cleanups; }, navigate };
 }
+const providerChildren = hooks => hooks.result.props.children.props.children;
+const manualSignOut = hooks => hooks.result.props.children.props.value;
 const provider = await providerHarness();
 let finishLogout; const pendingLogout = new Promise(resolve => { finishLogout = resolve; });
 provider.client.auth.signOut = () => {
   check(providerRoot.props.ref.current.hidden && providerRoot.props.ref.current.inert, "protected DOM is blocked synchronously before SDK sign-out begins");
   return pendingLogout;
 };
-const providerRoot = provider.hooks.result.props.children[0]; providerRoot.props.ref.current = { hidden: false, inert: false };
+const providerRoot = providerChildren(provider.hooks)[0]; providerRoot.props.ref.current = { hidden: false, inert: false };
 provider.env.h.advance(840000); provider.hooks.flush();
-check(provider.hooks.result.props.children[2]?.props.secondsRemaining === 60, "actual provider renders 60-second warning");
-check(provider.hooks.result.props.children[0].props.inert, "warning makes background workspace inert without discarding unsaved form state");
+check(providerChildren(provider.hooks)[2]?.props.secondsRemaining === 60, "actual provider renders 60-second warning");
+check(providerChildren(provider.hooks)[0].props.inert, "warning makes background workspace inert without discarding unsaved form state");
 provider.env.document.emit("scroll", { isTrusted: true }); provider.hooks.flush();
-check(provider.hooks.result.props.children[2]?.type === "WarningDialog", "warning scroll cannot silently renew");
+check(providerChildren(provider.hooks)[2]?.type === "WarningDialog", "warning scroll cannot silently renew");
 provider.env.h.advance(60000); provider.hooks.flush();
-check(provider.hooks.result.props.children[0].props.children.type === "main", "expired provider unmounts protected children before sign-out resolves");
+check(providerChildren(provider.hooks)[0].props.children.type === "main", "expired provider unmounts protected children before sign-out resolves");
 check(providerRoot.props.ref.current.hidden === false, "blocked placeholder becomes visible after render, never old protected content");
 check(provider.navigations.length === 0, "pending real sign-out does not merely navigate away");
+check(manualSignOut(provider.hooks)() === manualSignOut(provider.hooks)(), "manual logout while expiry is pending shares the existing automatic sign-out lock");
 provider.client.emit("SIGNED_OUT", null); finishLogout({ error: null }); await settle(provider.hooks);
 check(provider.navigations.at(-1)?.to === "/login?reason=inactivity" && provider.navigations.at(-1).options.replace, "confirmed SDK sign-out redirects with replace to friendly inactivity state");
 provider.hooks.unmount();
 const back = await providerHarness();
 const restoreGate = deferred(); back.register({ userId: "synthetic-clinic", role: "doctor", revalidate: () => restoreGate.promise });
 back.env.window.emit("pagehide", { persisted: true }); back.env.window.emit("pageshow", { persisted: true }); back.hooks.flush();
-check(back.hooks.result.props.children[0].props.hidden, "BFCache restoration blocks cached workspace pending authoritative guard check");
+check(providerChildren(back.hooks)[0].props.hidden, "BFCache restoration blocks cached workspace pending authoritative guard check");
 restoreGate.resolve({ user: back.client.session.user, role: "doctor", authorized: true }); await settle(back.hooks);
-check(!back.hooks.result.props.children[0].props.hidden, "successful reauthorization restores valid workspace");
+check(!providerChildren(back.hooks)[0].props.hidden, "successful reauthorization restores valid workspace");
 back.client.emit("TOKEN_REFRESHED", session(undefined, undefined, { iat: 42 })); await settle(back.hooks);
 back.env.h.time += 900001; back.env.window.emit("pageshow", { persisted: true }); await settle(back.hooks);
-check(back.hooks.result.props.children[0].props.children !== "protected-child" || back.navigations.at(-1)?.to === "/login?reason=inactivity", "sleep/token refresh/Browser Back cannot grant a fresh deadline");
+check(providerChildren(back.hooks)[0].props.children !== "protected-child" || back.navigations.at(-1)?.to === "/login?reason=inactivity", "sleep/token refresh/Browser Back cannot grant a fresh deadline");
 back.hooks.unmount();
 
 
 const failingProvider = await providerHarness();
 failingProvider.client.auth.signOut = async () => ({ error: true });
 failingProvider.env.h.advance(900000); await settle(failingProvider.hooks);
-const failureContent = failingProvider.hooks.result.props.children[0].props.children;
+const failureContent = providerChildren(failingProvider.hooks)[0].props.children;
 check(failureContent.type === "main" && JSON.stringify(failureContent).includes("Retry sign out"), "actual provider retains blocked retry state if SDK fallback also fails");
 check(failingProvider.navigations.length === 0, "incomplete local logout cannot redirect into an auto-restored login session");
 failingProvider.hooks.unmount();
+
+// Doctor manual logout uses the same provider, fence and recovery as expiry.
+for (const kind of ['returned', 'rejected', 'live-session']) {
+  const manual = await providerHarness();
+  let calls = 0;
+  const gate = deferred();
+  manual.env.window.localStorage.setItem('unrelated-doctor-preference', 'keep');
+  const root = providerChildren(manual.hooks)[0];
+  root.props.ref.current = { hidden: false, inert: false };
+  manual.client.auth.signOut = async () => {
+    calls++;
+    if (calls === 1) check(root.props.ref.current.hidden && root.props.ref.current.inert, 'manual logout blocks DOM before signOut: ' + kind);
+    await gate.promise;
+    if (kind === 'rejected') throw Error('Synthetic offline');
+    return { error: kind === 'returned' ? new Error('Synthetic service failure') : null };
+  };
+  const request = manualSignOut(manual.hooks)();
+  check(request === manualSignOut(manual.hooks)(), 'rapid manual attempts share one promise: ' + kind);
+  manual.hooks.flush();
+  check(providerChildren(manual.hooks)[0].props.children.type === 'main', 'manual pending state unmounts protected content: ' + kind);
+  check(!providerChildren(manual.hooks)[2], 'manual pending state has no Stay Logged In warning: ' + kind);
+  check(manual.navigations.length === 0 && calls === 1, 'no early navigation or duplicate request: ' + kind);
+  gate.resolve(); await request; await settle(manual.hooks);
+  const failed = providerChildren(manual.hooks)[0].props.children;
+  check(JSON.stringify(failed).includes('Retry sign out') && JSON.stringify(failed).includes('workspace is blocked'), 'returned/rejected/live-session failure is blocked and retryable: ' + kind);
+  check(manual.navigations.length === 0 && Boolean(manual.client.session), 'failure never routes Login over a live session: ' + kind);
+  check(calls === (kind === 'live-session' ? 1 : 2), 'existing targeted SDK fallback reused: ' + kind);
+  manual.env.window.emit('pageshow', { persisted: true });
+  manual.env.window.emit('focus'); manual.env.document.emit('visibilitychange');
+  manual.env.document.emit('pointerdown', { isTrusted: true });
+  await settle(manual.hooks);
+  check(providerChildren(manual.hooks)[0].props.children.type === 'main' && manual.navigations.length === 0, 'wake/BFCache/activity cannot revive failed manual logout: ' + kind);
+  manual.client.auth.signOut = async () => { calls++; manual.client.emit('SIGNED_OUT', null); return { error: null }; };
+  const retry = failed.props.children[1].props.onClick();
+  await retry; await settle(manual.hooks);
+  check(manual.navigations.at(-1)?.to === '/login?logout=1' && manual.navigations.at(-1).options.replace, 'confirmed manual retry routes Login with replace: ' + kind);
+  check(!manual.client.session && manual.cleanups > 0, 'manual success clears existing clinic caches and confirms null session: ' + kind);
+  check(manual.env.window.localStorage.getItem('unrelated-doctor-preference') === 'keep', 'manual logout preserves unrelated storage: ' + kind);
+  manual.hooks.unmount();
+  check([...manual.env.window.listeners.values(), ...manual.env.document.listeners.values()].every(set => set.size === 0), 'manual provider removes lifecycle/activity listeners on unmount: ' + kind);
+}
+for (const failure of ['returned', 'rejected']) {
+  const manual = await providerHarness(); const options = [];
+  manual.env.window.localStorage.setItem('sb-synthetic-auth-token', JSON.stringify(session()));
+  manual.env.window.localStorage.setItem('unrelated-patient-state', 'keep');
+  manual.client.auth.signOut = async option => {
+    options.push(option);
+    if (option?.scope === 'local') { manual.client.emit('SIGNED_OUT', null); return { error: null }; }
+    if (failure === 'rejected') throw Error('Synthetic network failure');
+    return { error: true };
+  };
+  await manualSignOut(manual.hooks)(); await settle(manual.hooks);
+  check(options.length === 2 && options[1].scope === 'local' && !manual.client.session, 'manual '+failure+' error reuses confirmed local fallback');
+  check(manual.navigations.at(-1)?.to === '/login?logout=1', 'confirmed fallback may navigate after '+failure+' error');
+  check(manual.env.window.localStorage.getItem('sb-synthetic-auth-token') === null && manual.env.window.localStorage.getItem('unrelated-patient-state') === 'keep', 'manual fallback removes only matching SDK persistence: '+failure);
+  manual.hooks.unmount();
+}
+for (const abandon of ['replacement', 'unmount']) {
+  const manual = await providerHarness(); const gate = deferred(); let calls = 0;
+  manual.client.auth.signOut = () => { calls++; return gate.promise; };
+  const request = manualSignOut(manual.hooks)(); manual.hooks.flush();
+  if (abandon === 'replacement') {
+    manual.client.emit('SIGNED_IN', session('replacement-clinic', 'replacement-session'));
+    await Promise.all(manual.env.digests); await settle(manual.hooks);
+    manual.register({ userId: 'replacement-clinic', role: 'doctor', revalidate: async () => ({ user: manual.client.session.user, role: 'doctor', authorized: true }) });
+    manual.hooks.flush();
+  } else manual.hooks.unmount();
+  const before = manual.cleanups;
+  gate.resolve({ error: true }); await request; await settle();
+  check(calls === 1 && manual.cleanups === before && manual.navigations.length === 0, 'late logout cannot fallback/clear/navigate after ' + abandon);
+  if (abandon === 'replacement') {
+    manual.hooks.flush();
+    check(providerChildren(manual.hooks)[0].props.children === 'protected-child', 'new verified session does not inherit stale manual block');
+    manual.env.h.advance(840000); manual.hooks.flush();
+    check(providerChildren(manual.hooks)[2]?.props.secondsRemaining === 60, 'replacement session retains normal warning deadline');
+    manual.hooks.unmount();
+  }
+}
+{
+  const manual = await providerHarness(); let calls = 0;
+  const gate = deferred(); manual.client.auth.signOut = () => { calls++; return gate.promise; };
+  manual.env.h.advance(840000); manual.hooks.flush();
+  const stay = providerChildren(manual.hooks)[2].props.onStayLoggedIn;
+  const request = manualSignOut(manual.hooks)(); manual.hooks.flush(); stay();
+  manual.env.h.advance(60000); manual.env.window.emit('focus'); manual.hooks.flush();
+  check(calls === 1 && providerChildren(manual.hooks)[0].props.children.type === 'main', 'warning callback and original timeout cannot restart or duplicate manual logout');
+  manual.client.emit('SIGNED_OUT', null); gate.resolve({ error: null }); await request; await settle(manual.hooks);
+  check(manual.navigations.at(-1)?.to === '/login?logout=1', 'manual success from warning uses manual Login reason');
+  manual.hooks.unmount();
+}
+{
+  const manual = await providerHarness(); let calls = 0;
+  manual.client.auth.signOut = async () => { calls++; manual.client.emit('SIGNED_OUT', null); return { error: null }; };
+  manual.navigate('/patient/dashboard');
+  check(manualSignOut(manual.hooks)() === undefined && calls === 0, 'Doctor manual API is unavailable on Patient routes');
+  manual.navigate('/staff/dashboard');
+  check(manualSignOut(manual.hooks)() === undefined && calls === 0, 'Doctor manual API is unavailable on Staff routes');
+  manual.navigate('/doctor/dashboard'); manual.register({ userId: 'wrong-user', role: 'doctor', revalidate() {} }); manual.hooks.flush();
+  check(manualSignOut(manual.hooks)() === undefined && calls === 0, 'manual API rejects nonmatching verified user');
+  manual.register({ userId: 'synthetic-clinic', role: 'staff', revalidate() {} }); manual.hooks.flush();
+  check(manualSignOut(manual.hooks)() === undefined && calls === 0, 'manual API rejects non-Doctor verification');
+  manual.hooks.unmount();
+}
 
 // Verify the fallback against the installed SDK, with a synthetic HTTP adapter.
 const sdkStore = memoryStorage();
@@ -347,11 +453,11 @@ interactions.client.emit("SIGNED_IN", session("replacement-clinic", "replacement
 interactions.navigate("/doctor/dashboard", { replace: true });
 const unregister = interactions.register({ userId: "replacement-clinic", role: "doctor", revalidate: async () => ({ user: interactions.client.session.user, role: "doctor", authorized: true }) });
 interactions.hooks.flush();
-check(interactions.hooks.result.props.children[0].props.children === "protected-child", "new verified session may render after prior expiry without inheriting it");
+check(providerChildren(interactions.hooks)[0].props.children === "protected-child", "new verified session may render after prior expiry without inheriting it");
 interactions.env.h.advance(840000); interactions.hooks.flush();
-check(interactions.hooks.result.props.children[2]?.props.secondsRemaining === 60, "replacement login has a fresh 14-minute warning deadline");
+check(providerChildren(interactions.hooks)[2]?.props.secondsRemaining === 60, "replacement login has a fresh 14-minute warning deadline");
 unregister(); interactions.hooks.flush();
-check(!interactions.hooks.result.props.children[2], "authorization disappearance cancels warning");
+check(!providerChildren(interactions.hooks)[2], "authorization disappearance cancels warning");
 interactions.hooks.unmount();
 
 const cacheEnv = makeEnvironment();
@@ -435,7 +541,7 @@ check((app.match(/<RoleInactivityProvider>/g) || []).length === 1 && app.indexOf
 check(!app.slice(app.indexOf("function PatientRoute()"), app.indexOf("function StaffRoute()")).includes("useRoleInactivityIdentity"), "Patient workspace never registers inactivity identity");
 for (const role of ["doctor", "staff"]) {
   const path = role === "doctor" ? "src/pages/doctor/Doctor_Dashboard.jsx" : "src/pages/staff/StaffDashboard.jsx";
-  check((await source(path)).includes("await supabase.auth.signOut()"), role + " existing manual SDK logout retained");
+  check((await source(path)).includes(role === "doctor" ? "requestDoctorSignOut?.()" : "await supabase.auth.signOut()"), role + " manual logout retains its authorized controller");
 }
 check((await source("src/context/AdminAuthContext.jsx")).includes("await supabase.auth.signOut()"), "Admin manual SDK logout retained");
 for (const path of protectedForms) {

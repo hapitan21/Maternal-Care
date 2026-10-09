@@ -9,9 +9,11 @@ import {
 const doctorPersonalTable = "doctor_personal_information";
 const doctorProfessionalTable = "doctor_professional_information";
 
-function createDoctorIdentityError(message, code) {
+function createDoctorIdentityError(message, code, cause, status = cause?.status) {
   const error = new Error(message);
   error.code = code;
+  if (cause) error.cause = cause;
+  if (status !== undefined) error.status = status;
   return error;
 }
 
@@ -56,7 +58,8 @@ export async function loadAuthenticatedDoctor(authUserOverride = null) {
   if (authError) {
     throw createDoctorIdentityError(
       `Unable to load the authenticated Doctor: ${authError.message}`,
-      "doctor_auth_error"
+      "doctor_auth_error",
+      authError
     );
   }
 
@@ -67,7 +70,7 @@ export async function loadAuthenticatedDoctor(authUserOverride = null) {
     );
   }
 
-  let { data: profile, error: profileError } = await supabase
+  let { data: profile, error: profileError, status: profileStatus } = await supabase
     .from("profiles")
     .select("id, full_name, email, contact_number, role, account_status, avatar_url")
     .eq("id", authUser.id)
@@ -81,6 +84,7 @@ export async function loadAuthenticatedDoctor(authUserOverride = null) {
       .maybeSingle();
     profile = withoutAvatarResult.data;
     profileError = withoutAvatarResult.error;
+    profileStatus = withoutAvatarResult.status;
 
     if (profileError && isSchemaColumnError(profileError)) {
       const legacyResult = await supabase
@@ -90,13 +94,16 @@ export async function loadAuthenticatedDoctor(authUserOverride = null) {
         .maybeSingle();
       profile = legacyResult.data;
       profileError = legacyResult.error;
+      profileStatus = legacyResult.status;
     }
   }
 
   if (profileError) {
     throw createDoctorIdentityError(
       `Unable to load the Doctor profile: ${profileError.message}`,
-      "doctor_profile_query_error"
+      "doctor_profile_query_error",
+      profileError,
+      profileStatus
     );
   }
 
@@ -141,14 +148,18 @@ export async function loadAuthenticatedDoctor(authUserOverride = null) {
   if (personalResult.error) {
     throw createDoctorIdentityError(
       `Unable to load Doctor personal information: ${personalResult.error.message}`,
-      "doctor_personal_query_error"
+      "doctor_personal_query_error",
+      personalResult.error,
+      personalResult.status
     );
   }
 
   if (professionalResult.error) {
     throw createDoctorIdentityError(
       `Unable to load Doctor professional information: ${professionalResult.error.message}`,
-      "doctor_professional_query_error"
+      "doctor_professional_query_error",
+      professionalResult.error,
+      professionalResult.status
     );
   }
 
@@ -286,11 +297,14 @@ export function useAuthenticatedDoctor() {
       return resolveDoctorIdentity(currentAuthUser, { force: true });
     }
 
+    const requestId = requestIdRef.current;
     const { data, error: authError } = await supabase.auth.getUser();
+    if (!mountedRef.current || requestIdRef.current !== requestId) return null;
     if (authError) {
       const nextError = createDoctorIdentityError(
         `Unable to load the authenticated Doctor: ${authError.message}`,
-        "doctor_auth_error"
+        "doctor_auth_error",
+        authError
       );
       if (mountedRef.current) {
         setError(nextError);

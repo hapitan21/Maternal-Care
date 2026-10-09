@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { RoleInactivityContext } from "../../context/roleInactivityContext";
+import { DoctorSignOutContext, RoleInactivityContext } from "../../context/roleInactivityContext";
 import { supabase } from "../../lib/supabaseClient";
 import { clearClinicSessionCaches } from "../../lib/clinicSessionCleanup";
 import {
@@ -17,6 +17,9 @@ export default function RoleInactivityProvider({ children }) {
   const [view, setView] = useState({ phase: "disabled", secondsRemaining: 0 });
   const [restoring, setRestoring] = useState(false);
   const [logoutFailed, setLogoutFailed] = useState(false);
+  const [manualLogout, setManualLogout] = useState(false);
+  const logoutStatusRef = useRef(null);
+  const controllerMountedRef = useRef(false);
   const rootRef = useRef(null);
   const pathRef = useRef(pathname);
   const managerRef = useRef(null);
@@ -37,22 +40,26 @@ export default function RoleInactivityProvider({ children }) {
 
   const logoutExpired = useCallback(() => {
     const expired = expiredRef.current;
-    if (!expired || logoutRef.current) return;
+    if (!expired || logoutRef.current) return logoutRef.current;
     blockImmediately();
     setLogoutFailed(false);
+    const isCurrent = () => controllerMountedRef.current && expiredRef.current === expired &&
+      (authRef.current.identity === expired.identity || (!authRef.current.identity && !authRef.current.userId));
     const request = (async () => {
+      let storage;
+      try { storage = window.localStorage; } catch { /* Missing persistence keeps a failed logout blocked. */ }
       const locallySignedOut = await signOutExpiredClinicSession({
         auth: supabase.auth,
-        storage: window.localStorage,
+        storage,
         authStorageKey,
         identity: expired.identity,
-        isCurrent: () => expiredRef.current === expired && (authRef.current.identity === expired.identity || (!authRef.current.identity && !authRef.current.userId)),
-        cleanup: clearClinicSessionCaches,
+        isCurrent,
+        cleanup: () => { if (isCurrent()) clearClinicSessionCaches(); },
         warn: () => console.warn("Inactivity sign-out could not reach the server; removing the expired local session."),
       }).catch(() => false);
-      if (expiredRef.current !== expired) return;
+      if (!isCurrent()) return;
       if (locallySignedOut) {
-        navigate(INACTIVITY_LOGIN_PATH, { replace: true });
+        navigate(expired.reason === "manual" ? "/login?logout=1" : INACTIVITY_LOGIN_PATH, { replace: true });
       } else {
         setLogoutFailed(true);
         console.warn("Inactivity sign-out is incomplete. Protected access remains blocked.");
@@ -62,7 +69,33 @@ export default function RoleInactivityProvider({ children }) {
     void request.finally(() => {
       if (logoutRef.current === request) logoutRef.current = null;
     });
+    return request;
   }, [blockImmediately, navigate]);
+
+  const requestDoctorSignOut = useCallback(() => {
+    if (!/^\/doctor(?:\/|$)/.test(pathRef.current)) return undefined;
+    managerRef.current?.check();
+    if (expiredRef.current) return logoutExpired();
+    if (logoutRef.current) return logoutRef.current;
+    const auth = authRef.current;
+    const verified = verifiedRef.current;
+    if (!auth.identity || verified?.role !== "doctor" || verified.userId !== auth.userId) return undefined;
+
+    // Manual logout is terminal for this workspace too. Reuse the existing
+    // fence, lock, targeted cleanup, SDK fallback and blocked retry rendering.
+    expiredRef.current = { identity: auth.identity, reason: "manual" };
+    blockImmediately();
+    setRestoring(false);
+    setManualLogout(true);
+    managerRef.current?.stop();
+    setView({ phase: "expired", secondsRemaining: 0 });
+    clearClinicSessionCaches();
+    return logoutExpired();
+  }, [blockImmediately, logoutExpired]);
+
+  useEffect(() => {
+    if (manualLogout && view.phase === "expired") logoutStatusRef.current?.focus();
+  }, [manualLogout, view.phase, logoutFailed]);
 
   const activateVerified = useCallback(() => {
     const verified = verifiedRef.current;
@@ -116,6 +149,7 @@ export default function RoleInactivityProvider({ children }) {
   }, [blockImmediately]);
 
   useEffect(() => {
+    controllerMountedRef.current = true;
     let alive = true;
     let scrollIntentUntil = 0;
     let storage;
@@ -180,6 +214,7 @@ export default function RoleInactivityProvider({ children }) {
       // A replacement session cannot inherit an expired state or stale logout work.
       if (expiredRef.current && identity !== expiredRef.current.identity) {
         expiredRef.current = null;
+        setManualLogout(false);
         setLogoutFailed(false);
         setView({ phase: "disabled", secondsRemaining: 0 });
       }
@@ -245,6 +280,7 @@ export default function RoleInactivityProvider({ children }) {
     activateVerified();
     return () => {
       alive = false;
+      controllerMountedRef.current = false;
       manager.stop();
       managerRef.current = null;
       subscription.unsubscribe();
@@ -275,23 +311,27 @@ export default function RoleInactivityProvider({ children }) {
   const clinicPath = isClinicPath(pathname);
   return (
     <RoleInactivityContext.Provider value={register}>
-      <div ref={rootRef} hidden={clinicPath && restoring} inert={clinicPath && (restoring || view.phase === "warning") ? true : undefined}>
-        {clinicPath && view.phase === "expired" ? (
+      <DoctorSignOutContext.Provider value={requestDoctorSignOut}>
+        <div ref={rootRef} hidden={clinicPath && restoring} inert={clinicPath && (restoring || view.phase === "warning") ? true : undefined}>
+          {clinicPath && view.phase === "expired" ? (
+            <main ref={logoutStatusRef} className="inactivity-state" role="status" tabIndex={-1}>
+              <p>{manualLogout
+                ? logoutFailed ? "Unable to finish signing out. Your workspace is blocked. Please retry." : "Signing you out..."
+                : logoutFailed ? "Your session has expired. Please retry signing out." : "Your session has expired. Signing you out..."}</p>
+              {logoutFailed ? <button type="button" onClick={logoutExpired}>Retry sign out</button> : null}
+            </main>
+          ) : children}
+        </div>
+        {clinicPath && restoring && view.phase !== "expired" ? (
           <main className="inactivity-state" role="status">
-            <p>{logoutFailed ? "Your session has expired. Please retry signing out." : "Your session has expired. Signing you out..."}</p>
-            {logoutFailed ? <button type="button" onClick={logoutExpired}>Retry sign out</button> : null}
+            <p>Checking account access...</p>
+            <button type="button" onClick={restoreAuthorization}>Retry</button>
           </main>
-        ) : children}
-      </div>
-      {clinicPath && restoring && view.phase !== "expired" ? (
-        <main className="inactivity-state" role="status">
-          <p>Checking account access...</p>
-          <button type="button" onClick={restoreAuthorization}>Retry</button>
-        </main>
-      ) : null}
-      {clinicPath && !restoring && view.phase === "warning" ? (
-        <InactivityWarningDialog secondsRemaining={view.secondsRemaining} onStayLoggedIn={() => managerRef.current?.stayLoggedIn()} />
-      ) : null}
+        ) : null}
+        {clinicPath && !restoring && view.phase === "warning" ? (
+          <InactivityWarningDialog secondsRemaining={view.secondsRemaining} onStayLoggedIn={() => managerRef.current?.stayLoggedIn()} />
+        ) : null}
+      </DoctorSignOutContext.Provider>
     </RoleInactivityContext.Provider>
   );
 }

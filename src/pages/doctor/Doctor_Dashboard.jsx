@@ -1,9 +1,11 @@
 import { createDoctorSessionCache } from "../../lib/doctorSessionCache";
-import { lazy, startTransition, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, startTransition, Suspense, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
+import { isRetryableDoctorIdentityError, useDoctorIdentityRetry } from "../../hooks/useDoctorIdentityRetry";
+import { DoctorSignOutContext } from "../../context/roleInactivityContext";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import DashboardSessionActions from "../../components/doctor/DashboardSessionActions";
@@ -288,21 +290,22 @@ function ProfileDropdown({
   onViewProfile,
   onSettings,
   onLogout,
+  id,
 }) {
   return (
-    <div className="doctor-profile-dropdown" role="menu" aria-label="Doctor profile menu">
+    <div id={id} className="doctor-profile-dropdown" role="group" aria-label="Doctor account actions">
       <div className="doctor-dropdown-menu">
-        <button type="button" role="menuitem" onClick={onViewProfile}>
+        <button type="button" onClick={onViewProfile}>
           <Icon icon="solar:user-rounded-bold" aria-hidden="true" />
           <span>Profile</span>
         </button>
 
-        <button type="button" role="menuitem" onClick={onSettings}>
+        <button type="button" onClick={onSettings}>
           <Icon icon="solar:settings-bold" aria-hidden="true" />
           <span>Settings</span>
         </button>
 
-        <button type="button" role="menuitem" className="logout" onClick={onLogout}>
+        <button type="button" className="logout" onClick={onLogout}>
           <Icon icon="solar:logout-2-bold" aria-hidden="true" />
           <span>Log out</span>
         </button>
@@ -311,12 +314,19 @@ function ProfileDropdown({
   );
 }
 
-function ProfileCard({ setActivePage, profile, isLoading = false }) {
-  const navigate = useNavigate();
+function ProfileCard({ setActivePage, onLogout, focusRequestRef, profile, isLoading = false }) {
+  const dropdownId = useId();
   const dropdownRef = useRef(null);
   const triggerRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const initials = getInitials(profile.displayName || profile.roleLabel);
+
+  useEffect(() => {
+    if (focusRequestRef?.current) {
+      focusRequestRef.current = false;
+      triggerRef.current?.focus();
+    }
+  }, [focusRequestRef]);
 
   useEffect(() => {
     if (!isDropdownOpen) return undefined;
@@ -333,7 +343,8 @@ function ProfileCard({ setActivePage, profile, isLoading = false }) {
     function handleEscape(event) {
       if (event.key === "Escape") {
         setIsDropdownOpen(false);
-        window.requestAnimationFrame(() => triggerRef.current?.focus());
+        event.preventDefault();
+        triggerRef.current?.focus();
       }
     }
 
@@ -341,34 +352,34 @@ function ProfileCard({ setActivePage, profile, isLoading = false }) {
       setIsDropdownOpen(false);
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("pointerdown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
     window.addEventListener("doctor:close-profile-menu", handleCloseProfileMenu);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("pointerdown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
       window.removeEventListener("doctor:close-profile-menu", handleCloseProfileMenu);
     };
   }, [isDropdownOpen]);
 
-  const handleViewProfile = () => {
-    setActivePage("profile");
+  const navigateFromProfile = (page) => {
     setIsDropdownOpen(false);
+    triggerRef.current?.focus();
+    setActivePage(page);
   };
 
-  const handleSettings = () => {
-    setActivePage("settings");
+  const handleViewProfile = () => navigateFromProfile("profile");
+  const handleSettings = () => navigateFromProfile("settings");
+  const handleLogout = () => {
     setIsDropdownOpen(false);
-  };
-
-  const handleLogout = async () => {
-    setIsDropdownOpen(false);
-    await supabase.auth.signOut();
-    navigate("/");
+    return onLogout?.();
   };
 
   return (
-    <div className="doctor-profile-wrapper" ref={dropdownRef}>
+    <div className="doctor-profile-wrapper" ref={dropdownRef}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setIsDropdownOpen(false);
+      }}>
       <button
         ref={triggerRef}
         className={`doctor-profile-card ${isDropdownOpen ? "open" : ""}`}
@@ -376,7 +387,7 @@ function ProfileCard({ setActivePage, profile, isLoading = false }) {
         onClick={() => setIsDropdownOpen((prev) => !prev)}
         aria-label={isDropdownOpen ? "Close Doctor account menu" : "Open Doctor account menu"}
         aria-expanded={isDropdownOpen}
-        aria-haspopup="menu"
+        aria-controls={isDropdownOpen ? dropdownId : undefined}
         aria-busy={isLoading || undefined}
       >
         <div className="doctor-profile-avatar" aria-hidden={isLoading || undefined}>
@@ -413,6 +424,7 @@ function ProfileCard({ setActivePage, profile, isLoading = false }) {
 
       {isDropdownOpen && (
         <ProfileDropdown
+          id={dropdownId}
           onViewProfile={handleViewProfile}
           onSettings={handleSettings}
           onLogout={handleLogout}
@@ -422,16 +434,33 @@ function ProfileCard({ setActivePage, profile, isLoading = false }) {
   );
 }
 
-function DoctorHeaderControls({ setActivePage, profile, profileKey, isLoading }) {
+function DoctorHeaderControls({ setActivePage, onLogout, focusRequestRef, profile, profileKey, isLoading }) {
   return (
     <div className="doctor-shell-header-controls">
       <ProfileCard
         key={profileKey}
         setActivePage={setActivePage}
+        onLogout={onLogout}
+        focusRequestRef={focusRequestRef}
         profile={profile}
         isLoading={isLoading}
       />
     </div>
+  );
+}
+
+function DoctorIdentityRecovery({ error, retrying, onRetry }) {
+  const retryable = retrying || isRetryableDoctorIdentityError(error);
+  return (
+    <main className="inactivity-state" aria-busy={retrying || undefined}>
+      <p role={retrying ? "status" : "alert"}>{retrying
+        ? "Retrying your Doctor account..."
+        : retryable ? "Unable to load your Doctor account because of a connection or service problem. Please retry."
+          : "Your Doctor account access could not be verified. Please contact the administrator."}</p>
+      {retryable ? <button type="button" onClick={onRetry} disabled={retrying}>
+        {retrying ? "Retrying..." : "Retry Doctor account"}
+      </button> : null}
+    </main>
   );
 }
 
@@ -687,6 +716,9 @@ function Doctor_Dashboard() {
     getInitialDoctorPage(location.pathname, location.search)
   );
   const doctorIdentity = useAuthenticatedDoctor();
+  const identityRetry = useDoctorIdentityRetry(doctorIdentity);
+  const requestDoctorSignOut = useContext(DoctorSignOutContext);
+  const profileNavigationFocusRef = useRef(false);
   const [dashboardStats, setDashboardStats] = useState({
     totalPatients: 0,
     todaysAppointments: 0,
@@ -1019,6 +1051,12 @@ function Doctor_Dashboard() {
     });
   }, [location.pathname, location.search, navigate]);
 
+  const navigateProfilePage = useCallback((page) => {
+    profileNavigationFocusRef.current = page !== activePage ||
+      `${location.pathname}${location.search}` !== doctorPagePaths[page];
+    navigateDoctorPage(page);
+  }, [activePage, location.pathname, location.search, navigateDoctorPage]);
+
   useEffect(() => {
     const nextTarget = getMedicalRecordTargetFromSearch(location.search);
 
@@ -1070,8 +1108,7 @@ function Doctor_Dashboard() {
       }
 
       if (section === "logout") {
-        await supabase.auth.signOut();
-        navigate("/");
+        requestDoctorSignOut?.();
         return;
       }
 
@@ -1088,14 +1125,16 @@ function Doctor_Dashboard() {
     return () => {
       window.removeEventListener("doctor:navigate", handleDoctorNavigation);
     };
-  }, [navigate, navigateDoctorPage, openMedicalRecordTarget]);
+  }, [navigateDoctorPage, openMedicalRecordTarget, requestDoctorSignOut]);
 
   const renderContent = () => {
     const doctorPatientHeaderActions = (
       <div className="doctor-patient-header-actions">
         <DoctorHeaderControls
           profileKey={`medical-records-${location.pathname}-${location.search}`}
-          setActivePage={navigateDoctorPage}
+          setActivePage={navigateProfilePage}
+          onLogout={requestDoctorSignOut}
+          focusRequestRef={profileNavigationFocusRef}
           profile={profile}
           isLoading={doctorIdentity.loading}
         />
@@ -1205,6 +1244,14 @@ function Doctor_Dashboard() {
     );
   }
 
+  if (doctorIdentity.error || identityRetry.retrying || (!authenticatedDoctorId && identityRetry.retryError)) {
+    return <DoctorIdentityRecovery
+      error={doctorIdentity.error || identityRetry.retryError}
+      retrying={identityRetry.retrying}
+      onRetry={identityRetry.retry}
+    />;
+  }
+
   const activeNavigationPage =
     activePage === "medicalRecords" &&
     navItems.some((item) => item.key === medicalRecordTarget?.returnPage)
@@ -1247,7 +1294,9 @@ function Doctor_Dashboard() {
             <div className="doctor-patient-header-actions">
               <DoctorHeaderControls
                 profileKey={`${activePage}-${location.pathname}-${location.search}`}
-                setActivePage={navigateDoctorPage}
+                setActivePage={navigateProfilePage}
+                onLogout={requestDoctorSignOut}
+                focusRequestRef={profileNavigationFocusRef}
                 profile={profile}
                 isLoading={doctorIdentity.loading}
               />
