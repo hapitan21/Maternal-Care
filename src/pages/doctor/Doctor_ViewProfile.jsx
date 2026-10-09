@@ -443,6 +443,8 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
           </div>
 
           <ProfilePictureActions
+            key={profile.id}
+            expectedUserId={profile.id}
             avatarUrl={avatarUrl}
             disabled={doctorIdentity?.loading}
             onChange={(nextAvatarUrl) => setAvatarOverride(nextAvatarUrl)}

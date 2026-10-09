@@ -10,7 +10,19 @@ export default function ProfilePictureActions({
   avatarUrl = "",
   disabled = false,
   onChange,
+  expectedUserId = "",
 }) {
+  const mountedRef = useRef(false);
+  const abortRef = useRef(null);
+  const pendingRef = useRef(false);
+  const ownerRef = useRef(expectedUserId);
+  useEffect(() => {
+    mountedRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    ownerRef.current = expectedUserId;
+    return () => { mountedRef.current = false; controller.abort(); };
+  }, [expectedUserId]);
   const actionsRef = useRef(null);
   const inputRef = useRef(null);
   const triggerRef = useRef(null);
@@ -50,36 +62,33 @@ export default function ProfilePictureActions({
     inputRef.current?.click();
   };
 
-  const handleUpload = async (event) => {
+  const runPhotoAction = async (action) => {
+    if (pendingRef.current || disabled || !mountedRef.current) return;
+    pendingRef.current = true;
+    const owner = expectedUserId;
+    const isCurrent = () => mountedRef.current && ownerRef.current === owner;
+    try {
+      setBusyAction(action.type);
+      setMessage("");
+      setMenuOpen(false);
+      const result = await action.run({ expectedUserId: owner, isCurrent, signal: abortRef.current?.signal });
+      if (isCurrent()) onChange?.(result.displayUrl, result.storedValue);
+    } catch (error) {
+      if (isCurrent()) setMessage(error?.message || "Unable to update the photo.");
+    } finally {
+      pendingRef.current = false;
+      if (isCurrent()) setBusyAction("");
+    }
+  };
+
+  const handleUpload = event => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-
-    try {
-      setBusyAction("upload");
-      setMessage("");
-      const result = await uploadProfilePicture(file);
-      onChange?.(result.displayUrl, result.storedValue);
-    } catch (error) {
-      setMessage(error?.message || "Unable to upload the photo.");
-    } finally {
-      setBusyAction("");
-    }
+    return runPhotoAction({ type: "upload", run: options => uploadProfilePicture(file, options) });
   };
 
-  const handleRemove = async () => {
-    try {
-      setBusyAction("remove");
-      setMessage("");
-      setMenuOpen(false);
-      await removeProfilePicture();
-      onChange?.("", "");
-    } catch (error) {
-      setMessage(error?.message || "Unable to remove the photo.");
-    } finally {
-      setBusyAction("");
-    }
-  };
+  const handleRemove = () => runPhotoAction({ type: "remove", run: removeProfilePicture });
 
   return (
     <div className="profile-picture-actions" ref={actionsRef}>

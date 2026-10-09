@@ -1,5 +1,7 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { DoctorSignOutContext } from "../../context/roleInactivityContext";
+import { createAuthenticatedMutation, requireFullOtp } from "../../lib/authenticatedMutation";
+import { getLogicalSessionIdentity } from "../../lib/roleInactivity";
 
 import PasswordSecurityFeedback from "../../components/common/PasswordSecurityFeedback";
 import { supabase } from "../../lib/supabaseClient";
@@ -665,8 +667,6 @@ const settingsSections = [
 ];
 
 const OTP_COOLDOWN_SECONDS = 60;
-const AUTH_REQUEST_TIMEOUT_MS = 45000;
-const EMAIL_CHANGE_SEND_FALLBACK_MS = 6000;
 const SETTINGS_TOAST_DURATION_MS = 4000;
 const CHANGE_EMAIL_INITIAL_STATE = {
   isOpen: false,
@@ -710,42 +710,8 @@ function normalizeOtp(value) {
   return String(value ?? "").replace(/\D/g, "").slice(0, 6);
 }
 
-function withAuthTimeout(promise, label) {
-  let timeoutId;
-
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = window.setTimeout(() => {
-      reject(
-        new Error(
-          `${label} is taking longer than expected. Please try again.`
-        )
-      );
-    }, AUTH_REQUEST_TIMEOUT_MS);
-  });
-
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    window.clearTimeout(timeoutId);
-  });
-}
-
-function sendEmailChangeWithFallback(newEmail) {
-  let timeoutId;
-  const updatePromise = supabase.auth.updateUser({ email: newEmail });
-  const fallbackPromise = new Promise((resolve) => {
-    timeoutId = window.setTimeout(() => {
-      resolve({ data: null, error: null, didFallback: true });
-    }, EMAIL_CHANGE_SEND_FALLBACK_MS);
-  });
-
-  return Promise.race([updatePromise, fallbackPromise]).finally(() => {
-    window.clearTimeout(timeoutId);
-    updatePromise.catch((error) => {
-      console.warn("Late doctor email-change response failed:", error);
-    });
-  });
-}
-
 function getFriendlyAuthError(error) {
+  if (["invalid_otp", "auth_request_timeout", "request_pending", "mutation_cancelled"].includes(error?.code)) return error.message;
   const message = String(error?.message || "").toLowerCase();
   const status = error?.status;
 
@@ -791,17 +757,13 @@ function nullableText(value) {
   return cleanedValue || null;
 }
 
-async function getAuthenticatedDoctorUser() {
-  const authenticatedDoctor = await loadAuthenticatedDoctor();
-  return authenticatedDoctor.authUser;
-}
-
 async function saveDoctorInformationRecords(
   nextSettings,
-  suppliedUser = null
+  scope
 ) {
-  const authenticatedDoctor = await loadAuthenticatedDoctor();
-  const user = suppliedUser || authenticatedDoctor.authUser;
+  const user = await scope.getUser();
+  const authenticatedDoctor = await loadAuthenticatedDoctor(user);
+  await scope.check();
 
   if (user.id !== authenticatedDoctor.authUser.id) {
     throw new Error("The supplied account does not match the authenticated Doctor.");
@@ -858,7 +820,7 @@ async function saveDoctorInformationRecords(
   };
 
   const [personalResult, professionalResult] = await Promise.all([
-    supabase
+    scope.client
       .from(DOCTOR_PERSONAL_INFORMATION_TABLE)
       .upsert(personalPayload, {
         onConflict: "auth_user_id",
@@ -866,7 +828,7 @@ async function saveDoctorInformationRecords(
       .select("id, auth_user_id")
       .single(),
 
-    supabase
+    scope.client
       .from(DOCTOR_PROFESSIONAL_INFORMATION_TABLE)
       .upsert(professionalPayload, {
         onConflict: "auth_user_id",
@@ -874,6 +836,8 @@ async function saveDoctorInformationRecords(
       .select("id, auth_user_id")
       .single(),
   ]);
+
+  await scope.check();
 
   if (personalResult.error) {
     throw new Error(
@@ -890,7 +854,7 @@ async function saveDoctorInformationRecords(
   // Keep the shared profile values synchronized for the dashboard header
   // and other Doctor pages. The two doctor information tables remain the
   // source used by this Settings page.
-  const { error: sharedProfileError } = await supabase
+  const { error: sharedProfileError } = await scope.client
     .from("profiles")
     .update({
       full_name: personalPayload.full_name,
@@ -898,9 +862,13 @@ async function saveDoctorInformationRecords(
     })
     .eq("id", user.id);
 
-  const { error: sharedEmailError } = await supabase.rpc(
+  await scope.check();
+
+  const { error: sharedEmailError } = await scope.client.rpc(
     "sync_current_profile_email"
   );
+
+  await scope.check();
 
   if (sharedProfileError || sharedEmailError) {
     console.warn(
@@ -913,7 +881,7 @@ async function saveDoctorInformationRecords(
 }
 
 function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
-  const navigate = useNavigate();
+  const requestDoctorSignOut = React.useContext(DoctorSignOutContext);
   const [activePanel, setActivePanel] = React.useState("profile");
   const [editingProfileCards, setEditingProfileCards] = React.useState({
     personal: false,
@@ -950,6 +918,76 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   );
   const toastTimerRef = React.useRef(null);
   const toastVersionRef = React.useRef(0);
+  const mountedRef = React.useRef(false);
+  const abortRef = React.useRef(null);
+  const mutationOwnerRef = React.useRef(null);
+  const operationRef = React.useRef(null);
+  const scopesRef = React.useRef(new Set());
+  const emailFlowRef = React.useRef(null);
+  const passwordFlowRef = React.useRef(null);
+  const deferredTimersRef = React.useRef(new Set());
+  const [authRevision, setAuthRevision] = React.useState(0);
+
+  const runSecurityAction = async (action, onError, owner = mutationOwnerRef.current) => {
+    if (operationRef.current || !owner || !mountedRef.current) return;
+    const operation = {};
+    operationRef.current = operation;
+    let scope;
+    const isCurrent = () => mountedRef.current && mutationOwnerRef.current === owner;
+    try {
+      scope = await createAuthenticatedMutation(supabase, {
+        signal: abortRef.current?.signal,
+        expectedUserId: owner.userId, expectedIdentity: owner.identity, isCurrent,
+      });
+      scopesRef.current.add(scope);
+      await action(scope);
+    } catch (error) {
+      operation.timedOut = error.code === "auth_request_timeout";
+      if (isCurrent()) onError(error);
+    } finally {
+      if (isCurrent()) setIsSaving(false);
+      const release = () => {
+        scope?.dispose();
+        scopesRef.current.delete(scope);
+        if (operationRef.current === operation) operationRef.current = null;
+      };
+      if (scope) void scope.whenIdle().then(release);
+      else release();
+    }
+  };
+
+  React.useEffect(() => {
+    mountedRef.current = true;
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+    const scopes = scopesRef.current;
+    const deferredTimers = deferredTimersRef.current;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const owner = mutationOwnerRef.current;
+      if (owner && getLogicalSessionIdentity(session) !== owner.identity) {
+        mutationOwnerRef.current = null;
+        emailFlowRef.current = null;
+        passwordFlowRef.current = null;
+        for (const scope of scopesRef.current) scope.dispose();
+        setSettings(defaultDoctorSettings);
+        setEditingProfileCards({ personal: false, professional: false });
+        setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        setChangeEmailState(CHANGE_EMAIL_INITIAL_STATE);
+        setChangePasswordOtp(CHANGE_PASSWORD_INITIAL_STATE);
+        setIsSaving(false);
+        setIsLoading(true);
+        setAuthRevision(current => current + 1);
+      }
+    });
+    return () => {
+      mountedRef.current = false;
+      abortController.abort();
+      subscription.unsubscribe();
+      for (const scope of scopes) scope.dispose();
+      for (const timer of deferredTimers) window.clearTimeout(timer);
+      deferredTimers.clear();
+    };
+  }, []);
   const identityUnavailable = Boolean(
     doctorIdentity?.loading || doctorIdentity?.error
   );
@@ -1006,38 +1044,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
   }, []);
 
   React.useEffect(() => {
-    if (
-      doctorIdentity?.loading ||
-      doctorIdentity?.error ||
-      !doctorIdentity?.authUser?.id
-    ) {
-      return;
-    }
-
-    setSettings((current) => {
-      const alreadyHasResolvedProfileData = Boolean(
-        current.displayName ||
-        current.email ||
-        current.doctorId ||
-        current.licenseNumber ||
-        current.boardCertification ||
-        current.clinicName ||
-        current.contactNumber
-      );
-
-      if (alreadyHasResolvedProfileData) {
-        return current;
-      }
-
-      return createDoctorSettingsSnapshot(
-        doctorIdentity,
-        current.availability
-      );
-    });
-  }, [doctorIdentity]);
-
-  React.useEffect(() => {
     let isCancelled = false;
+    let loadScope;
 
     const loadSettings = async () => {
       setIsLoading(true);
@@ -1047,7 +1055,14 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       let authenticatedDoctor;
 
       try {
-        authenticatedDoctor = await loadAuthenticatedDoctor();
+        loadScope = await createAuthenticatedMutation(supabase, {
+          signal: abortRef.current?.signal,
+          expectedUserId: doctorIdentity?.authUser?.id || "",
+          isCurrent: () => !isCancelled && mountedRef.current,
+        });
+        const user = await loadScope.getUser();
+        authenticatedDoctor = await loadAuthenticatedDoctor(user);
+        await loadScope.check();
       } catch {
         if (!isCancelled) {
           setIsLoading(false);
@@ -1076,8 +1091,9 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       );
 
       const user = authenticatedDoctor.authUser;
+      mutationOwnerRef.current = { userId: user.id, identity: loadScope.identity };
 
-      const availabilityResult = await supabase
+      const availabilityResult = await loadScope.client
         .from("user_availability")
         .select(
           "day_of_week, start_time, end_time, is_available"
@@ -1088,6 +1104,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       if (isCancelled) {
         return;
       }
+
+      await loadScope.check();
 
       const loadedAvailability = mapAvailabilityRows(
         availabilityResult.data
@@ -1110,12 +1128,18 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
       }
     };
 
-    loadSettings();
+    void loadSettings().catch(() => {
+      if (!isCancelled) {
+        setIsLoading(false);
+        setMessage("Doctor settings could not be loaded. Please refresh and try again.");
+      }
+    }).finally(() => loadScope?.dispose());
 
     return () => {
       isCancelled = true;
+      loadScope?.dispose();
     };
-  }, []);
+  }, [doctorIdentity?.authUser?.id, authRevision]);
 
   React.useEffect(() => {
     if (!changeEmailState.isOpen) {
@@ -1148,93 +1172,16 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     return () => window.clearInterval(timer);
   }, [changePasswordOtp.isOpen]);
 
-  const redirectToLoginAfterEmailChange = React.useCallback(() => {
-    window.setTimeout(async () => {
-      try {
-        await withAuthTimeout(supabase.auth.signOut(), "Sign out");
-      } catch (error) {
-        console.error("Sign out after doctor email change failed:", error);
-      } finally {
-        navigate("/login?emailChanged=1", { replace: true });
-      }
-    }, 300);
-  }, [navigate]);
-
-  const redirectToLoginAfterPasswordChange = React.useCallback(() => {
-    window.setTimeout(async () => {
-      try {
-        await withAuthTimeout(supabase.auth.signOut(), "Sign out");
-      } catch (error) {
-        console.error("Sign out after doctor password change failed:", error);
-      } finally {
-        navigate("/login?logout=1", { replace: true });
-      }
-    }, 1200);
-  }, [navigate]);
-
-  React.useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event !== "USER_UPDATED") {
-        return;
-      }
-
-      const confirmedEmail = normalizeEmail(session?.user?.email);
-      const pendingEmail = normalizeEmail(changeEmailState.pendingEmail);
-
-      if (
-        !confirmedEmail ||
-        !changeEmailState.isOpen ||
-        !pendingEmail ||
-        confirmedEmail !== pendingEmail
-      ) {
-        return;
-      }
-
-      setChangeEmailState((current) => ({
-        ...current,
-        step: "complete",
-        isLoading: false,
-        error: "",
-        success: "Email changed successfully.",
-        currentEmailVerified: true,
-        newEmailVerified: true,
-      }));
-
-      const nextSettings = {
-        ...settings,
-        email: confirmedEmail,
-        emailVerification: "Verified",
-      };
-
-      window.setTimeout(async () => {
-        const profileError = await syncProfileRecord(
-          nextSettings,
-          session?.user || null
-        );
-
-        if (profileError) {
-          setMessage(
-            "The login email changed, but the Doctor profile could not be synchronized."
-          );
-          return;
-        }
-
-        setSettings(nextSettings);
-        notifyDoctorProfileUpdated();
-        showToast("success", "Account information updated successfully.");
-        redirectToLoginAfterEmailChange();
-      }, 0);
-    });
-
-    return () => data.subscription.unsubscribe();
-  }, [
-    changeEmailState.isOpen,
-    changeEmailState.pendingEmail,
-    redirectToLoginAfterEmailChange,
-    notifyDoctorProfileUpdated,
-    showToast,
-    settings,
-  ]);
+  const finishCredentialChange = async (scope) => {
+    await scope.check();
+    if (!requestDoctorSignOut) throw new Error("Secure sign-out is unavailable. Please use the Doctor account Log out action.");
+    // The provider owns navigation, session confirmation, blocking and retry.
+    // No delayed redirect may survive unmount or account replacement.
+    scope.assertCurrent();
+    const request = requestDoctorSignOut();
+    if (!request) throw new Error("Secure sign-out could not start. Please use the Doctor account Log out action.");
+    await request;
+  };
 
   const updateSetting = (field, value) => {
     setSettings((current) => ({
@@ -1244,119 +1191,35 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     setMessage("");
   };
 
-  const syncProfileRecord = async (
-    nextSettings,
-    suppliedUser = null
-  ) => {
-    try {
-      await saveDoctorInformationRecords(
-        nextSettings,
-        suppliedUser
-      );
-      return null;
-    } catch (error) {
-      return error;
-    }
-  };
+  const syncProfileRecord = (nextSettings, scope) =>
+    saveDoctorInformationRecords(nextSettings, scope);
 
-  const saveProfileSettings = async (event) => {
-    event.preventDefault();
+  const persistSettings = (kind, card = null) => runSecurityAction(async (scope) => {
     setIsSaving(true);
     setMessage("");
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setIsSaving(false);
-      showToast("error", "Your account could not be verified. Please try again.");
-      return;
-    }
-
+    const user = await scope.getUser();
     if (normalizeEmail(settings.email) !== normalizeEmail(user.email)) {
-      setIsSaving(false);
       setMessage("Use Account > Change Email to update your login email with OTP verification.");
       return;
     }
-
     const nextSettings = {
       ...settings,
-      displayName:
-        settings.displayName.trim() ||
-        doctorIdentity?.doctorDisplayName ||
-        "Doctor",
-      email:
-        normalizeEmail(user.email) ||
-        defaultDoctorSettings.email,
-      yearsExperience:
-        formatYearsExperience(
-          parseYearsExperience(settings.yearsExperience)
-        ) || defaultDoctorSettings.yearsExperience,
+      displayName: kind === "Account" ? settings.displayName : settings.displayName.trim() || doctorIdentity?.doctorDisplayName || "Doctor",
+      email: normalizeEmail(user.email),
+      contactNumber: settings.contactNumber.trim(),
+      yearsExperience: kind === "Account" ? settings.yearsExperience : formatYearsExperience(parseYearsExperience(settings.yearsExperience)),
     };
-
-    const profileError = await syncProfileRecord(nextSettings);
-
-    setIsSaving(false);
-
-    if (profileError) {
-      showToast("error", "Profile information could not be updated. Please try again.");
-      return;
-    }
-
+    await syncProfileRecord(nextSettings, scope);
+    await scope.check();
     setSettings(nextSettings);
     notifyDoctorProfileUpdated();
-    setEditingProfileCards({
-      personal: false,
-      professional: false,
-    });
-    showToast("success", "Profile updated successfully.");
-  };
+    if (card) setEditingProfileCards(current => ({ ...current, [card]: false }));
+    else if (kind === "Profile") setEditingProfileCards({ personal: false, professional: false });
+    showToast("success", kind + " information updated successfully.");
+  }, () => showToast("error", kind + " information could not be updated. Please try again."));
 
-  const saveAccountSettings = async (event) => {
-    event.preventDefault();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      showToast("error", "Your account could not be verified. Please try again.");
-      return;
-    }
-
-    if (normalizeEmail(settings.email) !== normalizeEmail(user.email)) {
-      setMessage("Use Change Email to update your login email with OTP verification.");
-      return;
-    }
-
-    const nextSettings = {
-      ...settings,
-      email:
-        normalizeEmail(user.email) ||
-        defaultDoctorSettings.email,
-      contactNumber:
-        settings.contactNumber.trim() ||
-        defaultDoctorSettings.contactNumber,
-    };
-
-    setIsSaving(true);
-    setMessage("");
-
-    const profileError = await syncProfileRecord(nextSettings);
-
-    setIsSaving(false);
-
-    if (profileError) {
-      showToast("error", "Account information could not be updated. Please try again.");
-      return;
-    }
-
-    setSettings(nextSettings);
-    notifyDoctorProfileUpdated();
-    showToast("success", "Account information updated successfully.");
-  };
+  const saveProfileSettings = (event) => { event.preventDefault(); return persistSettings("Profile"); };
+  const saveAccountSettings = (event) => { event.preventDefault(); return persistSettings("Account"); };
 
   const setChangeEmailField = (field, value) => {
     setChangeEmailState((current) => ({
@@ -1376,517 +1239,178 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     }));
   };
 
-  const changeEmail = async () => {
-    setMessage("");
-
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
-
-    if (error || !user) {
-      showToast("error", "Your account could not be verified. Please try again.");
-      return;
-    }
-
-    setChangeEmailState({
-      ...CHANGE_EMAIL_INITIAL_STATE,
-      isOpen: true,
-      currentEmail: normalizeEmail(user.email),
-      newEmail: normalizeEmail(settings.email),
-    });
-  };
+  const changeEmail = () => runSecurityAction(async scope => {
+    const user = await scope.getUser();
+    emailFlowRef.current = null;
+    setChangeEmailState({ ...CHANGE_EMAIL_INITIAL_STATE, isOpen: true,
+      currentEmail: normalizeEmail(user.email), newEmail: normalizeEmail(settings.email) });
+  }, error => showToast("error", getFriendlyAuthError(error)));
 
   const closeChangeEmailModal = () => {
-    if (changeEmailState.isLoading) {
-      return;
-    }
-
+    if (changeEmailState.isLoading || (operationRef.current && !operationRef.current.timedOut)) return;
+    emailFlowRef.current = null;
     setChangeEmailState(CHANGE_EMAIL_INITIAL_STATE);
   };
 
-  const requestEmailChangeOtp = async (event) => {
-    event?.preventDefault();
-
-    setChangeEmailState((current) => ({
-      ...current,
-      step: "details",
-      isLoading: true,
-      error: "",
-      success: "",
-      currentEmailOtp: "",
-      newEmailOtp: "",
-      currentEmailVerified: false,
-      newEmailVerified: false,
-    }));
-
+  const completeEmailChange = async (scope, pendingEmail) => {
+    const user = await scope.getUser();
+    if (normalizeEmail(user.email) !== pendingEmail) return false;
+    const nextSettings = { ...settings, email: normalizeEmail(user.email), emailVerification: user.email_confirmed_at ? "Verified" : "Pending" };
+    // Never copy unverified addresses into profile tables or announce success.
     try {
-      const {
-        data: { user },
-        error,
-      } = await withAuthTimeout(supabase.auth.getUser(), "Account lookup");
+      await syncProfileRecord(nextSettings, scope);
+    } catch (error) {
+      scope.assertCurrent();
+      if (error.code === "mutation_cancelled") throw error;
+      setMessage("The login email changed, but the Doctor profile could not be synchronized.");
+    }
+    await scope.check();
+    emailFlowRef.current = null;
+    setSettings(nextSettings);
+    notifyDoctorProfileUpdated();
+    setChangeEmailState(current => ({ ...current, step: "complete", isLoading: true,
+      currentPassword: "", currentEmailOtp: "", newEmailOtp: "", error: "",
+      success: "Email changed successfully. Signing you out now.", newEmailVerified: true }));
+    await finishCredentialChange(scope);
+    return true;
+  };
 
-      if (error || !user) {
-        throw error || new Error("No authenticated account was found.");
-      }
+  const emailError = error => setChangeEmailState(current => ({
+    ...current, currentPassword: "", isLoading: false, error: getFriendlyAuthError(error), success: "",
+  }));
 
+  const requestEmailChangeOtp = event => {
+    event?.preventDefault();
+    return runSecurityAction(async scope => {
+      setChangeEmailState(current => ({ ...current, isLoading: true, error: "", success: "" }));
+      const user = await scope.getUser();
       const currentEmail = normalizeEmail(user.email);
       const newEmail = normalizeEmail(changeEmailState.newEmail);
-
-      if (!currentEmail) {
-        throw new Error("The current doctor account does not have a login email.");
-      }
-
-      if (!changeEmailState.currentPassword) {
-        throw new Error("Enter your current password.");
-      }
-
-      if (!isValidEmail(newEmail)) {
-        throw new Error("Enter a valid new email address.");
-      }
-
-      if (newEmail === currentEmail) {
-        throw new Error("The new email is the same as your current login email.");
-      }
-
-      const { error: verifyPasswordError } = await withAuthTimeout(
-        supabase.auth.signInWithPassword({
-          email: currentEmail,
-          password: changeEmailState.currentPassword,
-        }),
-        "Password verification"
-      );
-
-      if (verifyPasswordError) {
-        throw verifyPasswordError;
-      }
-
-      const { error: updateEmailError, didFallback } =
-        await sendEmailChangeWithFallback(newEmail);
-
-      if (updateEmailError) {
-        throw updateEmailError;
-      }
-
-      setChangeEmailState((current) => ({
-        ...current,
-        step: "currentOtp",
-        currentEmail,
-        pendingEmail: newEmail,
-        currentPassword: "",
-        isLoading: false,
-        error: "",
-        success: didFallback
-          ? "OTP request sent. Check the 6-digit code sent to your current email first."
-          : "OTP sent. Check the 6-digit code sent to your current email first.",
-        currentOtpCooldown: OTP_COOLDOWN_SECONDS,
-        newOtpCooldown: OTP_COOLDOWN_SECONDS,
-      }));
-    } catch (error) {
-      console.error("Doctor email change request failed:", error);
-
-      setChangeEmailState((current) => ({
-        ...current,
-        step: "details",
-        isLoading: false,
-        error: getFriendlyAuthError(error),
-      }));
-    }
+      if (!changeEmailState.currentPassword) throw new Error("Enter your current password.");
+      if (!isValidEmail(newEmail) || newEmail === currentEmail) throw new Error("Enter a different valid email address.");
+      await scope.authRequest("signInWithPassword", [{ email: currentEmail, password: changeEmailState.currentPassword }], "Password verification");
+      emailFlowRef.current = { owner: mutationOwnerRef.current, pendingEmail: newEmail };
+      await scope.authRequest("updateUser", [{ email: newEmail }], "Email change request");
+      if (await completeEmailChange(scope, newEmail)) return;
+      setChangeEmailState(current => ({ ...current, step: "currentOtp", currentEmail,
+        pendingEmail: newEmail, currentPassword: "", currentEmailOtp: "", newEmailOtp: "",
+        currentEmailVerified: false, newEmailVerified: false, isLoading: false, error: "",
+        success: "Email change requested. Check your email for the confirmation codes or links.",
+        currentOtpCooldown: OTP_COOLDOWN_SECONDS, newOtpCooldown: OTP_COOLDOWN_SECONDS }));
+    }, emailError);
   };
 
-  const verifyEmailChangeOtp = async (target) => {
-    const isCurrentEmailStep = target === "current";
-    const pendingEmail = normalizeEmail(changeEmailState.pendingEmail);
-    const token = normalizeOtp(
-      isCurrentEmailStep
-        ? changeEmailState.currentEmailOtp
-        : changeEmailState.newEmailOtp
-    );
-
-    if (!token) {
-      setChangeEmailState((current) => ({
-        ...current,
-        error: "Enter the OTP code first.",
-        success: "",
-      }));
-      return;
-    }
-
-    if (isCurrentEmailStep) {
-      setChangeEmailState((current) => ({
-        ...current,
-        step: "newOtp",
-        isLoading: false,
-        currentEmailVerified: true,
-        currentEmailOtp: "",
-        error: "",
-        success: "Current email code accepted. Now enter the 6-digit code sent to the new email.",
-      }));
-      return;
-    }
-
-    setChangeEmailState((current) => ({
-      ...current,
-      isLoading: true,
-      error: "",
-      success: "",
-    }));
-
-    try {
-      if (!pendingEmail) {
-        throw new Error("The new email was not found. Please start the email change again.");
-      }
-
-      const { data: verifyData, error: verifyError } = await withAuthTimeout(
-        supabase.auth.verifyOtp({
-          email: pendingEmail,
-          token,
-          type: "email_change",
-        }),
-        "New email OTP verification"
-      );
-
-      if (verifyError) {
-        throw verifyError;
-      }
-
-      const confirmedEmail = pendingEmail;
-      const nextSettings = {
-        ...settings,
-        email: confirmedEmail,
-        emailVerification: "Verified",
-      };
-      const confirmedUser =
-        verifyData?.user ||
-        verifyData?.session?.user ||
-        (await getAuthenticatedDoctorUser());
-
-      const profileError = await syncProfileRecord(
-        nextSettings,
-        confirmedUser
-      );
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      setSettings(nextSettings);
-      notifyDoctorProfileUpdated();
-      showToast("success", "Account information updated successfully.");
-      setChangeEmailState((current) => ({
-        ...current,
-        step: "complete",
-        isLoading: false,
-        error: "",
-        success: "Email changed successfully.",
-        newEmailVerified: true,
-        newEmailOtp: "",
-      }));
-      redirectToLoginAfterEmailChange();
-    } catch (error) {
-      console.error("Doctor email change OTP verification failed:", error);
-
-      setChangeEmailState((current) => ({
-        ...current,
-        isLoading: false,
-        error: getFriendlyAuthError(error),
-      }));
-    }
+  const verifyEmailChangeOtp = target => {
+    if (!["current", "new"].includes(target) || !emailFlowRef.current) return;
+    const flow = emailFlowRef.current;
+    return runSecurityAction(async scope => {
+      const isCurrentEmailStep = target === "current";
+      const token = requireFullOtp(isCurrentEmailStep ? changeEmailState.currentEmailOtp : changeEmailState.newEmailOtp);
+      const email = normalizeEmail(isCurrentEmailStep ? changeEmailState.currentEmail : flow.pendingEmail);
+      setChangeEmailState(current => ({ ...current, isLoading: true, error: "", success: "" }));
+      if (await completeEmailChange(scope, flow.pendingEmail)) return;
+      // Auth supports email_change for both addresses; there is no client-only
+      // acceptance or invented email_change_current challenge type.
+      await scope.authRequest("verifyOtp", [{ email, token, type: "email_change" }], "Email OTP verification");
+      if (await completeEmailChange(scope, flow.pendingEmail)) return;
+      setChangeEmailState(current => ({ ...current, step: isCurrentEmailStep ? "newOtp" : "currentOtp",
+        currentEmailVerified: isCurrentEmailStep || current.currentEmailVerified,
+        currentEmailOtp: isCurrentEmailStep ? "" : current.currentEmailOtp,
+        newEmailOtp: isCurrentEmailStep ? current.newEmailOtp : "", isLoading: false, error: "",
+        success: "Code verified by Auth. Confirm the other email to finish the change." }));
+    }, emailError, flow.owner);
   };
 
-  const resendEmailChangeOtp = async (target) => {
-    const isCurrentEmailStep = target === "current";
-    const cooldownField = isCurrentEmailStep
-      ? "currentOtpCooldown"
-      : "newOtpCooldown";
-    const email = isCurrentEmailStep
-      ? normalizeEmail(changeEmailState.currentEmail)
-      : normalizeEmail(changeEmailState.pendingEmail);
-
-    if (changeEmailState[cooldownField] > 0) {
-      return;
-    }
-
-    setChangeEmailState((current) => ({
-      ...current,
-      isLoading: true,
-      error: "",
-      success: "",
-    }));
-
-    try {
-      const { error } = await withAuthTimeout(
-        supabase.auth.resend({
-          type: "email_change",
-          email,
-        }),
-        "Resending OTP"
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      setChangeEmailState((current) => ({
-        ...current,
-        isLoading: false,
-        error: "",
-        success: `OTP resent to ${isCurrentEmailStep ? "current email" : "new email"}.`,
-        [cooldownField]: OTP_COOLDOWN_SECONDS,
-      }));
-    } catch (error) {
-      console.error("Doctor email change OTP resend failed:", error);
-
-      setChangeEmailState((current) => ({
-        ...current,
-        isLoading: false,
-        error: getFriendlyAuthError(error),
-      }));
-    }
+  const resendEmailChangeOtp = target => {
+    const flow = emailFlowRef.current;
+    const cooldownField = target === "current" ? "currentOtpCooldown" : "newOtpCooldown";
+    if (!flow || changeEmailState[cooldownField] > 0) return;
+    return runSecurityAction(async scope => {
+      setChangeEmailState(current => ({ ...current, isLoading: true, error: "", success: "" }));
+      // Supabase resend identifies the pending new address and may resend both
+      // challenges. Do not claim a particular old challenge remains verified.
+      await scope.authRequest("resend", [{ type: "email_change", email: flow.pendingEmail }], "Resending email confirmation");
+      setChangeEmailState(current => ({ ...current, step: "currentOtp", currentEmailVerified: false,
+        currentEmailOtp: "", newEmailOtp: "", isLoading: false,
+        success: "Email confirmation requested again. Use the newest codes or links.",
+        currentOtpCooldown: OTP_COOLDOWN_SECONDS, newOtpCooldown: OTP_COOLDOWN_SECONDS }));
+    }, emailError, flow.owner);
   };
 
-  const handlePasswordSubmit = async (event) => {
+  React.useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const flow = emailFlowRef.current;
+      if (!["USER_UPDATED", "TOKEN_REFRESHED"].includes(event) || !flow ||
+          session?.user?.id !== flow.owner.userId || normalizeEmail(session.user.email) !== flow.pendingEmail) return;
+      const timer = window.setTimeout(() => {
+        deferredTimersRef.current.delete(timer);
+        if (emailFlowRef.current !== flow) return;
+        void runSecurityAction(scope => completeEmailChange(scope, flow.pendingEmail), emailError, flow.owner);
+      }, 0);
+      deferredTimersRef.current.add(timer);
+    });
+    return () => subscription.unsubscribe();
+  });
+
+  const passwordError = error => {
+    setChangePasswordOtp(current => ({ ...current, isLoading: false, loadingLabel: "", success: "", error: getFriendlyAuthError(error) }));
+    showToast("error", getFriendlyAuthError(error));
+  };
+
+  const handlePasswordSubmit = event => {
     event.preventDefault();
     setPasswordFieldError("");
-
-    if (
-      !passwordForm.currentPassword ||
-      !passwordForm.newPassword ||
-      !passwordForm.confirmPassword
-    ) {
-      setMessage("Complete all password fields.");
+    if (!passwordFormValid) {
+      setMessage(!passwordResult.valid ? getPasswordValidationMessage(passwordForm.newPassword) : "Complete the password fields with matching passwords.");
       return;
     }
-
-    if (!passwordResult.valid) {
-      setMessage(getPasswordValidationMessage(passwordForm.newPassword));
-      return;
-    }
-
-    if (!passwordMatch) {
-      setMessage(
-        "New password and confirmation do not match."
-      );
-      return;
-    }
-
-    setIsSaving(true);
-    setMessage("");
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setIsSaving(false);
-      showToast("error", "Your account could not be verified. Please try again.");
-      return;
-    }
-
-    if (user.email) {
-      const { error: signInError } =
-        await withAuthTimeout(
-          supabase.auth.signInWithPassword({
-            email: user.email,
-            password: passwordForm.currentPassword,
-          }),
-          "Password verification"
-        );
-
-      if (signInError) {
-        setIsSaving(false);
-        setPasswordFieldError("Current password is incorrect.");
-        return;
-      }
-    }
-
-    const passwordRedirectTo =
-      typeof window === "undefined"
-        ? undefined
-        : new URL("/doctor/settings", window.location.origin).toString();
-
-    const { error } = await withAuthTimeout(
-      supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: passwordRedirectTo,
-      }),
-      "Password OTP request"
-    );
-
-    setIsSaving(false);
-
-    if (error) {
-      showToast("error", getFriendlyAuthError(error));
-      return;
-    }
-
-    setChangePasswordOtp({
-      ...CHANGE_PASSWORD_INITIAL_STATE,
-      isOpen: true,
-      currentEmail: normalizeEmail(user.email),
-      pendingNewPassword: passwordForm.newPassword,
-      success:
-        "OTP sent to your current email. Enter the 6-digit code to finish changing your password.",
-      otpCooldown: OTP_COOLDOWN_SECONDS,
-    });
+    return runSecurityAction(async scope => {
+      setIsSaving(true);
+      setMessage("");
+      const user = await scope.getUser();
+      if (!user.email) throw new Error("The account has no login email.");
+      await scope.authRequest("signInWithPassword", [{ email: user.email, password: passwordForm.currentPassword }], "Password verification");
+      await scope.authRequest("resetPasswordForEmail", [user.email, { redirectTo: new URL("/doctor/settings", window.location.origin).toString() }], "Password OTP request");
+      passwordFlowRef.current = { owner: mutationOwnerRef.current };
+      setPasswordForm(current => ({ ...current, currentPassword: "" }));
+      setChangePasswordOtp({ ...CHANGE_PASSWORD_INITIAL_STATE, isOpen: true,
+        currentEmail: normalizeEmail(user.email), pendingNewPassword: passwordForm.newPassword,
+        success: "OTP sent to your current email. Enter the 6-digit code to finish changing your password.", otpCooldown: OTP_COOLDOWN_SECONDS });
+    }, passwordError);
   };
 
   const closeChangePasswordOtpModal = () => {
-    if (changePasswordOtp.isLoading) {
-      return;
-    }
-
+    if (changePasswordOtp.isLoading || (operationRef.current && !operationRef.current.timedOut)) return;
+    passwordFlowRef.current = null;
     setChangePasswordOtp(CHANGE_PASSWORD_INITIAL_STATE);
   };
 
-  const resendPasswordChangeOtp = async () => {
-    if (changePasswordOtp.otpCooldown > 0) {
-      return;
-    }
-
-    setChangePasswordOtp((current) => ({
-      ...current,
-      isLoading: true,
-      loadingLabel: "Sending OTP...",
-      error: "",
-      success: "",
-    }));
-
-    try {
-      const email = normalizeEmail(changePasswordOtp.currentEmail);
-
-      if (!email) {
-        throw new Error("The current account does not have an email address.");
-      }
-
-      const passwordRedirectTo =
-        typeof window === "undefined"
-          ? undefined
-          : new URL("/doctor/settings", window.location.origin).toString();
-
-      const { error } = await withAuthTimeout(
-        supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: passwordRedirectTo,
-        }),
-        "Password OTP resend"
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      setChangePasswordOtp((current) => ({
-        ...current,
-        isLoading: false,
-        loadingLabel: "",
-        error: "",
-        success: "OTP resent to your current email.",
-        otpCooldown: OTP_COOLDOWN_SECONDS,
-      }));
-    } catch (error) {
-      console.error("Doctor password OTP resend failed:", error);
-
-      setChangePasswordOtp((current) => ({
-        ...current,
-        isLoading: false,
-        loadingLabel: "",
-        error: getFriendlyAuthError(error),
-      }));
-    }
+  const resendPasswordChangeOtp = () => {
+    const flow = passwordFlowRef.current;
+    if (!flow || changePasswordOtp.otpCooldown > 0) return;
+    return runSecurityAction(async scope => {
+      setChangePasswordOtp(current => ({ ...current, isLoading: true, loadingLabel: "Sending OTP...", error: "", success: "" }));
+      await scope.authRequest("resetPasswordForEmail", [changePasswordOtp.currentEmail, { redirectTo: new URL("/doctor/settings", window.location.origin).toString() }], "Password OTP resend");
+      setChangePasswordOtp(current => ({ ...current, isLoading: false, loadingLabel: "", error: "", success: "OTP resent to your current email.", otpCooldown: OTP_COOLDOWN_SECONDS }));
+    }, passwordError, flow.owner);
   };
 
-  const verifyPasswordOtpAndUpdate = async () => {
-    const token = normalizeOtp(changePasswordOtp.otp);
-    const email = normalizeEmail(changePasswordOtp.currentEmail);
-
-    if (!token) {
-      setChangePasswordOtp((current) => ({
-        ...current,
-        error: "Enter the OTP code first.",
-        success: "",
-      }));
-      return;
-    }
-
-    setChangePasswordOtp((current) => ({
-      ...current,
-      isLoading: true,
-      loadingLabel: "Verifying OTP...",
-      error: "",
-      success: "Verifying OTP...",
-    }));
-
-    try {
-      if (!email) {
-        throw new Error("The current account does not have an email address.");
-      }
-
-      if (!validatePassword(changePasswordOtp.pendingNewPassword).valid) {
-        throw new Error(
-          getPasswordValidationMessage(changePasswordOtp.pendingNewPassword)
-        );
-      }
-
-      const { error: verifyOtpError } = await withAuthTimeout(
-        supabase.auth.verifyOtp({
-          email,
-          token,
-          type: "recovery",
-        }),
-        "Password OTP verification"
-      );
-
-      if (verifyOtpError) {
-        throw verifyOtpError;
-      }
-
-      setChangePasswordOtp((current) => ({
-        ...current,
-        loadingLabel: "Updating password...",
-        success: "OTP verified. Updating your password...",
-      }));
-
-      const { error: updatePasswordError } = await withAuthTimeout(
-        supabase.auth.updateUser({
-          password: changePasswordOtp.pendingNewPassword,
-        }),
-        "Password update"
-      );
-
-      if (updatePasswordError) {
-        throw updatePasswordError;
-      }
-
-      setPasswordForm({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
+  const verifyPasswordOtpAndUpdate = () => {
+    const flow = passwordFlowRef.current;
+    if (!flow) return;
+    return runSecurityAction(async scope => {
+      const token = requireFullOtp(changePasswordOtp.otp);
+      if (!validatePassword(changePasswordOtp.pendingNewPassword).valid) throw new Error(getPasswordValidationMessage(changePasswordOtp.pendingNewPassword));
+      setChangePasswordOtp(current => ({ ...current, isLoading: true, loadingLabel: "Verifying OTP...", error: "", success: "" }));
+      await scope.authRequest("verifyOtp", [{ email: changePasswordOtp.currentEmail, token, type: "recovery" }], "Password OTP verification");
+      await scope.authRequest("updateUser", [{ password: changePasswordOtp.pendingNewPassword }], "Password update");
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
       setConfirmPasswordInteracted(false);
-
-      setChangePasswordOtp((current) => ({
-        ...current,
-        step: "complete",
-        otp: "",
-        pendingNewPassword: "",
-        isLoading: true,
-        loadingLabel: "Signing out...",
-        error: "",
-        success: "Password updated successfully. Signing you out now.",
-      }));
-
-      showToast("success", "Password changed successfully.");
-      redirectToLoginAfterPasswordChange();
-    } catch (error) {
-      console.error("Doctor password OTP verification failed:", error);
-
-      setChangePasswordOtp((current) => ({
-        ...current,
-        isLoading: false,
-        loadingLabel: "",
-        error: getFriendlyAuthError(error),
-      }));
-    }
+      passwordFlowRef.current = null;
+      setChangePasswordOtp(current => ({ ...current, step: "complete", otp: "", pendingNewPassword: "", isLoading: true,
+        loadingLabel: "Signing out...", error: "", success: "Password updated successfully. Signing you out now." }));
+      await finishCredentialChange(scope);
+    }, passwordError, flow.owner);
   };
 
   const createScheduleDraft = (day = "Monday") => ({
@@ -2050,67 +1574,14 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
     { label: "Clinic Address", field: "clinicAddress", value: settings.clinicAddress },
   ];
 
-  const toggleProfileCardEdit = async (card) => {
+  const toggleProfileCardEdit = card => {
+    if (operationRef.current) return;
     if (!editingProfileCards[card]) {
-      setEditingProfileCards((current) => ({
-        ...current,
-        [card]: true,
-      }));
+      setEditingProfileCards(current => ({ ...current, [card]: true }));
       setMessage("");
       return;
     }
-
-    setIsSaving(true);
-    setMessage("");
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setIsSaving(false);
-      showToast("error", "Your account could not be verified. Please try again.");
-      return;
-    }
-
-    if (normalizeEmail(settings.email) !== normalizeEmail(user.email)) {
-      setIsSaving(false);
-      setMessage("Use Account > Change Email to update your login email with OTP verification.");
-      return;
-    }
-
-    const nextSettings = {
-      ...settings,
-      displayName:
-        settings.displayName.trim() ||
-        doctorIdentity?.doctorDisplayName ||
-        "Doctor",
-      email:
-        normalizeEmail(user.email) ||
-        defaultDoctorSettings.email,
-      yearsExperience:
-        formatYearsExperience(
-          parseYearsExperience(settings.yearsExperience)
-        ) || defaultDoctorSettings.yearsExperience,
-    };
-
-    const profileError = await syncProfileRecord(nextSettings, user);
-
-    setIsSaving(false);
-
-    if (profileError) {
-      showToast("error", "Profile information could not be updated. Please try again.");
-      return;
-    }
-
-    setSettings(nextSettings);
-    notifyDoctorProfileUpdated();
-    setEditingProfileCards((current) => ({
-      ...current,
-      [card]: false,
-    }));
-    showToast("success", "Profile updated successfully.");
+    return persistSettings("Profile", card);
   };
 
   const renderProfileSettingsField = (field, isEditing) => (
@@ -2523,7 +1994,7 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                 </span>
                 <div>
                   <h2 id="doctor-change-email-title">Change Email</h2>
-                  <p>Securely verify your password and both email OTP codes.</p>
+                  <p>Verify your password and follow the email confirmations required by Auth.</p>
                 </div>
               </div>
               <button
@@ -2640,6 +2111,11 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
                     {changeEmailState.currentOtpCooldown > 0
                       ? `Resend in ${changeEmailState.currentOtpCooldown}s`
                       : "Resend OTP"}
+                  </button>
+                  <button type="button" className="is-secondary"
+                    onClick={() => setChangeEmailState(current => ({ ...current, step: "newOtp", error: "", success: "" }))}
+                    disabled={changeEmailState.isLoading}>
+                    Use new email code
                   </button>
                   <button type="button" onClick={() => verifyEmailChangeOtp("current")} disabled={changeEmailState.isLoading}>
                     {changeEmailState.isLoading ? "Verifying..." : "Verify Current Email"}

@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { createAuthenticatedMutation } from "./authenticatedMutation";
 
 export const profilePictureBucket = "profile-pictures";
 export const profilePictureUpdatedEvent = "profile-picture-updated";
@@ -34,11 +35,13 @@ function announceProfilePictureChange(detail) {
   }
 }
 
-async function updateCurrentUserAvatar(avatarUrl) {
-  const { error } = await supabase.rpc("set_current_user_avatar_url", {
+async function updateCurrentUserAvatar(avatarUrl, scope) {
+  await scope.check();
+  const { error } = await scope.client.rpc("set_current_user_avatar_url", {
     p_avatar_url: avatarUrl || null,
   });
 
+  await scope.check();
   if (error) throw error;
 }
 
@@ -109,67 +112,53 @@ export async function loadCurrentProfilePicture() {
   return { userId: user.id, storedValue, displayUrl };
 }
 
-export async function uploadProfilePicture(file) {
+export async function uploadProfilePicture(file, options = {}) {
   validateProfilePicture(file);
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError) throw authError;
-  if (!user?.id) {
-    throw createProfilePictureError(
-      "Please log in again to upload a profile picture.",
-      "avatar_not_authenticated"
-    );
+  const scope = await createAuthenticatedMutation(supabase, options);
+  try {
+    await scope.getUser();
+    const storagePath = `${scope.userId}/avatar`;
+    const { error: uploadError } = await scope.client.storage
+      .from(profilePictureBucket)
+      .upload(storagePath, file, {
+        cacheControl: "3600", contentType: file.type, upsert: true,
+      });
+    await scope.check();
+    if (uploadError) throw uploadError;
+    const displayUrl = await getProfilePictureDisplayUrl(storagePath, `${Date.now()}`);
+    await updateCurrentUserAvatar(displayUrl, scope);
+    const result = { userId: scope.userId, storedValue: displayUrl, displayUrl };
+    scope.assertCurrent();
+    announceProfilePictureChange(result);
+    return result;
+  } finally {
+    scope.dispose();
   }
-
-  const storagePath = `${user.id}/avatar`;
-  const { error: uploadError } = await supabase.storage
-    .from(profilePictureBucket)
-    .upload(storagePath, file, {
-      cacheControl: "3600",
-      contentType: file.type,
-      upsert: true,
-    });
-
-  if (uploadError) throw uploadError;
-
-  const cacheKey = `${Date.now()}`;
-  const displayUrl = await getProfilePictureDisplayUrl(storagePath, cacheKey);
-  await updateCurrentUserAvatar(displayUrl);
-  const result = {
-    userId: user.id,
-    storedValue: displayUrl,
-    displayUrl,
-  };
-
-  announceProfilePictureChange(result);
-  return result;
 }
 
-export async function removeProfilePicture() {
-  const current = await loadCurrentProfilePicture();
-  const storagePath = `${current.userId}/avatar`;
-
-  await updateCurrentUserAvatar(null);
-
-  const { error: removeError } = await supabase.storage
-    .from(profilePictureBucket)
-    .remove([storagePath]);
-
-  if (removeError) {
-    await updateCurrentUserAvatar(current.storedValue);
-    throw removeError;
+export async function removeProfilePicture(options = {}) {
+  const scope = await createAuthenticatedMutation(supabase, options);
+  try {
+    await scope.getUser();
+    const { data: profile, error } = await scope.client.from("profiles")
+      .select("avatar_url").eq("id", scope.userId).maybeSingle();
+    await scope.check();
+    if (error) throw error;
+    const storagePath = `${scope.userId}/avatar`;
+    await updateCurrentUserAvatar(null, scope);
+    const { error: removeError } = await scope.client.storage
+      .from(profilePictureBucket).remove([storagePath]);
+    await scope.check();
+    if (removeError) {
+      // Rollback is also fenced and uses the original session's token.
+      await updateCurrentUserAvatar(profile?.avatar_url || null, scope);
+      throw removeError;
+    }
+    const result = { userId: scope.userId, storedValue: "", displayUrl: "" };
+    scope.assertCurrent();
+    announceProfilePictureChange(result);
+    return result;
+  } finally {
+    scope.dispose();
   }
-
-  const result = {
-    userId: current.userId,
-    storedValue: "",
-    displayUrl: "",
-  };
-
-  announceProfilePictureChange(result);
-  return result;
 }
