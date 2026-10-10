@@ -1218,3 +1218,68 @@ body {
     max-width: none !important;
   }
 }
+/* Staff booking-request notifications share one shell-owned count. */
+.staff-dashboard-shell .staff-booking-request-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 22px;
+  min-height: 22px;
+  margin-left: 7px;
+  padding: 2px 6px;
+  border: 1px solid #ffb8cc;
+  border-radius: 999px;
+  background: #ffe3ec;
+  color: #b52355;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 16px;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.staff-dashboard-shell .staff-booking-request-badge.is-stale { border-style: dashed; }
+.staff-dashboard-shell .staff-booking-request-badge span { display: inline; }
+.staff-dashboard-shell .doctor-nav-link { position: relative; }
+.staff-dashboard-shell .doctor-nav-link > .staff-booking-request-badge { margin-left: auto; }
+.staff-booking-request-live { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.staff-booking-request-toast {
+  position: fixed;
+  z-index: 4900;
+  top: 112px;
+  right: 24px;
+  width: min(370px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 44px;
+  gap: 10px;
+  align-items: start;
+  padding: 14px;
+  box-sizing: border-box;
+  border: 1px solid #ffc0d3;
+  border-radius: 14px;
+  background: #fff;
+  color: #495266;
+  box-shadow: 0 10px 30px rgb(100 45 68 / 12%);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.staff-booking-request-toast > svg { width: 20px; height: 20px; color: #df467c; margin-top: 2px; }
+.staff-booking-request-toast__content { min-width: 0; overflow-wrap: anywhere; }
+.staff-booking-request-toast strong { display: block; color: #a82d58; font-size: 14px; }
+.staff-booking-request-toast p { margin: 5px 0 7px; }
+.staff-booking-request-toast button { min-height: 44px; border: 0; border-radius: 8px; background: #fff0f5; color: #ad2c58; font: inherit; font-weight: 650; padding: 8px 10px; cursor: pointer; }
+.staff-booking-request-toast button:focus-visible { outline: 2px solid #db4076; outline-offset: 2px; }
+.staff-booking-request-toast .staff-booking-request-toast__close { width: 44px; padding: 0; background: transparent; font-size: 22px; }
+.staff-booking-request-error { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 16px; color: #a42e54; font-size: 13px; }
+.staff-booking-request-error button { min-height: 44px; border: 1px solid #ffc0d3; border-radius: 8px; background: #fff; padding: 8px 14px; color: inherit; cursor: pointer; }
+@media (min-width: 761px) and (max-width: 980px) {
+  .staff-dashboard-shell .doctor-nav-link > .staff-booking-request-badge { position: absolute; top: 1px; right: -6px; min-width: 20px; min-height: 20px; margin: 0; font-size: 10px; }
+}
+@media (max-width: 760px) {
+  .staff-dashboard-shell .doctor-nav-link > .staff-booking-request-badge { margin-left: 5px; }
+}
+@media (max-width: 640px) {
+  .staff-booking-request-toast { top: 84px; right: auto; left: 50%; transform: translateX(-50%); }
+}

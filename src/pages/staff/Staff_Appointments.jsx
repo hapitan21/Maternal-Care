@@ -12,6 +12,7 @@ import StaffPreConsultationForm from "../appointments/StaffPreConsultationForm";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import { useStaffRequestPatientAvatars } from "../../hooks/useStaffRequestPatientAvatars";
+import { StaffBookingRequestBadge } from "../../components/staff/StaffBookingRequestNotifications";
 import AppointmentNoShowDialog from "../../components/appointments/AppointmentNoShowDialog";
 import AppointmentStatusPopover from "../../components/appointments/AppointmentStatusPopover";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
@@ -2121,7 +2122,8 @@ function StaffAppointmentRequestDetails({
   );
 }
 
-function StaffAppointmentsContent({ headerAction, staffUserId }) {
+function StaffAppointmentsContent({ headerAction, staffUserId, requestNotifications }) {
+  const { identity: requestSessionIdentity, refresh: refreshRequestNotifications } = requestNotifications;
   const location = useLocation();
   const navigate = useNavigate();
   const visitRoute = parseAppointmentVisitRoute(location.pathname, "staff");
@@ -2139,7 +2141,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     return getAppointmentStatusTab(params.get("status"));
   }, [location.search]);
   const [activeFilter, setActiveFilter] = useState(() =>
-    dashboardStatusTarget || "All"
+    new URLSearchParams(location.search).get("tab") === "requests" ? "Requests" : dashboardStatusTarget || "All"
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -2164,6 +2166,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   const [isLoadingRequests, setIsLoadingRequests] = useState(
     !initialAppointmentsSnapshot
   );
+  const [bookingRequestsIdentity, setBookingRequestsIdentity] = useState(requestSessionIdentity);
   const [requestSort, setRequestSort] = useState("newest");
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [requestDoctorId, setRequestDoctorId] = useState("");
@@ -2211,9 +2214,24 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   const rescheduleSaveLockRef = useRef(false);
   const visitRoutingLockRef = useRef("");
   const bookingRequestsRequestRef = useRef(null);
+  const bookingRequestsAbortRef = useRef(null);
+  const bookingRequestsEpochRef = useRef(0);
   const appointmentsRequestRef = useRef(null);
   const successTimerRef = useRef(null);
   const dashboardStatusTargetAppliedRef = useRef(Boolean(dashboardStatusTarget));
+
+  if (bookingRequestsIdentity !== requestSessionIdentity) {
+    setBookingRequestsIdentity(requestSessionIdentity);
+    if (bookingRequestsIdentity) { setBookingRequests([]); setSelectedRequest(null); setIsLoadingRequests(true); }
+  }
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("tab") !== "requests") return undefined;
+    const timer = window.setTimeout(() => {
+      setActiveFilter("Requests"); setCurrentPage(1); setSearchQuery(""); setSelectedMonth(""); setSelectedRequest(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [location.search]);
 
   const clearSuccessTimer = useCallback(() => {
     if (successTimerRef.current !== null) {
@@ -2405,16 +2423,23 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   }, []);
 
   const loadBookingRequests = useCallback(() => {
+    if (!requestSessionIdentity) return Promise.resolve({ ok: false, count: 0 });
     if (bookingRequestsRequestRef.current) {
       return bookingRequestsRequestRef.current;
     }
 
+    const epoch = bookingRequestsEpochRef.current;
+    const abort = new AbortController(); bookingRequestsAbortRef.current = abort;
+    const current = () => epoch === bookingRequestsEpochRef.current;
     const request = (async () => {
+      try {
       const { data, error } = await supabase
         .from(appointmentRequestTableName)
         .select(appointmentRequestColumns)
         .eq("status", "pending")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }).abortSignal(abort.signal);
+
+      if (!current()) return { ok: false, count: 0 };
 
       if (error) {
         console.error("Staff booking request fetch failed:", error);
@@ -2435,6 +2460,10 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
       );
 
       return { ok: true, count: nextRequests.length };
+      } catch (error) {
+        if (current()) { setStatusMessage("Unable to load Patient booking requests. Please retry."); setIsLoadingRequests(false); }
+        return { ok: false, count: 0, error };
+      }
     })();
 
     bookingRequestsRequestRef.current = request;
@@ -2445,7 +2474,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     };
     request.then(clearPendingRequest, clearPendingRequest);
     return request;
-  }, []);
+  }, [requestSessionIdentity]);
 
   useEffect(() => {
     if (isLoadingAppointments || isLoadingRequests || !staffUserId) return;
@@ -2465,32 +2494,16 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
   ]);
 
   useEffect(() => {
+    const tracker = bookingRequestsEpochRef;
+    tracker.current++;
+    bookingRequestsAbortRef.current?.abort();
+    bookingRequestsRequestRef.current = null;
     const loadTimer = window.setTimeout(loadBookingRequests, 0);
-
-    const channel = supabase
-      .channel("staff-appointment-requests")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: appointmentRequestTableName,
-        },
-        loadBookingRequests
-      )
-      .subscribe();
-
-    const refreshInterval = window.setInterval(loadBookingRequests, 15000);
-    const refreshOnFocus = () => loadBookingRequests();
-    window.addEventListener("focus", refreshOnFocus);
-
     return () => {
-      window.clearTimeout(loadTimer);
-      window.clearInterval(refreshInterval);
-      window.removeEventListener("focus", refreshOnFocus);
-      supabase.removeChannel(channel);
+      tracker.current++; bookingRequestsRequestRef.current = null;
+      bookingRequestsAbortRef.current?.abort(); window.clearTimeout(loadTimer);
     };
-  }, [loadBookingRequests]);
+  }, [loadBookingRequests, requestNotifications.revision]);
 
 
   /*
@@ -3173,7 +3186,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
             : "Appointment request approved."
         );
 
-        await Promise.all([loadAppointments(), loadBookingRequests()]);
+        await Promise.all([loadAppointments(), loadBookingRequests(), refreshRequestNotifications()]);
       } finally {
         setIsReviewingRequest(false);
       }
@@ -3184,6 +3197,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
       loadBookingRequests,
       requestDoctorId,
       showSuccessMessage,
+      refreshRequestNotifications,
     ]
   );
 
@@ -3217,12 +3231,12 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
         setRequestDoctorId("");
         setRequestActionError("");
         showSuccessMessage("Appointment request declined. No appointment was created.");
-        await loadBookingRequests();
+        await Promise.all([loadBookingRequests(), refreshRequestNotifications()]);
       } finally {
         setIsReviewingRequest(false);
       }
     },
-    [isReviewingRequest, loadBookingRequests, showSuccessMessage]
+    [isReviewingRequest, loadBookingRequests, showSuccessMessage, refreshRequestNotifications]
   );
 
   const disableAppointmentReminders = useCallback(async (appointmentId) => {
@@ -4463,10 +4477,11 @@ setMiniMonthDate(
   }
 
   const clearDashboardTodayTarget = () => {
-    if (!dashboardTodayTarget) return;
+    if (!dashboardTodayTarget && new URLSearchParams(location.search).get("tab") !== "requests") return;
 
     const params = new URLSearchParams(location.search);
     params.delete("scope");
+    params.delete("tab");
     const nextSearch = params.toString();
 
     navigate(
@@ -4496,7 +4511,13 @@ setMiniMonthDate(
         className="staff-appointments-header staff-section-header"
         tabsClassName="staff-appointments-tabs"
         tabsLabel="Appointment filters"
+        renderTab={tab => <>{tab}{tab === "Requests" ? <StaffBookingRequestBadge count={requestNotifications.count} error={requestNotifications.error} /> : null}</>}
       />
+
+      {requestNotifications.error ? <div className="staff-booking-request-error" role="status">
+        <span>{requestNotifications.error}{requestNotifications.count !== null ? " Showing the last confirmed count." : ""}</span>
+        <button type="button" onClick={requestNotifications.retry}>Retry</button>
+      </div> : null}
 
       {successMessage ? (
         <div

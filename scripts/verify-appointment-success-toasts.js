@@ -37,7 +37,7 @@ export function seed(){state.rows=[{id:'appointment-1',patient_id:patientId,doct
  {id:'appointment-2',patient_id:patientId,doctor_id:doctorId,patient_name:'Second Patient',doctor_name:'Test Doctor',title:'Prenatal Checkup',
  description:'',start_time:'2026-10-06T00:30:00Z',end_time:'2026-10-06T01:00:00Z',status:'scheduled'}];}
 const result=data=>({data,error:null});
-function query(table){let payload,id,single=false;const chain={select(){return this},order(){return this},limit(){return this},ilike(){return this},
+function query(table){let payload,id,single=false;const chain={select(){return this},order(){return this},limit(){return this},ilike(){return this},abortSignal(){return this},
  eq(key,value){if(key==='id')id=value;return this},in(){return this},gte(){return this},lt(){return this},
  maybeSingle(){single=true;return this},single(){single=true;return this},update(value){payload=value;return this},
  then(resolve,reject){
@@ -97,7 +97,7 @@ async function setup(role){seed();state.writes=[];state.notifications=[];state.f
  flushSync(()=>root.render(<MemoryRouter key={role+Math.random()} initialEntries={['/'+role+'/appointments']}>
  <div className={'doctor-dashboard '+(role==='staff'?'staff-dashboard-shell':'')}><aside className="doctor-sidebar">Sidebar</aside><main className="doctor-main">
  {role==='doctor'?<div className="doctor-global-profile-slot">{profile}</div>:null}<div className="doctor-content">
- {role==='doctor'?<Doctor embedded doctorIdentity={{authUser:{id:doctorId},doctorDisplayName:'Test Doctor',loading:false}}/>:<Staff staffUserId="test-staff" headerAction={profile}/>}
+ {role==='doctor'?<Doctor embedded doctorIdentity={{authUser:{id:doctorId},doctorDisplayName:'Test Doctor',loading:false}}/>:<Staff staffUserId="test-staff" headerAction={profile} requestNotifications={{identity:'test-staff:fixture-session',count:0,revision:0,refresh:async()=>({ok:true,count:0})}}/>}
  </div></main></div></MemoryRouter>));await pause(400);}
 const close=async()=>{$('.appointment-success-toast__close')?.click();await pause();check(!$('.appointment-success-toast'),'manual close removes toast');check(!$('.appointment-ui-header').style.marginBottom,'reserved notification space is released after close')};
 async function toastChecks(role,action,name,dateText){await pause(250);const toast=$('.appointment-success-toast');check(!!toast,role+' '+action+' success toast');if(!toast)return;

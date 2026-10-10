@@ -2,6 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import { useStaffBookingRequestNotifications } from "../../hooks/useStaffBookingRequestNotifications";
+import { StaffBookingRequestBadge, StaffBookingRequestToast } from "../../components/staff/StaffBookingRequestNotifications";
 import {
   cacheStaffSettings,
   getStaffInitials,
@@ -1043,6 +1045,7 @@ function getInitialPage(pathname) {
 function StaffDashboard({ staffIdentity }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const bookingNotifications = useStaffBookingRequestNotifications(staffIdentity?.authUser?.id);
 
   /*
    * Keep the Staff profile-pill data at the workspace-shell level.
@@ -1317,6 +1320,7 @@ function StaffDashboard({ staffIdentity }) {
           <StaffAppointmentsContent
             headerAction={headerAction}
             staffUserId={staffIdentity?.authUser?.id}
+            requestNotifications={bookingNotifications}
           />
         );
 
@@ -1361,7 +1365,8 @@ function StaffDashboard({ staffIdentity }) {
               <button
                 key={item.key}
                 type="button"
-                aria-label={item.label}
+                aria-label={item.key === "appointments" && bookingNotifications.count > 0
+                  ? `${item.label}, ${bookingNotifications.count} booking requests awaiting review${bookingNotifications.error ? ", last confirmed count" : ""}` : item.label}
                 aria-current={activePage === item.key ? "page" : undefined}
                 onClick={() => navigateToPage(item.key)}
                 className={`doctor-nav-link ${
@@ -1370,6 +1375,7 @@ function StaffDashboard({ staffIdentity }) {
               >
                 <Icon icon={item.icon} />
                 <span>{item.label}</span>
+                {item.key === "appointments" ? <StaffBookingRequestBadge count={bookingNotifications.count} error={bookingNotifications.error} /> : null}
               </button>
             ))}
           </nav>
@@ -1383,6 +1389,11 @@ function StaffDashboard({ staffIdentity }) {
           </Suspense>
         </div>
       </main>
+      <span className="staff-booking-request-live" role="status" aria-live="polite" aria-atomic="true">
+        {bookingNotifications.count !== null ? `${bookingNotifications.count} booking requests awaiting review${bookingNotifications.error ? "; last confirmed count" : ""}.` : ""}
+      </span>
+      <StaffBookingRequestToast toast={bookingNotifications.toast} onDismiss={bookingNotifications.dismissToast}
+        onView={() => { bookingNotifications.dismissToast(); navigateToPage("appointments", { path: "/staff/appointments?tab=requests" }); }} />
     </div>
   );
 }

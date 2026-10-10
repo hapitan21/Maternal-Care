@@ -13,6 +13,7 @@ export function AppointmentPageHeader({
   titleBlockClassName,
   tabsClassName,
   tabsLabel = "Appointment status",
+  renderTab,
 }) {
   return (
     <header className={joinClasses("appointment-ui-header", className)}>
@@ -37,7 +38,7 @@ export function AppointmentPageHeader({
               type="button"
               onClick={() => onTabChange(tab)}
             >
-              {tab}
+              {renderTab ? renderTab(tab) : tab}
             </button>
           ))}
         </nav>

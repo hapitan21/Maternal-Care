@@ -4680,20 +4680,21 @@
 /* =========================================================
    STAFF APPOINTMENT TABS — KEEP MISSED VISIBLE
    ========================================================= */
-@media (min-width: 901px) {
-  .staff-dashboard-shell .staff-appointments-tabs,
-  .staff-appointments-page .staff-appointments-tabs {
-    width: max-content !important;
-    max-width: 100% !important;
-    flex-wrap: nowrap !important;
-    overflow: visible !important;
-  }
+.staff-dashboard-shell .staff-appointments-tabs,
+.staff-appointments-page .staff-appointments-tabs {
+  width: max-content !important;
+  max-width: 100% !important;
+  min-width: 0;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  overscroll-behavior-x: contain;
+}
 
-  .staff-dashboard-shell .staff-appointments-tabs button,
-  .staff-appointments-page .staff-appointments-tabs button {
-    flex: 0 0 auto !important;
-    white-space: nowrap !important;
-  }
+.staff-dashboard-shell .staff-appointments-tabs button,
+.staff-appointments-page .staff-appointments-tabs button {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
 }
 
 

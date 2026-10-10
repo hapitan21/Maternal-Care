@@ -60,7 +60,8 @@ for (const [requestSort, expected] of [['newest','b,a,c'],['oldest','c,a,b']]) {
 for (const operation of ['acceptPatientRequest', 'declinePatientRequest']) {
   const callback = find(ast, operation).init.arguments[0];
   const baselineCallback = find(headAst, operation).init.arguments[0];
-  check(source.slice(...callback.range).replaceAll('\r\n', '\n') === headSource.slice(...baselineCallback.range).replaceAll('\r\n', '\n'), operation + ': production workflow unchanged');
+  const workflow = source.slice(...callback.range).replace(', refreshRequestNotifications()', '').replace('await Promise.all([loadBookingRequests()]);', 'await loadBookingRequests();');
+  check(workflow.replaceAll('\r\n', '\n') === headSource.slice(...baselineCallback.range).replaceAll('\r\n', '\n'), operation + ': production workflow unchanged except authoritative notification refresh');
   for (const mode of ['success', 'error', 'busy', 'missing-id', ...(operation === 'acceptPatientRequest' ? ['missing-doctor'] : [])]) {
     const events = [], request = { id: 'offline-request' };
     const context = {
@@ -71,8 +72,10 @@ for (const operation of ['acceptPatientRequest', 'declinePatientRequest']) {
       setBookingRequests: updater => events.push(['remaining', updater([request, { id: 'other-request' }])]),
       setSelectedRequest: value => events.push(['selected', value]), setRequestDoctorId: value => events.push(['doctor', value]),
       showSuccessMessage: value => events.push(['success', value]), loadAppointments: async () => events.push(['appointments']), loadBookingRequests: async () => events.push(['requests']),
+      refreshRequestNotifications: async () => events.push(['request-count']),
     };
     await vm.runInNewContext('(' + source.slice(...callback.range) + ')', context)(mode === 'missing-id' ? {} : request);
+    check(events.some(event=>event[0]==='request-count') === (mode === 'success'), operation + ': request count refresh only follows authoritative RPC success');
     const writes = events.filter(event => event[0] === 'rpc');
     if (['busy', 'missing-id', 'missing-doctor'].includes(mode)) {
       check(writes.length === 0 && !events.some(event => event[0] === 'success'), operation + ': guarded ' + mode);
@@ -86,6 +89,23 @@ for (const operation of ['acceptPatientRequest', 'declinePatientRequest']) {
       else check(events.some(event => event[0] === 'error' && event[1].includes('Synthetic refusal')), operation + ': original error feedback');
     }
   }
+}
+{
+  const callback = find(ast, 'loadBookingRequests').init.arguments[0], events=[];
+  let release;
+  const deferred=new Promise(resolve=>release=resolve);
+  const context={requestSessionIdentity:'staff-a:session-a',bookingRequestsRequestRef:{current:null},bookingRequestsEpochRef:{current:1},bookingRequestsAbortRef:{current:null},AbortController,
+    appointmentRequestTableName:'create_patient_appointment_request',appointmentRequestColumns:'existing-columns',console:{error(){}},
+    setStatusMessage:value=>events.push(['error',value]),setIsLoadingRequests:value=>events.push(['loading',value]),setBookingRequests:value=>events.push(['rows',value]),setSelectedRequest:()=>{},
+    supabase:{from(){const query={select(){return query},eq(){return query},order(){return query},abortSignal(){return query},then(resolve,reject){return deferred.then(resolve,reject)}};return query}}};
+  const load=vm.runInNewContext('('+source.slice(...callback.range)+')',context),first=load();
+  check(load()===first,'Request list overlapping fetches coalesce');
+  context.bookingRequestsEpochRef.current++;context.bookingRequestsAbortRef.current.abort();
+  release({data:[{id:'old-session'}],error:null});await first;
+  check(!events.some(event=>event[0]==='rows'),'Old-session/unmounted request-list response cannot publish');
+  context.bookingRequestsRequestRef.current=null;
+  context.supabase.from=()=>{throw new Error('Synthetic rejected request')};await load();
+  check(events.some(event=>event[0]==='loading'&&event[1]===false)&&events.some(event=>event[0]==='error'),'Rejected request list releases loading with retryable feedback');
 }
 const component = `import {useEffect,useRef,useState} from 'react';import {Icon} from '@iconify/react';
 import {useMemo} from 'react';import ProfileAvatarContent from '${root}/src/components/common/ProfileAvatarContent.jsx';

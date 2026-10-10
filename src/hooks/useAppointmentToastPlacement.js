@@ -1,14 +1,14 @@
 import { useLayoutEffect, useRef } from "react";
 
 // Keep appointment feedback in a clear lane above the page's primary content.
-export function useAppointmentToastPlacement(message, version) {
+export function useAppointmentToastPlacement(message, version, workspaceSelector) {
   const ref = useRef(null);
   useLayoutEffect(() => {
     const toast = ref.current;
     if (!toast || !message) return undefined;
-    const workspace = toast.closest(".appointment-workspace");
-    const header = workspace?.querySelector(".appointment-ui-header");
-    const toolbar = workspace?.querySelector(".appointment-ui-toolbar");
+    const workspace = toast.closest(".appointment-workspace") || (workspaceSelector ? document.querySelector(workspaceSelector) : null);
+    const header = workspace?.querySelector(workspaceSelector ? ".appointment-ui-header, .staff-dashboard-home > .doctor-topbar" : ".appointment-ui-header");
+    const toolbar = workspace?.querySelector(workspaceSelector ? ".appointment-ui-toolbar, .doctor-request-tools, .staff-dashboard-home > .staff-hero-card" : ".appointment-ui-toolbar");
     const scrollContainer = workspace?.closest(".doctor-main") ?? workspace;
     const originalAnchor = scrollContainer?.style.getPropertyValue("overflow-anchor");
     const originalAnchorPriority = scrollContainer?.style.getPropertyPriority("overflow-anchor");
@@ -41,7 +41,7 @@ export function useAppointmentToastPlacement(message, version) {
         top: Math.max(parseFloat(style.top), profileBottom + 12),
         left: mobile ? (width - box.width) / 2 : Math.max(12, Math.min(contentRight, width - 12) - box.width),
       };
-      const obstacles = () => [...document.querySelectorAll("button, input, select, textarea, .doctor-sidebar, .doctor-profile-dropdown, .doctor-global-profile-slot, .doctor-profile-card, .staff-profile-card, .appointment-ui-toolbar, .doctor-appointment-summary, .staff-appointment-summary, .appointment-ui-table-card, .appointment-status-popover")]
+      const obstacles = () => [...document.querySelectorAll(`button, input, select, textarea, .doctor-sidebar, .doctor-profile-dropdown, .doctor-global-profile-slot, .doctor-profile-card, .staff-profile-card, .appointment-ui-toolbar, .doctor-appointment-summary, .staff-appointment-summary, .appointment-ui-table-card, .appointment-status-popover${workspaceSelector ? ", .staff-dashboard-home .doctor-hero-text" : ""}`)]
         .filter((element) => !toast.contains(element))
         .map((element) => element.getBoundingClientRect())
         .filter((rect) => rect.width && rect.height && rect.bottom > 0 && rect.top < height && rect.right > 0 && rect.left < width);
@@ -96,6 +96,6 @@ export function useAppointmentToastPlacement(message, version) {
         else scrollContainer.style.removeProperty("overflow-anchor");
       }
     };
-  }, [message, version]);
+  }, [message, version, workspaceSelector]);
   return ref;
 }
