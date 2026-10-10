@@ -2434,13 +2434,56 @@
 }
 
 .staff-appointments-page .doctor-request-sort {
-  width: 168px;
-  flex-basis: 168px;
+  width: 200px;
+  min-width: 0;
+  max-width: 100%;
+  height: 44px;
+  flex: 0 0 200px;
+  border-color: #dfe1e9;
+  color: #8b93a4;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.staff-appointments-page .doctor-request-tools {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.staff-appointments-page .doctor-request-search {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.staff-appointments-page .doctor-request-sort select {
+  min-width: 0;
+  padding: 0 40px 0 14px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.staff-appointments-page .doctor-request-sort > svg {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.staff-appointments-page .doctor-request-sort:focus-within {
+  border-color: #ff7099;
+  box-shadow: 0 0 0 4px rgba(250, 47, 122, 0.08);
 }
 
 @media (max-width: 760px) {
   .staff-appointments-page .doctor-request-sort {
     width: 100%;
+    flex-basis: auto;
+  }
+
+  .staff-appointments-page .doctor-request-search {
     flex-basis: auto;
   }
 }
@@ -4666,15 +4709,15 @@
 /* Staff request detail information alignment */
 .staff-appointments-page .doctor-request-information-card dl {
   display: grid;
-  grid-template-columns: minmax(210px, 0.55fr) minmax(0, 1fr);
-  column-gap: 28px;
+  grid-template-columns: 148px minmax(0, 1fr);
+  column-gap: 18px;
 }
 
 .staff-appointments-page .doctor-request-information-card dl > div {
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
-  min-height: 60px;
-  padding: 8px 0;
+  min-height: 44px;
+  padding: 10px 0;
 }
 
 .staff-appointments-page .doctor-request-information-card dt,
@@ -4684,7 +4727,10 @@
 
 .staff-appointments-page .doctor-request-information-card dd {
   width: 100%;
-  min-height: 44px;
+  min-height: 0;
+  gap: 8px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 /* Staff request detail Doctor assignment */
@@ -4701,12 +4747,12 @@
 
 .staff-request-doctor-trigger {
   width: 100%;
-  height: 44px;
+  min-height: 44px;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 12px;
-  padding: 0 13px 0 0;
+  gap: 8px;
+  padding: 10px 12px 10px 0;
   border: 1px solid #dfe1e9;
   border-radius: 11px;
   background: #ffffff;
@@ -4746,11 +4792,32 @@
   margin-left: -1px;
 }
 
+.staff-appointments-page .doctor-request-patient > span,
+.staff-appointments-page .doctor-request-detail-avatar {
+  overflow: hidden;
+}
+
+.staff-appointments-page .doctor-request-patient > span > img,
+.staff-appointments-page .doctor-request-detail-avatar > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.staff-appointments-page .staff-request-avatar-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #eef0f4;
+}
+
 .staff-request-doctor-trigger > span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .staff-request-doctor-trigger .staff-request-doctor-chevron {
@@ -4821,9 +4888,8 @@
 
 .staff-request-doctor-menu > button > span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 @keyframes staff-request-doctor-menu-in {
@@ -4840,7 +4906,7 @@
 
 @media (max-width: 700px) {
   .staff-appointments-page .doctor-request-information-card dl {
-    grid-template-columns: minmax(118px, 0.45fr) minmax(0, 1fr);
+    grid-template-columns: 118px minmax(0, 1fr);
     column-gap: 14px;
   }
 
@@ -4853,6 +4919,194 @@
 
   .staff-request-doctor-dropdown {
     width: 100%;
+  }
+}
+
+/* Request details only: compact cards without affecting appointment workspaces. */
+.staff-appointments-page.doctor-request-details-shell .doctor-request-details-page {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-breadcrumbs {
+  flex-wrap: wrap;
+  white-space: normal;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-details-heading {
+  margin-bottom: 20px;
+  gap: 14px;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-details-heading > div {
+  min-width: 0;
+}
+
+.staff-appointments-page.doctor-request-details-shell :is(.doctor-request-patient-card, .doctor-request-information-card, .doctor-request-status-card) {
+  min-width: 0;
+  padding: 22px 24px;
+  border-radius: 16px;
+}
+
+.staff-appointments-page.doctor-request-details-shell :is(.doctor-request-patient-card, .doctor-request-information-card) {
+  margin-bottom: 18px;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-patient-card {
+  min-height: 0;
+  grid-template-columns: 64px minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-detail-avatar {
+  width: 64px;
+  height: 64px;
+  font-size: 20px;
+}
+
+.staff-appointments-page.doctor-request-details-shell :is(.doctor-request-patient-identity, .doctor-request-patient-contact) {
+  min-width: 0;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-patient-identity h2 {
+  font-size: 21px;
+  line-height: 1.35;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-patient-identity p {
+  margin: 5px 0 7px;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-patient-identity > span {
+  max-width: 100%;
+  line-height: 1.5;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-patient-contact {
+  grid-column: auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px;
+  border-top: 0;
+  border-left: 1px solid #edf1f6;
+  padding: 0 0 0 18px;
+  line-height: 1.5;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-patient-contact span {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.staff-appointments-page.doctor-request-details-shell :is(.doctor-request-information-card, .doctor-request-status-card) > header {
+  min-height: 0;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-current-status {
+  min-height: 0;
+  grid-template-columns: max-content max-content;
+  justify-content: start;
+  gap: 10px 14px;
+  padding: 16px 0;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-current-status > small {
+  line-height: 1.5;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-status-card > footer {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-status-card > footer > div {
+  min-width: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-status-card > footer > div:last-child {
+  margin-left: auto;
+}
+
+.staff-appointments-page.doctor-request-details-shell .doctor-request-status-card > footer button {
+  min-width: 0;
+  padding: 10px 14px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+@media (max-width: 1100px) {
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-patient-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-patient-contact {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-left: 0;
+    border-top: 1px solid #edf1f6;
+    padding: 14px 0 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .staff-appointments-page.doctor-request-details-shell :is(.doctor-request-patient-card, .doctor-request-information-card, .doctor-request-status-card) {
+    padding: 18px 16px;
+  }
+
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-patient-contact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-status-card > footer > div {
+    width: 100%;
+  }
+
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-status-card > footer button {
+    flex: 1 1 140px;
+    width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-patient-card {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-detail-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 16px;
+  }
+
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-patient-identity h2 {
+    font-size: 18px;
+  }
+
+  .staff-appointments-page .doctor-request-information-card dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-appointments-page .doctor-request-information-card dl > div {
+    row-gap: 5px;
+    padding: 10px 0;
+  }
+
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-current-status {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-appointments-page.doctor-request-details-shell .doctor-request-current-status > .doctor-request-pending-badge {
+    justify-self: start;
   }
 }
 

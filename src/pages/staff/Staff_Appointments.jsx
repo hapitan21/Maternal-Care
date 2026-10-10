@@ -10,6 +10,8 @@ import {
 import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
 import StaffPreConsultationForm from "../appointments/StaffPreConsultationForm";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
+import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
+import { useStaffRequestPatientAvatars } from "../../hooks/useStaffRequestPatientAvatars";
 import AppointmentNoShowDialog from "../../components/appointments/AppointmentNoShowDialog";
 import AppointmentStatusPopover from "../../components/appointments/AppointmentStatusPopover";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
@@ -1568,6 +1570,8 @@ function AppointmentSummary({ summary, isLoading = false }) {
 
 function StaffAppointmentRequests({
   requests,
+  patientPhotos,
+  loadingPatientPhotos = new Set(),
   isLoading,
   totalRequests,
   currentPage,
@@ -1606,10 +1610,9 @@ function StaffAppointmentRequests({
           </label>
 
           <label className="doctor-request-sort">
-            <select value={sortOrder} onChange={(event) => onSortChange(event.target.value)}>
+            <select aria-label="Sort appointment requests" value={sortOrder} onChange={(event) => onSortChange(event.target.value)}>
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
-              <option value="appointment">Appointment Date</option>
             </select>
             <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
           </label>
@@ -1635,7 +1638,16 @@ function StaffAppointmentRequests({
                       <strong className="doctor-request-id">{getRequestId(request, index)}</strong>
 
                       <div className="doctor-request-patient">
-                        <span>{String(request.patient_name || "P").charAt(0).toUpperCase()}</span>
+                        <span aria-busy={loadingPatientPhotos.has(String(request.patient_id || ""))}>
+                          <ProfileAvatarContent
+                            key={String(request.patient_id || "")}
+                            src={patientPhotos.get(String(request.patient_id || "")) || ""}
+                            alt=""
+                            fallback={loadingPatientPhotos.has(String(request.patient_id || ""))
+                              ? <span className="staff-request-avatar-placeholder" aria-hidden="true" />
+                              : String(request.patient_name || "P").charAt(0).toUpperCase()}
+                          />
+                        </span>
                         <div>
                           <strong>{request.patient_name || patient?.full_name || "Patient"}</strong>
                           <small>{patient?.patient_id || "Patient ID pending"}</small>
@@ -1805,6 +1817,8 @@ function StaffAppointmentRequests({
 function StaffAppointmentRequestDetails({
   request,
   patient,
+  patientPhoto = "",
+  patientPhotoLoading = false,
   doctors,
   selectedDoctorId,
   onDoctorChange,
@@ -1869,13 +1883,18 @@ function StaffAppointmentRequestDetails({
       </header>
 
       <section className="doctor-request-patient-card">
-        <div className="doctor-request-detail-avatar">
-          {String(request?.patient_name || "P")
+        <div className="doctor-request-detail-avatar" aria-busy={patientPhotoLoading}>
+          <ProfileAvatarContent
+            key={String(request?.patient_id || "")}
+            src={patientPhoto}
+            alt=""
+            fallback={patientPhotoLoading ? <span className="staff-request-avatar-placeholder" aria-hidden="true" /> : String(request?.patient_name || "P")
             .split(/\s+/)
             .map((part) => part[0])
             .join("")
             .slice(0, 2)
             .toUpperCase()}
+          />
         </div>
 
         <div className="doctor-request-patient-identity">
@@ -2851,15 +2870,8 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
       });
 
     return matching.sort((first, second) => {
-      if (requestSort === "appointment") {
-        return (
-          new Date(first.start_time || 0).getTime() -
-          new Date(second.start_time || 0).getTime()
-        );
-      }
-
-      const firstTime = new Date(first.created_at || first.start_time || 0).getTime();
-      const secondTime = new Date(second.created_at || second.start_time || 0).getTime();
+      const firstTime = new Date(first.created_at || 0).getTime() || 0;
+      const secondTime = new Date(second.created_at || 0).getTime() || 0;
       return requestSort === "oldest"
         ? firstTime - secondTime
         : secondTime - firstTime;
@@ -2872,6 +2884,13 @@ function StaffAppointmentsContent({ headerAction, staffUserId }) {
     const startIndex = (requestDisplayedPage - 1) * 5;
     return requestSchedules.slice(startIndex, startIndex + 5);
   }, [requestDisplayedPage, requestSchedules]);
+
+  const { photos: patientRequestPhotos, loadingIds: patientRequestPhotoLoading } = useStaffRequestPatientAvatars(
+    staffUserId,
+    selectedRequest ? [selectedRequest.patient_id]
+      : activeFilter === "Requests" ? paginatedRequests.map(request => request.patient_id) : [],
+    !isVisitFormRoute && !selectedAppointment && Boolean(selectedRequest || activeFilter === "Requests")
+  );
 
   const todayRequestAppointments = useMemo(
     () =>
@@ -4405,6 +4424,8 @@ setMiniMonthDate(
         <StaffAppointmentRequestDetails
           request={selectedRequest}
           patient={requestPatient}
+          patientPhoto={patientRequestPhotos.get(String(selectedRequest.patient_id || "")) || ""}
+          patientPhotoLoading={patientRequestPhotoLoading.has(String(selectedRequest.patient_id || ""))}
           doctors={doctors}
           selectedDoctorId={requestDoctorId}
           onDoctorChange={(doctorId) => {
@@ -4510,6 +4531,8 @@ setMiniMonthDate(
       {activeFilter === "Requests" ? (
         <StaffAppointmentRequests
           requests={paginatedRequests}
+          patientPhotos={patientRequestPhotos}
+          loadingPatientPhotos={patientRequestPhotoLoading}
           isLoading={isLoadingRequests}
           totalRequests={requestSchedules.length}
           currentPage={requestDisplayedPage}
