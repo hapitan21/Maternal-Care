@@ -5420,7 +5420,7 @@ body:has(.doctor-dashboard) .appointment-no-show-overlay {
 .doctor-appointments-page .doctor-appointments-table__head,
 .doctor-appointments-page .doctor-appointments-row {
   min-width: 850px !important;
-  grid-template-columns: 1.25fr 1fr 0.85fr 0.8fr 0.8fr !important;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 0.8fr) minmax(0, 0.8fr) !important;
 }
 
 .doctor-appointments-page .doctor-appointments-table__head {
@@ -6391,10 +6391,17 @@ body:has(.doctor-dashboard) .appointment-no-show-overlay {
 }
 
 
-/* Doctor rows are already staff-sized, keep them locked */
+/* Retain the existing row minimum while allowing long names/IDs to wrap. */
 .doctor-appointments-page .doctor-appointments-row {
   min-height: 67px !important;
-  height: 67px !important;
+  height: auto !important;
+}
+
+.doctor-appointments-page .doctor-appointments-row > span {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding-block: 10px;
 }
 
 
@@ -7097,6 +7104,11 @@ body:has(.doctor-dashboard) .appointment-no-show-overlay {
   -webkit-backdrop-filter: blur(5px) !important;
 }
 
+/* The Doctor cancellation portal covers shell controls but stays below inactivity. */
+.doctor-appointment-confirm-overlay:has(> .doctor-cancel-appointment-card) {
+  z-index: 2147483000 !important;
+}
+
 .doctor-appointment-confirm-card.doctor-cancel-appointment-card,
 .doctor-appointment-reschedule-card.doctor-staff-match-reschedule-card {
   position: relative !important;
@@ -7494,7 +7506,7 @@ body:has(.doctor-dashboard) .appointment-no-show-overlay {
   .doctor-appointments-page .doctor-appointments-tabs {
     width: 100% !important;
     max-width: none !important;
-    overflow-x: visible !important;
+    overflow-x: auto !important;
     gap: 28px !important;
   }
 
@@ -7502,4 +7514,16 @@ body:has(.doctor-dashboard) .appointment-no-show-overlay {
     flex: 0 0 auto !important;
     white-space: nowrap !important;
   }
+}
+
+/* Status tabs scroll within the title area at every available width. */
+.doctor-appointments-page .doctor-appointments-tabs {
+  max-width: 100%;
+  overflow-x: auto !important;
+  overscroll-behavior-x: contain;
+}
+
+.doctor-appointments-page .doctor-appointments-tabs button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }

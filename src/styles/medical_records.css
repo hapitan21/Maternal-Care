@@ -2953,6 +2953,15 @@ body:has(.medical-records-page),
   font-weight: 400;
 }
 
+/* Doctor clinical text must wrap inside its existing grid tracks. */
+.doctor-dashboard:not(.staff-dashboard-shell) .medical-records-page .mr-medical-entry-content,
+.doctor-dashboard:not(.staff-dashboard-shell) .medical-records-page .mr-medical-entry-content section,
+.doctor-dashboard:not(.staff-dashboard-shell) .medical-records-page .mr-medical-entry-content p,
+.doctor-dashboard:not(.staff-dashboard-shell) .medical-records-page .mr-medical-checklist li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .mr-medical-checklist {
   display: grid;
   gap: 2px;

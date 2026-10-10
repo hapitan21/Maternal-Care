@@ -1733,6 +1733,19 @@ body:has(.doctor-dashboard) {
   max-width: 100% !important;
 }
 
+/* These headers already reserve the absolute profile through right padding. */
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-content .doctor-patients-header > .doctor-global-profile-placeholder,
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-content .doctor-appointments-header > .doctor-global-profile-placeholder,
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-content .doctor-reminder-header > .doctor-global-profile-placeholder {
+  display: none !important;
+}
+
+.doctor-dashboard:not(.staff-dashboard-shell) .doctor-content .doctor-reminder-header > .clinical-workflow-title-block {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+
 @media (max-width: 1180px) {
   .doctor-dashboard {
     --doctor-unified-profile-width: 270px;

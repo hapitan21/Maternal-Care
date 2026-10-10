@@ -126,7 +126,11 @@ async function toastChecks(role,action,name,dateText){await pause(250);const toa
  if(toolbar.top>=0)check(rect.bottom<=toolbar.top,'toast occupies notification lane above toolbar');
  if(innerWidth>640)check(Math.abs(rect.right-toast.closest('.appointment-workspace').getBoundingClientRect().right)<1,'toast right edge aligned with main content');
  check(getComputedStyle(toast).animationName===(matchMedia('(prefers-reduced-motion: reduce)').matches?'none':innerWidth<=640?'appointment-success-toast-mobile-in':'appointment-success-toast-in'),'reduced-motion behavior');
- const button=toast.querySelector('button');button.focus();check(document.activeElement===button&&button.getAttribute('aria-label')==='Dismiss success notification','keyboard-accessible labelled close');
+ const button=toast.querySelector('button');button.focus();
+ const activeDoctorDialog=role==='doctor'?document.querySelector('.appointment-add-card[role="dialog"]'):null;
+ check(button.getAttribute('aria-label')==='Dismiss success notification' && (activeDoctorDialog
+  ? activeDoctorDialog.contains(document.activeElement) && document.activeElement!==button
+  : document.activeElement===button),activeDoctorDialog?'Doctor modal blocks background toast keyboard focus':'keyboard-accessible labelled close');
  reports.push({role,action,top:Math.round(rect.top),height:Math.round(rect.height)});
 }
 try{for(const role of ['doctor','staff']){

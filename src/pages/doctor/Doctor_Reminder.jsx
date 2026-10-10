@@ -12,6 +12,7 @@ import { ClinicalWorkflowHeader } from "../../components/clinical/ClinicalWorkfl
 import { supabase } from "../../lib/supabaseClient";
 import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
 import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
+import { useDoctorModuleDialog } from "../../hooks/useDoctorModuleDialog";
 import {
   classifyAppointment,
   formatAppointmentDate,
@@ -2643,6 +2644,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   };
 
   const closeReminderForm = () => {
+    if (isSavingReminder) return;
     setIsReminderFormOpen(false);
     setStatusMessage("");
   };
@@ -2653,6 +2655,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   };
 
   const closeMedicationForm = () => {
+    if (isSavingMedicationReminder) return;
     setIsMedicationFormOpen(false);
     setMedicationStatusMessage("");
   };
@@ -2688,6 +2691,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   };
 
   const closeHealthTipForm = () => {
+    if (isSavingHealthTip) return;
     setIsHealthTipFormOpen(false);
     setHealthTipFormErrors({});
     setHealthTipActionMenu(null);
@@ -2703,6 +2707,24 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     setViewAllSection(null);
     setHealthTipActionMenu(null);
   };
+
+  const closeDeleteHealthTip = () => {
+    if (!isDeletingHealthTip) setDeleteHealthTipTarget(null);
+  };
+
+  const activeDialog = isHealthTipFormOpen ? "health-tip" : isMedicationFormOpen ? "medication"
+    : isReminderFormOpen ? "appointment" : deleteHealthTipTarget ? "delete"
+      : viewAllSection ? `view-all-${viewAllSection}` : null;
+  const dialogSelector = activeDialog?.startsWith("view-all-") ? '.doctor-reminder-view-all'
+    : { 'health-tip': '.doctor-health-tip-form', medication: '.doctor-medication-reminder-form',
+      appointment: '.doctor-reminder-form--appointment', delete: '.doctor-health-tip-delete-dialog' }[activeDialog];
+  useDoctorModuleDialog(activeDialog, dialogSelector, () => {
+    if (activeDialog === "health-tip") closeHealthTipForm();
+    else if (activeDialog === "medication") closeMedicationForm();
+    else if (activeDialog === "appointment") closeReminderForm();
+    else if (activeDialog === "delete") closeDeleteHealthTip();
+    else closeViewAll();
+  });
 
   const getHealthTipMenuPosition = (button) => {
     const rect = button.getBoundingClientRect();
@@ -2775,25 +2797,10 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       return undefined;
     }
 
-    const handleEscape = (event) => {
-      if (event.key !== "Escape") {
-        return;
-      }
-
-      closeReminderForm();
-      closeMedicationForm();
-      closeHealthTipForm();
-      closeViewAll();
-      setDeleteHealthTipTarget(null);
-      setHealthTipActionMenu(null);
-    };
-
     document.body.classList.add("doctor-reminder-modal-open");
-    window.addEventListener("keydown", handleEscape);
 
     return () => {
       document.body.classList.remove("doctor-reminder-modal-open");
-      window.removeEventListener("keydown", handleEscape);
     };
   }, [isAnyModalOpen]);
 
@@ -3053,13 +3060,14 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       {viewAllSection ? createPortal(
         <div
           className="doctor-reminder-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="doctor-reminder-view-all-title"
           onClick={closeViewAll}
         >
           <section
             className="doctor-panel doctor-reminder-view-all"
+            id="doctor-reminder-view-all-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="doctor-reminder-view-all-title"
             onClick={(event) => event.stopPropagation()}
           >
             <header className="doctor-reminder-view-all__header">
@@ -3249,6 +3257,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       {activeHealthTipMenuTip && healthTipActionMenu ? createPortal(
         <div
           className="doctor-health-tip-action-menu"
+          data-doctor-dialog-owner={viewAllSection === "healthTips" ? "doctor-reminder-view-all-dialog" : undefined}
           role="menu"
           style={{
             top: `${healthTipActionMenu.top}px`,
@@ -3295,15 +3304,13 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       {deleteHealthTipTarget ? createPortal(
         <div
           className="doctor-reminder-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="doctor-health-tip-delete-title"
-          onClick={() => {
-            if (!isDeletingHealthTip) setDeleteHealthTipTarget(null);
-          }}
+          onClick={closeDeleteHealthTip}
         >
           <section
             className="doctor-panel doctor-health-tip-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="doctor-health-tip-delete-title"
             onClick={(event) => event.stopPropagation()}
           >
             <h2 id="doctor-health-tip-delete-title">Delete Health Tip?</h2>
@@ -3311,7 +3318,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
             <div>
               <button
                 type="button"
-                onClick={() => setDeleteHealthTipTarget(null)}
+                onClick={closeDeleteHealthTip}
                 disabled={isDeletingHealthTip}
               >
                 Cancel
@@ -3330,8 +3337,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       ) : null}
 
       {isReminderFormOpen ? createPortal(
-        <div className="doctor-reminder-modal clinical-workflow-backdrop" role="dialog" aria-modal="true" aria-labelledby="doctor-reminder-form-title" onClick={closeReminderForm}>
-          <form className="doctor-panel doctor-reminder-dialog doctor-reminder-form doctor-reminder-form--appointment clinical-workflow-dialog" onSubmit={handleSubmit} onClick={(event) => event.stopPropagation()}>
+        <div className="doctor-reminder-modal clinical-workflow-backdrop" onClick={closeReminderForm}>
+          <form className="doctor-panel doctor-reminder-dialog doctor-reminder-form doctor-reminder-form--appointment clinical-workflow-dialog" role="dialog" aria-modal="true" aria-labelledby="doctor-reminder-form-title" onSubmit={handleSubmit} onClick={(event) => event.stopPropagation()}>
             <header className="doctor-reminder-dialog__header doctor-reminder-form__title">
               <div className="doctor-reminder-dialog__headline">
                 <span className="doctor-reminder-dialog__icon" aria-hidden="true">
@@ -3352,7 +3359,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   </p>
                 </div>
               </div>
-              <button className="doctor-reminder-modal-close" type="button" aria-label="Close reminder form" onClick={closeReminderForm}>
+              <button className="doctor-reminder-modal-close" type="button" aria-label="Close reminder form" onClick={closeReminderForm} disabled={isSavingReminder}>
                 <Icon icon="material-symbols:close-rounded" />
               </button>
             </header>
@@ -3658,7 +3665,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
             </div>
 
             <footer className="doctor-reminder-dialog__actions doctor-reminder-form__actions">
-              <button type="button" onClick={closeReminderForm}>
+              <button type="button" onClick={closeReminderForm} disabled={isSavingReminder}>
                 Cancel
               </button>
               <button
@@ -3687,8 +3694,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       ) : null}
 
       {isMedicationFormOpen ? createPortal(
-        <div className="doctor-reminder-modal clinical-workflow-backdrop" role="dialog" aria-modal="true" aria-labelledby="doctor-medication-form-title" onClick={closeMedicationForm}>
-          <form className="doctor-panel doctor-reminder-dialog doctor-medication-reminder-form clinical-workflow-dialog clinical-workflow-dialog--medication" data-time-picker-boundary onSubmit={addMedicationReminder} onClick={(event) => event.stopPropagation()}>
+        <div className="doctor-reminder-modal clinical-workflow-backdrop" onClick={closeMedicationForm}>
+          <form className="doctor-panel doctor-reminder-dialog doctor-medication-reminder-form clinical-workflow-dialog clinical-workflow-dialog--medication" role="dialog" aria-modal="true" aria-labelledby="doctor-medication-form-title" data-time-picker-boundary onSubmit={addMedicationReminder} onClick={(event) => event.stopPropagation()}>
             <header className="doctor-reminder-dialog__header doctor-medication-reminder-form__title">
               <div className="doctor-reminder-dialog__headline">
                 <span className="doctor-reminder-dialog__icon" aria-hidden="true">
@@ -3704,6 +3711,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 type="button"
                 aria-label="Close medication reminder form"
                 onClick={closeMedicationForm}
+                disabled={isSavingMedicationReminder}
               >
                 <Icon icon="material-symbols:close-rounded" />
               </button>
@@ -3717,6 +3725,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 <span>Patient <b>*</b></span>
                 <input
                   type="text"
+                  data-dialog-initial-focus
                   placeholder="Search Patient by name or ID"
                   value={medicationPatientSearch}
                   onChange={(event) => {
@@ -3885,6 +3894,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
               <button
                 type="button"
                 onClick={closeMedicationForm}
+                disabled={isSavingMedicationReminder}
               >
                 Cancel
               </button>
@@ -3905,8 +3915,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
       ) : null}
 
       {isHealthTipFormOpen ? createPortal(
-        <div className="doctor-reminder-modal clinical-workflow-backdrop" role="dialog" aria-modal="true" aria-labelledby="doctor-health-tip-form-title" onClick={closeHealthTipForm}>
-          <form className="doctor-panel doctor-reminder-dialog doctor-health-tip-form doctor-health-tip-form--detailed clinical-workflow-dialog clinical-workflow-dialog--health-tip" onSubmit={saveHealthTip} onClick={(event) => event.stopPropagation()}>
+        <div className="doctor-reminder-modal clinical-workflow-backdrop" onClick={closeHealthTipForm}>
+          <form className="doctor-panel doctor-reminder-dialog doctor-health-tip-form doctor-health-tip-form--detailed clinical-workflow-dialog clinical-workflow-dialog--health-tip" role="dialog" aria-modal="true" aria-labelledby="doctor-health-tip-form-title" onSubmit={saveHealthTip} onClick={(event) => event.stopPropagation()}>
             <header className="doctor-reminder-dialog__header doctor-health-tip-form__title">
               <div className="doctor-reminder-dialog__headline doctor-health-tip-form__headline">
                 <span className="doctor-reminder-dialog__icon doctor-health-tip-form__icon" aria-hidden="true">
@@ -3923,7 +3933,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   </p>
                 </div>
               </div>
-              <button className="doctor-health-tip-form__close" type="button" aria-label="Close health tip form" onClick={closeHealthTipForm}>
+              <button className="doctor-health-tip-form__close" type="button" aria-label="Close health tip form" onClick={closeHealthTipForm} disabled={isSavingHealthTip}>
                 <Icon icon="material-symbols:close-rounded" />
               </button>
             </header>
@@ -3947,6 +3957,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
               <div className="doctor-health-tip-form__counted-control">
                 <input
                   name="title"
+                  data-dialog-initial-focus
                   type="text"
                   maxLength={100}
                   required
@@ -3992,7 +4003,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
             </div>
 
             <footer className="doctor-reminder-dialog__actions doctor-health-tip-form__actions">
-              <button type="button" onClick={closeHealthTipForm}>Cancel</button>
+              <button type="button" onClick={closeHealthTipForm} disabled={isSavingHealthTip}>Cancel</button>
               <button
                 type="submit"
                 disabled={

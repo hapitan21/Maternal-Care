@@ -45,6 +45,7 @@ import {
 } from "../../components/appointments/AppointmentUi";
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
 import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
+import { useDoctorModuleDialog } from "../../hooks/useDoctorModuleDialog";
 import {
   clinicLocalDateTimeToISOString,
   loadOperationalAppointmentPolicy,
@@ -2494,6 +2495,13 @@ export function DoctorAppointmentsContent({
     setCancelReasonError("");
   };
 
+  const closeAddAppointment = () => {
+    if (isSaving || appointmentSaveLockRef.current) return;
+    setIsAdding(false);
+    setAddAppointmentError("");
+    setStatusMessage("");
+  };
+
   const confirmCancelAppointment = async () => {
     if (!cancelConfirmationSchedule || updatingStatusId === cancelConfirmationSchedule.id) return;
 
@@ -2782,6 +2790,22 @@ export function DoctorAppointmentsContent({
       setUpdatingStatusId("");
     }
   };
+
+  const activeDialog = isAdding ? "add" : cancelConfirmationSchedule ? "cancel"
+    : rescheduleSchedule ? "reschedule" : noShowConfirmationSchedule ? "no-show"
+      : selectedCalendarSchedule ? "details" : null;
+  const dialogSelectors = {
+    add: '.appointment-add-card', cancel: '.doctor-cancel-appointment-card',
+    reschedule: '.doctor-appointment-reschedule-card', 'no-show': '.appointment-no-show-dialog',
+    details: '.doctor-appointment-detail-modal',
+  };
+  useDoctorModuleDialog(activeDialog, dialogSelectors[activeDialog], () => {
+    if (activeDialog === "add") closeAddAppointment();
+    else if (activeDialog === "cancel") closeCancelConfirmation();
+    else if (activeDialog === "reschedule") closeRescheduleModal();
+    else if (activeDialog === "no-show") closeNoShowConfirmation();
+    else if (updatingStatusId !== selectedCalendarSchedule?.id) closeCalendarAppointmentDetails();
+  });
 
   if (visitRoute) {
     return (
@@ -3073,23 +3097,20 @@ export function DoctorAppointmentsContent({
 
       {isAdding
         ? createPortal(
-            <div className="appointment-modal-overlay" role="dialog" aria-modal="true">
-              <section className="appointment-form-card appointment-add-card">
+            <div className="appointment-modal-overlay">
+              <section className="appointment-form-card appointment-add-card" role="dialog" aria-modal="true" aria-labelledby="doctor-add-appointment-title">
                 <button
                   className="appointment-modal-close"
                   type="button"
                   aria-label="Close add appointment form"
-                  onClick={() => {
-                    setIsAdding(false);
-                    setAddAppointmentError("");
-                    setStatusMessage("");
-                  }}
+                  onClick={closeAddAppointment}
+                  disabled={isSaving}
                 >
                   <InlineIcon name="close" />
                 </button>
 
                 <div className="appointment-form-heading">
-                  <h2>Add New Appointment</h2>
+                  <h2 id="doctor-add-appointment-title">Add New Appointment</h2>
                 </div>
 
                 <form className="appointment-form-grid" onSubmit={createAppointment}>
@@ -3101,6 +3122,7 @@ export function DoctorAppointmentsContent({
                     <div className="appointment-patient-search">
                       <input
                         type="search"
+                        data-dialog-initial-focus
                         placeholder={isLoadingPatients ? "Loading patients..." : "Enter patient name"}
                         value={form.patient_name}
                         onChange={(event) => updateFormValue("patient_name", event.target.value)}
@@ -3246,11 +3268,8 @@ export function DoctorAppointmentsContent({
                     <button
                       className="appointment-form-cancel appointment-add-cancel"
                       type="button"
-                      onClick={() => {
-                        setIsAdding(false);
-                        setAddAppointmentError("");
-                        setStatusMessage("");
-                      }}
+                      onClick={closeAddAppointment}
+                      disabled={isSaving}
                     >
                       Cancel
                     </button>
@@ -3288,11 +3307,8 @@ export function DoctorAppointmentsContent({
         ? createPortal(
             <div
               className="doctor-appointment-confirm-overlay"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="doctor-cancel-appointment-title"
             >
-              <section className="doctor-appointment-confirm-card doctor-cancel-appointment-card">
+              <section className="doctor-appointment-confirm-card doctor-cancel-appointment-card" role="dialog" aria-modal="true" aria-labelledby="doctor-cancel-appointment-title">
                 <button
                   className="doctor-appointment-modal-close doctor-staff-match-close"
                   type="button"
@@ -3333,7 +3349,7 @@ export function DoctorAppointmentsContent({
                       if (cancelReasonError) setCancelReasonError("");
                     }}
                     disabled={updatingStatusId === cancelConfirmationSchedule.id}
-                    autoFocus
+                    data-dialog-initial-focus
                   />
                 </label>
 
@@ -3380,8 +3396,8 @@ export function DoctorAppointmentsContent({
         : null}
       {rescheduleSchedule
         ? createPortal(
-            <div className="doctor-appointment-confirm-overlay" role="dialog" aria-modal="true">
-              <section className="doctor-appointment-reschedule-card doctor-staff-match-reschedule-card">
+            <div className="doctor-appointment-confirm-overlay">
+              <section className="doctor-appointment-reschedule-card doctor-staff-match-reschedule-card" role="dialog" aria-modal="true" aria-labelledby="doctor-reschedule-appointment-title">
                 <button
                   className="doctor-appointment-modal-close doctor-staff-match-close"
                   type="button"
@@ -3397,7 +3413,7 @@ export function DoctorAppointmentsContent({
                     <Icon icon="solar:calendar-mark-bold" />
                   </span>
                   <div>
-                    <h2>Reschedule Appointment</h2>
+                    <h2 id="doctor-reschedule-appointment-title">Reschedule Appointment</h2>
                     <p>Choose a new date and time for this appointment.</p>
                   </div>
                 </div>
@@ -3415,6 +3431,7 @@ export function DoctorAppointmentsContent({
                     <span>Select Date:</span>
                     <input
                       type="date"
+                      data-dialog-initial-focus
                       value={rescheduleForm.date}
                       onChange={(event) => {
                         setRescheduleForm((current) => ({ ...current, date: event.target.value }));
