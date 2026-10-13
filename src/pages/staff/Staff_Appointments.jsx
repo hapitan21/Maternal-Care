@@ -4,6 +4,11 @@ import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import {
+  staffAppointmentWriteMode,
+  createStagingStaffAppointmentTransport,
+  runStableStaffOperation,
+} from "../../lib/staffAppointmentIntegration";
+import {
   clinicLocalDateTimeToISOString,
   loadOperationalAppointmentPolicy,
 } from "../../lib/appointmentPolicy";
@@ -2211,6 +2216,12 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   const statusMenuRef = useRef(null);
   const appointmentSaveLockRef = useRef(false);
   const appointmentStatusLockRef = useRef(new Set());
+  const stagingCreateOperationRef = useRef(null);
+  const stagingCheckInOperationRef = useRef(null);
+  const staffAppointmentMode = staffAppointmentWriteMode(import.meta.env, supabase);
+  const stagingAppointmentTransport = useMemo(
+    () => createStagingStaffAppointmentTransport(supabase, import.meta.env), []
+  );
   const rescheduleSaveLockRef = useRef(false);
   const visitRoutingLockRef = useRef("");
   const bookingRequestsRequestRef = useRef(null);
@@ -3259,15 +3270,44 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       appointmentStatusLockRef.current.add(mutationKey);
 
       try {
-        const { data, error } = await supabase
-          .from(scheduleTableName)
-          .update({
-            ...extraPayload,
-            status: getDatabaseStatus(nextStatus),
-          })
-          .eq("id", appointment.id)
-          .select(scheduleColumns)
-          .single();
+        let data, error;
+        if (staffAppointmentMode === 'integrated' && nextStatus === 'Checked in') {
+          data = await runStableStaffOperation(
+            stagingCheckInOperationRef,
+            stagingAppointmentTransport,
+            `${appointment.id}:${appointment.patientId || ''}:check-in`,
+            async (binding) => {
+              const ctx = await stagingAppointmentTransport.context(appointment.id, binding);
+              if ((staffUserId && binding.actorId !== staffUserId) ||
+                  ctx?.appointment_id !== appointment.id ||
+                  ctx.patient_id !== appointment.patientId ||
+                  ctx.expected_appointment?.id !== appointment.id ||
+                  ctx.expected_appointment?.patient_id !== ctx.patient_id ||
+                  ctx.expected_appointment?.doctor_id !== appointment.doctorId ||
+                  Date.parse(ctx.expected_appointment?.start_time) !== Date.parse(appointment.startTime) ||
+                  Date.parse(ctx.expected_appointment?.end_time) !== Date.parse(appointment.endTime) ||
+                  !['scheduled', 'pending'].includes(ctx.expected_appointment?.status)) {
+                throw Error('An exact pending appointment revision is unavailable. Refresh before checking in.');
+              }
+              return { patient_id: ctx.patient_id, expected_appointment: ctx.expected_appointment };
+            },
+            (op) => stagingAppointmentTransport.checkIn(
+              appointment.id, op.operationId, op.request, op.binding
+            )
+          );
+        } else if (staffAppointmentMode === 'legacy') {
+          ({ data, error } = await supabase
+            .from(scheduleTableName)
+            .update({
+              ...extraPayload,
+              status: getDatabaseStatus(nextStatus),
+            })
+            .eq('id', appointment.id)
+            .select(scheduleColumns)
+            .single());
+        } else {
+          throw Error('This Staff status action has no approved integrated staging writer. No legacy fallback was attempted.');
+        }
 
         if (error) {
           console.error("Staff appointment status update failed:", {
@@ -3313,7 +3353,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
         appointmentStatusLockRef.current.delete(mutationKey);
       }
     },
-    [loadAppointments]
+    [loadAppointments, staffAppointmentMode, staffUserId, stagingAppointmentTransport]
   );
 
   const cancelAppointment = useCallback((appointment) => {
@@ -3462,6 +3502,11 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
         isReschedulingAppointment ||
         rescheduleSaveLockRef.current
       ) {
+        return;
+      }
+
+      if (staffAppointmentMode !== 'legacy') {
+        setRescheduleError('Staging rescheduling awaits a reviewed integrated contract. No legacy write was attempted.');
         return;
       }
 
@@ -3634,6 +3679,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       rescheduleForm.message,
       rescheduleForm.time,
       showSuccessMessage,
+      staffAppointmentMode,
     ]
   );
 
@@ -4085,28 +4131,53 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       status: "scheduled",
     };
 
-    const saveQuery = wasEditing
-      ? supabase.rpc("reschedule_appointment", {
-          p_schedule_id: editingAppointmentId,
-          p_new_start_time: payload.start_time,
-          p_new_end_time: payload.end_time,
-          p_description: payload.description,
-          p_apply_full_update: true,
-          p_patient_id: payload.patient_id,
-          p_patient_name: payload.patient_name,
-          p_doctor_id: payload.doctor_id,
-          p_doctor_name: payload.doctor_name,
-          p_title: payload.title,
-        })
-      : supabase.rpc("create_standard_appointment", {
-          p_patient_id: patientRecordId,
-          p_doctor_id: selectedDoctor.id,
-          p_title: title,
-          p_description: description,
-          p_start_time: startTime,
-        });
-
-    const { data: savedResult, error } = await saveQuery;
+    let savedResult, error;
+    if (staffAppointmentMode === 'integrated' && !wasEditing) {
+      const request = {
+        patient_id: patientRecordId,
+        doctor_id: selectedDoctor.id,
+        title,
+        description,
+        start_time: startTime,
+      };
+      savedResult = await runStableStaffOperation(
+        stagingCreateOperationRef,
+        stagingAppointmentTransport,
+        JSON.stringify(request),
+        async (binding) => {
+          if (staffUserId && binding.actorId !== staffUserId) {
+            throw Error('Staff session changed. Reopen appointment creation.');
+          }
+          return request;
+        },
+        (op) => stagingAppointmentTransport.create(op.operationId, op.request, op.binding)
+      );
+    } else if (staffAppointmentMode === 'legacy') {
+      ({ data: savedResult, error } = await (wasEditing
+        ? supabase.rpc('reschedule_appointment', {
+            p_schedule_id: editingAppointmentId,
+            p_new_start_time: payload.start_time,
+            p_new_end_time: payload.end_time,
+            p_description: payload.description,
+            p_apply_full_update: true,
+            p_patient_id: payload.patient_id,
+            p_patient_name: payload.patient_name,
+            p_doctor_id: payload.doctor_id,
+            p_doctor_name: payload.doctor_name,
+            p_title: payload.title,
+          })
+        : supabase.rpc('create_standard_appointment', {
+            p_patient_id: patientRecordId,
+            p_doctor_id: selectedDoctor.id,
+            p_title: title,
+            p_description: description,
+            p_start_time: startTime,
+          })));
+    } else {
+      throw Error(wasEditing
+        ? 'Staff appointment rescheduling requires a separately approved staging contract.'
+        : 'The staging appointment writer is disabled or points to an unapproved Supabase project. No legacy fallback was attempted.');
+    }
 
     const savedSchedule = wasEditing
       ? savedResult?.schedule
@@ -4197,6 +4268,9 @@ setMiniMonthDate(
     } else {
       setStatusMessage(notificationMessage);
     }
+  } catch (error) {
+    console.error('Staff appointment save could not be confirmed:', error);
+    setAddAppointmentError(`Unable to confirm appointment: ${error?.message || 'Review the saved appointment before retrying.'}`);
   } finally {
     appointmentSaveLockRef.current = false;
     setIsSavingAppointment(false);
@@ -4239,7 +4313,17 @@ setMiniMonthDate(
   ]);
 
   const saveFollowUpRecord = async () => {
+    // This legacy modal is not the canonical staging Pre-Consultation editor.
+    // Its unversioned intake writer must never run on staging.
+    if (staffAppointmentMode !== "legacy") {
+      setStatusMessage("This legacy Follow-Up save is unavailable in staging. Use the verified Pre-Consultation visit form.");
+      return;
+    }
     if (!selectedAppointment?.id) return;
+    if (staffAppointmentMode !== 'legacy') {
+      setStatusMessage('The inline legacy Follow-Up intake writer is disabled on staging. Use the dedicated Staff Visit Form after the versioned intake integration is reviewed.');
+      return;
+    }
 
     setStatusMessage("");
 

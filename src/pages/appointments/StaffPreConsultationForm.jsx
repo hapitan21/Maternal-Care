@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar, Info } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  staffIntakeWriteMode,
+  createStagingStaffIntakeTransport,
+  assertStaffIntakeContext,
+  prepareStagingStaffIntake,
+  isDefiniteStagingIntakeRejection,
+} from "../../lib/staffIntakeIntegration";
 import {
   getManilaDateKey,
   getManilaTimeKey,
@@ -67,6 +74,20 @@ function isMissingIntakeSupport(error) {
 
 function getErrorMessage(error, fallback) {
   return error?.message || fallback;
+}
+
+function confirmsSavedIntake(row, expected) {
+  if (!row || !row.id || row.appointment_id !== expected.appointmentId ||
+      row.patient_id !== expected.patientId || row.doctor_id !== expected.doctorId ||
+      row.visit_type !== expected.visitType || row.status !== "staff_completed" ||
+      !row.staff_completed_at || !Number.isFinite(Date.parse(row.staff_completed_at)) ||
+      !row.intake_data || typeof row.intake_data !== "object") return false;
+
+  // The legacy writer may return an existing row without applying the request.
+  // Confirm every submitted value, allowing its additional server-owned metadata.
+  return Object.entries(expected.intakeData).every(([key, value]) =>
+    Object.hasOwn(row.intake_data, key) && row.intake_data[key] === value
+  );
 }
 
 function getAppointmentDisplayId(appointment) {
@@ -228,11 +249,15 @@ function normalizeLoadedForm(visitType, appointment, intake, previousRecord = nu
 }
 
 function trimValue(value) {
-  return String(value || "").trim();
+  return String(value ?? "").trim();
 }
 
 function parseNumber(value) {
-  const parsed = Number(trimValue(value).replace(/[^\d.]/g, ""));
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const raw = trimValue(value);
+  // Match the entire measurement; units/signs/exponents are not numeric input.
+  if (!/^\d+(?:\.\d+)?$/.test(raw)) return null;
+  const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -243,9 +268,9 @@ function validateRange(errors, form, key, label, min, max, unit = "") {
     return;
   }
 
-  const value = parseNumber(raw);
+  const value = parseNumber(form[key]);
   if (value === null || value < min || value > max) {
-    errors[key] = `${label} must be ${min}-${max}${unit ? ` ${unit}` : ""}.`;
+    errors[key] = `Enter a number from ${min}-${max}${unit ? ` ${unit}` : ""} for ${label.toLowerCase()}.`;
   }
 }
 
@@ -266,11 +291,28 @@ function validateStaffIntake(visitType, form) {
     validateRange(errors, form, "respiratoryRate", "Respiratory rate", 5, 60, "/min");
     validateRange(errors, form, "oxygenSaturation", "Oxygen saturation", 1, 100, "%");
   } else {
-    if (!trimValue(form.gestationalAge)) errors.gestationalAge = "Gestational age is required.";
-    if (!trimValue(form.expectedDeliveryDate)) {
-      errors.expectedDeliveryDate = "Expected delivery date is required.";
+    // Unrecorded dating/risk stays unknown; never require invented findings.
+    // Retain the existing weeks/days parser, not an implicit whole-week conversion.
+    const age = trimValue(form.gestationalAge);
+    if ((form.gestationalAge != null && !["string", "number"].includes(typeof form.gestationalAge)) ||
+        (age && parseGestationalAgeToDays(age) === null)) {
+      errors.gestationalAge = "Use the existing weeks/days format for gestational age.";
     }
-    if (!trimValue(form.pregnancyStatus)) errors.pregnancyStatus = "Pregnancy status is required.";
+    const edd = trimValue(form.expectedDeliveryDate);
+    if (form.expectedDeliveryDate != null && typeof form.expectedDeliveryDate !== "string") {
+      errors.expectedDeliveryDate = "Use a valid calendar date for expected delivery.";
+    } else if (edd) {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(edd) ? new Date(`${edd}T00:00:00Z`) : null;
+      if (!date || !Number.isFinite(date.getTime()) || date.getUTCFullYear() < 1 ||
+          date.toISOString().slice(0, 10) !== edd) {
+        errors.expectedDeliveryDate = "Use a valid calendar date for expected delivery.";
+      }
+    }
+    const risk = trimValue(form.pregnancyStatus);
+    if ((form.pregnancyStatus != null && typeof form.pregnancyStatus !== "string") ||
+        (risk && !pregnancyStatusOptions.includes(risk))) {
+      errors.pregnancyStatus = "Select a listed pregnancy risk or leave it unrecorded.";
+    }
     validateRange(errors, form, "temperature", "Temperature", 30, 45, "C");
     validateRange(errors, form, "weight", "Weight", 25, 250, "kg");
     validateRange(errors, form, "fetalHeartRate", "Fetal heart rate", 60, 220, "bpm");
@@ -310,7 +352,7 @@ function TextField({
       <span>{label}</span>
       <input
         type={type}
-        value={value || ""}
+        value={value ?? ""}
         placeholder={placeholder}
         readOnly={readOnly}
         disabled={readOnly}
@@ -385,10 +427,20 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
   const navigate = useNavigate();
   const requestIdRef = useRef(0);
   const saveLockRef = useRef(false);
+  const saveScopeRef = useRef(null);
+  const unverifiedSaveRef = useRef(null);
+  const intakeContextRef = useRef(null);
+  const intakeBindingRef = useRef(null);
+  const intakeMode = staffIntakeWriteMode(import.meta.env, supabase);
+  const intakeTransport = useMemo(
+    () => createStagingStaffIntakeTransport(supabase, import.meta.env),
+    []
+  );
   const visitType = normalizeVisitType(requestedType);
   const isFollowUp = visitType === "follow_up";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [schemaWarning, setSchemaWarning] = useState("");
@@ -408,6 +460,13 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
     setMessage("");
     setSchemaWarning("");
     setValidationErrors({});
+    intakeContextRef.current = null;
+    intakeBindingRef.current = null;
+    if (intakeMode === "blocked") {
+      setError("Staff intake is blocked: staging transport or Supabase target is not approved. No legacy fallback is permitted.");
+      setLoading(false);
+      return;
+    }
 
     const { data: routingData, error: routingError } = await supabase.rpc(
       "get_appointment_visit_form_type",
@@ -449,13 +508,30 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
       return;
     }
 
+    let intakeBinding = null;
+    if (intakeMode === "integrated") {
+      try {
+        intakeBinding = await intakeTransport.session();
+      } catch (sessionError) {
+        if (requestIdRef.current === requestId) {
+          setError(getErrorMessage(sessionError, "Authorized staging Staff session required."));
+          setLoading(false);
+        }
+        return;
+      }
+    }
+
     const [patientResult, intakeResult, previousRecordResult] = await Promise.all([
       supabase
         .rpc("get_staff_patient_directory")
         .select(patientColumns)
         .eq("id", schedule.patient_id)
         .maybeSingle(),
-      supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
+      intakeMode === "integrated"
+        ? intakeTransport.context(appointmentId, intakeBinding)
+            .then((data) => ({ data, error: null }))
+            .catch((error) => ({ data: null, error }))
+        : supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
       isFollowUp
         ? supabase.rpc("get_staff_followup_baseline", {
             p_appointment_id: appointmentId,
@@ -482,7 +558,29 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
     }
 
     let loadedIntake = Array.isArray(intakeResult.data) ? intakeResult.data[0] : intakeResult.data;
-    if (intakeResult.error) {
+    if (intakeMode === "integrated") {
+      if (intakeResult.error) {
+        setError(getErrorMessage(intakeResult.error, "Verified staging Staff intake context is unavailable."));
+        setLoading(false);
+        return;
+      }
+      try {
+        const ids = {
+          appointmentId,
+          patientId: schedule.patient_id,
+          doctorId: schedule.doctor_id,
+          visitType,
+        };
+        const context = assertStaffIntakeContext(loadedIntake, ids);
+        intakeContextRef.current = context;
+        intakeBindingRef.current = intakeBinding;
+        loadedIntake = context.revision?.payload || null;
+      } catch (contextError) {
+        setError(getErrorMessage(contextError, "Staging intake context is not authoritative."));
+        setLoading(false);
+        return;
+      }
+    } else if (intakeResult.error) {
       loadedIntake = null;
       if (isMissingIntakeSupport(intakeResult.error)) {
         setSchemaWarning(
@@ -509,23 +607,40 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
     setPreviousDoctorRecord(previousRecord);
     setForm(normalizeLoadedForm(visitType, schedule, loadedIntake, previousRecord));
     setLoading(false);
-  }, [appointmentId, navigate, visitType]);
+  }, [appointmentId, navigate, visitType, intakeMode, intakeTransport]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(loadForm, 0);
+  // Invalidate the previous route at commit, before late promise callbacks run.
+  useLayoutEffect(() => {
+    const scope = { active: true, appointmentId, visitType };
+    saveScopeRef.current = scope;
+    unverifiedSaveRef.current = null;
+    saveLockRef.current = false;
+    const timer = window.setTimeout(() => {
+      if (!scope.active) return;
+      setSaving(false);
+      setNeedsVerification(false);
+      void loadForm();
+    }, 0);
     return () => {
+      scope.active = false;
+      if (saveScopeRef.current === scope) saveLockRef.current = false;
       requestIdRef.current += 1;
+      intakeContextRef.current = null;
+      intakeBindingRef.current = null;
       window.clearTimeout(timer);
     };
-  }, [loadForm]);
+  }, [loadForm, appointmentId, visitType]);
 
   const appointmentStatus = String(routing?.appointment_status || appointment?.status || "").trim().toLowerCase();
   const isReadOnly = useMemo(
     () => ["completed", "cancelled", "canceled", "cancel", "no_show", "no show"].includes(appointmentStatus),
     [appointmentStatus]
   );
+  const fieldsReadOnly = isReadOnly || saving || needsVerification;
 
   const updateForm = (field, value) => {
+    // Keep the exact submitted draft until an uncertain save is verified.
+    if (saveLockRef.current || unverifiedSaveRef.current) return;
     setForm((current) => ({ ...current, [field]: value }));
     setValidationErrors((current) => {
       if (!current[field]) return current;
@@ -536,7 +651,11 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
   };
 
   const saveForm = async () => {
-    if (saveLockRef.current || isReadOnly) return;
+    const scope = saveScopeRef.current;
+    if (saveLockRef.current || isReadOnly || loading || schemaWarning ||
+        !scope?.active || scope.appointmentId !== appointmentId || scope.visitType !== visitType ||
+        appointment?.id !== appointmentId || patient?.id !== appointment.patient_id) return;
+    const isCurrent = () => scope.active && saveScopeRef.current === scope;
 
     const errors = validateStaffIntake(visitType, form);
     setValidationErrors(errors);
@@ -551,33 +670,84 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
     setSaving(true);
 
     try {
-      const intakeData = {
-        ...form,
-        appointmentDisplayId: getAppointmentDisplayId(appointment),
-        appointmentDate: getManilaDateKey(appointment?.start_time),
-        appointmentTime: getManilaTimeKey(appointment?.start_time),
-        patientDisplayId: patient?.patient_id || "",
-        patientName: patient?.full_name || appointment?.patient_name || "",
-        doctorName: appointment?.doctor_name || "",
-        staffFormVersion: 1,
+      const pendingSave = unverifiedSaveRef.current || {
+        appointmentId,
+        patientId: appointment.patient_id,
+        doctorId: appointment.doctor_id,
+        visitType,
+        intakeData: {
+          ...form,
+          appointmentDisplayId: getAppointmentDisplayId(appointment),
+          appointmentDate: getManilaDateKey(appointment?.start_time),
+          appointmentTime: getManilaTimeKey(appointment?.start_time),
+          patientDisplayId: patient?.patient_id || "",
+          patientName: patient?.full_name || appointment?.patient_name || "",
+          doctorName: appointment?.doctor_name || "",
+          staffFormVersion: 1,
+        },
       };
 
-      const { data, error: saveError } = await supabase.rpc(
-        "save_staff_visit_intake",
-        {
-          p_appointment_id: appointmentId,
-          p_visit_form_type: visitType,
-          p_intake_data: intakeData,
+      let savedIntake;
+      if (intakeMode === "integrated") {
+        if (!unverifiedSaveRef.current) {
+          const ids = {
+            appointmentId,
+            patientId: appointment.patient_id,
+            doctorId: appointment.doctor_id,
+            visitType,
+          };
+          pendingSave.ids = ids;
+          pendingSave.binding = intakeBindingRef.current;
+          pendingSave.operationId = crypto.randomUUID();
+          pendingSave.request = prepareStagingStaffIntake(
+            intakeContextRef.current, ids, form
+          );
+          // Write fence is set before RPC; preserve the operation through
+          // unknown outcomes. Reconciliation reads first, then only retries
+          // this same UUID/request if the original context is unchanged.
+          unverifiedSaveRef.current = pendingSave;
+          setNeedsVerification(true);
         }
-      );
+        savedIntake = await intakeTransport.commitOrRecover(pendingSave);
+        if (!isCurrent()) return;
+      } else {
+        if (!unverifiedSaveRef.current) {
+          // Retain this before sending: a rejected network request may have committed.
+          unverifiedSaveRef.current = pendingSave;
+          setNeedsVerification(true);
+          const { error: saveError } = await supabase.rpc("save_staff_visit_intake", {
+            p_appointment_id: appointmentId,
+            p_visit_form_type: visitType,
+            p_intake_data: pendingSave.intakeData,
+          });
+          if (!isCurrent()) return;
+          if (saveError) {
+            // These legacy RPC errors are server-side statement rejections, not
+            // transport failures. Keep the draft editable for deliberate retry.
+            if (["42501", "22023", "23502", "23503", "23505", "40001", "P0001", "P0002"].includes(saveError.code)) {
+              unverifiedSaveRef.current = null;
+              setNeedsVerification(false);
+              setError(getErrorMessage(saveError, "Unable to save Staff pre-consultation intake."));
+              return;
+            }
+            // Other failures have an uncertain outcome; verify without replaying.
+            throw saveError;
+          }
+        }
 
-      if (saveError) {
-        setError(getErrorMessage(saveError, "Unable to save Staff pre-consultation intake."));
-        return;
+        const { data, error: readError } = await supabase.rpc("get_staff_visit_intake", {
+          p_appointment_id: pendingSave.appointmentId,
+        });
+        if (!isCurrent()) return;
+        if (readError) throw readError;
+        savedIntake = Array.isArray(data) && data.length === 1 ? data[0] : data;
+        if (!confirmsSavedIntake(savedIntake, pendingSave)) {
+          throw new Error("The saved intake did not confirm the submitted information.");
+        }
       }
-
-      const savedIntake = Array.isArray(data) ? data[0] : data;
-      setIntake(savedIntake || intake);
+      unverifiedSaveRef.current = null;
+      setNeedsVerification(false);
+      setIntake(savedIntake);
       setMessage(
         isFollowUp
           ? "Follow-up pre-consultation intake saved. The appointment remains checked in for the Doctor."
@@ -588,10 +758,20 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
       // leaving the appointment status unchanged (Checked in) for the Doctor.
       navigate("/staff/appointments", { replace: true });
     } catch (saveError) {
-      setError(getErrorMessage(saveError, "Unable to save Staff pre-consultation intake."));
+      if (isCurrent()) {
+        if (intakeMode === "integrated" && isDefiniteStagingIntakeRejection(saveError)) {
+          unverifiedSaveRef.current = null;
+          setNeedsVerification(false);
+        }
+        setError(unverifiedSaveRef.current
+          ? `Saving could not be confirmed. Your entries are retained. Select Verify Saved Record to check without saving again. ${getErrorMessage(saveError, "Readback unavailable.")}`
+          : getErrorMessage(saveError, "Unable to save Staff pre-consultation intake."));
+      }
     } finally {
-      saveLockRef.current = false;
-      setSaving(false);
+      if (isCurrent()) {
+        saveLockRef.current = false;
+        setSaving(false);
+      }
     }
   };
 
@@ -661,7 +841,7 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
             value={form.visitDate}
             onChange={(value) => updateForm("visitDate", value)}
             error={validationErrors.visitDate}
-            readOnly={isReadOnly}
+            readOnly={fieldsReadOnly}
           />
           <TextField
             label="Time of Visit"
@@ -669,7 +849,7 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
             value={form.visitTime}
             onChange={(value) => updateForm("visitTime", value)}
             error={validationErrors.visitTime}
-            readOnly={isReadOnly}
+            readOnly={fieldsReadOnly}
           />
           <ReadOnlyField label="Visit Type" value={isFollowUp ? "Follow-up Visit" : appointment?.title || "Initial Visit"} />
           <ReadOnlyField label="Attending Physician" value={appointment?.doctor_name || ""} />
@@ -684,20 +864,20 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
               placeholder="Enter gestational age"
               onChange={(value) => updateForm("gestationalAge", value)}
               error={validationErrors.gestationalAge}
-              readOnly={isReadOnly}
+              readOnly={fieldsReadOnly}
             />
             <DateField
               label="Expected Delivery Date"
               value={form.expectedDeliveryDate}
               onChange={(value) => updateForm("expectedDeliveryDate", value)}
               error={validationErrors.expectedDeliveryDate}
-              readOnly={isReadOnly}
+              readOnly={fieldsReadOnly}
             />
             <RiskSelector
               value={form.pregnancyStatus}
               onChange={(value) => updateForm("pregnancyStatus", value)}
               error={validationErrors.pregnancyStatus}
-              readOnly={isReadOnly}
+              readOnly={fieldsReadOnly}
             />
           </div>
         ) : null}
@@ -707,29 +887,29 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
         <h2>{isFollowUp ? "Clinical Findings" : "Initial Assessment"}</h2>
         {isFollowUp ? (
           <div className="staff-preconsult-field-grid is-three">
-            <TextField label="Blood Pressure" value={form.bloodPressure} placeholder="e.g. 120/80 mmHg" onChange={(value) => updateForm("bloodPressure", value)} error={validationErrors.bloodPressure} readOnly={isReadOnly} />
-            <TextField label="Temperature" value={form.temperature} placeholder="e.g. 36.7 C" onChange={(value) => updateForm("temperature", value)} error={validationErrors.temperature} readOnly={isReadOnly} />
-            <TextField label="Weight" value={form.weight} placeholder="e.g. 65 kg" onChange={(value) => updateForm("weight", value)} error={validationErrors.weight} readOnly={isReadOnly} />
-            <TextField label="Fetal Heart Rate" value={form.fetalHeartRate} placeholder="e.g. 140 bpm" onChange={(value) => updateForm("fetalHeartRate", value)} error={validationErrors.fetalHeartRate} readOnly={isReadOnly} />
-            <TextField label="Respiratory Rate" value={form.respiratoryRate} placeholder="Enter /min" onChange={(value) => updateForm("respiratoryRate", value)} error={validationErrors.respiratoryRate} readOnly={isReadOnly} />
-            <TextField label="Oxygen Saturation" value={form.oxygenSaturation} placeholder="Enter %" onChange={(value) => updateForm("oxygenSaturation", value)} error={validationErrors.oxygenSaturation} readOnly={isReadOnly} />
+            <TextField label="Blood Pressure" value={form.bloodPressure} placeholder="e.g. 120/80 mmHg" onChange={(value) => updateForm("bloodPressure", value)} error={validationErrors.bloodPressure} readOnly={fieldsReadOnly} />
+            <TextField label="Temperature" value={form.temperature} placeholder="e.g. 36.7 C" onChange={(value) => updateForm("temperature", value)} error={validationErrors.temperature} readOnly={fieldsReadOnly} />
+            <TextField label="Weight" value={form.weight} placeholder="e.g. 65 kg" onChange={(value) => updateForm("weight", value)} error={validationErrors.weight} readOnly={fieldsReadOnly} />
+            <TextField label="Fetal Heart Rate" value={form.fetalHeartRate} placeholder="e.g. 140 bpm" onChange={(value) => updateForm("fetalHeartRate", value)} error={validationErrors.fetalHeartRate} readOnly={fieldsReadOnly} />
+            <TextField label="Respiratory Rate" value={form.respiratoryRate} placeholder="Enter /min" onChange={(value) => updateForm("respiratoryRate", value)} error={validationErrors.respiratoryRate} readOnly={fieldsReadOnly} />
+            <TextField label="Oxygen Saturation" value={form.oxygenSaturation} placeholder="Enter %" onChange={(value) => updateForm("oxygenSaturation", value)} error={validationErrors.oxygenSaturation} readOnly={fieldsReadOnly} />
           </div>
         ) : (
           <>
             <div className="staff-preconsult-field-grid is-three">
-              <TextField label="Height" value={form.height} placeholder="Enter cm" onChange={(value) => updateForm("height", value)} error={validationErrors.height} readOnly={isReadOnly} />
-              <TextField label="Weight" value={form.weight} placeholder="Enter kg" onChange={(value) => updateForm("weight", value)} error={validationErrors.weight} readOnly={isReadOnly} />
-              <TextField label="Blood Pressure" value={form.bloodPressure} placeholder="--- / ---" onChange={(value) => updateForm("bloodPressure", value)} error={validationErrors.bloodPressure} readOnly={isReadOnly} />
-              <TextField label="Temperature" value={form.temperature} placeholder="Enter C" onChange={(value) => updateForm("temperature", value)} error={validationErrors.temperature} readOnly={isReadOnly} />
-              <TextField label="Respiratory Rate" value={form.respiratoryRate} placeholder="Enter /min" onChange={(value) => updateForm("respiratoryRate", value)} error={validationErrors.respiratoryRate} readOnly={isReadOnly} />
-              <TextField label="Oxygen Saturation" value={form.oxygenSaturation} placeholder="Enter %" onChange={(value) => updateForm("oxygenSaturation", value)} error={validationErrors.oxygenSaturation} readOnly={isReadOnly} />
+              <TextField label="Height" value={form.height} placeholder="Enter cm" onChange={(value) => updateForm("height", value)} error={validationErrors.height} readOnly={fieldsReadOnly} />
+              <TextField label="Weight" value={form.weight} placeholder="Enter kg" onChange={(value) => updateForm("weight", value)} error={validationErrors.weight} readOnly={fieldsReadOnly} />
+              <TextField label="Blood Pressure" value={form.bloodPressure} placeholder="--- / ---" onChange={(value) => updateForm("bloodPressure", value)} error={validationErrors.bloodPressure} readOnly={fieldsReadOnly} />
+              <TextField label="Temperature" value={form.temperature} placeholder="Enter C" onChange={(value) => updateForm("temperature", value)} error={validationErrors.temperature} readOnly={fieldsReadOnly} />
+              <TextField label="Respiratory Rate" value={form.respiratoryRate} placeholder="Enter /min" onChange={(value) => updateForm("respiratoryRate", value)} error={validationErrors.respiratoryRate} readOnly={fieldsReadOnly} />
+              <TextField label="Oxygen Saturation" value={form.oxygenSaturation} placeholder="Enter %" onChange={(value) => updateForm("oxygenSaturation", value)} error={validationErrors.oxygenSaturation} readOnly={fieldsReadOnly} />
             </div>
             <TextAreaField
               label="Remarks"
               value={form.remarks}
               placeholder="Enter remarks or notes"
               onChange={(value) => updateForm("remarks", value)}
-              readOnly={isReadOnly}
+              readOnly={fieldsReadOnly}
             />
           </>
         )}
@@ -742,7 +922,9 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
           disabled={saving || isReadOnly || Boolean(schemaWarning)}
           onClick={saveForm}
         >
-          {saving ? "Saving..." : "Save Record"}
+          {saving ? (needsVerification ? "Verifying..." : "Saving...") : needsVerification
+            ? (intakeMode === "integrated" ? "Verify / Retry Same Save" : "Verify Saved Record")
+            : "Save Record"}
         </button>
         <button
           type="button"

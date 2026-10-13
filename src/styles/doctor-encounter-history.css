@@ -1,0 +1,29 @@
+/* Scoped to the read-only snapshot; does not import the Medical Records shell into visit forms. */
+.doctor-encounter-history {
+  min-width: 0;
+  padding: 16px;
+  margin-block: 16px;
+  border: 1px solid #f3d5e4;
+  border-radius: 12px;
+  background: #fffafd;
+}
+.doctor-encounter-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.doctor-encounter-history dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 5px 0;
+}
+.doctor-encounter-history dd { margin: 0; }
+.doctor-encounter-history :is(dd, dt, li, p, summary) { overflow-wrap: anywhere; }
+.doctor-encounter-history summary { cursor: pointer; }
+@media (max-width: 700px) {
+  .doctor-encounter-history-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 390px) {
+  .doctor-encounter-history dl > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}

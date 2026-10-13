@@ -26,6 +26,7 @@ import {
   setStaffSessionSnapshot,
 } from "../../lib/staffSessionCache";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
+import StaffBasicRegistrationWizard from "../../components/patients/StaffBasicRegistrationWizard";
 import "../../styles/doctor-patients.css";
 import "../../styles/patient-record-ui-system.css";
 import {
@@ -1614,14 +1615,14 @@ function CredentialsPanel({ credentials }) {
   );
 }
 
-function Stepper({ currentStep, onStepSelect }) {
-  const progress = `${((currentStep - 1) / (steps.length - 1)) * 100}%`;
+function Stepper({ currentStep, onStepSelect, items = steps }) {
+  const progress = `${((currentStep - 1) / (items.length - 1)) * 100}%`;
 
   return (
     <div className="staff-register-stepper" style={{ "--step-progress": progress }}>
       <div className="staff-register-step-line" />
 
-      {steps.map((item) => {
+      {items.map((item) => {
         const isReached = item.id <= currentStep;
 
         return (
@@ -1653,6 +1654,465 @@ function Stepper({ currentStep, onStepSelect }) {
       })}
     </div>
   );
+}
+
+function BasicInformation({ form, updateForm, normalizeFormField, updateBirthdate, registrationErrors, setRegistrationFieldRef, moveToRegistrationStep }) {
+  return (
+    <section className="staff-register-card">
+      <header>
+        <span>
+          <Icon icon="solar:document-medicine-linear" aria-hidden="true" />
+        </span>
+        <h3>1. Basic Information</h3>
+      </header>
+
+      <div className="staff-register-grid">
+        <div className="staff-register-subsection-heading is-full">
+          <h4>Patient Information</h4>
+          <p>Primary demographic and contact information.</p>
+        </div>
+        <InputField
+          label="Patient's Name"
+          required
+          value={form.name}
+          onChange={(value) => updateForm("name", value)}
+          onBlur={() => normalizeFormField("name")}
+          placeholder="Enter Full Name"
+          className="is-wide"
+          error={registrationErrors.name}
+          fieldId="registration-patient-name"
+          inputRef={setRegistrationFieldRef("name")}
+          autoComplete="name"
+        />
+        <div className="staff-register-dob-field">
+          <InputField
+            label="Date of Birth"
+            required
+            type="date"
+            value={form.birthdate}
+            onChange={updateBirthdate}
+            icon="solar:calendar-linear"
+            error={registrationErrors.birthdate}
+            fieldId="registration-birthdate"
+            inputRef={setRegistrationFieldRef("birthdate")}
+          />
+          {form.birthdate && form.age === "0" ? (
+            <p
+              className="staff-register-dob-warning"
+              role="status"
+              aria-live="polite"
+            >
+              Please confirm this very recent date of birth is correct before
+              continuing.
+            </p>
+          ) : null}
+        </div>
+        <InputField
+          label="Age"
+          value={form.age}
+          onChange={() => {}}
+          placeholder="Calculated from date of birth"
+          readOnly
+        />
+        <InputField
+          label="Sex at Birth"
+          required
+          value="Female"
+          onChange={() => {}}
+          error={registrationErrors.sexAtBirth}
+          fieldId="registration-sex-at-birth"
+          inputRef={setRegistrationFieldRef("sexAtBirth")}
+          readOnly
+        />
+        <SelectField
+          label="Civil Status"
+          required
+          value={form.civilStatus}
+          onChange={(value) => updateForm("civilStatus", value)}
+          error={registrationErrors.civilStatus}
+          fieldId="registration-civil-status"
+          selectRef={setRegistrationFieldRef("civilStatus")}
+        >
+          <option value="">Select civil status</option>
+          {civilStatusOptions.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </SelectField>
+        <SelectField
+          label="Nationality"
+          value={form.nationality}
+          error={registrationErrors.nationality}
+          fieldId="registration-nationality"
+          selectRef={setRegistrationFieldRef("nationality")}
+          onChange={(value) => updateForm("nationality", value)}
+        >
+          <option value="">Not specified</option>
+          {nationalityOptions.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </SelectField>
+        {form.nationality === "Other" ? (
+          <InputField
+            label="Specify Nationality"
+            value={form.nationalityOther}
+            onChange={(value) => updateForm("nationalityOther", value)}
+            onBlur={() => normalizeFormField("nationalityOther")}
+            placeholder="Enter nationality"
+            error={registrationErrors.nationalityOther}
+            fieldId="registration-nationality-other"
+            inputRef={setRegistrationFieldRef("nationalityOther")}
+          />
+        ) : null}
+        <InputField
+          label="Home Address"
+          required
+          value={form.address}
+          onChange={(value) => updateForm("address", value)}
+          onBlur={() => normalizeFormField("address")}
+          placeholder="House no., Street, Barangay, City/Municipality"
+          className="is-full"
+          error={registrationErrors.address}
+          fieldId="registration-address"
+          inputRef={setRegistrationFieldRef("address")}
+          autoComplete="street-address"
+        />
+        <InputField
+          label="Patient Contact Number"
+          required
+          value={form.contactNumber}
+          onChange={(value) => updateForm("contactNumber", value)}
+          placeholder="09XXXXXXXXX"
+          className="is-half"
+          error={registrationErrors.contactNumber}
+          fieldId="registration-contact-number"
+          inputRef={setRegistrationFieldRef("contactNumber")}
+          inputMode="tel"
+          autoComplete="tel"
+        />
+        <InputField
+          label="Email Address"
+          type="email"
+          value={form.email}
+          onChange={(value) => updateForm("email", value)}
+          onBlur={() => updateForm("email", form.email.trim())}
+          className="is-half"
+          error={registrationErrors.email}
+          fieldId="registration-email"
+          inputRef={setRegistrationFieldRef("email")}
+          autoComplete="email"
+        />
+
+        <div className="staff-register-field is-full">
+          <RadioGroup
+            label="Are you a PhilHealth member?"
+            name="registration-philhealth-membership"
+            value={form.philHealthMember}
+            onChange={(value) => updateForm("philHealthMember", value)}
+            options={["Yes", "No"]}
+          />
+          {form.philHealthMember === "Yes" ? (
+            <InputField
+              label="PhilHealth Identification Number (PIN)"
+              value={form.philHealthPin}
+              onChange={(value) => updateForm("philHealthPin", value)}
+              onBlur={() => updateForm("philHealthPin", form.philHealthPin.trim())}
+              placeholder="Enter PhilHealth PIN, if available"
+              fieldId="registration-philhealth-pin"
+              error={registrationErrors.philHealthPin}
+              inputRef={setRegistrationFieldRef("philHealthPin")}
+              disabled={form.philHealthMember !== "Yes"}
+            />
+          ) : null}
+        </div>
+
+        <div className="staff-register-subsection-heading is-full">
+          <h4>Employment Information</h4>
+          <p>Optional employment details.</p>
+        </div>
+        <InputField
+          label="Occupation"
+          value={form.occupation}
+          error={registrationErrors.occupation}
+          fieldId="registration-occupation"
+          inputRef={setRegistrationFieldRef("occupation")}
+          onChange={(value) => updateForm("occupation", value)}
+          onBlur={() => normalizeFormField("occupation")}
+          className="is-half"
+        />
+        <InputField
+          label="Company"
+          value={form.company}
+          error={registrationErrors.company}
+          fieldId="registration-company"
+          inputRef={setRegistrationFieldRef("company")}
+          onChange={(value) => updateForm("company", value)}
+          onBlur={() => normalizeFormField("company")}
+          className="is-half"
+        />
+        <InputField
+          label="Work Address"
+          value={form.workAddress}
+          error={registrationErrors.workAddress}
+          fieldId="registration-workAddress"
+          inputRef={setRegistrationFieldRef("workAddress")}
+          onChange={(value) => updateForm("workAddress", value)}
+          onBlur={() => normalizeFormField("workAddress")}
+          className="is-half"
+        />
+        <InputField
+          label="Work Contact Number"
+          value={form.workContactNumber}
+          error={registrationErrors.workContactNumber}
+          fieldId="registration-workContactNumber"
+          inputRef={setRegistrationFieldRef("workContactNumber")}
+          onChange={(value) => updateForm("workContactNumber", value)}
+          className="is-half"
+          inputMode="tel"
+        />
+
+        <div className="staff-register-subsection-heading is-full">
+          <h4>Partner Information</h4>
+          <p>Optional husband or partner information.</p>
+        </div>
+        <InputField
+          label="Husband / Partner"
+          value={form.husbandPartner}
+          error={registrationErrors.husbandPartner}
+          fieldId="registration-husbandPartner"
+          inputRef={setRegistrationFieldRef("husbandPartner")}
+          onChange={(value) => updateForm("husbandPartner", value)}
+          onBlur={() => normalizeFormField("husbandPartner")}
+          className="is-half"
+        />
+        <InputField
+          label="Partner Contact Number"
+          value={form.partnerContactNumber}
+          error={registrationErrors.partnerContactNumber}
+          fieldId="registration-partnerContactNumber"
+          inputRef={setRegistrationFieldRef("partnerContactNumber")}
+          onChange={(value) => updateForm("partnerContactNumber", value)}
+          className="is-half"
+          inputMode="tel"
+        />
+
+        <div className="staff-register-subsection-heading is-full">
+          <h4>Emergency Contact</h4>
+          <p>Required contact to use in an emergency.</p>
+        </div>
+        <InputField
+          label="Contact Person"
+          required
+          value={form.emergencyContactPerson}
+          onChange={(value) => updateForm("emergencyContactPerson", value)}
+          onBlur={() => normalizeFormField("emergencyContactPerson")}
+          error={registrationErrors.emergencyContactPerson}
+          fieldId="registration-emergency-person"
+          inputRef={setRegistrationFieldRef("emergencyContactPerson")}
+          autoComplete="name"
+        />
+        <InputField
+          label="Relationship"
+          required
+          value={form.emergencyContactRelationship}
+          onChange={(value) => updateForm("emergencyContactRelationship", value)}
+          onBlur={() => normalizeFormField("emergencyContactRelationship")}
+          error={registrationErrors.emergencyContactRelationship}
+          fieldId="registration-emergency-relationship"
+          inputRef={setRegistrationFieldRef("emergencyContactRelationship")}
+        />
+        <InputField
+          label="Contact Number"
+          required
+          value={form.emergencyContactNumber}
+          onChange={(value) => updateForm("emergencyContactNumber", value)}
+          placeholder="09XXXXXXXXX"
+          className="is-half"
+          error={registrationErrors.emergencyContactNumber}
+          fieldId="registration-emergency-number"
+          inputRef={setRegistrationFieldRef("emergencyContactNumber")}
+          inputMode="tel"
+          autoComplete="tel"
+        />
+      </div>
+
+      <footer className="staff-register-footer is-end">
+        <button type="button" className="staff-next-btn" onClick={() => moveToRegistrationStep(2)}>
+          Next
+          <Icon icon="solar:arrow-right-linear" aria-hidden="true" />
+        </button>
+      </footer>
+    </section>
+  );
+}
+
+function PatientReview({ form, selectedWalkInSlot, selectedDoctor, moveToRegistrationStep, editWalkInSlot, generatePatientAccess, isSavingPatient, includeClinical = true, frozen = false, saveEnabled = true, recoverAccess, existingAccess = false }) {
+  return (
+    <section className="staff-register-card staff-registration-review">
+      <header>
+        <span><Icon icon="solar:clipboard-check-linear" aria-hidden="true" /></span>
+        <div>
+          <h3>Review Patient Information</h3>
+          <p>Confirm the selected walk-in slot and {includeClinical ? "three registration sections" : "Basic Information"} before generating Patient access.</p>
+        </div>
+      </header>
+
+      <div className="staff-registration-review-grid">
+        <section>
+          <h4>Walk-in Slot</h4>
+          <dl>
+            <div><dt>Doctor</dt><dd>{selectedWalkInSlot?.doctorName || selectedDoctor?.name || "Not selected"}</dd></div>
+            <div><dt>Specialization</dt><dd>{selectedWalkInSlot?.specialization || selectedDoctor?.specialization || "Not provided"}</dd></div>
+            <div><dt>Date</dt><dd>{formatSelectedWalkInDate(selectedWalkInSlot?.date)}</dd></div>
+            <div><dt>Time</dt><dd>{selectedWalkInSlot?.time ? formatSlotTime(selectedWalkInSlot.date, selectedWalkInSlot.time) : "Not selected"}</dd></div>
+          </dl>
+          <button type="button" disabled={isSavingPatient || frozen} onClick={editWalkInSlot}>Edit Walk-in Slot</button>
+        </section>
+        <section>
+          <h4>Basic Information</h4>
+          <dl>
+            <div><dt>Patient</dt><dd data-review="name">{form.name}</dd></div>
+            <div><dt>Birthdate</dt><dd>{form.birthdate}</dd></div>
+            <div><dt>Age</dt><dd>{form.age}</dd></div>
+            <div><dt>Sex at Birth</dt><dd>{form.sexAtBirth}</dd></div>
+            <div><dt>Civil Status</dt><dd>{form.civilStatus}</dd></div>
+            <div><dt>Nationality</dt><dd>{getResolvedNationality(form) || "Not provided"}</dd></div>
+            <div><dt>Contact</dt><dd>{form.contactNumber}</dd></div>
+            <div><dt>Email</dt><dd>{form.email || "Not provided"}</dd></div>
+            <div><dt>Address</dt><dd data-review="address">{form.address}</dd></div>
+            <div><dt>PhilHealth member</dt><dd>{form.philHealthMember || "Not recorded"}</dd></div>
+            <div><dt>PhilHealth PIN</dt><dd>{form.philHealthMember === "Yes" ? form.philHealthPin || "Not recorded" : "Not recorded"}</dd></div>
+            <div><dt>Emergency Contact</dt><dd>{form.emergencyContactPerson}</dd></div>
+            <div><dt>Relationship</dt><dd>{form.emergencyContactRelationship}</dd></div>
+            <div><dt>Emergency Number</dt><dd>{form.emergencyContactNumber}</dd></div>
+          </dl>
+          <button type="button" disabled={isSavingPatient || frozen} onClick={() => moveToRegistrationStep(1)}>Edit Basic Information</button>
+        </section>
+        {includeClinical && <>
+        <section>
+          <h4>Reproductive &amp; Obstetric</h4>
+          <dl>
+            <div><dt>Gravida / Para</dt><dd>{form.gravida} / {form.para}</dd></div>
+            {optionalObstetricCountFields.map(({ key, label }) => (
+              <div key={key}><dt>{label}</dt><dd>{String(form[key] ?? "").trim() || "Not recorded"}</dd></div>
+            ))}
+            <div><dt>Menstrual pattern</dt><dd>{form.menstrualPattern}</dd></div>
+            <div><dt>LMP</dt><dd>{form.lmp || "Not provided"}</dd></div>
+            <div><dt>EDD</dt><dd>{form.edd || "Not provided"}</dd></div>
+            <div><dt>Pregnancies</dt><dd>{getPregnancyRecordList(form).length || "None added"}</dd></div>
+          </dl>
+          <button type="button" onClick={() => moveToRegistrationStep(2)}>Edit Obstetric History</button>
+        </section>
+        <section>
+          <h4>Medical &amp; Family History</h4>
+          <dl>
+            <div><dt>Blood type</dt><dd>{form.bloodType || "Not provided"}</dd></div>
+            <div><dt>Allergies</dt><dd>{getAllergyList(form).join(", ") || "None reported"}</dd></div>
+            <div><dt>Medical conditions</dt><dd>{getMedicalConditionList(form).join(", ") || "None reported"}</dd></div>
+            <div><dt>Family history</dt><dd>{getFamilyHistoryList(form).join(", ") || "None reported"}</dd></div>
+          </dl>
+          <button type="button" onClick={() => moveToRegistrationStep(3)}>Edit Medical History</button>
+        </section>
+        </>}
+      </div>
+
+      <footer className="staff-register-footer has-divider">
+        <button type="button" className="staff-prev-btn" disabled={isSavingPatient || frozen} onClick={() => moveToRegistrationStep(includeClinical ? 3 : 1)}>
+          <Icon icon="solar:arrow-left-linear" aria-hidden="true" />
+          Back to Edit
+        </button>
+        <button type="button" className="staff-next-btn" onClick={generatePatientAccess} disabled={isSavingPatient || !saveEnabled} title={!saveEnabled ? "Basic-only saving requires the separately approved staging backend." : undefined}>
+          {existingAccess ? "Return to Patient Access" : isSavingPatient ? "Generating Patient Access..." : frozen ? "Retry Same Registration" : "Generate Patient Access"}
+        </button>
+        {recoverAccess && <button type="button" className="staff-prev-btn" disabled={isSavingPatient || !saveEnabled} onClick={recoverAccess}>Reload Saved Access Details</button>}
+      </footer>
+    </section>
+  );
+}
+
+function PatientAccess({ accessCredentials, form, copyRegistrationValue, copyMessage, qrReceiptConfirmed, setQrReceiptConfirmed, backToEditRegistration, isFinishingRegistration, registrationRecord, finishRegistration }) {
+  const accessUrl = buildPatientAccessUrl(accessCredentials);
+
+  return (
+    <section className="staff-register-card staff-access-confirmation">
+      <header>
+        <span><Icon icon="solar:qr-code-linear" aria-hidden="true" /></span>
+        <div>
+          <h3>Patient Access Confirmation</h3>
+          <p>Provide these access details directly to {form.name}.</p>
+        </div>
+      </header>
+
+      <div className="staff-access-confirmation-layout">
+        <div className="staff-access-confirmation-qr">
+          {accessUrl ? (
+            <QRCodeSVG
+              value={accessUrl}
+              size={256}
+              level="H"
+              includeMargin
+              title={`Patient activation QR code for ${accessCredentials.patientId}`}
+            />
+          ) : (
+            <p className="staff-qr-error" role="alert">
+              QR code unavailable. Ask the system administrator to configure a mobile-accessible Patient app URL.
+            </p>
+          )}
+          <strong>{form.name}</strong>
+          <span>{accessCredentials.patientId}</span>
+        </div>
+        <div className="staff-access-confirmation-details">
+          <section>
+            <span>Patient ID</span>
+            <strong id="registration-patient-id">{accessCredentials.patientId}</strong>
+            <button type="button" onClick={() => copyRegistrationValue("Patient ID", accessCredentials.patientId)}>
+              <Icon icon="solar:copy-linear" aria-hidden="true" /> Copy Patient ID
+            </button>
+          </section>
+          <section>
+            <span>One-time control number</span>
+            <strong>{accessCredentials.controlNumber}</strong>
+            <button type="button" onClick={() => copyRegistrationValue("Control number", accessCredentials.controlNumber)}>
+              <Icon icon="solar:copy-linear" aria-hidden="true" /> Copy Control Number
+            </button>
+          </section>
+          <section className="is-link">
+            <span>Patient Access Link</span>
+            {accessUrl ? <a id="registration-access-url" href={accessUrl} target="_blank" rel="noreferrer">{accessUrl}</a> : <em>Mobile access URL is not configured.</em>}
+            <button type="button" disabled={!accessUrl} onClick={() => copyRegistrationValue("Access link", accessUrl)}>
+              <Icon icon="solar:copy-linear" aria-hidden="true" /> Copy Access Link
+            </button>
+          </section>
+          <button type="button" className="staff-print-access-btn" onClick={() => window.print()} disabled={!accessUrl}>
+            <Icon icon="solar:printer-linear" aria-hidden="true" /> Print Access Slip
+          </button>
+          {copyMessage ? <p className="staff-access-copy-message" role="status">{copyMessage}</p> : null}
+        </div>
+      </div>
+
+      <div className="staff-access-instruction">
+        <Icon icon="solar:smartphone-2-linear" aria-hidden="true" />
+        <p>Ask the Patient to scan the QR code using their phone. Confirm that the Patient Access page opens before finishing the registration.</p>
+      </div>
+
+      <label className="staff-access-receipt-check">
+        <input type="checkbox" checked={qrReceiptConfirmed} disabled={!accessUrl || isFinishingRegistration} onChange={(event) => setQrReceiptConfirmed(event.target.checked)} />
+        <span>I confirm that the Patient received or scanned the QR code and received the one-time control number.</span>
+      </label>
+
+      <footer className="staff-register-footer has-divider">
+        <button type="button" className="staff-prev-btn" onClick={backToEditRegistration} disabled={isFinishingRegistration || registrationRecord?.registration_status !== "awaiting_patient_access_confirmation"}>
+          <Icon icon="solar:arrow-left-linear" aria-hidden="true" /> Back to Edit
+        </button>
+        <button type="button" className="staff-next-btn" onClick={finishRegistration} disabled={!accessUrl || !qrReceiptConfirmed || isFinishingRegistration}>
+          {isFinishingRegistration ? "Finishing Registration..." : "Finish Registration"}
+        </button>
+      </footer>
+    </section>
+  );
+}
+
+function RegistrationAside({ generated }) {
+  return generated ? <PatientRegisterSuccessCard isGenerated /> : <CredentialsPanel credentials={null} />;
 }
 
 function StaffPatientsContent({ headerAction, staffUserId }) {
@@ -3247,26 +3707,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
 
   const openRegister = () => {
     clearRegistrationNotice();
-    if (activeWalkInReservation) {
-      setStatusMessage("");
-      setWalkInError("");
-      setWalkInNotice("");
-      setScreen("select-slot");
-      navigate("/staff/patients/new/select-slot");
-      return;
-    }
-
-    window.sessionStorage.removeItem(staffRegistrationSessionKey);
-    setStep(1);
-    setForm(blankForm);
-    setRegistrationErrors({});
     setStatusMessage("");
-    setAccessCredentials({ patientId: "", controlNumber: "" });
-    setRegistrationView("form");
-    setRegistrationToken("");
-    setRegistrationRecord(null);
-    setQrReceiptConfirmed(false);
-    setCopyMessage("");
+    setWalkInError("");
+    setWalkInNotice("");
     setScreen("select-slot");
     navigate("/staff/patients/new/select-slot");
   };
@@ -3899,269 +4342,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
 
   const renderStepContent = () => {
     if (step === 1) {
-      return (
-        <section className="staff-register-card">
-          <header>
-            <span>
-              <Icon icon="solar:document-medicine-linear" aria-hidden="true" />
-            </span>
-            <h3>1. Basic Information</h3>
-          </header>
-
-          <div className="staff-register-grid">
-            <div className="staff-register-subsection-heading is-full">
-              <h4>Patient Information</h4>
-              <p>Primary demographic and contact information.</p>
-            </div>
-            <InputField
-              label="Patient's Name"
-              required
-              value={form.name}
-              onChange={(value) => updateForm("name", value)}
-              onBlur={() => normalizeFormField("name")}
-              placeholder="Enter Full Name"
-              className="is-wide"
-              error={registrationErrors.name}
-              fieldId="registration-patient-name"
-              inputRef={setRegistrationFieldRef("name")}
-              autoComplete="name"
-            />
-            <div className="staff-register-dob-field">
-              <InputField
-                label="Date of Birth"
-                required
-                type="date"
-                value={form.birthdate}
-                onChange={updateBirthdate}
-                icon="solar:calendar-linear"
-                error={registrationErrors.birthdate}
-                fieldId="registration-birthdate"
-                inputRef={setRegistrationFieldRef("birthdate")}
-              />
-              {form.birthdate && form.age === "0" ? (
-                <p
-                  className="staff-register-dob-warning"
-                  role="status"
-                  aria-live="polite"
-                >
-                  Please confirm this very recent date of birth is correct before
-                  continuing.
-                </p>
-              ) : null}
-            </div>
-            <InputField
-              label="Age"
-              value={form.age}
-              onChange={() => {}}
-              placeholder="Calculated from date of birth"
-              readOnly
-            />
-            <InputField
-              label="Sex at Birth"
-              required
-              value="Female"
-              onChange={() => {}}
-              error={registrationErrors.sexAtBirth}
-              fieldId="registration-sex-at-birth"
-              inputRef={setRegistrationFieldRef("sexAtBirth")}
-              readOnly
-            />
-            <SelectField
-              label="Civil Status"
-              required
-              value={form.civilStatus}
-              onChange={(value) => updateForm("civilStatus", value)}
-              error={registrationErrors.civilStatus}
-              fieldId="registration-civil-status"
-              selectRef={setRegistrationFieldRef("civilStatus")}
-            >
-              <option value="">Select civil status</option>
-              {civilStatusOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </SelectField>
-            <SelectField
-              label="Nationality"
-              value={form.nationality}
-              onChange={(value) => updateForm("nationality", value)}
-            >
-              <option value="">Not specified</option>
-              {nationalityOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </SelectField>
-            {form.nationality === "Other" ? (
-              <InputField
-                label="Specify Nationality"
-                value={form.nationalityOther}
-                onChange={(value) => updateForm("nationalityOther", value)}
-                onBlur={() => normalizeFormField("nationalityOther")}
-                placeholder="Enter nationality"
-                error={registrationErrors.nationalityOther}
-                fieldId="registration-nationality-other"
-                inputRef={setRegistrationFieldRef("nationalityOther")}
-              />
-            ) : null}
-            <InputField
-              label="Home Address"
-              required
-              value={form.address}
-              onChange={(value) => updateForm("address", value)}
-              onBlur={() => normalizeFormField("address")}
-              placeholder="House no., Street, Barangay, City/Municipality"
-              className="is-full"
-              error={registrationErrors.address}
-              fieldId="registration-address"
-              inputRef={setRegistrationFieldRef("address")}
-              autoComplete="street-address"
-            />
-            <InputField
-              label="Patient Contact Number"
-              required
-              value={form.contactNumber}
-              onChange={(value) => updateForm("contactNumber", value)}
-              placeholder="09XXXXXXXXX"
-              className="is-half"
-              error={registrationErrors.contactNumber}
-              fieldId="registration-contact-number"
-              inputRef={setRegistrationFieldRef("contactNumber")}
-              inputMode="tel"
-              autoComplete="tel"
-            />
-            <InputField
-              label="Email Address"
-              type="email"
-              value={form.email}
-              onChange={(value) => updateForm("email", value)}
-              onBlur={() => updateForm("email", form.email.trim())}
-              className="is-half"
-              error={registrationErrors.email}
-              fieldId="registration-email"
-              inputRef={setRegistrationFieldRef("email")}
-              autoComplete="email"
-            />
-
-            <div className="staff-register-field is-full">
-              <RadioGroup
-                label="Are you a PhilHealth member?"
-                name="registration-philhealth-membership"
-                value={form.philHealthMember}
-                onChange={(value) => updateForm("philHealthMember", value)}
-                options={["Yes", "No"]}
-              />
-              {form.philHealthMember === "Yes" ? (
-                <InputField
-                  label="PhilHealth Identification Number (PIN)"
-                  value={form.philHealthPin}
-                  onChange={(value) => updateForm("philHealthPin", value)}
-                  onBlur={() => updateForm("philHealthPin", form.philHealthPin.trim())}
-                  placeholder="Enter PhilHealth PIN, if available"
-                  fieldId="registration-philhealth-pin"
-                  disabled={form.philHealthMember !== "Yes"}
-                />
-              ) : null}
-            </div>
-
-            <div className="staff-register-subsection-heading is-full">
-              <h4>Employment Information</h4>
-              <p>Optional employment details.</p>
-            </div>
-            <InputField
-              label="Occupation"
-              value={form.occupation}
-              onChange={(value) => updateForm("occupation", value)}
-              onBlur={() => normalizeFormField("occupation")}
-              className="is-half"
-            />
-            <InputField
-              label="Company"
-              value={form.company}
-              onChange={(value) => updateForm("company", value)}
-              onBlur={() => normalizeFormField("company")}
-              className="is-half"
-            />
-            <InputField
-              label="Work Address"
-              value={form.workAddress}
-              onChange={(value) => updateForm("workAddress", value)}
-              onBlur={() => normalizeFormField("workAddress")}
-              className="is-half"
-            />
-            <InputField
-              label="Work Contact Number"
-              value={form.workContactNumber}
-              onChange={(value) => updateForm("workContactNumber", value)}
-              className="is-half"
-              inputMode="tel"
-            />
-
-            <div className="staff-register-subsection-heading is-full">
-              <h4>Partner Information</h4>
-              <p>Optional husband or partner information.</p>
-            </div>
-            <InputField
-              label="Husband / Partner"
-              value={form.husbandPartner}
-              onChange={(value) => updateForm("husbandPartner", value)}
-              onBlur={() => normalizeFormField("husbandPartner")}
-              className="is-half"
-            />
-            <InputField
-              label="Partner Contact Number"
-              value={form.partnerContactNumber}
-              onChange={(value) => updateForm("partnerContactNumber", value)}
-              className="is-half"
-              inputMode="tel"
-            />
-
-            <div className="staff-register-subsection-heading is-full">
-              <h4>Emergency Contact</h4>
-              <p>Required contact to use in an emergency.</p>
-            </div>
-            <InputField
-              label="Contact Person"
-              required
-              value={form.emergencyContactPerson}
-              onChange={(value) => updateForm("emergencyContactPerson", value)}
-              onBlur={() => normalizeFormField("emergencyContactPerson")}
-              error={registrationErrors.emergencyContactPerson}
-              fieldId="registration-emergency-person"
-              inputRef={setRegistrationFieldRef("emergencyContactPerson")}
-              autoComplete="name"
-            />
-            <InputField
-              label="Relationship"
-              required
-              value={form.emergencyContactRelationship}
-              onChange={(value) => updateForm("emergencyContactRelationship", value)}
-              onBlur={() => normalizeFormField("emergencyContactRelationship")}
-              error={registrationErrors.emergencyContactRelationship}
-              fieldId="registration-emergency-relationship"
-              inputRef={setRegistrationFieldRef("emergencyContactRelationship")}
-            />
-            <InputField
-              label="Contact Number"
-              required
-              value={form.emergencyContactNumber}
-              onChange={(value) => updateForm("emergencyContactNumber", value)}
-              placeholder="09XXXXXXXXX"
-              className="is-half"
-              error={registrationErrors.emergencyContactNumber}
-              fieldId="registration-emergency-number"
-              inputRef={setRegistrationFieldRef("emergencyContactNumber")}
-              inputMode="tel"
-              autoComplete="tel"
-            />
-          </div>
-
-          <footer className="staff-register-footer is-end">
-            <button type="button" className="staff-next-btn" onClick={() => moveToRegistrationStep(2)}>
-              Next
-              <Icon icon="solar:arrow-right-linear" aria-hidden="true" />
-            </button>
-          </footer>
-        </section>
-      );
+      return <BasicInformation form={form} updateForm={updateForm} normalizeFormField={normalizeFormField} updateBirthdate={updateBirthdate} registrationErrors={registrationErrors} setRegistrationFieldRef={setRegistrationFieldRef} moveToRegistrationStep={moveToRegistrationStep} />;
     }
 
     if (step === 2) {
@@ -4664,166 +4845,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     return null;
   };
 
-  const renderReviewContent = () => (
-    <section className="staff-register-card staff-registration-review">
-      <header>
-        <span><Icon icon="solar:clipboard-check-linear" aria-hidden="true" /></span>
-        <div>
-          <h3>Review Patient Information</h3>
-          <p>Confirm the selected walk-in slot and three registration sections before generating Patient access.</p>
-        </div>
-      </header>
+  const renderReviewContent = () => <PatientReview form={form} selectedWalkInSlot={selectedWalkInSlot} selectedDoctor={selectedDoctor} moveToRegistrationStep={moveToRegistrationStep} editWalkInSlot={() => navigate("/staff/patients/new/select-slot")} generatePatientAccess={registrationRecord ? () => setRegistrationView("confirmation") : generatePatientAccess} isSavingPatient={isSavingPatient} includeClinical={false} frozen={Boolean(registrationRecord)} existingAccess={Boolean(registrationRecord)} />;
 
-      <div className="staff-registration-review-grid">
-        <section>
-          <h4>Walk-in Slot</h4>
-          <dl>
-            <div><dt>Doctor</dt><dd>{selectedWalkInSlot?.doctorName || selectedDoctor?.name || "Not selected"}</dd></div>
-            <div><dt>Specialization</dt><dd>{selectedWalkInSlot?.specialization || selectedDoctor?.specialization || "Not provided"}</dd></div>
-            <div><dt>Date</dt><dd>{formatSelectedWalkInDate(selectedWalkInSlot?.date)}</dd></div>
-            <div><dt>Time</dt><dd>{selectedWalkInSlot?.time ? formatSlotTime(selectedWalkInSlot.date, selectedWalkInSlot.time) : "Not selected"}</dd></div>
-          </dl>
-          <button type="button" onClick={() => navigate("/staff/patients/new/select-slot")}>Edit Walk-in Slot</button>
-        </section>
-        <section>
-          <h4>Basic Information</h4>
-          <dl>
-            <div><dt>Patient</dt><dd>{form.name}</dd></div>
-            <div><dt>Birthdate</dt><dd>{form.birthdate}</dd></div>
-            <div><dt>Age</dt><dd>{form.age}</dd></div>
-            <div><dt>Sex at Birth</dt><dd>{form.sexAtBirth}</dd></div>
-            <div><dt>Civil Status</dt><dd>{form.civilStatus}</dd></div>
-            <div><dt>Nationality</dt><dd>{getResolvedNationality(form) || "Not provided"}</dd></div>
-            <div><dt>Contact</dt><dd>{form.contactNumber}</dd></div>
-            <div><dt>Email</dt><dd>{form.email || "Not provided"}</dd></div>
-            <div><dt>Address</dt><dd>{form.address}</dd></div>
-            <div><dt>PhilHealth member</dt><dd>{form.philHealthMember || "Not recorded"}</dd></div>
-            <div><dt>PhilHealth PIN</dt><dd>{form.philHealthMember === "Yes" ? form.philHealthPin || "Not recorded" : "Not recorded"}</dd></div>
-            <div><dt>Emergency Contact</dt><dd>{form.emergencyContactPerson}</dd></div>
-            <div><dt>Relationship</dt><dd>{form.emergencyContactRelationship}</dd></div>
-            <div><dt>Emergency Number</dt><dd>{form.emergencyContactNumber}</dd></div>
-          </dl>
-          <button type="button" onClick={() => moveToRegistrationStep(1)}>Edit Basic Information</button>
-        </section>
-        <section>
-          <h4>Reproductive &amp; Obstetric</h4>
-          <dl>
-            <div><dt>Gravida / Para</dt><dd>{form.gravida} / {form.para}</dd></div>
-            {optionalObstetricCountFields.map(({ key, label }) => (
-              <div key={key}><dt>{label}</dt><dd>{String(form[key] ?? "").trim() || "Not recorded"}</dd></div>
-            ))}
-            <div><dt>Menstrual pattern</dt><dd>{form.menstrualPattern}</dd></div>
-            <div><dt>LMP</dt><dd>{form.lmp || "Not provided"}</dd></div>
-            <div><dt>EDD</dt><dd>{form.edd || "Not provided"}</dd></div>
-            <div><dt>Pregnancies</dt><dd>{getPregnancyRecordList(form).length || "None added"}</dd></div>
-          </dl>
-          <button type="button" onClick={() => moveToRegistrationStep(2)}>Edit Obstetric History</button>
-        </section>
-        <section>
-          <h4>Medical &amp; Family History</h4>
-          <dl>
-            <div><dt>Blood type</dt><dd>{form.bloodType || "Not provided"}</dd></div>
-            <div><dt>Allergies</dt><dd>{getAllergyList(form).join(", ") || "None reported"}</dd></div>
-            <div><dt>Medical conditions</dt><dd>{getMedicalConditionList(form).join(", ") || "None reported"}</dd></div>
-            <div><dt>Family history</dt><dd>{getFamilyHistoryList(form).join(", ") || "None reported"}</dd></div>
-          </dl>
-          <button type="button" onClick={() => moveToRegistrationStep(3)}>Edit Medical History</button>
-        </section>
-      </div>
-
-      <footer className="staff-register-footer has-divider">
-        <button type="button" className="staff-prev-btn" onClick={() => moveToRegistrationStep(3)}>
-          <Icon icon="solar:arrow-left-linear" aria-hidden="true" />
-          Back to Edit
-        </button>
-        <button type="button" className="staff-next-btn" onClick={generatePatientAccess} disabled={isSavingPatient}>
-          {isSavingPatient ? "Generating Patient Access..." : "Generate Patient Access"}
-        </button>
-      </footer>
-    </section>
-  );
-
-  const renderConfirmationContent = () => {
-    const accessUrl = buildPatientAccessUrl(accessCredentials);
-
-    return (
-      <section className="staff-register-card staff-access-confirmation">
-        <header>
-          <span><Icon icon="solar:qr-code-linear" aria-hidden="true" /></span>
-          <div>
-            <h3>Patient Access Confirmation</h3>
-            <p>Provide these access details directly to {form.name}.</p>
-          </div>
-        </header>
-
-        <div className="staff-access-confirmation-layout">
-          <div className="staff-access-confirmation-qr">
-            {accessUrl ? (
-              <QRCodeSVG
-                value={accessUrl}
-                size={256}
-                level="H"
-                includeMargin
-                title={`Patient activation QR code for ${accessCredentials.patientId}`}
-              />
-            ) : (
-              <p className="staff-qr-error" role="alert">
-                QR code unavailable. Ask the system administrator to configure a mobile-accessible Patient app URL.
-              </p>
-            )}
-            <strong>{form.name}</strong>
-            <span>{accessCredentials.patientId}</span>
-          </div>
-          <div className="staff-access-confirmation-details">
-            <section>
-              <span>Patient ID</span>
-              <strong>{accessCredentials.patientId}</strong>
-              <button type="button" onClick={() => copyRegistrationValue("Patient ID", accessCredentials.patientId)}>
-                <Icon icon="solar:copy-linear" aria-hidden="true" /> Copy Patient ID
-              </button>
-            </section>
-            <section>
-              <span>One-time control number</span>
-              <strong>{accessCredentials.controlNumber}</strong>
-              <button type="button" onClick={() => copyRegistrationValue("Control number", accessCredentials.controlNumber)}>
-                <Icon icon="solar:copy-linear" aria-hidden="true" /> Copy Control Number
-              </button>
-            </section>
-            <section className="is-link">
-              <span>Patient Access Link</span>
-              {accessUrl ? <a href={accessUrl} target="_blank" rel="noreferrer">{accessUrl}</a> : <em>Mobile access URL is not configured.</em>}
-              <button type="button" disabled={!accessUrl} onClick={() => copyRegistrationValue("Access link", accessUrl)}>
-                <Icon icon="solar:copy-linear" aria-hidden="true" /> Copy Access Link
-              </button>
-            </section>
-            <button type="button" className="staff-print-access-btn" onClick={() => window.print()} disabled={!accessUrl}>
-              <Icon icon="solar:printer-linear" aria-hidden="true" /> Print Access Slip
-            </button>
-            {copyMessage ? <p className="staff-access-copy-message" role="status">{copyMessage}</p> : null}
-          </div>
-        </div>
-
-        <div className="staff-access-instruction">
-          <Icon icon="solar:smartphone-2-linear" aria-hidden="true" />
-          <p>Ask the Patient to scan the QR code using their phone. Confirm that the Patient Access page opens before finishing the registration.</p>
-        </div>
-
-        <label className="staff-access-receipt-check">
-          <input type="checkbox" checked={qrReceiptConfirmed} disabled={!accessUrl} onChange={(event) => setQrReceiptConfirmed(event.target.checked)} />
-          <span>I confirm that the Patient received or scanned the QR code and received the one-time control number.</span>
-        </label>
-
-        <footer className="staff-register-footer has-divider">
-          <button type="button" className="staff-prev-btn" onClick={backToEditRegistration} disabled={isFinishingRegistration || registrationRecord?.registration_status !== "awaiting_patient_access_confirmation"}>
-            <Icon icon="solar:arrow-left-linear" aria-hidden="true" /> Back to Edit
-          </button>
-          <button type="button" className="staff-next-btn" onClick={finishRegistration} disabled={!qrReceiptConfirmed || isFinishingRegistration}>
-            {isFinishingRegistration ? "Finishing Registration..." : "Finish Registration"}
-          </button>
-        </footer>
-      </section>
-    );
-  };
+  const renderConfirmationContent = () => <PatientAccess accessCredentials={accessCredentials} form={form} copyRegistrationValue={copyRegistrationValue} copyMessage={copyMessage} qrReceiptConfirmed={qrReceiptConfirmed} setQrReceiptConfirmed={setQrReceiptConfirmed} backToEditRegistration={backToEditRegistration} isFinishingRegistration={isFinishingRegistration} registrationRecord={registrationRecord} finishRegistration={finishRegistration} />;
 
   const openWalkInDatePicker = () => {
     const dateInput = walkInDateInputRef.current;
@@ -5143,6 +5167,46 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     return renderWalkInSelection();
   }
 
+  if (screen === "register" && !registrationRecord) {
+    return <StaffBasicRegistrationWizard
+      staffUserId={staffUserId}
+      reservation={selectedWalkInSlot}
+      normalizeText={normalizeHumanReadableText}
+      BasicContent={BasicInformation}
+      ReviewContent={PatientReview}
+      AccessContent={PatientAccess}
+      copyRegistrationValue={copyRegistrationValue}
+      copyMessage={copyMessage}
+      StepperContent={Stepper}
+      AsideContent={RegistrationAside}
+      onBack={({ keepReservation } = {}) => {
+        // An uncertain/persisted submission must retain its exact reservation
+        // for receipt recovery and identical retry, rather than releasing it.
+        if (keepReservation) {
+          setScreen("list");
+          navigate("/staff/patients");
+        } else {
+          void backToPatients();
+        }
+      }}
+      onSelectSlot={() => {
+        setScreen("select-slot");
+        navigate("/staff/patients/new/select-slot");
+      }}
+      onComplete={() => {
+        // Refresh the existing authoritative directory; the Basic-only response
+        // is not shaped like a legacy directory row and must not be mapped as one.
+        window.sessionStorage.removeItem(staffWalkInSlotSessionKey);
+        setSelectedWalkInSlot(null);
+        setSelectedSlotId("");
+        setPatientLoadRetryKey((current) => current + 1);
+        setScreen("list");
+        navigate("/staff/patients");
+        showRegistrationNotice({ tone: "success", message: "Patient registration completed and verified.", detail: "Patient Access details are ready for the existing Create Account flow.", autoDismiss: true });
+      }}
+    />;
+  }
+
   if (screen === "register") {
     return (
       <section className="staff-register-page" ref={registrationTopRef}>
@@ -5172,7 +5236,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                   </span>
                 </div>
               ) : (
-                <Stepper currentStep={step} onStepSelect={moveToRegistrationStep} />
+                <Stepper currentStep={2} items={[{ id: 1, label: "Basic Information" }, { id: 2, label: "Review Information" }, { id: 3, label: "Patient Access & QR Code" }]} onStepSelect={() => setRegistrationView("review")} />
               )}
               {statusMessage ? (
                 <p className="staff-patients-status-message">{statusMessage}</p>
@@ -5183,7 +5247,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                   ? renderReviewContent()
                   : registrationView === "confirmation"
                     ? renderConfirmationContent()
-                    : renderStepContent()}
+                    : registrationRecord ? renderReviewContent() : renderStepContent()}
               </main>
             </div>
 

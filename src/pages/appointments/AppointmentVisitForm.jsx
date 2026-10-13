@@ -16,6 +16,12 @@ import {
   normalizeRiskLevel,
 } from "../../lib/clinicalVisitData";
 import { calculateCurrentPregnancyWeekFromEdd } from "../../lib/pregnancyTracking";
+import DoctorInitialHistoryEditor from "../../components/appointments/DoctorInitialHistoryEditor";
+import DoctorEncounterHistory from "../../components/appointments/DoctorEncounterHistory";
+import { chooseInitialHistory, createInitialHistoryDraft, updateInitialPreviewEncounter } from "../../lib/doctorInitialHistoryDraft";
+import { getLogicalSessionIdentity } from "../../lib/roleInactivity";
+import { assertTrustedInitialIntake, boundedInitialRequest, createInitialIntegrationTransport, initialIntegrationEnabled, loadInitialHistoryChoices, localInitialHistoryContext, prepareIntegratedInitial } from "../../lib/doctorInitialIntegration";
+import { assertTrustedFollowUpContext, createStagingDoctorFollowUpTransport, doctorFollowUpWriteMode, prepareIntegratedFollowUp } from "../../lib/doctorFollowUpIntegration";
 import "../../styles/appointment-visit-form.css";
 
 const scheduleColumns =
@@ -502,7 +508,7 @@ function getPastPregnancies(obstetric) {
   return Array.isArray(obstetric?.pregnancy_records)
     ? obstetric.pregnancy_records.filter((row) =>
         row && typeof row === "object" && !Array.isArray(row) &&
-        ["birthdate", "termPreterm", "deliveryType", "complications"]
+        ["birthdate", "termPreterm", "deliveryType", "deliveryPlace", "complications", "nbsResult"]
           .some((field) => formatHistoryValue(row[field]) !== "Not recorded")
       )
     : [];
@@ -557,8 +563,8 @@ function ObstetricHistorySection({ obstetric, expectedDeliveryDate }) {
             {pregnancies.length ? pregnancies.map((row, index) => (
               <tr key={`${row.id || "pregnancy"}-${index}`}>
                 <td>{formatHistoryDate(row.birthdate)}</td><td>{formatHistoryValue(row.termPreterm)}</td>
-                <td>{formatHistoryValue(row.deliveryType)}</td><td>Not recorded</td>
-                <td>{formatHistoryValue(row.complications)}</td><td>Not recorded</td>
+                <td>{formatHistoryValue(row.deliveryType)}</td><td>{formatHistoryValue(row.deliveryPlace)}</td>
+                <td>{formatHistoryValue(row.complications)}</td><td>{formatHistoryValue(row.nbsResult)}</td>
               </tr>
             )) : <tr><td colSpan="6" className="appointment-visit-empty-row">No past pregnancies recorded.</td></tr>}
           </tbody>
@@ -936,7 +942,7 @@ function validateVisitForm(form, { laboratoryFile = null, ultrasoundFile = null 
 
 function focusFirstValidationError(errors) {
   const firstField = Object.keys(errors)[0];
-  const targetId = validationFieldIds[firstField];
+  const targetId = validationFieldIds[firstField] || (firstField?.startsWith("history-") ? firstField : null);
   if (!targetId) return;
 
   window.setTimeout(() => {
@@ -957,7 +963,26 @@ function formatClinicalDate(value) {
   });
 }
 
-export default function AppointmentVisitForm({ appointmentId, requestedType, workspace }) {
+export default function AppointmentVisitForm({ appointmentId, requestedType, workspace, mockPreview = null, onMockSaved }) {
+  // No production route supplies this capability. The isolated dev harness also
+  // substitutes a throwing Supabase stub; it cannot fall back to the live client.
+  const isMockPreview = import.meta.env?.DEV === true && mockPreview?.kind === "s4-a7b-isolated-preview" && workspace === "doctor" &&
+    (requestedType === "initial" || (requestedType === "follow_up" && mockPreview.visitType === "follow_up"));
+  const isMockFollowUp = isMockPreview && requestedType === "follow_up";
+  const isRealInitial = !isMockPreview && workspace === "doctor" && requestedType === "initial";
+  const followUpWriteMode = doctorFollowUpWriteMode(import.meta.env, supabase);
+  const isProtectedFollowUp = !isMockPreview && workspace === "doctor" && requestedType === "follow_up" && followUpWriteMode !== "legacy";
+  const followUpBackendEnabled = followUpWriteMode === "integrated";
+  const initialBackendEnabled = initialIntegrationEnabled(import.meta.env, supabase);
+  const initialSessionRef = useRef("");
+  const initialOperationRef = useRef(null);
+  const followUpOperationRef = useRef(null);
+  const [followUpReviewed, setFollowUpReviewed] = useState(false);
+  const [followUpPending, setFollowUpPending] = useState(false);
+  const [followUpStale, setFollowUpStale] = useState(false);
+  const [initialSource, setInitialSource] = useState(null);
+  const [pendingInitial, setPendingInitial] = useState(false);
+  const [initialStale, setInitialStale] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const requestIdRef = useRef(0);
@@ -985,6 +1010,25 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   const [laboratoryFile, setLaboratoryFile] = useState(null);
   const [ultrasoundFile, setUltrasoundFile] = useState(null);
   const [prescriptionFile, setPrescriptionFile] = useState(null);
+  const [previewContext, setPreviewContext] = useState(null);
+  const [historyDraft, setHistoryDraft] = useState(null);
+
+  useEffect(() => {
+    if (!isRealInitial && !isProtectedFollowUp) return undefined;
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      const identity = getLogicalSessionIdentity(session);
+      if ((initialSessionRef.current && initialSessionRef.current !== identity) || event === "SIGNED_OUT") {
+        requestIdRef.current += 1;
+        initialSessionRef.current = ""; initialOperationRef.current = null; followUpOperationRef.current = null; saveLockRef.current = false;
+        setFollowUpReviewed(false); setFollowUpPending(false); setFollowUpStale(true);
+        setPreviewContext(null); setHistoryDraft(null); setInitialSource(null); setPendingInitial(false); setInitialStale(false);
+        setAppointment(null); setPatient(null); setExistingRecord(null); setForm(emptyForm); setSaving(false); setLoading(false);
+        setMessage(""); setValidationErrors({}); setRouting(null); setPreviousBaseline(null); setRegistrationHistory({});
+        setError("Doctor session changed. Reopen the exact appointment before continuing.");
+      }
+    });
+    return () => { data.subscription.unsubscribe(); initialSessionRef.current = ""; initialOperationRef.current = null; followUpOperationRef.current = null; };
+  }, [isRealInitial, isProtectedFollowUp]);
 
   const medicalRecordReturnContext = useMemo(() => {
     if (workspace !== "doctor") return null;
@@ -1026,6 +1070,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   const loadVisit = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
+    try {
     setLoading(true);
     setError("");
     setMessage("");
@@ -1038,11 +1083,57 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     setEddConfirmation(null);
     setRegistrationHistory({});
     setHistoryWarning("");
+    if (isRealInitial || isProtectedFollowUp) {
+      setAppointment(null); setPatient(null); setPreviewContext(null); setHistoryDraft(null); setInitialSource(null);
+      setPendingInitial(false); setInitialStale(false); initialOperationRef.current = null;
+      followUpOperationRef.current = null; setFollowUpReviewed(false); setFollowUpPending(false); setFollowUpStale(false);
+    }
 
-    const { data: routingData, error: routingError } = await supabase.rpc(
+    if (isMockPreview) {
+      try {
+        const loaded = await mockPreview.load(appointmentId);
+        if (requestIdRef.current !== requestId) return;
+        setAppointment(loaded.appointment); setPatient(loaded.patient); setRouting(loaded.routing);
+        setExistingRecord(loaded.record); setPreviewContext(loaded.context);
+        setPreviousBaseline(loaded.baseline || null);
+        if (isMockFollowUp) setRegistrationHistory(Object.fromEntries(["obstetric", "medical"].map((kind) => [kind,
+          loaded.context.state[kind].find((row) => row.id === loaded.context.state.context?.[`${kind}_id`]) || null])));
+        let draft = createInitialHistoryDraft(loaded.context);
+        if (loaded.record) {
+          for (const kind of ["obstetric", "medical"]) {
+            const id = loaded.context.state.context?.[`${kind}_id`];
+            draft = chooseInitialHistory(draft, kind, id ? `select:${id}` : loaded.context.state.context?.[kind === "medical" ? "medical_state" : "pregnancy_state"] === "not_recorded" ? "not_recorded" : "retain_unresolved", loaded.context);
+          }
+          draft.pregnancy = { action: loaded.context.state.context?.pregnancy_id ? "confirm_existing" : loaded.context.state.context?.pregnancy_state === "not_recorded" ? "not_recorded" : "retain_unresolved", ...(loaded.context.state.context?.pregnancy_id ? { id: loaded.context.state.context.pregnancy_id } : {}) };
+          draft.reviewed = true;
+        }
+        setHistoryDraft(draft);
+        setForm(normalizeFormData({ form_data: loaded.form }));
+        setCurrentPregnancy({ obstetricHistoryId: loaded.context.state.context?.obstetric_id || "", expectedDeliveryDate: loaded.context.state.patient.expected_delivery_date || "" });
+        setSaving(false); saveLockRef.current = false;
+      } catch (previewError) {
+        if (requestIdRef.current !== requestId) return;
+        setError(getErrorMessage(previewError, "Mock context unavailable. No production fallback exists."));
+      } finally {
+        if (requestIdRef.current === requestId) setLoading(false);
+      }
+      return;
+    }
+
+    if (isRealInitial || isProtectedFollowUp) {
+      const auth = await boundedInitialRequest(supabase.auth.getSession());
+      if (requestIdRef.current !== requestId) return;
+      if (auth.error) throw auth.error;
+      const identity = getLogicalSessionIdentity(auth.data?.session);
+      if (!identity) throw new Error("An authenticated Doctor session is required.");
+      initialSessionRef.current = identity;
+    }
+
+    const routingRequest = supabase.rpc(
       "get_appointment_visit_form_type",
       { p_appointment_id: appointmentId }
     );
+    const { data: routingData, error: routingError } = await (isRealInitial || isProtectedFollowUp ? boundedInitialRequest(routingRequest) : routingRequest);
 
     if (requestIdRef.current !== requestId) return;
     if (routingError) {
@@ -1073,17 +1164,146 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       return;
     }
 
-    const { data: schedule, error: scheduleError } = await supabase
+    const scheduleRequest = supabase
       .from("schedule")
       .select(scheduleColumns)
       .eq("id", appointmentId)
       .maybeSingle();
+    const { data: schedule, error: scheduleError } = await (isRealInitial || isProtectedFollowUp ? boundedInitialRequest(scheduleRequest) : scheduleRequest);
 
     if (requestIdRef.current !== requestId) return;
     if (scheduleError || !schedule?.patient_id) {
       logVisitError("appointment load failed", scheduleError);
       setError(getErrorMessage(scheduleError, "The appointment could not be loaded."));
       setLoading(false);
+      return;
+    }
+
+    if (isRealInitial && ["checked_in", "checked-in", "checked in"].includes(String(schedule.status).toLowerCase())) {
+      try {
+        const { data: auth, error: authError } = await boundedInitialRequest(supabase.auth.getSession());
+        if (authError) throw authError;
+        const binding = getLogicalSessionIdentity(auth?.session), doctorId = auth?.session?.user?.id;
+        if (!binding || initialSessionRef.current !== binding || schedule.doctor_id !== doctorId) throw new Error("The authenticated Doctor must be assigned to this exact appointment and session.");
+        if (requestIdRef.current !== requestId) return;
+        initialSessionRef.current = binding;
+        const current = () => requestIdRef.current === requestId && initialSessionRef.current === binding;
+        const { data: actor, error: actorError } = await boundedInitialRequest(supabase.from("profiles").select("id, role, account_status").eq("id", doctorId).maybeSingle());
+        if (actorError) throw actorError;
+        if (actor?.id !== doctorId || String(actor.role).toLowerCase() !== "doctor" || String(actor.account_status).toLowerCase() !== "active") throw new Error("An active Doctor account is required.");
+        if (!current()) return;
+        const patientResult = await boundedInitialRequest(loadVisitPatient(schedule.patient_id, true));
+        if (patientResult.error) throw patientResult.error;
+        if (patientResult.data?.id !== schedule.patient_id) throw new Error("Exact appointment/patient linkage is unavailable.");
+        const ids = { appointmentId, patientId: schedule.patient_id, doctorId };
+        let context, intake;
+        const transport = createInitialIntegrationTransport(supabase, initialBackendEnabled, binding, current, import.meta.env);
+        if (initialBackendEnabled) {
+          context = await transport.context(appointmentId);
+          intake = assertTrustedInitialIntake(context, ids).payload;
+        } else {
+          const [obstetric, medical, intakeResult] = await Promise.all([
+            loadInitialHistoryChoices(supabase, "patient_obstetric_history", obstetricHistoryColumns, schedule.patient_id, current),
+            loadInitialHistoryChoices(supabase, "patient_medical_history", medicalHistoryColumns, schedule.patient_id, current),
+            boundedInitialRequest(supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId })),
+          ]);
+          if (intakeResult.error && !isMissingStaffIntakeSupport(intakeResult.error)) throw intakeResult.error;
+          intake = Array.isArray(intakeResult.data) ? intakeResult.data[0] : intakeResult.data;
+          if (intake && (intake.appointment_id !== appointmentId || intake.patient_id !== schedule.patient_id || intake.visit_type !== "initial")) throw new Error("Staff intake has contradictory appointment/patient linkage.");
+          context = localInitialHistoryContext(schedule, patientResult.data, obstetric, medical);
+        }
+        const verified = await boundedInitialRequest(supabase.auth.getSession());
+        if (verified.error) throw verified.error;
+        if (!current() || getLogicalSessionIdentity(verified.data?.session) !== binding) return;
+        // Measurements are current Staff-sourced prefill. Staff remarks and past
+        // Doctor findings are displayed separately, never copied as new findings.
+        const source = buildStaffIntakeDefaults(intake);
+        const measurements = Object.fromEntries(["bloodPressure", "temperature", "respiratoryRate", "weight", "height", "oxygenSaturation", "fetalHeartRate"]
+          .filter(key => source[key] != null).map(key => [key, source[key]]));
+        setAppointment(schedule); setPatient(patientResult.data); setRouting(routeResult); setExistingRecord(null); setPreviousBaseline(null);
+        setPreviewContext(context); setHistoryDraft(createInitialHistoryDraft(context)); setInitialSource(intake || null);
+        setForm({ ...emptyForm, ...measurements }); setPendingInitial(false);
+        initialOperationRef.current = { id: crypto.randomUUID(), request: null, ids, binding };
+      } catch (initialError) {
+        if (requestIdRef.current === requestId) setError(getErrorMessage(initialError, "Initial Visit context unavailable. No legacy save fallback exists."));
+      } finally { if (requestIdRef.current === requestId) setLoading(false); }
+      return;
+    }
+
+    if (isProtectedFollowUp) {
+      try {
+        if (!followUpBackendEnabled) throw Error("Follow-Up staging integration is not activated for the pinned Supabase project. No legacy write fallback exists.");
+        const generation = requestIdRef.current;
+        const binding = initialSessionRef.current;
+        const current = () => requestIdRef.current === generation && initialSessionRef.current === binding;
+        const { data: auth, error: authError } = await boundedInitialRequest(supabase.auth.getSession());
+        if (authError) throw authError;
+        const doctorId = auth?.session?.user?.id;
+        if (!binding || getLogicalSessionIdentity(auth?.session) !== binding || doctorId !== schedule.doctor_id) {
+          throw Error("The authenticated Doctor must be assigned to the exact Follow-Up appointment.");
+        }
+        const { data: profile, error: profileError } = await boundedInitialRequest(supabase.from("profiles")
+          .select("id, role, account_status").eq("id", doctorId).maybeSingle());
+        if (profileError) throw profileError;
+        if (profile?.id !== doctorId || String(profile.role).toLowerCase() !== "doctor" ||
+            String(profile.account_status).toLowerCase() !== "active") throw Error("An active assigned Doctor is required.");
+        if (!current()) return;
+        const transport = createStagingDoctorFollowUpTransport(supabase, import.meta.env, binding, current);
+        const { data: patientRow, error: patientError } = await boundedInitialRequest(loadVisitPatient(schedule.patient_id, true));
+        if (patientError) throw patientError;
+        if (patientRow?.id !== schedule.patient_id) throw Error("Exact Follow-Up patient linkage is unavailable.");
+        if (!current()) return;
+        if (schedule.status === "completed") {
+          // The reviewed contract does not support amendments. Reading an already
+          // completed record never enables a legacy update from this view.
+          const { data: completedRecord, error: completedError } = await boundedInitialRequest(supabase
+            .from("medical_records").select(recordColumns).eq("schedule_id", appointmentId).maybeSingle());
+          if (completedError) throw completedError;
+          if (!completedRecord || completedRecord.patient_id !== schedule.patient_id ||
+              completedRecord.doctor_id !== doctorId || completedRecord.form_data?.visitFormType !== "follow_up") {
+            throw Error("Authoritative completed Follow-Up record is unavailable.");
+          }
+          if (!current()) return;
+          setAppointment(schedule); setPatient(patientRow); setRouting(routeResult);
+          setExistingRecord(completedRecord); setForm(normalizeFormData(completedRecord));
+          setLoading(false); return;
+        }
+        if (schedule.status !== "checked_in") throw Error("Only a checked-in new Follow-Up can be saved. Other states are read-only.");
+        const initial = await transport.initial(schedule.patient_id);
+        const ids = { appointmentId, patientId: schedule.patient_id, doctorId, initialRecordId: initial.id };
+        const context = await transport.context(appointmentId, initial.id);
+        const staff = assertTrustedFollowUpContext(context, ids).payload;
+        if (!current()) return;
+        const source = buildStaffIntakeDefaults(staff);
+        // Current Staff measurements + authoritative canonical dating only;
+        // do not copy prior Doctor findings, medications or prescriptions.
+        const measurements = Object.fromEntries(["bloodPressure", "temperature", "respiratoryRate", "weight", "height", "oxygenSaturation", "fetalHeartRate", "gestationalAge", "riskLevel"]
+          .filter(key => source[key] != null).map(key => [key, source[key]]));
+        // Display ONLY the exact versioned applicable histories returned by
+        // the Follow-Up context, never an unrelated latest patient-level row.
+        const applicable = {};
+        for (const kind of ["obstetric", "medical"]) {
+          const historyId = context.history[`${kind}_id`];
+          const rows = context.state[kind];
+          if (!Array.isArray(rows)) throw Error("Versioned Follow-Up clinical histories are unavailable.");
+          const found = historyId ? rows.find(row => row.id === historyId && row.patient_id === schedule.patient_id) : null;
+          if (historyId && !found) throw Error("Exact applicable Follow-Up clinical history is missing.");
+          applicable[kind] = found;
+        }
+        setRegistrationHistory(applicable);
+        setAppointment(schedule); setPatient(patientRow); setRouting(routeResult);
+        setExistingRecord(null); setPreviousBaseline(context.initial_snapshot.record);
+        setPreviewContext(context); setInitialSource(staff);
+        setCurrentPregnancy({ obstetricHistoryId: context.history.obstetric_id || "",
+          expectedDeliveryDate: context.state.patient.expected_delivery_date || "" });
+        setForm({ ...emptyForm, ...measurements,
+          expectedDeliveryDate: context.state.patient.expected_delivery_date || "" });
+        followUpOperationRef.current = { id: crypto.randomUUID(), request: null, ids, binding };
+        setFollowUpReviewed(false); setFollowUpPending(false); setFollowUpStale(false);
+      } catch (followError) {
+        if (requestIdRef.current === requestId) setError(getErrorMessage(followError,
+          "Trusted Follow-Up context is unavailable. No legacy clinical save was attempted."));
+      } finally { if (requestIdRef.current === requestId) setLoading(false); }
       return;
     }
 
@@ -1292,7 +1512,14 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     });
     setForm(nextForm);
     setLoading(false);
-  }, [appointmentId, location.search, navigate, requestedType, workspace]);
+    } catch (loadError) {
+      if (!isRealInitial && !isProtectedFollowUp) throw loadError;
+      if (requestIdRef.current === requestId) {
+        setError(getErrorMessage(loadError, "Unable to load Initial Visit context. Retry is available."));
+        setLoading(false);
+      }
+    }
+  }, [appointmentId, initialBackendEnabled, isRealInitial, isProtectedFollowUp, followUpBackendEnabled, isMockPreview, isMockFollowUp, location.search, mockPreview, navigate, requestedType, workspace]);
 
   useEffect(() => {
     const timer = window.setTimeout(loadVisit, 0);
@@ -1338,18 +1565,27 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   const hasExistingRecord = existingRecord?.id != null && existingRecord.id !== "";
   const isEditableExistingRecord =
     workspace === "doctor" &&
+    !isProtectedFollowUp &&
     hasExistingRecord &&
     existingRecord?.schedule_id === appointmentId &&
     !isBlockedAppointmentStatus;
-  const isReadOnly = hasExistingRecord
+  const isReadOnly = isRealInitial ? hasExistingRecord || isCompleted || saving || pendingInitial :
+    isProtectedFollowUp ? hasExistingRecord || isCompleted || saving || followUpPending :
+    isMockPreview ? isCompleted || saving : hasExistingRecord
     ? !isEditableExistingRecord
     : isCompleted;
-  const canSave = isEditableExistingRecord || (isCheckedIn && !isReadOnly);
+  const canSave = isRealInitial ? isCheckedIn && !hasExistingRecord && !isCompleted && !initialStale :
+    isProtectedFollowUp ? isCheckedIn && !hasExistingRecord && !isCompleted && !followUpStale && followUpBackendEnabled :
+    isMockPreview ? isCheckedIn && !isCompleted : isEditableExistingRecord || (isCheckedIn && !isReadOnly);
   const isFollowUp = requestedType === "follow_up";
   const formTitle = isFollowUp ? "Follow-Up Visit Form" : "Initial Visit Form";
 
   const updateForm = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }));
+    if ((isMockPreview || isRealInitial || isProtectedFollowUp) && (saveLockRef.current || pendingInitial || followUpPending)) return;
+    if (isProtectedFollowUp && field === "expectedDeliveryDate") return;
+    if (isProtectedFollowUp) setFollowUpReviewed(false);
+    if (isMockPreview || isRealInitial) setHistoryDraft((current) => current ? { ...current, reviewed: false } : current);
+    setForm((current) => isMockPreview || isRealInitial ? updateInitialPreviewEncounter(current, field, value) : ({ ...current, [field]: value }));
     setValidationErrors((current) => {
       if (!current[field]) return current;
       const next = { ...current };
@@ -1468,6 +1704,95 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
 
   const saveRecord = async ({ updateCurrentEdd = false } = {}) => {
     if (saveLockRef.current || saving || !canSave) return;
+
+    if (isProtectedFollowUp) {
+      const operation = followUpOperationRef.current;
+      if (!followUpBackendEnabled || !previewContext || !operation || hasExistingRecord ||
+          (!followUpReviewed && !operation.request)) {
+        setError("Explicitly review the trusted Initial and Staff intake before saving. Staging has no legacy Follow-Up fallback.");
+        return;
+      }
+      const generation = requestIdRef.current;
+      const current = () => requestIdRef.current === generation && initialSessionRef.current === operation.binding;
+      saveLockRef.current = true; setSaving(true); setError(""); setMessage(""); setValidationErrors({});
+      try {
+        if (!operation.request) {
+          if (laboratoryFile || ultrasoundFile || prescriptionFile) throw Error("Report and prescription file admission is not supported for staging Follow-Up. Files were not uploaded.");
+          operation.request = prepareIntegratedFollowUp(previewContext, form, operation.ids, followUpReviewed);
+        }
+        setFollowUpPending(true);
+        const record = await createStagingDoctorFollowUpTransport(supabase, import.meta.env, operation.binding, current).save(operation);
+        if (!current()) return;
+        setExistingRecord(record); setForm(normalizeFormData(record));
+        setRouting({ visit_form_type: "follow_up", appointment_status: "completed" });
+        setFollowUpPending(false); setMessage("Follow-Up saved; immutable Staff source and encounter readback verified.");
+        returnFromVisit(record.id, { replace: true });
+      } catch (followError) {
+        if (!current()) return;
+        setValidationErrors(followError.fields || {});
+        if (followError.fields) focusFirstValidationError(followError.fields);
+        setError(followError.code === "40001" ?
+          "Clinical context changed. Your draft is retained, but this Follow-Up needs a new review after reopening the appointment." :
+          getErrorMessage(followError, "Follow-Up outcome may be unknown. Retry the identical operation; no legacy fallback exists."));
+        if (followError.code === "40001") setFollowUpStale(true);
+      } finally { if (current()) { saveLockRef.current = false; setSaving(false); } }
+      return;
+    }
+
+    if (isRealInitial) {
+      if (!initialBackendEnabled || !previewContext || !initialOperationRef.current || hasExistingRecord) {
+        setError("Initial Visit saving is unavailable pending approved staging activation. No legacy save was attempted."); return;
+      }
+      const generation = requestIdRef.current, operation = initialOperationRef.current;
+      const current = () => requestIdRef.current === generation && initialSessionRef.current === operation.binding;
+      saveLockRef.current = true; setSaving(true); setError(""); setMessage(""); setValidationErrors({});
+      try {
+        if (!operation.request) operation.request = prepareIntegratedInitial(previewContext, historyDraft, form, operation.ids, getManilaDateKey());
+        setPendingInitial(true);
+        const result = await createInitialIntegrationTransport(supabase, initialBackendEnabled, operation.binding, current, import.meta.env).save(operation.id, operation.request, operation.ids);
+        if (!current()) return;
+        setExistingRecord(result.record); setForm(normalizeFormData(result.record)); setRouting({ visit_form_type: "initial", appointment_status: "completed" });
+        setPendingInitial(false); setMessage("Initial Visit saved and immutable encounter readback verified.");
+        returnFromVisit(result.record.id, { replace: true });
+      } catch (initialError) {
+        if (!current()) return;
+        setValidationErrors(initialError.fields || {});
+        if (initialError.fields) focusFirstValidationError(initialError.fields);
+        setError(initialError.code === "40001" ? "Context changed. Your draft is preserved. Reload the context and explicitly review histories before a new operation." :
+          getErrorMessage(initialError, "Initial save outcome is unconfirmed. Retry the identical operation; no legacy fallback exists."));
+        if (initialError.code === "40001") { operation.request = null; setPendingInitial(false); setInitialStale(true); }
+      } finally { if (current()) { saveLockRef.current = false; setSaving(false); } }
+      return;
+    }
+
+    if (isMockPreview) {
+      const generation = requestIdRef.current;
+      saveLockRef.current = true; setSaving(true); setError(""); setMessage(""); setValidationErrors({});
+      try {
+        const result = await mockPreview.save(historyDraft, form);
+        if (generation !== requestIdRef.current) return;
+        setPreviewContext(result.context); setExistingRecord(result.committed_record);
+        setAppointment((current) => ({ ...current, ...result.context.state.appointment }));
+        setPatient((current) => ({ ...current, ...result.context.state.patient }));
+        setRouting({ visit_form_type: requestedType, appointment_status: "completed" });
+        setForm(normalizeFormData(result.committed_record));
+        let draft = createInitialHistoryDraft(result.context);
+        for (const kind of ["obstetric", "medical"]) draft = chooseInitialHistory(draft, kind,
+          result.histories[kind] ? `select:${result.histories[kind].id}` : historyDraft[kind].action, result.context);
+        draft.pregnancy = { action: result.manifest.pregnancy_id ? "confirm_existing" : historyDraft.pregnancy.action, ...(result.manifest.pregnancy_id ? { id: result.manifest.pregnancy_id } : {}) };
+        draft.confirmEdd = historyDraft.confirmEdd; draft.reviewed = true; setHistoryDraft(draft);
+        setMessage("Mock visit saved and canonical readback verified. Synthetic data only — nothing was saved to Supabase.");
+        onMockSaved?.(result);
+      } catch (previewError) {
+        if (generation !== requestIdRef.current) return;
+        setError(getErrorMessage(previewError, "Mock save failed. No production fallback exists."));
+        setValidationErrors(previewError.fields || {});
+      } finally {
+        saveLockRef.current = false;
+        if (generation === requestIdRef.current) setSaving(false);
+      }
+      return;
+    }
 
     const nextValidationErrors = validateVisitForm(form, {
       laboratoryFile,
@@ -1741,7 +2066,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     : standardBabyPositions;
 
   return (
-    <main className="appointment-visit-page">
+    <main className={`appointment-visit-page${isRealInitial || isProtectedFollowUp ? " appointment-visit-page--initial-integration" : ""}`}>
       <header className="appointment-visit-header">
         <button className="appointment-visit-back" type="button" onClick={() => returnFromVisit(existingRecord?.id || "")}>
           <ArrowLeft size={15} aria-hidden="true" />
@@ -1750,7 +2075,9 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         <div className="appointment-visit-heading">
           <h1>{formTitle.toUpperCase()}</h1>
           <p>
-            {isReadOnly
+            {isRealInitial && !hasExistingRecord && !isCompleted && (saving || pendingInitial)
+              ? "Submitted draft is locked until the save outcome is verified."
+              : isReadOnly
               ? "Completed visit record."
               : !isFollowUp
                 ? "Record initial information for initial visit."
@@ -1765,6 +2092,53 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
 
       {error ? <p className="appointment-visit-message is-error" role="alert">{error}</p> : null}
       {message ? <p className="appointment-visit-message is-success" role="status">{message}</p> : null}
+      {isProtectedFollowUp ? <p className="appointment-visit-message" role="status">
+        {followUpBackendEnabled ? "Staging Follow-Up requires the exact completed Initial anchor, immutable Staff intake, and explicit new findings review." :
+          "Staging Follow-Up saving is disabled. No legacy save or amendment fallback exists."}
+        {" "}Clinical reports and prescription PDF attachments are unavailable pending reviewed Storage admission.
+      </p> : null}
+      {isProtectedFollowUp && !hasExistingRecord && previewContext ? <label className="appointment-visit-message" htmlFor="follow-up-context-reviewed">
+        <input id="follow-up-context-reviewed" type="checkbox" checked={followUpReviewed} disabled={saving || followUpPending}
+          onChange={(event) => setFollowUpReviewed(event.target.checked)} />
+        {" "}I reviewed the authoritative prior Initial Visit, current Staff pre-consultation measurements,
+        and today's independently entered Follow-Up findings. No previous prescription is carried forward.
+      </label> : null}
+      {isProtectedFollowUp && followUpStale ? <p className="appointment-visit-message is-error" role="alert">
+        This clinical context changed. Keep your draft and reopen the appointment for a fresh trusted review.
+      </p> : null}
+      {isRealInitial && !hasExistingRecord ? <p className="appointment-visit-message" role="status">
+        {initialBackendEnabled ? "Staging Initial Visit integration. Saving requires exact versioned histories and a trusted Staff intake revision." : "Initial Visit saving is not activated. You can review and enter clinical information locally; persistence requires the approved staging backend. No legacy save fallback is used."}
+        {" "}PDF attachment admission is unavailable in this integration.
+      </p> : null}
+      {isRealInitial && hasExistingRecord ? <p className="appointment-visit-message" role="status">
+        Completed Initial records are read-only here. Versioned amendments have not been activated.
+      </p> : null}
+      {(isRealInitial || isProtectedFollowUp) && initialSource ? <details className="appointment-visit-baseline-disclosure" id="initial-staff-source">
+        <summary>Staff Pre-consultation Source</summary>
+        <p>Staff ID: {initialSource.staff_id || "Not recorded"}; intake: {initialSource.id}; completed: {initialSource.staff_completed_at || "Not recorded"}.</p>
+        <p>{isProtectedFollowUp || initialBackendEnabled ? `Trusted revision: ${previewContext?.staff_intake?.id}` : "Legacy read-only source; its immutable revision has not been verified. It cannot authorize a clinical save."}</p>
+        <p>Current measurements are prefilled from this source. Staff notes remain separate from the Doctor's findings.</p>
+        <pre className="appointment-visit-source-data">{JSON.stringify(initialSource.intake_data || {}, null, 2)}</pre>
+      </details> : null}
+      {isRealInitial && initialStale ? <button type="button" disabled={saving} onClick={async () => {
+        const operation = initialOperationRef.current, generation = requestIdRef.current;
+        const current = () => requestIdRef.current === generation && initialSessionRef.current === operation?.binding;
+        if (!operation || saveLockRef.current) return;
+        saveLockRef.current = true; setSaving(true);
+        try {
+          const context = await createInitialIntegrationTransport(supabase, initialBackendEnabled, operation.binding, current, import.meta.env).context(appointmentId);
+          assertTrustedInitialIntake(context, operation.ids);
+          if (!current()) return;
+          setPreviewContext(context); setInitialSource(context.staff_intake.payload); setHistoryDraft(draft => ({ ...draft, reviewed: false }));
+          initialOperationRef.current = { ...operation, id: crypto.randomUUID(), request: null }; setInitialStale(false);
+          setError("Context reloaded. Your draft is retained. Explicitly review it; changed selected histories must be reselected before saving.");
+        } catch (reloadError) { if (current()) setError(getErrorMessage(reloadError, "Unable to reload context. Your draft is retained.")); }
+        finally { if (current()) { saveLockRef.current = false; setSaving(false); } }
+      }}>Reload Context (Keep Draft)</button> : null}
+      {isMockPreview ? <p className="appointment-visit-message appointment-visit-mock-notice" role="status">
+        Isolated mock preview — synthetic data only. Clinical history saving is not enabled in the deployed application.
+        PDF attachment admission, trusted Staff intake, amendments and deployed Follow-Up atomic completion remain blocked. File uploads are unavailable here.
+      </p> : null}
       {!canSave && !isReadOnly && !isCheckedIn ? (
         <p className="appointment-visit-message is-error" role="alert">
           Check in this appointment before completing a visit form.
@@ -1780,6 +2154,18 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             ))}
           </div>
         </details>
+      ) : null}
+
+      {(isMockFollowUp || (isProtectedFollowUp && previewContext)) ? <details className="appointment-visit-baseline-disclosure" id="mock-applicable-histories">
+        <summary>Applicable Clinical Histories — read-only</summary>
+        {isProtectedFollowUp ? <p>Authoritative Initial record: {previewContext.initial_record_id}. These are the exact versioned applicable histories for this appointment.</p> : null}
+        <p>Exact histories established by the saved Initial consultation. Follow-Up saves encounter values only; no automatic history or canonical dating updates.</p>
+        <ObstetricHistorySection obstetric={registrationHistory.obstetric} expectedDeliveryDate={patient?.expected_delivery_date} />
+        <MedicalHistorySection medical={registrationHistory.medical} bloodType={patient?.blood_type} />
+      </details> : null}
+
+      {isFollowUp && workspace === "doctor" && !isMockFollowUp && initialBackendEnabled ? (
+        <DoctorEncounterHistory priorInitial patientId={patient?.id} authorizingAppointment={appointment?.id} />
       ) : null}
 
       <form className={`appointment-visit-form${isFollowUp ? " appointment-visit-form--follow-up" : ""}`} onSubmit={(event) => { event.preventDefault(); saveRecord(); }}>
@@ -1808,7 +2194,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
           <FormCard title="Pregnancy Status" className="appointment-visit-summary-card">
             <div className="appointment-visit-field-grid">
               <TextField id="gestational-age" label="Gestational Age" value={form.gestationalAge} placeholder="e.g. 28 weeks" readOnly={isReadOnly} onChange={(value) => updateForm("gestationalAge", value)} />
-              <TextField id="expected-delivery-date" label="Expected Delivery Date" value={form.expectedDeliveryDate} type="date" readOnly={isReadOnly} error={validationErrors.expectedDeliveryDate} onChange={(value) => updateForm("expectedDeliveryDate", value)} />
+              <TextField id="expected-delivery-date" label="Expected Delivery Date" value={form.expectedDeliveryDate} type="date" readOnly={isReadOnly || isMockFollowUp || isProtectedFollowUp} error={validationErrors.expectedDeliveryDate} onChange={(value) => updateForm("expectedDeliveryDate", value)} />
               <TextField id="pregnancy-type" label="Pregnancy Type" value={form.pregnancyType} placeholder="e.g. Singleton" readOnly={isReadOnly} onChange={(value) => updateForm("pregnancyType", value)} />
               <ChoiceGroup id="pregnancy-risk" label="Risk Level" value={form.riskLevel} options={["Low Risk", "Moderate Risk", "High Risk"]} readOnly={isReadOnly} onChange={(value) => updateForm("riskLevel", value)} />
             </div>
@@ -1822,12 +2208,19 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         {!isFollowUp ? (
           <>
             {historyWarning ? <p className="appointment-visit-message" role="status">{historyWarning}</p> : null}
-            <ObstetricHistorySection obstetric={registrationHistory.obstetric} expectedDeliveryDate={form.expectedDeliveryDate} />
-            <MedicalHistorySection medical={registrationHistory.medical} bloodType={patient?.blood_type} />
+            {(isMockPreview || isRealInitial) && previewContext && historyDraft ? <DoctorInitialHistoryEditor context={previewContext} draft={historyDraft}
+              localOnly={isRealInitial && !initialBackendEnabled}
+              components={{ FormCard, TextField, TextAreaField }} readOnly={isReadOnly} errors={validationErrors} edd={form.expectedDeliveryDate}
+              onEddChange={(value) => updateForm("expectedDeliveryDate", value)}
+              onChange={(draft) => { if (!saveLockRef.current) { setHistoryDraft(draft); setValidationErrors({}); setError(""); setMessage(""); } }}
+              onError={(historyError) => { setError(historyError.message); setValidationErrors(historyError.fields || {}); }} /> : <>
+              <ObstetricHistorySection obstetric={registrationHistory.obstetric} expectedDeliveryDate={form.expectedDeliveryDate} />
+              <MedicalHistorySection medical={registrationHistory.medical} bloodType={patient?.blood_type} />
+            </>}
           </>
         ) : null}
 
-        <FormCard title="Clinical Findings">
+        <FormCard title={isMockPreview || isRealInitial ? isFollowUp ? "Clinical Findings & Vitals" : "Clinical Findings & Physical Vitals" : "Clinical Findings"}>
           {!isFollowUp ? (
             <div className="appointment-visit-initial-clinical-history">
               <div className="appointment-visit-field-grid is-two-columns">
@@ -1849,9 +2242,10 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             <TextField id="fetal-heart-rate" label="Fetal Heart Rate" value={form.fetalHeartRate} placeholder="--- bpm" readOnly={isReadOnly} error={validationErrors.fetalHeartRate} onChange={(value) => updateForm("fetalHeartRate", value)} />
             {isFollowUp ? <SelectField id="baby-position" label="Baby Position" value={form.babyPosition} options={babyPositionOptions} readOnly={isReadOnly} onChange={(value) => updateForm("babyPosition", value)} /> : null}
             <TextField id="estimated-fetal-weight" label="Estimated Fetal Weight" value={form.estimatedFetalWeight} placeholder="-- kg" readOnly={isReadOnly} error={validationErrors.estimatedFetalWeight} onChange={(value) => updateForm("estimatedFetalWeight", value)} />
+            {isMockFollowUp ? <ChoiceGroup id="fetal-movement" label="Fetal Movement" value={form.fetalMovement} options={["Present", "Absent", "Not Applicable"]} readOnly={isReadOnly} onChange={(value) => updateForm("fetalMovement", value)} /> : null}
           </div>
           <div className="appointment-visit-clinical-row">
-            <ChoiceGroup id="fetal-movement" label="Fetal Movement" value={form.fetalMovement} options={isFollowUp ? ["Present", "Absent", "Not Applicable"] : ["Active / Present", "Reduced / Sluggish", "Absent"]} readOnly={isReadOnly} onChange={(value) => updateForm("fetalMovement", value)} />
+            {!isMockFollowUp ? <ChoiceGroup id="fetal-movement" label="Fetal Movement" value={form.fetalMovement} options={isFollowUp ? ["Present", "Absent", "Not Applicable"] : ["Active / Present", "Reduced / Sluggish", "Absent"]} readOnly={isReadOnly} onChange={(value) => updateForm("fetalMovement", value)} /> : null}
             {!isFollowUp ? <TextField id="baby-position" label="Baby Position" value={form.babyPosition} placeholder="e.g. Cephalic" readOnly={isReadOnly} onChange={(value) => updateForm("babyPosition", value)} /> : null}
           </div>
           {isFollowUp ? (
@@ -1923,18 +2317,25 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             <SelectField id="laboratory-test-type" label="Test Type" value={form.laboratoryTestType} options={["Complete Blood Count (CBC)", "Urinalysis", "Blood Glucose", "Blood Type and Rh", "Other"]} readOnly={isReadOnly} onChange={(value) => updateForm("laboratoryTestType", value)} />
             <TextAreaField id="laboratory-result" label="Result Summary" maxLength={500} size="compact" value={form.laboratoryResultSummary} placeholder="Enter result summary..." readOnly={isReadOnly} onChange={(value) => updateForm("laboratoryResultSummary", value)} />
             <TextAreaField id="laboratory-interpretation" label="Interpretation" maxLength={500} size="compact" value={form.laboratoryInterpretation} placeholder="Enter interpretation..." readOnly={isReadOnly} onChange={(value) => updateForm("laboratoryInterpretation", value)} />
-            <ChoiceGroup id="laboratory-attached" label="Laboratory Report Attached" value={form.laboratoryReportAttached} options={["Yes", "No"]} readOnly={isReadOnly} onChange={(value) => updateReportAttached("laboratory", value)} />
-            {form.laboratoryReportAttached === "Yes" ? <AttachmentField id="laboratory-report" label="Laboratory report file" file={laboratoryFile} existingFile={form.laboratoryAttachment} error={validationErrors.laboratoryAttachment} readOnly={isReadOnly} onChange={(file) => selectReportFile("laboratory", file)} onClear={() => selectReportFile("laboratory", null)} /> : null}
+            <ChoiceGroup id="laboratory-attached" label="Laboratory Report Attached" value={form.laboratoryReportAttached} options={["Yes", "No"]} readOnly={isReadOnly || isRealInitial || isProtectedFollowUp} onChange={(value) => updateReportAttached("laboratory", value)} />
+            {form.laboratoryReportAttached === "Yes" ? <AttachmentField id="laboratory-report" label="Laboratory report file" file={laboratoryFile} existingFile={form.laboratoryAttachment} error={validationErrors.laboratoryAttachment} readOnly={isReadOnly || isMockPreview || isRealInitial || isProtectedFollowUp} onChange={(file) => selectReportFile("laboratory", file)} onClear={() => selectReportFile("laboratory", null)} /> : null}
+            {isMockPreview ? <button type="button" disabled className="appointment-visit-unavailable-upload">Laboratory PDF upload unavailable in mock</button> : null}
           </FormCard>
 
           <FormCard title="Ultrasound Review (if applicable)" className="appointment-visit-review-card">
             <TextField id="ultrasound-date" label="Date of Visit" type="date" value={form.ultrasoundVisitDate} readOnly={isReadOnly} onChange={(value) => updateForm("ultrasoundVisitDate", value)} />
             <TextAreaField id="ultrasound-findings" label="Findings" maxLength={500} size="medium" value={form.ultrasoundFindings} placeholder="Enter findings..." readOnly={isReadOnly} onChange={(value) => updateForm("ultrasoundFindings", value)} />
-            <ChoiceGroup id="ultrasound-attached" label="Ultrasound Report Attached" value={form.ultrasoundReportAttached} options={["Yes", "No"]} readOnly={isReadOnly} onChange={(value) => updateReportAttached("ultrasound", value)} />
-            {form.ultrasoundReportAttached === "Yes" ? <AttachmentField id="ultrasound-report" label="Ultrasound report file" file={ultrasoundFile} existingFile={form.ultrasoundAttachment} error={validationErrors.ultrasoundAttachment} readOnly={isReadOnly} onChange={(file) => selectReportFile("ultrasound", file)} onClear={() => selectReportFile("ultrasound", null)} /> : null}
+            <ChoiceGroup id="ultrasound-attached" label="Ultrasound Report Attached" value={form.ultrasoundReportAttached} options={["Yes", "No"]} readOnly={isReadOnly || isRealInitial || isProtectedFollowUp} onChange={(value) => updateReportAttached("ultrasound", value)} />
+            {form.ultrasoundReportAttached === "Yes" ? <AttachmentField id="ultrasound-report" label="Ultrasound report file" file={ultrasoundFile} existingFile={form.ultrasoundAttachment} error={validationErrors.ultrasoundAttachment} readOnly={isReadOnly || isMockPreview || isRealInitial || isProtectedFollowUp} onChange={(file) => selectReportFile("ultrasound", file)} onClear={() => selectReportFile("ultrasound", null)} /> : null}
+            {isMockPreview ? <button type="button" disabled className="appointment-visit-unavailable-upload">Ultrasound PDF upload unavailable in mock</button> : null}
           </FormCard>
         </div>
 
+        {isMockPreview || isRealInitial ? <FormCard title="Clinical Assessment">
+          <TextAreaField id="assessment" label="Assessment details" required maxLength={500} size="medium" value={form.assessment} placeholder="Enter assessment..." readOnly={isReadOnly} error={validationErrors.assessment} onChange={(value) => updateForm("assessment", value)} />
+          <h3 className="appointment-visit-clinical-subheading">Final Diagnosis</h3>
+          <TextAreaField id="diagnosis" label="Diagnosis details" required maxLength={500} size="compact" value={form.diagnosis} placeholder="Enter diagnosis..." readOnly={isReadOnly} error={validationErrors.diagnosis} onChange={(value) => updateForm("diagnosis", value)} />
+        </FormCard> : <>
         <FormCard title="Clinical Assessment">
           <TextAreaField id="assessment" label="Assessment details" required maxLength={500} size="medium" value={form.assessment} placeholder="Enter assessment..." readOnly={isReadOnly} error={validationErrors.assessment} onChange={(value) => updateForm("assessment", value)} />
         </FormCard>
@@ -1942,6 +2343,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         <FormCard title="Final Diagnosis">
           <TextAreaField id="diagnosis" label="Diagnosis details" required maxLength={500} size="compact" value={form.diagnosis} placeholder="Enter diagnosis..." readOnly={isReadOnly} error={validationErrors.diagnosis} onChange={(value) => updateForm("diagnosis", value)} />
         </FormCard>
+        </>}
 
         <div className="appointment-visit-paired-grid">
           <FormCard title="Actions Taken Today">
@@ -1995,7 +2397,8 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             </table>
           </div>
           <TextAreaField id="prescription-instructions" label="Instructions" maxLength={500} size="compact" value={form.prescriptionInstructions} placeholder="Enter medication instructions..." readOnly={isReadOnly} onChange={(value) => updateForm("prescriptionInstructions", value)} />
-          <AttachmentField id="prescription-file" label="Prescription attachment" file={prescriptionFile} readOnly={isReadOnly} onChange={setPrescriptionFile} onClear={() => setPrescriptionFile(null)} />
+          <AttachmentField id="prescription-file" label="Prescription attachment" file={prescriptionFile} readOnly={isReadOnly || isMockPreview || isRealInitial || isProtectedFollowUp} onChange={setPrescriptionFile} onClear={() => setPrescriptionFile(null)} />
+          {isMockPreview ? <button type="button" disabled className="appointment-visit-unavailable-upload">Prescription PDF upload/download unavailable in mock</button> : null}
         </FormCard>
 
         <FormCard title="Doctor's Order">
@@ -2008,8 +2411,8 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
 
         <footer className="appointment-visit-actions">
           {canSave ? (
-            <button type="submit" className="is-primary" disabled={saving}>
-              {saving ? "Saving Record..." : "Save Record"}
+            <button type="submit" className="is-primary" disabled={saving || (isRealInitial && !initialBackendEnabled) || (isProtectedFollowUp && (!followUpBackendEnabled || (!followUpReviewed && !followUpPending)))}>
+              {isRealInitial ? !initialBackendEnabled ? "Save Unavailable — Awaiting Activation" : saving ? "Saving Initial Visit..." : pendingInitial ? "Retry Same Initial Visit Save" : "Save Initial Visit" : isProtectedFollowUp ? saving ? "Saving Follow-Up..." : followUpPending ? "Retry Same Follow-Up Operation" : "Save Reviewed Follow-Up" : isMockPreview ? saving ? "Saving Mock Visit..." : "Save Mock Visit" : saving ? "Saving Record..." : "Save Record"}
             </button>
           ) : null}
           <button type="button" className="is-secondary" onClick={() => returnFromVisit(existingRecord?.id || "")}>

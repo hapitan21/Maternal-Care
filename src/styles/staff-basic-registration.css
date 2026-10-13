@@ -1,0 +1,7 @@
+/* Basic-only registration reuses the original Staff registration design. */
+.staff-basic-registration .staff-basic-controls {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

@@ -6,6 +6,8 @@ import { loadAuthenticatedDoctor } from "../../hooks/useAuthenticatedDoctor";
 import { usePatientAppointments } from "../../hooks/usePatientAppointments";
 import { usePatientMedicalOverview } from "../../hooks/usePatientMedicalOverview";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
+import DoctorEncounterHistory from "../../components/appointments/DoctorEncounterHistory";
+import { loadUnambiguousPatientHistory } from "../../lib/doctorEncounterSnapshot";
 import MedicationAdherenceTrendCharts from "../../components/doctor/MedicationAdherenceTrendCharts";
 import AppointmentSummaryPrintableReport from "../../components/reports/AppointmentSummaryPrintableReport";
 import { buildDoctorAppointmentSummary, formatRecordedGestationalAge } from "../../lib/doctorAppointmentSummary";
@@ -495,6 +497,13 @@ function mapSupabaseMedicalRecord(
   // The current visit form writes this field in kg. Legacy nested/snake-case
   // measurements and explicitly labelled findings retain their existing units.
   const hasCurrentFetalWeight = isMeaningfulClinicalValue(formData.estimatedFetalWeight);
+const oxygenSaturation = getClinicalValue(
+  clinicalFindings,
+  "oxygenSaturation",
+  "oxygen_saturation",
+  formData
+);
+
   const findings = Array.isArray(formData.findings)
     ? [
         ...formData.findings
@@ -569,6 +578,8 @@ function mapSupabaseMedicalRecord(
         visitInformation.appointmentId,
         visitInformation.appointment_id
       ),
+    sourceRow: row,
+    historyPatientId: patient?.id,
     date: validVisitDate
       ? validVisitDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
       : "Not recorded",
@@ -613,7 +624,16 @@ function mapSupabaseMedicalRecord(
     recordStatus: formData.recordStatus || formData.status || "Not recorded",
     complaint: getFirstRecordValue(formData.chiefComplaint, formData.chief_complaint, formData.complaint, row.notes, row.title) || "Not recorded",
     assessment: assessment.length ? assessment : ["Not recorded"],
-    findings,
+findings:
+  cleanRecordValue(oxygenSaturation) &&
+  !findings.some(([label]) =>
+    ["oxygen saturation", "spo2", "spo₂"].includes(
+      String(label || "").trim().toLowerCase()
+    )
+  )
+    ? [...findings, ["Oxygen Saturation", oxygenSaturation, "%"]]
+    : findings,
+
     obstetric: Array.isArray(formData.obstetric) && formData.obstetric.length
       ? formData.obstetric
           .map((item) =>
@@ -629,6 +649,11 @@ function mapSupabaseMedicalRecord(
         ],
     diagnosis: getFirstRecordValue(formData.diagnosis, row.title, row.type) || "Medical Record",
     treatment: treatment.length ? treatment : ["Not recorded"],
+doctorOrder: getFirstRecordValue(
+  formData.doctorOrder,
+  formData.doctor_order
+) || "",
+
     actionsTaken: normalizeRecordList(formData.actionsTaken),
     otherActionDescription: formData.otherActionDescription || "",
     pregnancyMilestones: normalizeRecordList(formData.pregnancyMilestones),
@@ -3151,6 +3176,7 @@ function hasMedicalReviewContent(review, fields) {
 
 function MedicalRecordEntry({
   record,
+  authorizingAppointments = null,
   isPrimary = false,
   isFocused = false,
   isHighlighted = false,
@@ -3257,6 +3283,8 @@ function MedicalRecordEntry({
           </section>
         ) : null}
 
+        <DoctorEncounterHistory row={record.sourceRow} patientId={record.historyPatientId} appointments={authorizingAppointments} />
+
         <div className="mr-medical-two-column mr-medical-section mr-medical-plan-row">
           <section>
             <h4>Diagnosis</h4>
@@ -3271,6 +3299,15 @@ function MedicalRecordEntry({
             )}
           </section>
         </div>
+
+{record.doctorOrder ? (
+  <section className="mr-medical-section">
+    <h4>Doctor's Order</h4>
+    <p style={{ whiteSpace: "pre-wrap" }}>
+      {record.doctorOrder}
+    </p>
+  </section>
+) : null}
 
         {record.actionsTaken.length || record.pregnancyMilestones.length ? (
           <div className="mr-medical-two-column mr-medical-section">
@@ -3414,6 +3451,7 @@ function MedicalRecordEntry({
 
 function MedicalRecordsPanel({
   records,
+  authorizingAppointments,
   isLoading,
   message,
   focusedRecordId,
@@ -3502,6 +3540,7 @@ function MedicalRecordsPanel({
 
             <MedicalRecordEntry
               record={selectedRecord}
+              authorizingAppointments={authorizingAppointments}
               isPrimary
               isFocused={selectedRecord.id === focusedRecordId}
               isHighlighted={selectedRecord.id === highlightedRecordId}
@@ -3670,8 +3709,8 @@ export default function Doctor_Medical_Records({
   }, [doctorIds, patient?.id]);
 
   const completedMedicalRecordRows = React.useMemo(
-    () => medicalRecordRows.filter(isCompletedClinicalVisitRecord),
-    [medicalRecordRows]
+    () => medicalRecordRows.filter(row => row.patient_id === patient?.id && isCompletedClinicalVisitRecord(row)),
+    [medicalRecordRows, patient?.id]
   );
   const schedulesById = React.useMemo(
     () => new Map(appointmentState.appointments.map((appointment) => [appointment.id, appointment])),
@@ -3843,6 +3882,8 @@ export default function Doctor_Medical_Records({
     const loadPatient = async () => {
       const requestId = patientRequestRef.current + 1;
       patientRequestRef.current = requestId;
+      prenatalRequestRef.current += 1;
+      medicalRecordRequestRef.current += 1;
       const selectedInitialPatient = selectedInitialPatientRef.current;
 
       if (!selectedInitialPatient?.id) {
@@ -3866,7 +3907,9 @@ export default function Doctor_Medical_Records({
       setMedicalRecordRows([]);
       setMedicalRecordsError(null);
       setLoadedMedicalRecordsPatientId("");
+      setIsLoadingRecords(false);
       setLoadedPrenatalDetailsPatientId("");
+      setIsLoadingPrenatalDetails(false);
       setPrenatalDetailsError("");
       doctorProfileCacheRef.current = new Map();
       setDoctorProfilesById(new Map());
@@ -3891,7 +3934,7 @@ export default function Doctor_Medical_Records({
         return;
       }
 
-      if (error || !data) {
+      if (error || !data || data.id !== selectedInitialPatient.id) {
         setPatient(null);
         setPatientAvatarUrl("");
         setIsLoadingPatient(false);
@@ -3921,12 +3964,7 @@ export default function Doctor_Medical_Records({
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
-          supabase
-            .from("patient_obstetric_history")
-            .select("*")
-            .eq("patient_id", selectedPatient.id)
-            .limit(1)
-            .maybeSingle(),
+          loadUnambiguousPatientHistory(supabase, "patient_obstetric_history", selectedPatient.id),
         ]);
       } catch (error) {
         if (patientRequestRef.current !== requestId) {
@@ -3959,7 +3997,9 @@ export default function Doctor_Medical_Records({
         obstetric: obstetricResult.error ? null : obstetricResult.data || null,
       }));
       setPatientRelatedError(
-        relatedLoadFailed
+        obstetricResult.ambiguous
+          ? "Multiple obstetric histories exist. The applicable patient-level history is unresolved; none was selected automatically."
+          : relatedLoadFailed
           ? "Some patient details could not be loaded. Missing values may be incomplete."
           : ""
       );
@@ -3970,6 +4010,8 @@ export default function Doctor_Medical_Records({
 
     return () => {
       patientRequestRef.current += 1;
+      prenatalRequestRef.current += 1;
+      medicalRecordRequestRef.current += 1;
     };
   }, [initialPatientId, loadPatientAvatar]);
 
@@ -4041,41 +4083,46 @@ export default function Doctor_Medical_Records({
 
     setIsLoadingPrenatalDetails(true);
     setPrenatalDetailsError("");
-    const [medicalHistoryResult, initialAssessmentResult] = await Promise.all([
-      supabase
-        .from("patient_medical_history")
-        .select("*")
-        .eq("patient_id", selectedPatient.id)
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("patient_initial_assessment")
-        .select("*")
-        .eq("patient_id", selectedPatient.id)
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    try {
+      const [medicalHistoryResult, initialAssessmentResult] = await Promise.all([
+        loadUnambiguousPatientHistory(supabase, "patient_medical_history", selectedPatient.id),
+        supabase
+          .from("patient_initial_assessment")
+          .select("*")
+          .eq("patient_id", selectedPatient.id)
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
-    if (prenatalRequestRef.current !== requestId) return;
+      if (prenatalRequestRef.current !== requestId) return;
 
-    [medicalHistoryResult, initialAssessmentResult]
-      .filter((result) => result.error)
-      .forEach((result) => {
-        console.warn("Unable to load optional prenatal detail row:", result.error);
-      });
+      [medicalHistoryResult, initialAssessmentResult]
+        .filter((result) => result.error)
+        .forEach((result) => {
+          console.warn("Unable to load optional prenatal detail row:", result.error);
+        });
 
-    setPatientRelated((current) => ({
-      ...current,
-      medicalHistory: medicalHistoryResult.error ? null : medicalHistoryResult.data || null,
-      initialAssessment: initialAssessmentResult.error ? null : initialAssessmentResult.data || null,
-    }));
-    setPrenatalDetailsError(
-      medicalHistoryResult.error || initialAssessmentResult.error
-        ? "Some prenatal history details could not be loaded."
-        : ""
-    );
-    setLoadedPrenatalDetailsPatientId(selectedPatient.id);
-    setIsLoadingPrenatalDetails(false);
+      setPatientRelated((current) => ({
+        ...current,
+        medicalHistory: medicalHistoryResult.error ? null : medicalHistoryResult.data || null,
+        initialAssessment: initialAssessmentResult.error ? null : initialAssessmentResult.data || null,
+      }));
+      setPrenatalDetailsError(
+        medicalHistoryResult.ambiguous
+          ? "Multiple medical histories exist. The applicable patient-level history is unresolved; none was selected automatically."
+          : medicalHistoryResult.error || initialAssessmentResult.error
+          ? "Some prenatal history details could not be loaded."
+          : ""
+      );
+      setLoadedPrenatalDetailsPatientId(selectedPatient.id);
+    } catch {
+      if (prenatalRequestRef.current !== requestId) return;
+      setPatientRelated(current => ({ ...current, medicalHistory: null, initialAssessment: null }));
+      setPrenatalDetailsError("Prenatal history is unavailable. Reopen this tab or retry.");
+      setLoadedPrenatalDetailsPatientId(selectedPatient.id);
+    } finally {
+      if (prenatalRequestRef.current === requestId) setIsLoadingPrenatalDetails(false);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -4230,7 +4277,7 @@ export default function Doctor_Medical_Records({
     getLatestRecordValue(medicalRecords, ["riskLevel", "Risk Level"]);
   const pregnancyNumber =
     gravida !== null || para !== null
-      ? `G${gravida ?? 0}P${para ?? 0}`
+      ? `G${gravida ?? "?"}P${para ?? "?"}`
       : EMPTY_PATIENT_VALUE;
   const patientDetailsLeft = [
     { icon: "mingcute:calendar-line", label: "Birthdate", value: formatPatientDate(personal.birthdate || patient?.date_of_birth, EMPTY_PATIENT_VALUE) },
@@ -4494,8 +4541,11 @@ export default function Doctor_Medical_Records({
             ) : (
               <>
                 {prenatalDetailsError ? (
-                  <p className="mr-record-form-message">{prenatalDetailsError}</p>
+                  <div className="mr-record-form-message" role="status"><p>{prenatalDetailsError}</p>
+                    <button type="button" className="mr-toolbar-button" onClick={() => loadPrenatalDetails(patient)}>Retry history</button>
+                  </div>
                 ) : null}
+                <p className="mr-record-form-message">Patient-level history, not an encounter-time snapshot. Verified visit histories appear in Medical Record.</p>
                 <PrenatalHistoryPanel
                   patient={patient}
                   patientRelated={patientRelated}
@@ -4556,6 +4606,7 @@ export default function Doctor_Medical_Records({
           {activeTab === "Medical Record" && (
             <MedicalRecordsPanel
               records={medicalRecords}
+              authorizingAppointments={resolvedAppointments}
               isLoading={visibleRecordsLoading}
               message={recordMessage}
               focusedRecordId={focusedRecordId}

@@ -5,6 +5,60 @@
   color: #20283a;
 }
 
+/* Shared Initial history editor; other encounter layouts are unchanged. */
+.appointment-visit-history-editor { display: grid; gap: 18px; min-width: 0; }
+.appointment-visit-history-editor .appointment-visit-history-entry { margin: 14px 0; padding: 12px; min-width: 0; border: 1px solid #e9ebf1; border-radius: 8px; }
+.appointment-visit-history-editor legend { padding: 0 4px; font-size: 12px; font-weight: 700; color: #50596c; }
+.appointment-visit-history-editor .appointment-visit-add-button { margin-top: 10px; }
+.appointment-visit-history-check { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; font-size: 13px; overflow-wrap: anywhere; }
+.appointment-visit-history-check input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: #ff3f80; }
+.appointment-visit-history-pending { padding-left: 20px; margin: 12px 0; font-size: 13px; }
+.appointment-visit-history-pending li { margin: 10px 0; overflow-wrap: anywhere; }
+.appointment-visit-history-pending button { margin-left: 10px; }
+.appointment-visit-mock-notice { border-color: #ffd0de; background: #fff7fa; }
+.s4a7b-mock-shell { max-width: 1320px; margin: 0 auto; padding: 16px; font-family: "Segoe UI", sans-serif; background: #fff8fb; color: #20283a; }
+.s4a7b-mock-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; padding: 14px; border: 1px solid #ffd0de; border-radius: 10px; background: #fff; }
+.s4a7b-mock-toolbar strong, .s4a7b-mock-toolbar p { flex-basis: 100%; margin: 0; }
+.s4a7b-mock-shell button, .s4a7b-mock-toolbar select { max-width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid #ffd0de; border-radius: 6px; background: #fff; color: #a31c50; font: inherit; }
+.s4a7b-mock-shell button:disabled { opacity: .6; cursor: not-allowed; }
+.s4a7b-mock-result { margin-top: 18px; }
+.s4a7b-mock-readback { max-height: 440px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+
+/* S4-A7C reference refinements are shared by the preview and real Doctor Initial interface. */
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) :is(h1, h2, h3, legend) { font-family: inherit; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-top-grid { gap: 0; padding: 4px; border: 1px solid #ffe0e9; border-radius: 14px; background: #fff; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-summary-card { border: 0; box-shadow: none; border-radius: 0; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-summary-card + .appointment-visit-summary-card { border-left: 1px solid #f1f2f6; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-summary-card .appointment-visit-card-header h2 { color: #263047; font-size: 12px; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-summary-card:first-child .appointment-visit-field:nth-child(-n+2),
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-summary-card:nth-child(2) .appointment-visit-field:nth-child(n+3) { grid-column: 1 / -1; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-table th { background: #ff3f80; color: #fff; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-table td { overflow-wrap: anywhere; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-table-actions button { display: inline-flex; align-items: center; justify-content: center; width: 40px; min-width: 40px; min-height: 40px; padding: 0; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-mock-notice { padding: 12px; border: 1px solid #ffd0de; border-radius: 8px; color: #667085; font-size: 12px; font-weight: 400; line-height: 1.5; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-history-card h2 { text-transform: none; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-actions .is-primary { background: #ff3f80; border-color: #ff3f80; color: #fff; }
+:is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-unavailable-upload { display: block; width: 100%; margin-top: 12px; font-size: 12px; overflow-wrap: anywhere; }
+.s4a7c-records { display: grid; gap: 16px; min-width: 0; overflow-wrap: anywhere; }
+.s4a7c-record-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+.s4a7c-record-list button { overflow-wrap: anywhere; text-align: left; }
+.s4a7c-record-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 14px 0 0; }
+.s4a7c-record-fields div { min-width: 0; }
+.s4a7c-record-fields dt { color: #50596c; font-size: 12px; font-weight: 700; }
+.s4a7c-record-fields dd { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+@media (min-width: 1100px) {
+  :is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-history-editor .is-three-columns { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  :is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-history-editor .appointment-visit-reproductive-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-form--follow-up .appointment-visit-field-grid.is-three-columns { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 1080px) and (min-width: 641px) {
+  :is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-summary-card:last-child { border-left: 0; border-top: 1px solid #f1f2f6; }
+}
+@media (max-width: 640px) {
+  :is(.s4a7b-mock-shell, .appointment-visit-page--initial-integration) .appointment-visit-summary-card + .appointment-visit-summary-card { border-left: 0; border-top: 1px solid #f1f2f6; }
+  .s4a7c-record-fields { grid-template-columns: 1fr; }
+}
+
 .doctor-main--appointment-visit .doctor-content {
   max-width: none;
 }
@@ -1108,3 +1162,7 @@
     width: 100%;
   }
 }
+
+.appointment-visit-source-data { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.appointment-visit-page--initial-integration button:disabled { opacity: .6; cursor: not-allowed; }
+.appointment-visit-page--initial-integration :is(input, select, textarea, fieldset) { box-sizing: border-box; }
