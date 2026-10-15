@@ -244,6 +244,16 @@ function getDisplayStatus(status) {
   return "Pending";
 }
 
+// R139-136: Keep scheduled appointments labeled Pending even after their time
+// passes. No Show is a separately confirmed status, not a clock-based label.
+function getStaffAppointmentStatusLabel(appointment) {
+  const normalizedStatus = normalizeAppointmentStatus(
+    appointment?.databaseStatus ?? appointment?.status
+  );
+  if (normalizedStatus === appointmentStatuses.scheduled) return "Pending";
+  return classifyAppointment(appointment).displayStatus;
+}
+
 function getDatabaseStatus(status) {
   if (status === "Checked in") return "checked_in";
   if (status === "Completed") return "completed";
@@ -1197,7 +1207,7 @@ function AppointmentDetailsModal({
     ["Appointment type", appointment.title],
     ["Doctor", appointment.doctorName || "Not assigned"],
     ["Date and time", `${formatLongDate(appointment.startTime)} at ${appointment.time}`],
-    ["Status", classifyAppointment(appointment).displayStatus],
+    ["Status", getStaffAppointmentStatusLabel(appointment)],
     ["Description", appointment.notes || "No description provided."],
     ["Location", appointment.location || "Maternal Care Clinic"],
   ];
@@ -4762,7 +4772,7 @@ setMiniMonthDate(
                         aria-haspopup="menu"
                         aria-expanded={openStatusMenu === appointment.id}
                       >
-                        <span>{classifyAppointment(appointment).displayStatus}</span>
+                        <span>{getStaffAppointmentStatusLabel(appointment)}</span>
                         <Icon
                           icon={
                             isClosedStatus(appointment.status)

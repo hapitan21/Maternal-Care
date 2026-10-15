@@ -1,0 +1,46 @@
+.staff-dashboard-session-menu {
+  position: fixed;
+  z-index: 50010;
+  box-sizing: border-box;
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  overflow-y: auto;
+  border: 1px solid #e7e9ef;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 16px 34px rgb(17 24 39 / 14%);
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+.staff-dashboard-session-menu button {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #4b5160;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.staff-dashboard-session-menu button:hover,
+.staff-dashboard-session-menu button:focus-visible {
+  background: #fff0f5;
+  color: #c52361;
+  outline: 2px solid #fb387e;
+  outline-offset: -2px;
+}
+
+.staff-dashboard-session-menu svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}

@@ -548,6 +548,7 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
     }
 
     saveLockRef.current = true;
+    const saveRequestId = requestIdRef.current;
     setSaving(true);
 
     try {
@@ -571,13 +572,48 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
         }
       );
 
+      if (requestIdRef.current !== saveRequestId) return;
       if (saveError) {
         setError(getErrorMessage(saveError, "Unable to save Staff pre-consultation intake."));
         return;
       }
 
-      const savedIntake = Array.isArray(data) ? data[0] : data;
-      setIntake(savedIntake || intake);
+      const recoveryMessage =
+        "The assessment may have been saved, but its saved details could not be confirmed. Your entries are unchanged. Reopen the assessment to verify it before saving again.";
+      const intakeRow = (value) => Array.isArray(value)
+        ? (value.length === 1 ? value[0] : null)
+        : value;
+      const matchesSavedAssessment = (row) => Boolean(
+        patient?.id && row?.id && row.appointment_id === appointmentId &&
+        row.patient_id === patient?.id && row.visit_type === visitType &&
+        row.status === "staff_completed" && row.intake_data &&
+        typeof row.intake_data === "object" && !Array.isArray(row.intake_data) &&
+        Object.entries(form).every(([key, value]) =>
+          JSON.stringify(row.intake_data[key]) === JSON.stringify(value))
+      );
+      let savedIntake = intakeRow(data);
+      // Contradictory identities are failures, not evidence of a saved assessment.
+      if (savedIntake && (
+        (savedIntake.appointment_id != null && savedIntake.appointment_id !== appointmentId) ||
+        (savedIntake.patient_id != null && savedIntake.patient_id !== patient?.id) ||
+        (savedIntake.visit_type != null && savedIntake.visit_type !== visitType)
+      )) {
+        setError(recoveryMessage);
+        return;
+      }
+      if (!matchesSavedAssessment(savedIntake)) {
+        const { data: readback, error: readbackError } = await supabase.rpc(
+          "get_staff_visit_intake",
+          { p_appointment_id: appointmentId }
+        );
+        if (requestIdRef.current !== saveRequestId) return;
+        savedIntake = intakeRow(readback);
+        if (readbackError || !matchesSavedAssessment(savedIntake)) {
+          setError(recoveryMessage);
+          return;
+        }
+      }
+      setIntake(savedIntake);
       setMessage(
         isFollowUp
           ? "Follow-up pre-consultation intake saved. The appointment remains checked in for the Doctor."
@@ -587,8 +623,9 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
       // The Staff intake is complete. Return to the Appointments page while
       // leaving the appointment status unchanged (Checked in) for the Doctor.
       navigate("/staff/appointments", { replace: true });
-    } catch (saveError) {
-      setError(getErrorMessage(saveError, "Unable to save Staff pre-consultation intake."));
+    } catch {
+      if (requestIdRef.current !== saveRequestId) return;
+      setError("The assessment save could not be confirmed. Your entries are unchanged. Reopen the assessment to verify it before saving again.");
     } finally {
       saveLockRef.current = false;
       setSaving(false);

@@ -4813,3 +4813,39 @@
   padding-bottom: 24px !important;
 }
 
+/* Align split tables with or without rows requiring a vertical scrollbar. */
+.staff-dashboard-shell .staff-patients-page .staff-patients-table-scroll {
+  scrollbar-gutter: stable !important;
+}
+
+.staff-dashboard-shell .staff-patients-modal-backdrop {
+  z-index: 600000;
+}
+
+.staff-dashboard-shell .staff-patients-modal {
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+}
+
+/* Keep the original wizard fields readable after legacy desktop overrides. */
+@media (max-width: 1024px) {
+  .staff-dashboard-shell .staff-register-page .staff-register-grid.is-three {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-dashboard-shell .staff-register-page .staff-register-grid,
+  .staff-dashboard-shell .staff-register-page .staff-register-grid.is-three,
+  .staff-dashboard-shell .staff-register-page .staff-register-grid.is-three .staff-step2-two-column {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .staff-dashboard-shell .staff-register-page .staff-register-field:is(.is-wide, .is-half) {
+    grid-column: auto;
+  }
+  .staff-dashboard-shell .staff-register-page .staff-register-card {
+    padding: 20px 16px !important;
+  }
+  .staff-dashboard-shell .staff-register-page .staff-register-card > header { flex-wrap: wrap; }
+}
+

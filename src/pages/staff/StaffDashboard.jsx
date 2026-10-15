@@ -21,6 +21,7 @@ import {
   normalizeAppointmentStatus,
 } from "../../lib/appointmentDate";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import StaffSessionActions from "../../components/staff/StaffSessionActions";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import {
@@ -353,8 +354,9 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
     !initialDashboardSnapshot?.stats
   );
 
-  const [activeSessionActionId, setActiveSessionActionId] =
-    useState("");
+  // A refreshed row object must never inherit the previous snapshot's open menu.
+  const [activeSessionAction, setActiveSessionAction] = useState(null);
+  const closeSessionActions = useCallback(() => setActiveSessionAction(null), []);
 
   useEffect(() => {
     const syncSettings = () => {
@@ -367,46 +369,6 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
     return () => {
       window.removeEventListener(staffSettingsUpdatedEvent, syncSettings);
       window.removeEventListener("storage", syncSettings);
-    };
-  }, []);
-
-  useEffect(() => {
-    const closeSessionActions = (event) => {
-      if (
-        event.type === "keydown" &&
-        event.key !== "Escape"
-      ) {
-        return;
-      }
-
-      if (
-        event.type === "mousedown" &&
-        event.target.closest?.(".staff-session-actions")
-      ) {
-        return;
-      }
-
-      setActiveSessionActionId("");
-    };
-
-    document.addEventListener(
-      "mousedown",
-      closeSessionActions
-    );
-    document.addEventListener(
-      "keydown",
-      closeSessionActions
-    );
-
-    return () => {
-      document.removeEventListener(
-        "mousedown",
-        closeSessionActions
-      );
-      document.removeEventListener(
-        "keydown",
-        closeSessionActions
-      );
     };
   }, []);
 
@@ -714,7 +676,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
 
         <img
           className="doctor-hero-illustration staff-hero-illustration"
-          src="/images/staff-dashboard-hero.png"
+          src="/images/doctor-dashboard-hero-people.webp"
           alt="Maternal care team"
         />
       </section>
@@ -784,7 +746,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
         </div>
 
         <div className="doctor-sessions-card">
-          <div className="doctor-sessions-scroll">
+          <div className="doctor-sessions-scroll" tabIndex={0} role="region" aria-label="Upcoming sessions table">
             <table className="doctor-sessions-table">
               <thead>
                 <tr>
@@ -851,143 +813,52 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
                     </td>
 
                     <td>
-                      <div
-                        className={`staff-session-actions ${
-                          activeSessionActionId === session.id
-                            ? "is-open"
-                            : ""
-                        }`}
-                        style={{
-                          position: "relative",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          zIndex:
-                            activeSessionActionId === session.id
-                              ? 200
-                              : "auto",
-                        }}
+                      <StaffSessionActions
+                        patient={session.patient}
+                        open={activeSessionAction === session}
+                        onToggle={() => setActiveSessionAction(current => current === session ? null : session)}
+                        onClose={closeSessionActions}
                       >
                         <button
                           type="button"
-                          className="doctor-table-action"
-                          aria-label={`Open actions for ${session.patient}`}
-                          aria-haspopup="menu"
-                          aria-expanded={
-                            activeSessionActionId === session.id
-                          }
-                          onClick={() =>
-                            setActiveSessionActionId(
-                              (current) =>
-                                current === session.id
-                                  ? ""
-                                  : session.id
-                            )
-                          }
+                          role="menuitem"
+                          onClick={() => {
+                            closeSessionActions();
+
+                            const appointmentTarget =
+                              session.appointmentId &&
+                              session.appointmentId !== "-"
+                                ? session.appointmentId
+                                : session.id;
+
+                            onNavigate("appointments", {
+                              path: `/staff/appointments?appointmentId=${encodeURIComponent(
+                                appointmentTarget
+                              )}`,
+                            });
+                          }}
                         >
-                          <Icon icon="solar:menu-dots-bold" />
+                          <Icon icon="solar:calendar-linear" />
+                          <span>View Appointment</span>
                         </button>
 
-                        {activeSessionActionId === session.id ? (
-                          <div
-                            className="staff-session-action-menu"
-                            role="menu"
-                            aria-label={`Actions for ${session.patient}`}
-                            style={{
-                              position: "absolute",
-                              zIndex: 9999,
-                              top: "50%",
-                              right: "calc(100% + 10px)",
-                              transform: "translateY(-50%)",
-                              width: "188px",
-                              display: "grid",
-                              gap: "4px",
-                              padding: "8px",
-                              border: "1px solid #e7e9ef",
-                              borderRadius: "12px",
-                              background: "#ffffff",
-                              boxShadow:
-                                "0 16px 34px rgba(17, 24, 39, 0.16)",
+                        {session.patientId ? (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              closeSessionActions();
+
+                              onNavigate("patients", {
+                                path: `/staff/patients/${session.patientId}`,
+                              });
                             }}
                           >
-                            <button
-                              type="button"
-                              role="menuitem"
-                              style={{
-                                width: "100%",
-                                minHeight: "40px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "flex-start",
-                                gap: "9px",
-                                border: 0,
-                                borderRadius: "8px",
-                                background: "transparent",
-                                color: "#4b5160",
-                                padding: "0 10px",
-                                font: "inherit",
-                                fontSize: "12px",
-                                fontWeight: 700,
-                                textAlign: "left",
-                                cursor: "pointer",
-                              }}
-                              onClick={() => {
-                                setActiveSessionActionId("");
-
-                                const appointmentTarget =
-                                  session.appointmentId &&
-                                  session.appointmentId !== "-"
-                                    ? session.appointmentId
-                                    : session.id;
-
-                                onNavigate("appointments", {
-                                  path: `/staff/appointments?appointmentId=${encodeURIComponent(
-                                    appointmentTarget
-                                  )}`,
-                                });
-                              }}
-                            >
-                              <Icon icon="solar:calendar-linear" />
-                              <span>View Appointment</span>
-                            </button>
-
-                            {session.patientId ? (
-                              <button
-                                type="button"
-                                role="menuitem"
-                                style={{
-                                  width: "100%",
-                                  minHeight: "40px",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "flex-start",
-                                  gap: "9px",
-                                  border: 0,
-                                  borderRadius: "8px",
-                                  background: "transparent",
-                                  color: "#4b5160",
-                                  padding: "0 10px",
-                                  font: "inherit",
-                                  fontSize: "12px",
-                                  fontWeight: 700,
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                }}
-                                onClick={() => {
-                                  setActiveSessionActionId("");
-
-                                  onNavigate("patients", {
-                                    path: `/staff/patients/${session.patientId}`,
-                                  });
-                                }}
-                              >
-                                <Icon icon="solar:user-rounded-linear" />
-                                <span>View Patient</span>
-                              </button>
-                            ) : null}
-                          </div>
+                            <Icon icon="solar:user-rounded-linear" />
+                            <span>View Patient</span>
+                          </button>
                         ) : null}
-                      </div>
+                      </StaffSessionActions>
                     </td>
                   </tr>
                 ))}

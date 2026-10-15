@@ -734,6 +734,58 @@ function getResolvedNationality(form) {
   return normalizeHumanReadableText(form.nationality);
 }
 
+// R139-135: frontend safeguard only. Database-side duplicate protection is also
+// required to prevent two concurrent registrations from creating duplicate rows.
+function normalizeRegistrationIdentityName(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("en");
+}
+
+function normalizeRegistrationEmail(value) {
+  return String(value ?? "").trim().toLocaleLowerCase("en");
+}
+
+async function findRegistrationConflict(form, currentRecordId) {
+  const { data, error } = await supabase
+    .rpc("get_staff_patient_directory")
+    .select("id, patient_id, full_name, date_of_birth, email");
+
+  if (error || !Array.isArray(data)) {
+    throw new Error(
+      "Unable to verify existing patient records. Please retry before generating access."
+    );
+  }
+
+  const enteredEmail = normalizeRegistrationEmail(form.email);
+  const enteredName = normalizeRegistrationIdentityName(form.name);
+  const enteredBirthdate = String(form.birthdate || "").slice(0, 10);
+  const otherPatients = data.filter(
+    (patient) => String(patient.id || "") !== String(currentRecordId || "")
+  );
+
+  // Email must be unique for every patient account, including across name changes.
+  // A missing email is permitted during Staff registration in the existing flow.
+  if (enteredEmail) {
+    const emailMatch = otherPatients.find(
+      (patient) => normalizeRegistrationEmail(patient.email) === enteredEmail
+    );
+    if (emailMatch) return { kind: "email", patient: emailMatch };
+  }
+
+  // Also flag identity matches if a different email was entered or email is blank.
+  const identityMatch = otherPatients.find(
+    (patient) =>
+      normalizeRegistrationIdentityName(patient.full_name) === enteredName &&
+      String(patient.date_of_birth || "").slice(0, 10) === enteredBirthdate
+  );
+  if (identityMatch) return { kind: "identity", patient: identityMatch };
+
+  return null;
+}
+
 function getStepOneValidationErrors(form) {
   const errors = {};
 
@@ -3698,6 +3750,19 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     setStatusMessage("");
 
     try {
+      const conflict = await findRegistrationConflict(form, registrationRecord?.id);
+      if (conflict) {
+        const patientReference = conflict.patient.patient_id || "an existing patient";
+        setStatusMessage(
+          conflict.kind === "email"
+            ? `Email already registered to ${patientReference}. Each Patient account must have its own email. Review the existing record before proceeding.`
+            : `Possible duplicate Patient: ${patientReference} has the same name and date of birth. Review the existing record before proceeding.`
+        );
+        setRegistrationView("review");
+        scrollRegistrationToTop();
+        return;
+      }
+
       const { data, error } = await supabase.rpc("save_patient_registration", {
         p_registration_token: stableToken,
         p_patient_record_id: registrationRecord?.id || null,

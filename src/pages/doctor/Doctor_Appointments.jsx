@@ -105,18 +105,8 @@ function getDoctorAppointmentStatusLabel(schedule) {
   if (normalizedStatus === appointmentStatuses.missed) return "No Show";
   if (normalizedStatus === appointmentStatuses.checkedIn) return "Checked in";
 
-  // "Overdue" is only a derived UI label.
-  // The database status remains "scheduled" so the appointment still belongs
-  // to the Pending workflow until it is checked in, cancelled, or marked No Show.
-  if (
-    normalizedStatus === appointmentStatuses.scheduled &&
-    schedule &&
-    typeof schedule === "object" &&
-    isAppointmentNoShowEligible(schedule)
-  ) {
-    return "Overdue";
-  }
-
+  // Keep past scheduled appointments Pending until Staff/Doctor confirms an outcome.
+  // The separate No Show action is still available only when eligibility allows it.
   return getAppointmentStatusLabel(status);
 }
 

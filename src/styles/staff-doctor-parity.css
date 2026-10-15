@@ -586,3 +586,129 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Staff uses the Doctor responsive grid pattern, with its own content. */
+.staff-dashboard-shell .staff-dashboard-home .doctor-hero-card {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) !important;
+  gap: 24px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 32px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-hero-text {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  overflow-wrap: anywhere;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .staff-hero-illustration {
+  position: static !important;
+  justify-self: end;
+  width: 100% !important;
+  min-width: 0;
+  max-width: 460px;
+  max-height: 240px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .staff-status-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+  gap: 18px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-status-card {
+  flex-wrap: wrap !important;
+  align-content: center;
+  gap: 12px 16px;
+  min-width: 0;
+  height: auto !important;
+  min-height: 120px !important;
+  padding: 20px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-status-main {
+  flex: 1 1 150px;
+  gap: 12px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-status-icon {
+  flex: 0 0 48px;
+  width: 48px !important;
+  height: 48px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-status-copy { min-width: 0; }
+.staff-dashboard-shell .staff-dashboard-home .doctor-status-copy p { width: auto !important; }
+.staff-dashboard-shell .staff-dashboard-home .doctor-growth-badge {
+  position: static !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 100%;
+  height: auto !important;
+  padding: 5px 10px !important;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-progress-track {
+  position: static !important;
+  flex: 0 0 100%;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-mini-avatars {
+  position: relative;
+  inset: auto;
+  transform: none;
+  flex: 0 0 52px;
+}
+
+.staff-dashboard-shell .staff-dashboard-home .doctor-sessions-scroll:focus-visible {
+  outline: 3px solid rgb(251 56 126 / 35%);
+  outline-offset: -3px;
+}
+
+@media (max-width: 1180px) {
+  .staff-dashboard-shell .staff-dashboard-home .doctor-sessions-table :is(th, td):last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background: #fff;
+    box-shadow: -4px 0 8px rgb(26 31 44 / 8%);
+  }
+  .staff-dashboard-shell .staff-dashboard-home .doctor-sessions-table th:last-child {
+    z-index: 2;
+    background: #ff2f7d;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-dashboard-shell .staff-dashboard-home .doctor-hero-card { padding: 20px !important; }
+}
+
+@media (max-width: 900px) {
+  .staff-dashboard-shell .doctor-content .staff-section-header .staff-profile-wrapper,
+  .staff-dashboard-shell .doctor-content .staff-section-header .staff-profile-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex-basis: auto !important;
+  }
+  .staff-dashboard-shell .doctor-profile-info strong { max-width: 100% !important; }
+  .staff-dashboard-shell .staff-profile-wrapper .doctor-profile-dropdown {
+    width: min(290px, 100%);
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .staff-dashboard-shell .staff-dashboard-home .doctor-hero-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+  .staff-dashboard-shell .staff-dashboard-home .staff-hero-illustration {
+    max-width: 260px;
+    max-height: 136px !important;
+  }
+}

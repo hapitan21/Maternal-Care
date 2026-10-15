@@ -5116,3 +5116,46 @@
     animation: none;
   }
 }
+
+/* Keep the full add/edit form reachable above mobile browser chrome/keyboard. */
+@media (max-width: 760px) {
+  .staff-add-appointment-modal {
+    max-height: calc(100dvh - 36px);
+    min-height: 0;
+  }
+}
+
+/* R139-134 — Match Doctor appointment categories */
+
+.staff-appointments-page .staff-categories-card {
+  border: 1px solid #cfd2e0;
+  border-radius: 18px;
+  padding: 24px 22px;
+}
+
+.staff-appointments-page .staff-category-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 12px !important;
+  margin-top: 18px;
+}
+
+.staff-appointments-page .staff-category-item {
+  min-height: 78px !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  gap: 10px !important;
+  padding: 11px !important;
+  background: #fafbfe;
+}
+
+.staff-appointments-page .staff-category-item span {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+.staff-appointments-page .staff-category-item strong {
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  hyphens: none !important;
+}
