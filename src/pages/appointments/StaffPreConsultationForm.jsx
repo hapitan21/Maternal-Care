@@ -228,11 +228,15 @@ function normalizeLoadedForm(visitType, appointment, intake, previousRecord = nu
 }
 
 function trimValue(value) {
-  return String(value || "").trim();
+  return String(value ?? "").trim();
 }
 
 function parseNumber(value) {
-  const parsed = Number(trimValue(value).replace(/[^\d.]/g, ""));
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const raw = trimValue(value);
+  // Match the entire measurement; units/signs/exponents are not numeric input.
+  if (!/^\d+(?:\.\d+)?$/.test(raw)) return null;
+  const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -243,7 +247,7 @@ function validateRange(errors, form, key, label, min, max, unit = "") {
     return;
   }
 
-  const value = parseNumber(raw);
+  const value = parseNumber(form[key]);
   if (value === null || value < min || value > max) {
     errors[key] = `${label} must be ${min}-${max}${unit ? ` ${unit}` : ""}.`;
   }
