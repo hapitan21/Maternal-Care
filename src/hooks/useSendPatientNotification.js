@@ -53,10 +53,14 @@ function validateRelatedId(value, label) {
 export function useSendPatientNotification() {
   const [isSending, setIsSending] = useState(false);
   const submissionLockRef = useRef(false);
+  const unconfirmedSubmissionRef = useRef(false);
 
   const sendPatientNotification = useCallback(async (notification) => {
     if (submissionLockRef.current) {
       throw new Error("A notification is already being sent.");
+    }
+    if (unconfirmedSubmissionRef.current) {
+      throw new Error("The previous notification may have been created. Verify it before sending another; it has not been sent again.");
     }
 
     const patientId = String(notification?.patientId || "").trim();
@@ -108,6 +112,7 @@ export function useSendPatientNotification() {
         p_related_medical_record_id: medicalRecordId,
         p_related_reminder_id: reminderId,
       };
+      unconfirmedSubmissionRef.current = true;
       const { data, error } = await supabase.rpc(
         "create_patient_notification",
         payload
@@ -118,10 +123,37 @@ export function useSendPatientNotification() {
           code: error.code || "unknown",
           category: getNotificationErrorMessage(error),
         });
-        throw new Error(getNotificationErrorMessage(error));
+        // These explicit SQL exceptions reject this transaction. A transport
+        // error (even a thrown object with a similar code) proves no rollback.
+        if (data == null && ["42501", "22023", "23503", "P0002"].includes(error.code)) {
+          unconfirmedSubmissionRef.current = false;
+          throw new Error(getNotificationErrorMessage(error));
+        }
+        throw new Error("Notification creation could not be confirmed. It may have been saved; verify before sending again.");
       }
 
-      return data;
+      const record = Array.isArray(data) && data.length === 1 ? data[0] : data;
+      const expectedFields = {
+        patient_id: patientId,
+        type,
+        title,
+        message,
+        priority,
+        target_path: targetPath,
+        related_appointment_id: appointmentId,
+        related_medical_record_id: medicalRecordId,
+        related_reminder_id: reminderId,
+      };
+      if (!record || Array.isArray(record) || !isUuid(record.id) ||
+          Object.entries(expectedFields).some(([key, value]) => record[key] !== value)) {
+        throw new Error("Notification creation could not be confirmed. It may have been saved; verify before sending again.");
+      }
+      unconfirmedSubmissionRef.current = false;
+      // This confirms the database record only, not FCM or SMS delivery.
+      return record;
+    } catch (error) {
+      if (!unconfirmedSubmissionRef.current) throw error;
+      throw new Error("Notification creation could not be confirmed. It may have been saved; verify before sending again.", { cause: error });
     } finally {
       submissionLockRef.current = false;
       setIsSending(false);

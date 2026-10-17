@@ -814,6 +814,16 @@ function getStepOneValidationErrors(form) {
   if (!String(form.address || "").trim()) {
     errors.address = "This field is required.";
   }
+  if (!["Yes", "No"].includes(form.philHealthMember)) {
+    errors.philHealthMember = "Select Yes or No for PhilHealth enrollment.";
+  } else if (form.philHealthMember === "Yes") {
+    const pin = String(form.philHealthPin ?? "").trim();
+    if (!pin) {
+      errors.philHealthPin = "PhilHealth PIN is required when enrolled.";
+    } else if (!/^(?:\d{12}|\d{2}-\d{9}-\d)$/.test(pin)) {
+      errors.philHealthPin = "Enter a 12-digit PhilHealth PIN (digits only or XX-XXXXXXXXX-X).";
+    }
+  }
   if (!String(form.contactNumber || "").trim()) {
     errors.contactNumber = "This field is required.";
   } else if (!isValidPhilippineMobileNumber(form.contactNumber)) {
@@ -1539,15 +1549,16 @@ function ContraceptiveMethodSelect({ value, onChange }) {
   );
 }
 
-function RadioGroup({ label, value, onChange, options, name }) {
+function RadioGroup({ label, value, onChange, options, name, error = "", inputRef }) {
   return (
-    <div className="staff-register-radio-group" role={name ? "group" : undefined} aria-label={name ? label : undefined}>
+    <div className="staff-register-radio-group" role={name ? "group" : undefined} aria-label={name ? label : undefined} aria-invalid={error ? true : undefined} aria-describedby={error && name ? `${name}-error` : undefined}>
       <span>{label}</span>
       <div>
-        {options.map((option) => (
+        {options.map((option, index) => (
           <label key={option}>
             <input
               type="radio"
+              ref={index === 0 ? inputRef : undefined}
               name={name}
               checked={value === option}
               onChange={() => onChange(option)}
@@ -1557,6 +1568,7 @@ function RadioGroup({ label, value, onChange, options, name }) {
           </label>
         ))}
       </div>
+      {error ? <small id={name ? `${name}-error` : undefined} className="staff-register-field-error">{error}</small> : null}
     </div>
   );
 }
@@ -4108,20 +4120,25 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
 
             <div className="staff-register-field is-full">
               <RadioGroup
-                label="Are you a PhilHealth member?"
+                label="Does the patient have PhilHealth?"
                 name="registration-philhealth-membership"
                 value={form.philHealthMember}
                 onChange={(value) => updateForm("philHealthMember", value)}
                 options={["Yes", "No"]}
+                error={registrationErrors.philHealthMember}
+                inputRef={setRegistrationFieldRef("philHealthMember")}
               />
               {form.philHealthMember === "Yes" ? (
                 <InputField
                   label="PhilHealth Identification Number (PIN)"
+                  required
                   value={form.philHealthPin}
                   onChange={(value) => updateForm("philHealthPin", value)}
                   onBlur={() => updateForm("philHealthPin", form.philHealthPin.trim())}
-                  placeholder="Enter PhilHealth PIN, if available"
+                  placeholder="12-digit PIN or XX-XXXXXXXXX-X"
                   fieldId="registration-philhealth-pin"
+                  error={registrationErrors.philHealthPin}
+                  inputRef={setRegistrationFieldRef("philHealthPin")}
                   disabled={form.philHealthMember !== "Yes"}
                 />
               ) : null}

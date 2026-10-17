@@ -1,9 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
+import { Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { PatientPageHeader } from "./PatientPwaUi";
 import "../../styles/patientbookappointment.css";
+
+function normalizeBookingRequestId(value) {
+  // JSON numbers outside the safe integer range have already lost precision.
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value <= 0) return "";
+    value = String(value);
+  }
+  if (typeof value !== "string" || !/^[0-9]+$/.test(value)) return "";
+  const identifier = BigInt(value);
+  return identifier > 0n && identifier <= 9223372036854775807n
+    ? identifier.toString()
+    : "";
+}
 
 const SERVICES = [
   {
@@ -459,6 +473,7 @@ export default function PatientBookAppointment({ profile }) {
   const [isSubmitErrorSelectionBound, setIsSubmitErrorSelectionBound] = useState(false);
   const [submittedAppointmentId, setSubmittedAppointmentId] = useState("");
   const submitInFlightRef = useRef(false);
+  const unconfirmedBookingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -701,6 +716,12 @@ export default function PatientBookAppointment({ profile }) {
     }
 
     if (submitInFlightRef.current) return;
+    const unconfirmedMessage = "Your booking request may have been saved, but could not be confirmed. Check My Appointments before submitting another request. It has not been submitted again.";
+    if (unconfirmedBookingRef.current) {
+      setSubmitError(unconfirmedMessage);
+      setIsSubmitErrorSelectionBound(false);
+      return;
+    }
 
     const [hours, minutes] = selectedTime.split(":").map(Number);
     const startDate = dateFromKey(selectedDate);
@@ -737,6 +758,7 @@ export default function PatientBookAppointment({ profile }) {
       // This calls the Supabase PostgreSQL function. The function resolves the
       // authenticated Patient record and stores a pending row in the
       // same-named public.create_patient_appointment_request table.
+      unconfirmedBookingRef.current = true;
       const { data, error } = await supabase.rpc(
         "create_patient_appointment_request",
         {
@@ -749,7 +771,13 @@ export default function PatientBookAppointment({ profile }) {
       );
 
       if (error) {
-        console.error("Patient booking request failed:", error);
+        // Known SQL validation/authorization failures roll back the operation.
+        // Network and unknown failures may follow a committed transaction.
+        const code = String(error.code || "");
+        if (!/^(22...|23...|42501|P0001)$/.test(code)) {
+          throw new Error("Booking result unavailable.");
+        }
+        unconfirmedBookingRef.current = false;
         const readableError = getReadableBookingError(error);
 
         if (isUnavailableSlotError(error)) {
@@ -773,18 +801,18 @@ export default function PatientBookAppointment({ profile }) {
         return;
       }
 
-      const requestId = data?.request_id || data?.id || data?.schedule_id;
-
-      if (!requestId) {
-        console.warn("Booking RPC succeeded but returned no request id:", data);
+      const requestId = normalizeBookingRequestId(data?.request_id);
+      if (!data || Array.isArray(data) || !requestId || data.status !== "pending" ||
+          normalizeBookingRequestId(data.id) !== requestId) {
+        throw new Error("Booking confirmation unavailable.");
       }
 
-      setSubmittedAppointmentId(requestId || "submitted");
-    } catch (error) {
-      console.error("Unexpected patient booking error:", error);
-      setSubmitError(
-        "We could not submit your booking request. Please check your connection and try again."
-      );
+      unconfirmedBookingRef.current = false;
+      setSubmittedAppointmentId(requestId);
+    } catch {
+      setSubmitError(unconfirmedBookingRef.current
+        ? unconfirmedMessage
+        : "Your session could not be verified. Please sign in again before booking.");
       setIsSubmitErrorSelectionBound(false);
     } finally {
       submitInFlightRef.current = false;
@@ -829,7 +857,7 @@ export default function PatientBookAppointment({ profile }) {
               className={`${number === step ? "is-active" : ""} ${completed ? "is-complete" : ""}`}
               aria-current={number === step ? "step" : undefined}
             >
-              <span>{completed ? <Icon icon="solar:check-read-linear" /> : number}</span>
+              <span>{completed ? <Check aria-hidden="true" /> : number}</span>
               <strong>{label}</strong>
             </li>
           );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
+import { Check } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
@@ -10,6 +11,8 @@ import {
 import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
 import StaffPreConsultationForm from "../appointments/StaffPreConsultationForm";
 import SendPatientNotificationAction from "../../components/notifications/SendPatientNotificationAction";
+import { useSendPatientNotification } from "../../hooks/useSendPatientNotification";
+import { getPatientNotificationType, isUuid } from "../../lib/patientNotificationTypes";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
 import { useStaffRequestPatientAvatars } from "../../hooks/useStaffRequestPatientAvatars";
 import { StaffBookingRequestBadge } from "../../components/staff/StaffBookingRequestNotifications";
@@ -2122,7 +2125,7 @@ function StaffAppointmentRequestDetails({
               }}
               disabled={isUpdating || !selectedDoctorId}
             >
-              <Icon icon="solar:check-read-linear" aria-hidden="true" />
+              <Check size="1em" aria-hidden="true" />
               {isUpdating ? "Approving..." : "Approve & Schedule"}
             </button>
           </div>
@@ -2136,6 +2139,9 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   const { identity: requestSessionIdentity, refresh: refreshRequestNotifications } = requestNotifications;
   const location = useLocation();
   const navigate = useNavigate();
+  const { sendPatientNotification } = useSendPatientNotification();
+  const requestApprovalInFlightRef = useRef(false);
+  const acceptedRequestIdsRef = useRef(new Set());
   const visitRoute = parseAppointmentVisitRoute(location.pathname, "staff");
   const isVisitFormRoute = Boolean(visitRoute);
   const dashboardAppointmentTarget = useMemo(() => {
@@ -3143,13 +3149,15 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
 
   const acceptPatientRequest = useCallback(
     async (request) => {
-      if (!request?.id || isReviewingRequest) return;
+      if (!request?.id || isReviewingRequest || requestApprovalInFlightRef.current ||
+          acceptedRequestIdsRef.current.has(String(request.id))) return;
 
       if (!requestDoctorId) {
         setRequestActionError("Select an active Doctor before approving this request.");
         return;
       }
 
+      requestApprovalInFlightRef.current = true;
       setIsReviewingRequest(true);
       setRequestActionError("");
 
@@ -3168,6 +3176,34 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
             `Unable to approve this request: ${error.message || "Unknown error"}`
           );
           return;
+        }
+
+        if (data?.status !== "accepted" || String(data?.request_id) !== String(request.id)) {
+          setRequestActionError("Approval could not be confirmed. Refresh requests before trying again.");
+          return;
+        }
+        acceptedRequestIdsRef.current.add(String(request.id));
+
+        if (isUuid(data.patient_id) && data.patient_id === request.patient_id && isUuid(data.schedule_id)) {
+          // Do not await delivery or retry uncertain outcomes: SMS and approval stay independent.
+          void (async () => {
+            try {
+              const notification = getPatientNotificationType("appointment_created");
+              await sendPatientNotification({
+                patientId: data.patient_id,
+                type: "appointment_created",
+                title: notification.title,
+                message: notification.message,
+                priority: "important",
+                targetPath: "/patient/appointments",
+                appointmentId: data.schedule_id,
+              });
+            } catch (notificationError) {
+              console.warn("Appointment notification creation was not confirmed; verify before retrying.", notificationError);
+            }
+          })();
+        } else {
+          console.warn("Appointment notification skipped: approval returned unverified Patient or schedule identifiers.");
         }
 
         if (data?.schedule_id) {
@@ -3198,6 +3234,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
 
         await Promise.all([loadAppointments(), loadBookingRequests(), refreshRequestNotifications()]);
       } finally {
+        requestApprovalInFlightRef.current = false;
         setIsReviewingRequest(false);
       }
     },
@@ -3206,6 +3243,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       loadAppointments,
       loadBookingRequests,
       requestDoctorId,
+      sendPatientNotification,
       showSuccessMessage,
       refreshRequestNotifications,
     ]

@@ -4752,8 +4752,8 @@
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px 10px 0;
+  gap: 10px;
+  padding: 10px 14px;
   border: 1px solid #dfe1e9;
   border-radius: 11px;
   background: #ffffff;
@@ -4787,10 +4787,6 @@
   width: 18px;
   height: 18px;
   color: var(--staff-appointments-pink, #ff2f7d);
-}
-
-.staff-request-doctor-trigger > svg:first-child {
-  margin-left: -1px;
 }
 
 .staff-appointments-page .doctor-request-patient > span,
@@ -4853,7 +4849,7 @@
   grid-template-columns: 18px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 10px;
-  padding: 9px 10px;
+  padding: 9px 8px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -4920,6 +4916,17 @@
 
   .staff-request-doctor-dropdown {
     width: 100%;
+  }
+
+  .staff-request-doctor-menu {
+    position: static;
+    margin-top: 7px;
+    max-height: min(248px, 45dvh);
+  }
+
+  .staff-appointments-page .staff-request-doctor-row > dt {
+    align-self: start;
+    padding-top: 12px;
   }
 }
 
@@ -5102,6 +5109,10 @@
     padding: 10px 0;
   }
 
+  .staff-appointments-page .staff-request-doctor-row > dt {
+    padding-top: 0;
+  }
+
   .staff-appointments-page.doctor-request-details-shell .doctor-request-current-status {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -5158,4 +5169,11 @@
   overflow-wrap: normal !important;
   word-break: normal !important;
   hyphens: none !important;
+}
+/* Staff request details: align Doctor content with other values */
+@media (min-width: 1024px) {
+  .staff-appointments-page.doctor-request-details-shell
+  .staff-request-doctor-row .staff-request-doctor-dropdown {
+    margin-left: -16px;
+  }
 }
