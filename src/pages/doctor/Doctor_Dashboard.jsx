@@ -1130,14 +1130,7 @@ function Doctor_Dashboard() {
   const renderContent = () => {
     const doctorPatientHeaderActions = (
       <div className="doctor-patient-header-actions">
-        <DoctorHeaderControls
-          profileKey={`medical-records-${location.pathname}-${location.search}`}
-          setActivePage={navigateProfilePage}
-          onLogout={requestDoctorSignOut}
-          focusRequestRef={profileNavigationFocusRef}
-          profile={profile}
-          isLoading={doctorIdentity.loading}
-        />
+        <span className="doctor-record-profile-placeholder" aria-hidden="true" />
 
         {doctorPatientHeaderAction ? (
           <button
@@ -1289,7 +1282,7 @@ function Doctor_Dashboard() {
       </aside>
 
       <main className={`doctor-main${isAppointmentVisitRoute ? " doctor-main--appointment-visit" : ""}`}>
-        {activePage !== "medicalRecords" && !isAppointmentVisitRoute ? (
+        {!isAppointmentVisitRoute ? (
           <div className="doctor-global-profile-slot">
             <div className="doctor-patient-header-actions">
               <DoctorHeaderControls
