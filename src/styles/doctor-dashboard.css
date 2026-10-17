@@ -1733,6 +1733,14 @@ body:has(.doctor-dashboard) {
   max-width: 100% !important;
 }
 
+/* Medical Records uses the shell profile too; keep its actions below that row. */
+.doctor-dashboard .doctor-record-profile-placeholder {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  height: var(--doctor-unified-profile-height);
+  pointer-events: none;
+}
+
 /* These headers already reserve the absolute profile through right padding. */
 .doctor-dashboard:not(.staff-dashboard-shell) .doctor-content .doctor-patients-header > .doctor-global-profile-placeholder,
 .doctor-dashboard:not(.staff-dashboard-shell) .doctor-content .doctor-appointments-header > .doctor-global-profile-placeholder,
@@ -1776,6 +1784,10 @@ body:has(.doctor-dashboard) {
     --doctor-unified-profile-width: 100%;
     --doctor-unified-profile-height: 66px;
     --doctor-unified-profile-reserve: 0px;
+  }
+
+  .doctor-dashboard .doctor-record-profile-placeholder {
+    display: none;
   }
 
   .doctor-dashboard .doctor-global-profile-slot {
