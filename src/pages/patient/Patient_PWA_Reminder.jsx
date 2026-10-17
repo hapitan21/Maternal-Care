@@ -812,6 +812,8 @@ export default function PatientPWAReminder({ profile }) {
     message: "",
   });
   const notifiedReminderKeys = useRef(new Set());
+  const medicationActionLockRef = useRef(false);
+  const submittedMedicationActionsRef = useRef(new Map());
   const healthTipsSectionRef = useRef(null);
   const healthTipSwipeRef = useRef(null);
   const handledHealthTipsIntentRef = useRef(false);
@@ -1041,7 +1043,8 @@ export default function PatientPWAReminder({ profile }) {
     const occurrenceId = item?.occurrence?.id;
     const actionKey = item?.matchKey || "";
 
-    if (!occurrenceId || !actionKey) {
+    if (!occurrenceId || !actionKey || !["taken", "skipped"].includes(action) ||
+        medicationActionLockRef.current) {
       return;
     }
 
@@ -1050,6 +1053,16 @@ export default function PatientPWAReminder({ profile }) {
       return;
     }
 
+    const patientId = patientRecordId;
+    if (!patientId || (item.patientId && item.patientId !== patientId)) return;
+    const submissionKey = `${patientId}:${occurrenceId}`;
+    const previousAction = submittedMedicationActionsRef.current.get(submissionKey);
+    // An inconclusive write must only be verified, never automatically repeated.
+    if (previousAction && previousAction !== action) {
+      setMedicationActionError({ key: actionKey, message: "Verify the previous dose action before making another change." });
+      return;
+    }
+    medicationActionLockRef.current = true;
     setMedicationActionState({ key: actionKey, action });
     setMedicationActionError({ key: "", message: "" });
     dismissToast();
@@ -1057,49 +1070,50 @@ export default function PatientPWAReminder({ profile }) {
       setSkipTarget(null);
     }
 
-    const { data, error } = await supabase.rpc(
-      "mark_medication_reminder_occurrence",
-      {
-        p_occurrence_id: occurrenceId,
-        p_action: action,
+    try {
+      if (!previousAction) {
+        submittedMedicationActionsRef.current.set(submissionKey, action);
+        const { data, error } = await supabase.rpc(
+          "mark_medication_reminder_occurrence",
+          { p_occurrence_id: occurrenceId, p_action: action }
+        );
+        if (error || !Array.isArray(data) || data.length !== 1 ||
+            data[0]?.success !== true || data[0]?.status !== action) {
+          throw new Error("Dose confirmation unavailable.");
+        }
       }
-    );
 
-    if (error) {
-      setMedicationActionState({ key: "", action: "" });
+      const { data: saved, error: readError } = await supabase
+        .from("medication_reminder_occurrences")
+        .select("id, patient_id, status, action_at")
+        .eq("patient_id", patientId)
+        .eq("id", occurrenceId)
+        .maybeSingle();
+      if (readError || saved?.id !== occurrenceId || saved?.patient_id !== patientId ||
+          saved?.status !== action || typeof saved.action_at !== "string" ||
+          !Number.isFinite(Date.parse(saved.action_at))) {
+        throw new Error("Dose readback unavailable.");
+      }
+      setMedicationOccurrences((current) =>
+        current.map((occurrence) => occurrence.id === occurrenceId
+          ? { ...occurrence, status: saved.status, actionAt: saved.action_at, missedAt: "", errorCode: "" }
+          : occurrence)
+      );
+      showSuccessToast({
+        title: "Dose recorded",
+        message: action === "skipped"
+          ? "Medication dose recorded as skipped."
+          : "Medication dose recorded as taken.",
+      });
+    } catch {
       setMedicationActionError({
         key: actionKey,
-        message: "Unable to update this reminder. Please try again.",
+        message: "The dose may have been saved, but could not be confirmed. Select the same action to verify the saved record without submitting it again.",
       });
-      return;
+    } finally {
+      medicationActionLockRef.current = false;
+      setMedicationActionState({ key: "", action: "" });
     }
-
-    const result = Array.isArray(data) ? data[0] : data;
-    const nextStatus = String(result?.status || action).toLowerCase();
-    const actionAt = new Date().toISOString();
-
-    setMedicationOccurrences((current) =>
-      current.map((occurrence) =>
-        occurrence.id === occurrenceId
-          ? {
-              ...occurrence,
-              status: nextStatus,
-              actionAt,
-              missedAt: "",
-              errorCode: "",
-            }
-          : occurrence
-      )
-    );
-    setMedicationActionState({ key: "", action: "" });
-    showSuccessToast({
-      title: "Dose recorded",
-      message: action === "skipped"
-        ? "Medication dose recorded as skipped."
-        : "Medication dose recorded as taken.",
-    });
-
-    await loadMedicationOccurrenceRows(item.patientId || patientRecordId);
   };
 
   useEffect(() => {

@@ -69,15 +69,12 @@
 
 .patient-booking-stepper li:not(:last-child)::after {
   content: "";
-  position: absolute;
-  z-index: 0;
-  top: 50%;
-  left: 39px;
-  right: 12px;
+  flex: 1;
+  min-width: 0;
+  margin: 0 12px 0 2px;
   height: 2px;
   border-radius: 999px;
   background: var(--booking-line);
-  transform: translateY(-50%);
 }
 
 .patient-booking-stepper li > span {
@@ -103,8 +100,6 @@
 .patient-booking-stepper li > strong {
   position: relative;
   z-index: 1;
-  background: #f7f9fc;
-  padding-right: 10px;
   white-space: nowrap;
 }
 
@@ -893,18 +888,24 @@
     position: absolute;
     top: 41px;
     left: 50%;
-    width: 76px;
-    padding: 0;
+    width: 100%;
+    max-width: 76px;
+    box-sizing: border-box;
+    padding: 0 2px;
     background: transparent;
     font-size: 9px;
+    line-height: 1.35;
     text-align: center;
     white-space: normal;
     transform: translateX(-50%);
   }
 
   .patient-booking-stepper li:not(:last-child)::after {
-    left: calc(50% + 19px);
-    right: calc(-50% + 19px);
+    position: absolute;
+    top: 16px;
+    left: calc(50% + 24px);
+    right: calc(-50% + 24px);
+    margin: 0;
   }
 
   .patient-booking-card {
@@ -1060,13 +1061,5 @@
     width: 30px;
     height: 30px;
     font-size: 12px;
-  }
-
-  .patient-booking-stepper li > strong {
-    display: none;
-  }
-
-  .patient-booking-card {
-    margin-top: 22px;
   }
 }

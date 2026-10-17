@@ -4,6 +4,8 @@
   --admin-sidebar-width: 256px;
   --admin-topbar-height: 52px;
   --admin-page-padding: 24px 28px 36px;
+  --admin-page-top: 24px;
+  --admin-page-inline: 28px;
   --admin-card-radius: 14px;
   --admin-border: #e9ecf5;
   --admin-bg: #f6f7fb;
@@ -18,7 +20,7 @@
   --admin-mobile-breakpoint: 920px;
 }
 
-html:has(.admin-shell) { min-height: 100%; overflow-x: hidden; overflow-y: auto; }
+html:has(.admin-shell) { min-height: 100%; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
 html:has(.admin-shell) body,
 html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
 
@@ -57,13 +59,8 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
   overflow-y: auto;
 }
 
-.admin-brand { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; }
-.admin-brand > span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 9px; color: #fff; background: var(--admin-pink); box-shadow: 0 14px 26px rgba(251, 56, 126, 0.24); }
-.admin-brand svg { width: 20px; height: 20px; }
-.admin-brand strong,
-.admin-brand small { display: block; min-width: 0; }
-.admin-brand strong { color: var(--admin-pink); font-size: 16px; line-height: 1.1; font-weight: 800; }
-.admin-brand small { margin-top: 3px; color: var(--admin-muted); font-size: 10px; line-height: 1.35; font-weight: 600; }
+.admin-brand { display: flex; min-height: 36px; align-items: center; }
+.admin-brand .maternal-care-logo { width: 144px; }
 
 .admin-nav { display: grid; gap: 18px; }
 .admin-nav-group { display: grid; gap: 6px; }
@@ -75,6 +72,8 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
 .admin-nav a.is-active { color: #fff; background: var(--admin-pink); box-shadow: 0 12px 28px rgba(251, 56, 126, 0.25); }
 
 .admin-main { min-width: 0; width: 100%; max-width: 1600px; padding: var(--admin-page-padding); }
+/* Page styles may set bottom spacing, but the shared header keeps one inset. */
+.admin-shell > .admin-main { padding-top: var(--admin-page-top); padding-inline: var(--admin-page-inline); }
 .admin-layout-topbar { min-height: var(--admin-topbar-height); display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-bottom: 10px; }
 .admin-menu-toggle { display: none; width: 44px; height: 44px; place-items: center; border: 1px solid var(--admin-border); border-radius: 10px; color: var(--admin-text); background: #fff; cursor: pointer; }
 .admin-menu-toggle svg { width: 21px; height: 21px; }
@@ -110,8 +109,8 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
 .admin-placeholder-panel dt { color: var(--admin-muted); font-weight: 700; }
 .admin-placeholder-panel dd { color: var(--admin-text); font-weight: 800; overflow-wrap: anywhere; }
 
-.admin-profile-menu { position: relative; z-index: 50; }
-.admin-profile-card { min-width: 206px; height: 46px; display: grid; grid-template-columns: 34px minmax(0, 1fr) 18px; gap: 9px; align-items: center; border: 1px solid var(--admin-border); border-radius: 999px; color: var(--admin-text); background: #fff; box-shadow: 0 10px 26px rgba(31, 39, 71, 0.05); cursor: pointer; padding: 5px 10px 5px 6px; font: inherit; }
+.admin-profile-menu { position: relative; z-index: 50; max-width: 100%; }
+.admin-profile-card { width: 206px; max-width: 100%; min-width: 0; height: 46px; display: grid; grid-template-columns: 34px minmax(0, 1fr) 18px; gap: 9px; align-items: center; border: 1px solid var(--admin-border); border-radius: 999px; color: var(--admin-text); background: #fff; box-shadow: 0 10px 26px rgba(31, 39, 71, 0.05); cursor: pointer; padding: 5px 10px 5px 6px; font: inherit; }
 .admin-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: linear-gradient(135deg, #fb387e, #ff8fb6); font-size: 12px; font-weight: 800; overflow: hidden; }
 .admin-avatar--large { width: 42px; height: 42px; font-size: 13px; }
 .admin-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -121,8 +120,11 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
 .admin-profile-card small,
 .admin-profile-dropdown small { overflow: hidden; color: var(--admin-muted); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .admin-profile-card > svg { width: 18px; height: 18px; color: var(--admin-pink); }
-.admin-profile-dropdown { position: absolute; top: calc(100% + 10px); right: 0; width: min(260px, calc(100vw - 32px)); display: grid; gap: 8px; border: 1px solid var(--admin-border); border-radius: var(--admin-card-radius); background: #fff; box-shadow: 0 22px 56px rgba(31, 39, 71, 0.16); padding: 10px; }
+.admin-profile-dropdown { position: absolute; top: calc(100% + 10px); right: 0; width: min(260px, calc(100vw - 32px)); max-height: calc(100dvh - 100px); overflow-y: auto; display: grid; gap: 8px; border: 1px solid var(--admin-border); border-radius: var(--admin-card-radius); background: #fff; box-shadow: 0 22px 56px rgba(31, 39, 71, 0.16); padding: 10px; }
 .admin-profile-dropdown__header { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; align-items: center; border-bottom: 1px solid var(--admin-border); padding: 5px 4px 12px; margin-bottom: 2px; }
+.admin-profile-dropdown__header > span:last-child { display: grid; min-width: 0; gap: 4px; }
+.admin-profile-dropdown__header strong,
+.admin-profile-dropdown__header small { display: block; min-width: 0; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
 .admin-profile-dropdown button { min-height: 36px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 8px; color: var(--admin-text); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 0 9px; text-align: left; }
 .admin-profile-dropdown button:hover { color: var(--admin-pink); background: var(--admin-pink-soft); }
 .admin-profile-dropdown button.is-danger { color: #c5354b; }
@@ -180,7 +182,7 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
 @keyframes admin-skeleton { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 
 @media (max-width: 920px) {
-  .admin-shell { display: block; }
+  .admin-shell { display: block; --admin-page-top: 18px; --admin-page-inline: 20px; }
   .admin-sidebar { position: fixed; left: 0; width: min(var(--admin-sidebar-width), calc(100vw - 64px)); visibility: hidden; transform: translateX(-104%); transition: transform 180ms ease, visibility 0s linear 180ms; box-shadow: 22px 0 54px rgba(31, 39, 71, 0.18); }
   .admin-sidebar.is-open { visibility: visible; transform: translateX(0); transition-delay: 0s; }
   .admin-sidebar-backdrop { position: fixed; inset: 0; z-index: 35; display: block; border: 0; background: rgba(24, 29, 47, 0.42); cursor: pointer; }
@@ -197,6 +199,7 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
 }
 
 @media (max-width: 560px) {
+  .admin-shell { --admin-page-top: 14px; --admin-page-inline: 14px; }
   .admin-main { padding: 14px 14px 28px; }
   .admin-profile-card { min-width: 0; width: 46px; grid-template-columns: 34px; padding: 5px; }
   .admin-profile-card > span:not(.admin-avatar),
@@ -212,8 +215,9 @@ html:has(.admin-shell) #root { min-height: 100%; overflow: visible; }
    * its page heading. Apply that same structure to every Admin route so
    * page content no longer drops down when navigating away from Dashboard.
    */
-  .admin-main {
+  .admin-shell > .admin-main {
     position: relative;
+    max-width: 1600px;
   }
 
   .admin-layout-topbar {

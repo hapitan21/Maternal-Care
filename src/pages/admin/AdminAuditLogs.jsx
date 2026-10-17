@@ -408,7 +408,7 @@ function AuditTable({ rows, count, page, pageSize, onPageChange, onViewDetails }
   return (
     <section className="admin-audit-table-card">
       <h2>Audit Logs Details</h2>
-      <div className="admin-audit-table-wrap">
+      <div className="admin-audit-table-wrap" role="region" aria-label="Audit log details table" tabIndex={0}>
         <table>
           <thead><tr><th>Timestamp</th><th>Actor</th><th>Role</th><th>Module</th><th>Action</th><th>Target</th><th>Description</th><th>Details</th></tr></thead>
           <tbody>

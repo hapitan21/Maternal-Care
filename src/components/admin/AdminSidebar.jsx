@@ -1,6 +1,7 @@
 import React from "react";
 import { Icon } from "@iconify/react";
 import { NavLink } from "react-router-dom";
+import MaternalCareLogo from "../common/MaternalCareLogo";
 
 const navGroups = [
   {
@@ -74,12 +75,8 @@ export default function AdminSidebar({ open, onClose, onDismiss, drawerId }) {
         aria-modal={open ? "true" : undefined}
         role={open ? "dialog" : undefined}
       >
-        <div className="admin-brand">
-          <span><Icon icon="solar:health-bold" aria-hidden="true" /></span>
-          <div>
-            <strong>Maternal Care</strong>
-            <small>Reminder &amp; Management</small>
-          </div>
+        <div className="admin-brand maternal-care-brand">
+          <MaternalCareLogo variant="sidebar" />
         </div>
 
         <nav className="admin-nav" aria-label="Admin navigation">

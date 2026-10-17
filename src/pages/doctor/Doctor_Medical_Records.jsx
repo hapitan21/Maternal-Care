@@ -629,6 +629,7 @@ function mapSupabaseMedicalRecord(
         ],
     diagnosis: getFirstRecordValue(formData.diagnosis, row.title, row.type) || "Medical Record",
     treatment: treatment.length ? treatment : ["Not recorded"],
+    doctorOrder: typeof formData.doctorOrder === "string" ? formData.doctorOrder : "",
     actionsTaken: normalizeRecordList(formData.actionsTaken),
     otherActionDescription: formData.otherActionDescription || "",
     pregnancyMilestones: normalizeRecordList(formData.pregnancyMilestones),
@@ -3271,6 +3272,15 @@ function MedicalRecordEntry({
             )}
           </section>
         </div>
+
+        <section className="mr-medical-section">
+          <h4>Doctor's Order</h4>
+          <p className="mr-medical-doctor-order">
+            {typeof record.doctorOrder === "string" && record.doctorOrder.trim()
+              ? record.doctorOrder
+              : "Not recorded"}
+          </p>
+        </section>
 
         {record.actionsTaken.length || record.pregnancyMilestones.length ? (
           <div className="mr-medical-two-column mr-medical-section">

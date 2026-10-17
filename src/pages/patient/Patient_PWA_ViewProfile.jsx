@@ -65,6 +65,7 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange, onProfi
   const [syncMessage, setSyncMessage] = useState("");
   const [feedbackTone, setFeedbackTone] = useState("info");
   const feedbackTimerRef = useRef(null);
+  const personalSaveLockRef = useRef(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -90,10 +91,16 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange, onProfi
     }
   };
 
-  const reconcileProfile = async () => {
+  const reconcileProfile = async (expectedPatientId = profile.recordId, expectedValues = null) => {
     setLoading(true);
     try {
-      const summary = await loadPatientProfileSummary();
+      if (!expectedPatientId) throw new Error("The Patient record could not be verified.");
+      const summary = await loadPatientProfileSummary(expectedPatientId);
+      if (summary?.patient?.id !== expectedPatientId || (expectedValues &&
+          Object.entries(expectedValues).some(([key, value]) =>
+            cleanText(summary.patient[key]) !== cleanText(value)))) {
+        throw new Error("The profile may have been saved, but the requested changes could not be confirmed. Your edits have been kept; verify your profile before saving again.");
+      }
       const mapped = mapPatientProfileSummary(summary, {
         userId: profile.userId,
         fullName: profile.displayName,
@@ -134,6 +141,8 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange, onProfi
   };
 
   async function savePersonalEdit() {
+    if (personalSaveLockRef.current) return;
+    personalSaveLockRef.current = true;
     try {
       setSavingPersonal(true);
       showFeedback("");
@@ -145,22 +154,24 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange, onProfi
         throw new Error("Enter a valid Philippine mobile number.");
       }
 
-      await updatePatientProfile({
+      const expectedPatientId = profile.recordId;
+      if (!expectedPatientId) throw new Error("The Patient record could not be verified.");
+      const submitted = {
         full_name: cleanText(personalDraft.displayName),
         date_of_birth: toDatabaseDate(personalDraft.birthdate),
         nationality: cleanText(personalDraft.nationality),
         address: cleanText(personalDraft.address),
-        blood_type: cleanText(personalDraft.bloodType),
         civil_status: cleanText(personalDraft.civilStatus),
         contact_number: cleanText(personalDraft.phone),
-      });
-      await reconcileProfile();
+      };
+      await updatePatientProfile(submitted);
+      await reconcileProfile(expectedPatientId, submitted);
       setEditingPersonal(false);
       showFeedback("Profile information saved successfully.", "success");
     } catch (error) {
-      console.error("Save personal information error:", error);
       showFeedback(error?.message || "Unable to save profile information.", "error", false);
     } finally {
+      personalSaveLockRef.current = false;
       setSavingPersonal(false);
     }
   }
@@ -355,14 +366,10 @@ export default function PatientPWAViewProfile({ profile, onAvatarChange, onProfi
           icon="solar:users-group-rounded-linear"
         />
 
-        <EditableInfo
+        <Info
           label="Blood Type"
           value={profileData.bloodType}
-          draftValue={personalDraft.bloodType}
-          field="bloodType"
           icon="solar:heart-linear"
-          editing={editingPersonal}
-          onChange={updatePersonalDraft}
         />
 
         <EditableInfo

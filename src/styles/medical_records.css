@@ -2953,6 +2953,11 @@ body:has(.medical-records-page),
   font-weight: 400;
 }
 
+.mr-medical-entry-content .mr-medical-doctor-order {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Doctor clinical text must wrap inside its existing grid tracks. */
 .doctor-dashboard:not(.staff-dashboard-shell) .medical-records-page .mr-medical-entry-content,
 .doctor-dashboard:not(.staff-dashboard-shell) .medical-records-page .mr-medical-entry-content section,
@@ -6083,6 +6088,11 @@ body:has(.medical-records-page),
   padding-inline: 14px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.doctor-dashboard .mr-overview-dashboard-grid .mr-vitals-card > .mr-outline-btn,
+.doctor-dashboard .mr-overview-dashboard-grid .mr-last-visit-card > .mr-outline-btn {
+  margin-top: 14px;
 }
 
 @media (max-width: 1260px) {

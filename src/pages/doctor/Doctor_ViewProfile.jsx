@@ -1,9 +1,7 @@
 import { useId, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
-import { useDoctorProfileSummary } from "../../hooks/useDoctorProfileSummary";
 import {
   clinicAccountStatuses,
   normalizeClinicAccountStatus,
@@ -72,39 +70,6 @@ const profileInformationTabs = [
   { key: "professional", label: "Professional Information" },
 ];
 
-const appointmentSummaryCards = [
-  {
-    key: "cancelled",
-    label: "Cancelled",
-    icon: "solar:calendar-mark-linear",
-    path: "/doctor/appointments?status=cancelled",
-  },
-  {
-    key: "today",
-    label: "All Appointments Today",
-    icon: "solar:calendar-date-linear",
-    path: "/doctor/appointments?scope=today",
-  },
-  {
-    key: "pending",
-    label: "Pending",
-    icon: "solar:clock-circle-linear",
-    path: "/doctor/appointments?status=pending",
-  },
-  {
-    key: "completed",
-    label: "Completed",
-    icon: "solar:check-circle-linear",
-    path: "/doctor/appointments?status=completed",
-  },
-];
-
-const appointmentSummaryPeriods = [
-  { value: "this-month", label: "This month" },
-  { value: "last-month", label: "Last month" },
-  { value: "all-time", label: "All time" },
-];
-
 function ProfileInfoRow({ item }) {
   return (
     <div className="doctor-profile-info-row">
@@ -130,13 +95,9 @@ function ProfileDetailRow({ item }) {
 }
 
 function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }) {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("personal");
   const tabsId = useId();
   const [avatarOverride, setAvatarOverride] = useState(null);
-  const [appointmentSummaryPeriod, setAppointmentSummaryPeriod] =
-    useState("this-month");
-  const appointmentSummary = useDoctorProfileSummary(doctorIdentity, appointmentSummaryPeriod);
   const personal = doctorIdentity?.personalInformation;
   const professional = doctorIdentity?.professionalInformation;
   const identityProfile = doctorIdentity?.profile;
@@ -399,74 +360,6 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
         ))}
       </section>
 
-      <section
-        className="doctor-profile-summary"
-        aria-labelledby="doctor-appointment-summary-title"
-        aria-busy={appointmentSummary.status === "loading" || appointmentSummary.status === "refreshing"}
-      >
-        <div className="doctor-profile-summary-header">
-          <div>
-            <Icon icon="solar:chart-square-bold" aria-hidden="true" />
-            <h3 id="doctor-appointment-summary-title">
-              Appointment Summary
-            </h3>
-          </div>
-
-          <label className="doctor-profile-summary-period">
-            <span className="doctor-profile-summary-period-label">
-              Summary period
-            </span>
-
-            <select
-              value={appointmentSummaryPeriod}
-              onChange={(event) =>
-                setAppointmentSummaryPeriod(event.target.value)
-              }
-              aria-label="Appointment summary period"
-            >
-              {appointmentSummaryPeriods.map((period) => (
-                <option value={period.value} key={period.value}>
-                  {period.label}
-                </option>
-              ))}
-            </select>
-
-            <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
-          </label>
-        </div>
-
-        {appointmentSummary.status === "loading" ? (
-          <p className="app-sr-only" role="status">Loading appointment summary...</p>
-        ) : appointmentSummary.error ? (
-          <div className="doctor-profile-summary-message is-error" role="alert">
-            <span>{appointmentSummary.error}</span>
-            {appointmentSummary.status === "error" ? <button type="button" onClick={appointmentSummary.retry}>Retry</button> : null}
-          </div>
-        ) : null}
-
-        <div className="doctor-profile-summary-grid">
-          {appointmentSummaryCards.map((card) => (
-            <button
-              className="doctor-profile-summary-card"
-              type="button"
-              key={card.key}
-              onClick={() => navigate(card.path)}
-              aria-label={`Open ${card.label} appointments`}
-            >
-              <div className="doctor-profile-summary-icon">
-                <Icon icon={card.icon} aria-hidden="true" />
-              </div>
-
-              <div>
-                <span>{card.label}</span>
-                <strong aria-label={appointmentSummary.status === "loading" ? "Loading" : !appointmentSummary.summary ? "Unavailable" : undefined}>
-                  {appointmentSummary.status === "loading" ? "\u2026" : appointmentSummary.summary?.[card.key] ?? "\u2014"}
-                </strong>
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
         </>
       ) : null}
     </section>
