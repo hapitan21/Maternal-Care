@@ -1338,3 +1338,65 @@
     white-space: nowrap !important;
   }
 }
+
+/* Doctor Reminders: one close target across form and View All headers. */
+.doctor-reminder-modal [role="dialog"] .doctor-reminder-dialog-close[type="button"][aria-label] {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  flex: 0 0 44px !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  display: grid !important;
+  place-items: center !important;
+  align-self: center !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #fff0f6 !important;
+  color: #d72e69 !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  transform: none !important;
+}
+.doctor-reminder-modal .doctor-reminder-dialog-close:focus-visible {
+  outline: 2px solid #d72e69 !important;
+  outline-offset: 2px !important;
+}
+.doctor-reminder-modal .doctor-reminder-dialog-close svg {
+  width: 22px !important;
+  height: 22px !important;
+  pointer-events: none;
+}
+.doctor-reminder-modal [role="dialog"] > header > div {
+  min-width: 0;
+}
+
+.doctor-reminder-modal [role="dialog"] > header > .doctor-reminder-dialog__headline,
+.doctor-reminder-modal .doctor-reminder-dialog__headline > div {
+  min-width: 0 !important;
+  flex-shrink: 1 !important;
+}
+.doctor-reminder-modal .doctor-medication-reminder-field--patient > label {
+  color: var(--clinical-muted, #687286);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.doctor-reminder-modal [role="dialog"] > header > .doctor-reminder-dialog__headline {
+  flex: 1 1 0 !important;
+  width: auto !important;
+}
+
+.doctor-reminder-modal .clinical-workflow-dialog .doctor-reminder-dialog__header {
+  position: static !important;
+  padding-right: 76px !important;
+}
+.doctor-reminder-modal .clinical-workflow-dialog [type="button"][aria-label].doctor-reminder-dialog-close {
+  position: absolute !important;
+  top: 16px !important;
+  right: 16px !important;
+  z-index: 3 !important;
+}

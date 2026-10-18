@@ -441,6 +441,24 @@
   line-height: 1.5;
 }
 
+.appointment-visit-stored-history .appointment-visit-history-toggle {
+  min-height: 44px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border: 1px solid #ffd0de;
+  border-radius: 6px;
+  background: #fff7fa;
+  color: #b92358;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-visit-stored-history .appointment-visit-history-toggle:focus-visible {
+  outline: 2px solid #d72e69;
+  outline-offset: 3px;
+}
+
 .appointment-visit-page .appointment-visit-history-fields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

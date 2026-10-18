@@ -4849,3 +4849,10 @@
   .staff-dashboard-shell .staff-register-page .staff-register-card > header { flex-wrap: wrap; }
 }
 
+
+/* STAFF WALK-IN DISABLED DATE OVERLAY FIX
+   Keep the native picker invisible when the slot is reserved.
+   The formatted date remains visible in the label. */
+.staff-dashboard-shell .staff-walkin-date-display input[type="date"]:disabled {
+  opacity: 0 !important;
+}

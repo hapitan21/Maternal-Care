@@ -1,0 +1,94 @@
+.pwa-dashboard-tips-preview {
+  position: fixed;
+  inset: auto;
+  top: calc(var(--tips-viewport-top, 0px) + var(--tips-viewport-height, 100dvh) / 2);
+  left: calc(var(--tips-viewport-left, 0px) + var(--tips-viewport-width, 100vw) / 2);
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(880px, calc(var(--tips-viewport-width, 100vw) - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+  max-height: min(84vh, 780px);
+  max-height: min(84dvh, 780px, calc(var(--tips-viewport-height, 100dvh) - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+  margin: 0;
+  padding: 0;
+  border: 1px solid #eedce5;
+  border-radius: 20px;
+  background: #fff;
+  color: #19243b;
+  box-shadow: 0 24px 70px #12192b40;
+  overflow: hidden;
+}
+.pwa-dashboard-tips-preview[open] { display: flex; flex-direction: column; }
+.pwa-dashboard-tips-preview::backdrop { background: #0f172a99; }
+.pwa-dashboard-tips-preview > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 20px;
+  border-bottom: 1px solid #f2d5df;
+}
+.pwa-dashboard-tips-preview h2 { margin: 0; font-size: 22px; line-height: 1.3; }
+.pwa-dashboard-tips-preview header p { margin: 6px 0 0; color: #756887; font-size: 13px; }
+.pwa-dashboard-tips-preview header button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: #fff0f6;
+  color: #c31572;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.pwa-dashboard-tips-preview header button span { font-size: 28px; line-height: 1; }
+.pwa-dashboard-tips-preview :focus-visible { outline: 2px solid #c31572; outline-offset: -3px; }
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  align-content: start;
+  grid-auto-rows: max-content;
+  gap: 14px;
+  padding: 18px 20px calc(22px + env(safe-area-inset-bottom, 0px));
+}
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  border: 1px solid #dbe8ff;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 14px;
+}
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-image {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #eaf3ff;
+  display: grid;
+  place-items: center;
+}
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-image img { width: 100%; height: 100%; object-fit: cover; }
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-image svg { width: 28px; height: 28px; color: #2490cb; }
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-meta span { color: #2490cb; font-size: 11px; line-height: 15px; font-weight: 800; text-transform: none; }
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-meta span + span { color: #756887; }
+.pwa-dashboard-tips-preview h3 { margin: 8px 0; color: inherit; font-size: 16px; line-height: 22px; font-weight: 700; letter-spacing: normal; }
+.pwa-dashboard-tips-preview .patient-reminder-health-tip-item p { margin: 0; color: inherit; font-size: 14px; line-height: 1.55; font-weight: 400; white-space: pre-wrap; }
+.pwa-dashboard-tips-preview h2,
+.pwa-dashboard-tips-preview h3,
+.pwa-dashboard-tips-preview p { overflow-wrap: anywhere; }
+.pwa-dashboard-tips-preview .patient-reminder-view-all-empty { padding: 20px; text-align: center; }
+.pwa-dashboard-tips-status { margin: 12px 20px 0; font-size: 13px; }
+@media (max-width: 480px) {
+  .pwa-dashboard-tips-preview > header { padding: 16px; }
+  .pwa-dashboard-tips-preview h2 { font-size: 19px; }
+  .pwa-dashboard-tips-preview .patient-reminder-health-tip-list { padding-inline: 12px; }
+  .pwa-dashboard-tips-preview .patient-reminder-health-tip-item { grid-template-columns: 1fr; }
+}

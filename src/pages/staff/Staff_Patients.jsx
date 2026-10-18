@@ -1781,6 +1781,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     () => initialPatientsSnapshot?.credentialPool || []
   );
   const [registrationView, setRegistrationView] = useState("form");
+  const [isEditingRegistrationReview, setIsEditingRegistrationReview] = useState(false);
   const [registrationToken, setRegistrationToken] = useState("");
   const [registrationRecord, setRegistrationRecord] = useState(null);
   const [qrReceiptConfirmed, setQrReceiptConfirmed] = useState(false);
@@ -3310,6 +3311,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
   };
 
   const openRegister = () => {
+    setIsEditingRegistrationReview(false);
     clearRegistrationNotice();
     if (activeWalkInReservation) {
       setStatusMessage("");
@@ -3346,6 +3348,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     setScreen("list");
     setStep(1);
     setRegistrationView("form");
+    setIsEditingRegistrationReview(false);
     navigate("/staff/patients");
   };
 
@@ -3694,6 +3697,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
 
   const moveToRegistrationStep = (nextStep) => {
     if (nextStep > step && !validateRegistrationStep(step)) return;
+    if (registrationView === "review") setIsEditingRegistrationReview(true);
     setStatusMessage("");
     setStep(nextStep);
     setRegistrationView("form");
@@ -3708,7 +3712,21 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     setStep(3);
     setStatusMessage("");
     setRegistrationView("review");
+    setIsEditingRegistrationReview(false);
     scrollRegistrationToTop();
+  };
+
+  const editRegistrationFromReview = (nextStep) => {
+    setIsEditingRegistrationReview(true);
+    moveToRegistrationStep(nextStep);
+  };
+
+  const continueRegistrationStep = (nextStep) => {
+    if (isEditingRegistrationReview) {
+      reviewRegistration();
+      return;
+    }
+    moveToRegistrationStep(nextStep);
   };
 
   const backToEditRegistration = () => {
@@ -4237,8 +4255,8 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
           </div>
 
           <footer className="staff-register-footer is-end">
-            <button type="button" className="staff-next-btn" onClick={() => moveToRegistrationStep(2)}>
-              Next
+            <button type="button" className="staff-next-btn" onClick={() => continueRegistrationStep(2)}>
+              {isEditingRegistrationReview ? "Return to Review" : "Next"}
               <Icon icon="solar:arrow-right-linear" aria-hidden="true" />
             </button>
           </footer>
@@ -4494,8 +4512,8 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               <Icon icon="solar:arrow-left-linear" aria-hidden="true" />
               Previous
             </button>
-            <button type="button" className="staff-next-btn" onClick={() => moveToRegistrationStep(3)}>
-              Next
+            <button type="button" className="staff-next-btn" onClick={() => continueRegistrationStep(3)}>
+              {isEditingRegistrationReview ? "Return to Review" : "Next"}
               <Icon icon="solar:arrow-right-linear" aria-hidden="true" />
             </button>
           </footer>
@@ -4735,7 +4753,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               Previous
             </button>
             <button type="button" className="staff-next-btn" onClick={reviewRegistration}>
-              Next
+              {isEditingRegistrationReview ? "Return to Review" : "Next"}
               <Icon icon="solar:arrow-right-linear" aria-hidden="true" />
             </button>
           </footer>
@@ -4785,7 +4803,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <div><dt>Relationship</dt><dd>{form.emergencyContactRelationship}</dd></div>
             <div><dt>Emergency Number</dt><dd>{form.emergencyContactNumber}</dd></div>
           </dl>
-          <button type="button" onClick={() => moveToRegistrationStep(1)}>Edit Basic Information</button>
+          <button type="button" onClick={() => editRegistrationFromReview(1)}>Edit Basic Information</button>
         </section>
         <section>
           <h4>Reproductive &amp; Obstetric</h4>
@@ -4799,7 +4817,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <div><dt>EDD</dt><dd>{form.edd || "Not provided"}</dd></div>
             <div><dt>Pregnancies</dt><dd>{getPregnancyRecordList(form).length || "None added"}</dd></div>
           </dl>
-          <button type="button" onClick={() => moveToRegistrationStep(2)}>Edit Obstetric History</button>
+          <button type="button" aria-label="Edit Reproductive and Obstetric History" onClick={() => editRegistrationFromReview(2)}>Edit Obstetric History</button>
         </section>
         <section>
           <h4>Medical &amp; Family History</h4>
@@ -4809,12 +4827,12 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <div><dt>Medical conditions</dt><dd>{getMedicalConditionList(form).join(", ") || "None reported"}</dd></div>
             <div><dt>Family history</dt><dd>{getFamilyHistoryList(form).join(", ") || "None reported"}</dd></div>
           </dl>
-          <button type="button" onClick={() => moveToRegistrationStep(3)}>Edit Medical History</button>
+          <button type="button" aria-label="Edit Medical and Family History" onClick={() => editRegistrationFromReview(3)}>Edit Medical History</button>
         </section>
       </div>
 
       <footer className="staff-register-footer has-divider">
-        <button type="button" className="staff-prev-btn" onClick={() => moveToRegistrationStep(3)}>
+        <button type="button" className="staff-prev-btn" onClick={() => editRegistrationFromReview(3)}>
           <Icon icon="solar:arrow-left-linear" aria-hidden="true" />
           Back to Edit
         </button>

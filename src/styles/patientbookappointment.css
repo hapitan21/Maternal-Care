@@ -1031,13 +1031,9 @@
   }
 
   .patient-booking-actions {
-    position: sticky;
-    bottom: calc(72px + env(safe-area-inset-bottom));
-    z-index: 20;
     margin: 14px -12px 0;
     background: rgba(247, 249, 252, 0.95);
     padding: 12px;
-    backdrop-filter: blur(12px);
   }
 
   .patient-booking-actions > button {

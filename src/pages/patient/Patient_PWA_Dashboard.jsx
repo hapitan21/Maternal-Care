@@ -1,16 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import {
   PatientPageHeader,
-  PatientQuickLink,
   PatientSectionHeader,
 } from "../../components/patient/PatientPwaUi";
-import {
-  getStoredHealthTips,
-  patientMatchesValue,
-} from "../../lib/patientData";
+import { getPatientHealthTips } from "../../lib/patientHealthTips";
+import { useDailyPatientHealthTip } from "../../hooks/useDailyPatientHealthTip";
 import { usePatientPregnancyTracking } from "../../hooks/usePatientPregnancyTracking";
+import PatientHealthTipsPreview from "../../components/patient/PatientHealthTipsPreview";
 import "../../styles/patient-PWA-dashboard.css";
 
 const pregnancyMilestones = {
@@ -97,34 +96,13 @@ function buildJourneyWeeks(profile) {
   });
 }
 
-function mapHealthTipDatabaseRow(row) {
-  const content = String(row?.content || "").trim();
-  if (!content) return null;
-
-  return {
-    id: row.id,
-    category: row.category || "General Health",
-    title: row.title || row.category || "Health Tip",
-    text: content,
-    image: row.image_url || "",
-  };
-}
-
-function dedupeHealthTips(tips) {
-  return tips.filter(
-    (tip, index, source) =>
-      source.findIndex(
-        (item) =>
-          String(item.id || "") === String(tip.id || "") ||
-          (String(item.title || "").trim().toLowerCase() ===
-            String(tip.title || "").trim().toLowerCase() &&
-            String(item.text || "").trim().toLowerCase() ===
-              String(tip.text || "").trim().toLowerCase())
-      ) === index
-  );
-}
-
-export default function PatientPWADashboard({ profile, onNavigate }) {
+export default function PatientPWADashboard({ profile }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isTipsPreviewOpen = location.state?.dashboardHealthTips === true;
+  const journeyRowRef = useRef(null);
+  const activeWeekRef = useRef(null);
+  const lastCenteredWeekRef = useRef(null);
   const pregnancyState = usePatientPregnancyTracking(profile.recordId);
   const tracking = pregnancyState.tracking;
   const isPregnancyLoading = pregnancyState.status === "loading";
@@ -143,9 +121,11 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
     [hasPregnancy, journeyProfile]
   );
   const [selectedWeek, setSelectedWeek] = useState("");
-  const [healthTips, setHealthTips] = useState(() =>
-    getStoredHealthTips({ includeDefaults: false })
-  );
+  const [healthTipsResult, setHealthTipsResult] = useState({ patientId: "", tips: [] });
+  const healthTips = useMemo(() => healthTipsResult.patientId === profile.recordId ? healthTipsResult.tips : [],
+    [healthTipsResult, profile.recordId]);
+  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(true);
+  const [healthTipsError, setHealthTipsError] = useState("");
   const activeWeek = journeyWeeks.some((item) => item.week === selectedWeek)
     ? selectedWeek
     : currentWeek || "";
@@ -164,77 +144,67 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
     setSelectedWeek(journeyWeeks[nextIndex].week);
   };
 
+  useLayoutEffect(() => {
+    const row = journeyRowRef.current;
+    const card = activeWeekRef.current;
+    if (!row || !card) return undefined;
+    const center = (behavior) => {
+      const rowBounds = row.getBoundingClientRect();
+      const cardBounds = card.getBoundingClientRect();
+      row.scrollTo({ left: row.scrollLeft + cardBounds.left - rowBounds.left -
+        (row.clientWidth - cardBounds.width) / 2, behavior });
+    };
+    const smooth = lastCenteredWeekRef.current !== null && lastCenteredWeekRef.current !== activeWeek &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    center(smooth ? "smooth" : "instant");
+    lastCenteredWeekRef.current = activeWeek;
+    if (typeof ResizeObserver === "undefined") return undefined;
+    let width = row.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (width === row.clientWidth) return;
+      width = row.clientWidth;
+      center("instant");
+    });
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [activeWeek, journeyWeeks]);
+
   useEffect(() => {
     let active = true;
-
+    let requestId = 0;
     const loadDashboardData = async () => {
-      const { data, error } = await supabase
-        .from("health_tips")
-        .select("*")
-        .eq("is_active", true)
-        .order("published_at", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (!active) return;
-
-      if (error) {
-        console.warn("Patient dashboard health tips fetch failed:", error.message);
-        setHealthTips((currentTips) =>
-          currentTips.length
-            ? currentTips
-            : getStoredHealthTips({ includeDefaults: false })
-        );
-        return;
+      const currentRequest = ++requestId;
+      setIsLoadingHealthTips(true);
+      try {
+        const { data, error } = await supabase
+          .from("health_tips")
+          .select("*")
+          .eq("is_active", true)
+          .order("published_at", { ascending: false })
+          .order("created_at", { ascending: false });
+        if (!active || currentRequest !== requestId) return;
+        if (error) throw error;
+        setHealthTipsResult({ patientId: profile.recordId, tips: getPatientHealthTips(data, profile.recordId) });
+        setHealthTipsError("");
+      } catch {
+        if (!active || currentRequest !== requestId) return;
+        setHealthTipsResult({ patientId: profile.recordId, tips: [] });
+        setHealthTipsError("Health tips could not be refreshed. Please try again later.");
       }
-
-      const databaseTips = (data || [])
-        .filter(
-          (row) =>
-            !row.patient_id ||
-            patientMatchesValue(profile, row.patient_id) ||
-            Boolean(profile.recordId && row.patient_id === profile.recordId)
-        )
-        .map(mapHealthTipDatabaseRow)
-        .filter(Boolean);
-
-      setHealthTips(
-        dedupeHealthTips([
-          ...databaseTips,
-          ...getStoredHealthTips({ includeDefaults: false }),
-        ])
-      );
+      if (active && currentRequest === requestId) setIsLoadingHealthTips(false);
     };
-
-    const syncHealthTips = () =>
-      setHealthTips((currentTips) =>
-        dedupeHealthTips([
-          ...currentTips,
-          ...getStoredHealthTips({ includeDefaults: false }),
-        ])
-      );
-
-    loadDashboardData();
-    syncHealthTips();
-
+    void loadDashboardData();
     const healthTipsChannel = supabase
       .channel("patient-dashboard-health-tips")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "health_tips" },
-        loadDashboardData
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "health_tips" }, loadDashboardData)
       .subscribe();
-
-    window.addEventListener("storage", syncHealthTips);
-
     return () => {
       active = false;
-      window.removeEventListener("storage", syncHealthTips);
       supabase.removeChannel(healthTipsChannel);
     };
-  }, [profile]);
+  }, [profile.recordId]);
 
-  const activeTip = healthTips[0] || null;
+  const activeTip = useDailyPatientHealthTip(healthTips, profile.recordId);
 
   return (
     <section className="pwa-page pwa-dashboard-page">
@@ -326,34 +296,6 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
         </section>
       ) : null}
 
-      <section className="pwa-dashboard-shortcuts" aria-labelledby="pwa-quick-access-title">
-        <PatientSectionHeader
-          id="pwa-quick-access-title"
-          title="Quick access"
-          subtitle="Open the information you use most."
-        />
-        <div className="pwa-dashboard-shortcut-grid">
-          <PatientQuickLink
-            icon="solar:document-medicine-bold-duotone"
-            title="Medical records"
-            helper="Review clinic findings"
-            onClick={() => onNavigate("medical-record")}
-          />
-          <PatientQuickLink
-            icon="solar:calendar-mark-bold-duotone"
-            title="Appointments"
-            helper="Check upcoming visits"
-            onClick={() => onNavigate("appointments")}
-          />
-          <PatientQuickLink
-            icon="solar:bell-bing-bold-duotone"
-            title="Reminders"
-            helper="View medicines and tips"
-            onClick={() => onNavigate("reminders")}
-          />
-        </div>
-      </section>
-
       <section className="pwa-journey-section" aria-labelledby="pwa-journey-title">
         <PatientSectionHeader
           id="pwa-journey-title"
@@ -390,12 +332,14 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
             <Icon icon="solar:alt-arrow-left-linear" />
           </button>
 
-          <div className="pwa-week-row">
+          <div className="pwa-week-row" ref={journeyRowRef} aria-label="Pregnancy weeks">
             {journeyWeeks.map((item) => (
               <button
                 type="button"
                 key={item.week}
                 className={`pwa-week-card ${activeWeek === item.week ? "is-active" : ""}`}
+                ref={activeWeek === item.week ? activeWeekRef : null}
+                aria-pressed={activeWeek === item.week}
                   onClick={() => setSelectedWeek(item.week)}
               >
                 {activeWeek === item.week ? (
@@ -453,26 +397,35 @@ export default function PatientPWADashboard({ profile, onNavigate }) {
         </div>
 
         <div className="pwa-tip-copy">
-          <span>Doctor&apos;s Health Tip</span>
-          <h2>{activeTip?.title || "Doctor's Health Tip"}</h2>
+          <span>Today&apos;s Health Tip</span>
+          <h2>{activeTip?.title || "Today's Health Tip"}</h2>
           <p>
             {activeTip?.text ||
-              "Daily health tips from your clinic will appear here once they are added."}
+              (isLoadingHealthTips ? "Loading your clinic's daily health tips..." :
+                healthTipsError || "No active tips are scheduled for daily display. Check View All Tips for other clinic guidance.")}
           </p>
         </div>
 
         <div className="pwa-tip-actions">
           <button
             type="button"
-            onClick={() =>
-              onNavigate("/patient/reminders?section=health-tips&view=all")
-            }
+            aria-haspopup="dialog"
+            onClick={() => navigate(`${location.pathname}${location.search}${location.hash}`, {
+              state: { ...location.state, dashboardHealthTips: true },
+            })}
           >
             View All Tips
             <Icon icon="solar:arrow-right-linear" />
           </button>
         </div>
       </section>
+      <PatientHealthTipsPreview
+        open={isTipsPreviewOpen}
+        tips={healthTips}
+        isLoading={isLoadingHealthTips}
+        error={healthTipsError}
+        onClose={() => navigate(-1)}
+      />
     </section>
   );
 }
