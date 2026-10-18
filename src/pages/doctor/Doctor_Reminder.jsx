@@ -1106,6 +1106,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [medicationPatientResults, setMedicationPatientResults] = React.useState([]);
   const [isSearchingMedicationPatients, setIsSearchingMedicationPatients] = React.useState(false);
   const [medicationPatientSearchMessage, setMedicationPatientSearchMessage] = React.useState("");
+  const medicationPatientRequestRef = React.useRef(0);
   const [medicationStatusMessage, setMedicationStatusMessage] = React.useState("");
   const [currentTime, setCurrentTime] = React.useState(() => Date.now());
   const medicationTimePickerRef = React.useRef(null);
@@ -1658,24 +1659,36 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
 
   React.useEffect(() => {
+    let active = true;
+    const requestId = ++medicationPatientRequestRef.current;
     const searchMedicationPatients = async () => {
       const query = medicationPatientSearch.trim();
 
-      if (query.length < 1) {
+      if (!isMedicationFormOpen || medicationForm.patientId || query.length < 1) {
         setMedicationPatientResults([]);
         setMedicationPatientSearchMessage("");
+        setIsSearchingMedicationPatients(false);
         return;
       }
 
       setIsSearchingMedicationPatients(true);
       setMedicationPatientSearchMessage("");
 
-      const { data, error } = await supabase
-        .rpc("get_doctor_patient_directory")
-        .select("id, full_name, contact_number")
-        .ilike("full_name", `%${query}%`)
-        .order("full_name", { ascending: true })
-        .limit(8);
+      // Quote the PostgREST patterns so punctuation cannot change the filter.
+      const pattern = query.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[%_]/g, "\\$&");
+      let result;
+      try {
+        result = await supabase
+          .rpc("get_doctor_patient_directory")
+          .select("id, patient_id, full_name, contact_number")
+          .or(`full_name.ilike."%${pattern}%",patient_id.ilike."%${pattern}%"`)
+          .order("full_name", { ascending: true })
+          .limit(8);
+      } catch {
+        result = { data: null, error: { message: "Patient search could not be loaded. Please try again." } };
+      }
+      if (!active || requestId !== medicationPatientRequestRef.current) return;
+      const { data, error } = result;
 
       setIsSearchingMedicationPatients(false);
 
@@ -1690,8 +1703,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     };
 
     const searchTimer = window.setTimeout(searchMedicationPatients, 300);
-    return () => window.clearTimeout(searchTimer);
-  }, [medicationPatientSearch]);
+    return () => { active = false; window.clearTimeout(searchTimer); };
+  }, [medicationPatientSearch, medicationForm.patientId, isMedicationFormOpen]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -1829,6 +1842,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   };
 
   const handleSelectMedicationPatient = (patient) => {
+    if (!medicationPatientResults.some((row) => row.id === patient?.id)) return;
+    medicationPatientRequestRef.current += 1;
     setMedicationForm((current) => ({
       ...current,
       patientId: patient.id,
@@ -1839,6 +1854,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     });
     setMedicationPatientSearch(patient.full_name);
     setMedicationPatientResults([]);
+    setIsSearchingMedicationPatients(false);
     setMedicationPatientSearchMessage("");
   };
 
@@ -3083,7 +3099,9 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                       : `${managedHealthTips.length} ${healthTipManagementFilter.toLowerCase()} health tip${managedHealthTips.length === 1 ? "" : "s"} (${databaseHealthTips.length} total)`}
                 </p>
               </div>
-              <button type="button" aria-label="Close view all" onClick={closeViewAll}>&times;</button>
+              <button className="doctor-reminder-dialog-close" type="button" aria-label="Close view all" onClick={closeViewAll}>
+                <Icon icon="material-symbols:close-rounded" aria-hidden="true" />
+              </button>
             </header>
 
             {viewAllSection === "appointments" ? (
@@ -3359,7 +3377,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   </p>
                 </div>
               </div>
-              <button className="doctor-reminder-modal-close" type="button" aria-label="Close reminder form" onClick={closeReminderForm} disabled={isSavingReminder}>
+                <button className="doctor-reminder-modal-close doctor-reminder-dialog-close" type="button" aria-label="Close reminder form" onClick={closeReminderForm} disabled={isSavingReminder}>
                 <Icon icon="material-symbols:close-rounded" />
               </button>
             </header>
@@ -3707,7 +3725,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                 </div>
               </div>
               <button
-                className="doctor-medication-reminder-close"
+                className="doctor-medication-reminder-close doctor-reminder-dialog-close"
                 type="button"
                 aria-label="Close medication reminder form"
                 onClick={closeMedicationForm}
@@ -3721,14 +3739,22 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
 
             <section className="doctor-medication-reminder-section">
               <h3>Patient Information</h3>
-              <label className="doctor-medication-reminder-field doctor-medication-reminder-field--patient doctor-patient-search">
-                <span>Patient <b>*</b></span>
+              <div className="doctor-medication-reminder-field doctor-medication-reminder-field--patient doctor-patient-search">
+                <label htmlFor="doctor-medication-patient">Patient <b>*</b></label>
                 <input
+                  id="doctor-medication-patient"
                   type="text"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={medicationPatientResults.length > 0}
+                  aria-controls="doctor-medication-patient-results"
                   data-dialog-initial-focus
                   placeholder="Search Patient by name or ID"
                   value={medicationPatientSearch}
                   onChange={(event) => {
+                    medicationPatientRequestRef.current += 1;
+                    setMedicationPatientResults([]);
+                    setMedicationPatientSearchMessage("");
                     setMedicationPatientSearch(event.target.value);
                     setMedicationForm((current) => ({
                       ...current,
@@ -3736,20 +3762,32 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                       patientName: "",
                     }));
                   }}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" && medicationPatientResults.length) {
+                      event.preventDefault();
+                      document.querySelector("#doctor-medication-patient-results button")?.focus();
+                    } else if (event.key === "Enter" && !medicationForm.patientId) event.preventDefault();
+                  }}
                 />
                 {isSearchingMedicationPatients ? <span className="doctor-patient-search__hint">Searching...</span> : null}
                 {medicationPatientSearchMessage ? <span className="doctor-patient-search__hint">{medicationPatientSearchMessage}</span> : null}
                 {medicationPatientResults.length > 0 ? (
-                  <div className="doctor-patient-results">
+                  <div className="doctor-patient-results" id="doctor-medication-patient-results" role="listbox" aria-label="Matching patients">
                     {medicationPatientResults.map((patient) => (
-                      <button type="button" key={patient.id} onClick={() => handleSelectMedicationPatient(patient)}>
+                      <button type="button" role="option" aria-selected="false" key={patient.id} onClick={() => handleSelectMedicationPatient(patient)}
+                        onKeyDown={(event) => {
+                          if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+                          event.preventDefault();
+                          const next = event.key === "ArrowDown" ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling;
+                          (next || document.getElementById("doctor-medication-patient"))?.focus();
+                        }}>
                         <strong>{patient.full_name}</strong>
-                        <span>{patient.contact_number || "No contact number"}</span>
+                        <span>{patient.patient_id || patient.id} · {patient.contact_number || "No contact number"}</span>
                       </button>
                     ))}
                   </div>
                 ) : null}
-              </label>
+              </div>
             </section>
 
             <section className="doctor-medication-reminder-section">
@@ -3933,7 +3971,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   </p>
                 </div>
               </div>
-              <button className="doctor-health-tip-form__close" type="button" aria-label="Close health tip form" onClick={closeHealthTipForm} disabled={isSavingHealthTip}>
+                <button className="doctor-health-tip-form__close doctor-reminder-dialog-close" type="button" aria-label="Close health tip form" onClick={closeHealthTipForm} disabled={isSavingHealthTip}>
                 <Icon icon="material-symbols:close-rounded" />
               </button>
             </header>

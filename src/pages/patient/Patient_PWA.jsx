@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { usePatientSectionScroll } from "../../hooks/usePatientSectionScroll";
 import { supabase } from "../../lib/supabaseClient";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
@@ -322,6 +323,7 @@ export default function PatientPWA() {
     getPatientNativePushNavigationSnapshot
   );
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const mainRef = useRef(null);
   const [topbarSecondaryTarget, setTopbarSecondaryTarget] = useState(null);
   const [initialAccountCache] = useState(getCachedPatientAccount);
   const initialAccountCacheRef = useRef(initialAccountCache);
@@ -827,6 +829,8 @@ export default function PatientPWA() {
     navigate,
   ]);
 
+  usePatientSectionScroll(activePage, accessState.status === "active", mainRef);
+
   const handleNavigate = (page) => {
     if (typeof page === "string" && page.startsWith("/patient/")) {
       navigate(page);
@@ -932,7 +936,8 @@ export default function PatientPWA() {
         </nav>
         </aside>
 
-        <main className={`pwa-main ${profileMenuOpen ? "is-profile-open" : ""}`}>
+        <main ref={mainRef} className={`pwa-main ${profileMenuOpen ? "is-profile-open" : ""}`}
+          tabIndex={0} aria-label="Patient page content">
           <header className="pwa-topbar">
             <button
               type="button"
@@ -957,11 +962,13 @@ export default function PatientPWA() {
               />
             </div>
           </header>
-          <PatientPwaStatus />
           <div className="pwa-content">
-            <Suspense fallback={<WorkspaceSectionFallback label="Patient workspace" />}>
-              {renderContent()}
-            </Suspense>
+            <PatientPwaStatus />
+            <div className="pwa-content-inner">
+              <Suspense fallback={<WorkspaceSectionFallback label="Patient workspace" />}>
+                {renderContent()}
+              </Suspense>
+            </div>
           </div>
         </main>
         </div>
@@ -987,9 +994,9 @@ function TopProfile({ profile, onNavigate, onLogout, onOpenChange }) {
     };
 
     const closeOnEscape = (event) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && open) {
         setOpen(false);
-        window.requestAnimationFrame(() => triggerRef.current?.focus());
+        window.requestAnimationFrame(() => triggerRef.current?.focus({ preventScroll: true }));
       }
     };
 

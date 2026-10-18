@@ -871,73 +871,77 @@ export default function PatientPWAMedicalRecords({ profile }) {
         className="pwa-medical-title"
       />
 
-      <RegistrationObstetricHistory history={registrationHistory} />
-      <div className="pwa-record-divider" aria-hidden="true" />
+      <div className="pwa-medical-groups">
+        <RegistrationObstetricHistory key={patientId} history={registrationHistory} />
+        <section className="pwa-clinical-records" aria-labelledby="pwa-clinical-records-title">
+          <h2 id="pwa-clinical-records-title" className="pwa-medical-group-title">Clinical Visit Records</h2>
 
-      <label className="pwa-medical-search" aria-label="Search medical records">
-        <Icon icon="solar:magnifer-linear" />
-        <input
-          type="search"
-          placeholder={isLoading ? "Loading records..." : "Search medical records..."}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          disabled={isLoading}
-        />
-      </label>
-
-      {loadError ? (
-        <p className="pwa-medical-alert">{loadError}</p>
-      ) : null}
-
-      {filteredRecords.length > 1 ? (
-        <div className="pwa-medical-record-tabs" aria-label="Medical record list">
-          {filteredRecords.map((record) => (
-            <button
-              key={record.id}
-              type="button"
-              className={record.id === selectedRecord?.id ? "is-active" : ""}
-              onClick={() => setSelectedRecordId(record.id)}
-              title={record.visitType}
-              aria-label={`${record.date}, ${record.visitType}`}
-            >
-              <span>{record.date}</span>
-              <strong>{record.visitType}</strong>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {!selectedRecord ? (
-        <section
-          className={`pwa-medical-empty ${isLoading ? "is-loading" : ""}`}
-          aria-busy={isLoading}
-          role="status"
-        >
-          <span aria-hidden="true">
-            <Icon
-              icon={isLoading ? "solar:refresh-circle-bold" : "solar:folder-open-linear"}
+          <label className="pwa-medical-search" aria-label="Search medical records">
+            <Icon icon="solar:magnifer-linear" />
+            <input
+              type="search"
+              placeholder={isLoading ? "Loading records..." : "Search medical records..."}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              disabled={isLoading}
             />
-          </span>
-          <div>
-            <h2>
-              {isLoading
-                ? "Loading medical records"
-                : patientRecords.length
-                  ? "No matching medical record found"
-                  : "No medical records available yet"}
-            </h2>
-            <p>
-              {isLoading
-                ? "Checking your latest clinic records."
-                : patientRecords.length
-                  ? "Try searching by visit date, doctor, visit type, or diagnosis."
-                  : "Completed consultations will appear here once your clinic publishes them."}
-            </p>
-          </div>
+          </label>
+
+          {loadError ? (
+            <p className="pwa-medical-alert">{loadError}</p>
+          ) : null}
+
+          {filteredRecords.length > 1 ? (
+            <div className="pwa-medical-record-tabs" aria-label="Medical record list">
+              {filteredRecords.map((record) => (
+                <button
+                  key={record.id}
+                  type="button"
+                  className={record.id === selectedRecord?.id ? "is-active" : ""}
+                  onClick={() => setSelectedRecordId(record.id)}
+                  title={record.visitType}
+                  aria-label={`${record.date}, ${record.visitType}`}
+                >
+                  <span>{record.date}</span>
+                  <strong>{record.visitType}</strong>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {!selectedRecord ? (
+            <section
+              className={`pwa-medical-empty ${isLoading ? "is-loading" : ""}`}
+              aria-busy={isLoading}
+              role="status"
+            >
+              <span aria-hidden="true">
+                <Icon
+                  icon={isLoading ? "solar:refresh-circle-bold" : "solar:folder-open-linear"}
+                />
+              </span>
+              <div>
+                <h2>
+                  {isLoading
+                    ? "Loading medical records"
+                    : patientRecords.length
+                      ? "No matching medical record found"
+                      : "No medical records available yet"}
+                </h2>
+                <p>
+                  {isLoading
+                    ? "Checking your latest clinic records."
+                    : patientRecords.length
+                      ? "Try searching by visit date, doctor, visit type, or diagnosis."
+                      : "Completed consultations will appear here once your clinic publishes them."}
+                </p>
+              </div>
+            </section>
+          ) : (
+            <MedicalRecordCard record={selectedRecord} />
+          )}
         </section>
-      ) : (
-        <MedicalRecordCard record={selectedRecord} />
-      )}
+      </div>
     </section>
   );
 }
@@ -945,24 +949,35 @@ export default function PatientPWAMedicalRecords({ profile }) {
 function RegistrationObstetricHistory({ history }) {
   return (
     <section
-      className="pwa-record-section"
+      className="pwa-record-section pwa-registration-history"
       aria-labelledby="pwa-registration-history-title"
       aria-busy={!history}
     >
-      <h3 id="pwa-registration-history-title">Registration / Obstetric History</h3>
+      <h2 id="pwa-registration-history-title" className="pwa-medical-group-title">Pregnancy &amp; Obstetric History</h2>
+      <p className="pwa-history-note">Your stored history. EDD may reflect updates made by your Doctor.</p>
       {!history ? (
-        <p role="status">Loading registration history...</p>
+        <p role="status">Loading pregnancy history...</p>
       ) : history.status === "error" ? (
         <p className="pwa-medical-alert" role="alert">{history.error}</p>
       ) : (
-        <div className="pwa-obstetric-grid">
-          {history.items.map((item) => (
-            <div key={item.label}>
-              <small>{item.label}</small>
-              <strong>{item.value}</strong>
+        <>
+          <dl className="pwa-history-summary">
+            {history.items.filter((item) => ["Gravida (G)", "Para (P)", "Living Children (L)"].includes(item.label)).map((item) => (
+              <div key={item.label}><dt>{item.label}</dt><dd>{item.value ?? "Not provided"}</dd></div>
+            ))}
+          </dl>
+          <details className="pwa-history-disclosure">
+            <summary>View all eight history fields</summary>
+            <div className="pwa-obstetric-grid">
+              {history.items.map((item) => (
+                <div key={item.label} className={/Period|Date/.test(item.label) ? "is-wide" : ""}>
+                  <small>{item.label}</small>
+                  <strong>{item.value ?? "Not provided"}</strong>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </details>
+        </>
       )}
     </section>
   );

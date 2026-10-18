@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SuccessToast from "../../components/common/SuccessToast";
 import { useSuccessToast } from "../../hooks/useSuccessToast";
-import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { PatientPageHeader } from "../../components/patient/PatientPwaUi";
+import PatientHealthTipsPreview from "../../components/patient/PatientHealthTipsPreview";
 import { maternalCareLogo } from "../../components/common/MaternalCareLogo";
-import {
-  getStoredHealthTips,
-  mapScheduleRowToReminder,
-  patientMatchesValue,
-} from "../../lib/patientData";
+import { sendPatientAppointmentBrowserReminder } from "../../lib/patientAppointmentBrowserReminder";
+import { mapScheduleRowToReminder } from "../../lib/patientData";
+import { getPatientHealthTips } from "../../lib/patientHealthTips";
 import {
   classifyAppointment,
   getManilaDateKey,
@@ -38,43 +36,6 @@ const medicationOccurrenceStatuses = new Set([
   "missed",
   "failed",
 ]);
-
-function mapHealthTipDatabaseRow(row) {
-  if (!row || typeof row !== "object") {
-    return null;
-  }
-
-  const content = String(row.content || "").trim();
-
-  if (!content) {
-    return null;
-  }
-
-  return {
-    id: row.id,
-    category: row.category || "General Health",
-    title: row.title || row.category || "Health Tip",
-    text: content,
-    image: row.image_url || "",
-    displaySchedule: row.display_schedule || "Daily",
-    patientId: row.patient_id || "",
-    publishedAt: row.published_at || row.created_at || "",
-  };
-}
-
-function dedupeHealthTips(databaseTips) {
-  return databaseTips.filter(
-    (tip, index, source) =>
-      source.findIndex(
-        (item) =>
-          String(item.id || "") === String(tip.id || "") ||
-          (String(item.title || "").trim().toLowerCase() ===
-            String(tip.title || "").trim().toLowerCase() &&
-            String(item.text || "").trim().toLowerCase() ===
-              String(tip.text || "").trim().toLowerCase())
-      ) === index
-  );
-}
 
 function getStatusClass(status) {
   return String(status || "Pending")
@@ -669,46 +630,6 @@ function getMedicationResponseLabel(occurrence) {
   return "-";
 }
 
-async function sendPatientNotification(reminder) {
-  if (
-    typeof window === "undefined" ||
-    !("Notification" in window) ||
-    Notification.permission !== "granted"
-  ) {
-    return;
-  }
-
-  const title = "Appointment Reminder";
-  const body = reminder.message || "You have an appointment reminder.";
-
-  try {
-    const registration =
-      "serviceWorker" in navigator
-        ? await navigator.serviceWorker.getRegistration()
-        : null;
-
-    if (registration?.showNotification) {
-      await registration.showNotification(title, {
-        body,
-        icon: maternalCareLogo,
-        badge: "/icons/maternal-care-icon-192.png",
-        data: { url: "/patient/reminders" },
-      });
-      return;
-    }
-
-    new Notification(title, {
-      body,
-      icon: maternalCareLogo,
-    });
-  } catch {
-    new Notification(title, {
-      body,
-      icon: maternalCareLogo,
-    });
-  }
-}
-
 function formatAppointmentMonth(dateValue) {
   const date = new Date(`${dateValue}T00:00:00+08:00`);
   if (Number.isNaN(date.getTime())) return "---";
@@ -744,22 +665,6 @@ export default function PatientPWAReminder({ profile }) {
   const location = useLocation();
   const profilePatientId = profile?.recordId || "";
   const profileDisplayName = profile?.displayName || "Patient";
-  const profileIdentity = useMemo(
-    () => ({
-      recordId: profilePatientId,
-      patientId: profile?.patientId || "",
-      displayName: profileDisplayName,
-      email: profile?.email || "",
-      phone: profile?.phone || "",
-    }),
-    [
-      profile?.email,
-      profile?.patientId,
-      profile?.phone,
-      profileDisplayName,
-      profilePatientId,
-    ]
-  );
   const [initialCache] = useState(() =>
     getPatientPwaSessionCache(profilePatientId, "reminders")
   );
@@ -794,12 +699,12 @@ export default function PatientPWAReminder({ profile }) {
   const [scheduleReminders, setScheduleReminders] = useState(
     () => initialCache?.scheduleReminders || []
   );
-  const [healthTips, setHealthTips] = useState(
-    () => initialCache?.healthTips || []
-  );
+  const [healthTipsResult, setHealthTipsResult] = useState({ patientId: "", tips: [] });
+  const healthTips = useMemo(() => healthTipsResult.patientId === profilePatientId ? healthTipsResult.tips : [],
+    [healthTipsResult, profilePatientId]);
   const [isLoadingAppointmentReminders, setIsLoadingAppointmentReminders] = useState(() => !initialCache);
   const [isLoadingScheduleReminders, setIsLoadingScheduleReminders] = useState(() => !initialCache);
-  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(() => !initialCache);
+  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(true);
   const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] = useState(() => !initialCache);
   const [healthTipsError, setHealthTipsError] = useState("");
   const [medicationReminderError, setMedicationReminderError] = useState("");
@@ -811,18 +716,15 @@ export default function PatientPWAReminder({ profile }) {
     key: "",
     message: "",
   });
-  const notifiedReminderKeys = useRef(new Set());
   const medicationActionLockRef = useRef(false);
   const submittedMedicationActionsRef = useRef(new Map());
   const healthTipsSectionRef = useRef(null);
   const healthTipSwipeRef = useRef(null);
   const handledHealthTipsIntentRef = useRef(false);
-  const viewAllModalRef = useRef(null);
-  const viewAllReturnFocusRef = useRef(null);
   const loadedStateRef = useRef({
     appointments: Boolean(initialCache),
     schedule: Boolean(initialCache),
-    healthTips: Boolean(initialCache),
+    healthTips: false,
     medication: Boolean(initialCache),
   });
   const reminderRefreshRef = useRef(null);
@@ -914,24 +816,19 @@ export default function PatientPWAReminder({ profile }) {
     : 0;
 
   const activeTip = healthTips[safeTipIndex];
-  const isHealthTipsViewAllOpen = viewAllSection === "healthTips";
-  const isViewAllOpen = isHealthTipsViewAllOpen;
+  const isHealthTipsViewAllOpen = location.state?.reminderHealthTips === true || viewAllSection === "healthTips";
   const isMedicationScheduleScreen =
     location.pathname.replace(/\/$/, "") === "/patient/reminders/medications";
 
   const closeViewAllModal = () => {
-    if (!viewAllReturnFocusRef.current) {
-      viewAllReturnFocusRef.current = healthTipsSectionRef.current;
-    }
-    setViewAllSection("");
+    if (location.state?.reminderHealthTips) navigate(-1);
+    else setViewAllSection(""); // Preserve the existing direct-link entry point.
   };
 
   const openHealthTipsModal = () => {
-    viewAllReturnFocusRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : healthTipsSectionRef.current;
-    setViewAllSection("healthTips");
+    navigate(`${location.pathname}${location.search}${location.hash}`, {
+      state: { ...location.state, reminderHealthTips: true },
+    });
   };
 
   const handleHealthTipTouchStart = (event) => {
@@ -1117,94 +1014,6 @@ export default function PatientPWAReminder({ profile }) {
   };
 
   useEffect(() => {
-    if (!isViewAllOpen) {
-      return undefined;
-    }
-
-    const focusableSelector = [
-      "button:not([disabled])",
-      "a[href]",
-      "input:not([disabled])",
-      "select:not([disabled])",
-      "textarea:not([disabled])",
-      '[tabindex]:not([tabindex="-1"])',
-    ].join(",");
-    const activeElement = document.activeElement;
-    const returnFocusTarget =
-      viewAllReturnFocusRef.current ||
-      (activeElement instanceof HTMLElement &&
-      !viewAllModalRef.current?.contains(activeElement)
-        ? activeElement
-        : null);
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        if (!viewAllReturnFocusRef.current) {
-          viewAllReturnFocusRef.current = healthTipsSectionRef.current;
-        }
-        setViewAllSection("");
-        return;
-      }
-
-      if (event.key !== "Tab") return;
-
-      const focusableElements = Array.from(
-        viewAllModalRef.current?.querySelectorAll(focusableSelector) || []
-      );
-
-      if (!focusableElements.length) {
-        event.preventDefault();
-        viewAllModalRef.current?.focus();
-        return;
-      }
-
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-
-      if (!viewAllModalRef.current?.contains(document.activeElement)) {
-        event.preventDefault();
-        (event.shiftKey ? lastElement : firstElement).focus();
-        return;
-      }
-
-      if (event.shiftKey && document.activeElement === firstElement) {
-        event.preventDefault();
-        lastElement.focus();
-      } else if (
-        !event.shiftKey &&
-        document.activeElement === lastElement
-      ) {
-        event.preventDefault();
-        firstElement.focus();
-      }
-    };
-
-    const previousOverflow = document.body.style.overflow;
-    const focusTimer = window.setTimeout(() => {
-      const firstFocusable = viewAllModalRef.current?.querySelector(
-        focusableSelector
-      );
-      (firstFocusable || viewAllModalRef.current)?.focus({
-        preventScroll: true,
-      });
-    }, 0);
-    document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.clearTimeout(focusTimer);
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-      const focusTarget =
-        viewAllReturnFocusRef.current || returnFocusTarget;
-      viewAllReturnFocusRef.current = null;
-      if (focusTarget?.isConnected) {
-        focusTarget.focus({ preventScroll: true });
-      }
-    };
-  }, [isViewAllOpen]);
-
-  useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const shouldFocusHealthTips =
       searchParams.get("section") === "health-tips";
@@ -1340,21 +1149,12 @@ export default function PatientPWAReminder({ profile }) {
             "Patient health tips load failed:",
             healthTipsResult.error
           );
-          if (!loadedStateRef.current.healthTips) {
-            setHealthTips([]);
-          }
+          setHealthTipsResult({ patientId: profilePatientId, tips: [] });
           setHealthTipsError(
             "Unable to load health tips. Please try again."
           );
         } else {
-          setHealthTips(
-            dedupeHealthTips(
-              [
-                ...(healthTipsResult.data || []).map(mapHealthTipDatabaseRow),
-                ...getStoredHealthTips({ includeDefaults: false }),
-              ].filter(Boolean)
-            )
-          );
+          setHealthTipsResult({ patientId: profilePatientId, tips: getPatientHealthTips(healthTipsResult.data, patient?.id) });
           setHealthTipsError("");
         }
         loadedStateRef.current.healthTips = true;
@@ -1447,24 +1247,12 @@ export default function PatientPWAReminder({ profile }) {
           "Patient health tips load failed:",
           healthTipsResult.error
         );
-        if (!loadedStateRef.current.healthTips) {
-          setHealthTips([]);
-        }
+        setHealthTipsResult({ patientId: profilePatientId, tips: [] });
         setHealthTipsError(
           "Unable to load health tips. Please try again."
         );
       } else {
-        const databaseTips = (healthTipsResult.data || [])
-          .filter(
-            (row) =>
-              !row.patient_id ||
-              patientMatchesValue(profileIdentity, row.patient_id) ||
-              Boolean(patient?.id && row.patient_id === patient.id)
-          )
-          .map(mapHealthTipDatabaseRow)
-          .filter(Boolean);
-
-        setHealthTips(dedupeHealthTips(databaseTips));
+        setHealthTipsResult({ patientId: profilePatientId, tips: getPatientHealthTips(healthTipsResult.data, patient.id) });
         setTipIndex(0);
         setHealthTipsError("");
       }
@@ -1555,7 +1343,6 @@ export default function PatientPWAReminder({ profile }) {
   }, [
     loadMedicationOccurrenceRows,
     profileDisplayName,
-    profileIdentity,
     profilePatientId,
   ]);
 
@@ -1683,13 +1470,10 @@ export default function PatientPWAReminder({ profile }) {
       const now = Date.now();
 
       appointmentReminders.forEach((reminder) => {
-        const notificationKey = `appointment-${reminder.id}`;
-        if (
-          !notifiedReminderKeys.current.has(notificationKey) &&
-          isLocalAppointmentReminderDue(reminder, now)
-        ) {
-          notifiedReminderKeys.current.add(notificationKey);
-          sendPatientNotification(reminder);
+        if (isLocalAppointmentReminderDue(reminder, now)) {
+          void sendPatientAppointmentBrowserReminder({
+            reminder, patientId: patientRecordId, icon: maternalCareLogo, now,
+          });
         }
       });
     };
@@ -1700,7 +1484,7 @@ export default function PatientPWAReminder({ profile }) {
     return () => {
       window.clearInterval(timer);
     };
-  }, [appointmentReminders]);
+  }, [appointmentReminders, patientRecordId]);
 
   const todaySummary = useMemo(() => {
     const taken = todayMedicationList.filter(
@@ -1797,7 +1581,6 @@ export default function PatientPWAReminder({ profile }) {
         title="My Reminders"
         subtitle="See your next visit, medication schedule, and daily care guidance."
         className="pwa-reminders-title"
-        actionPlacement="profile-secondary"
         action={(
           <span className="pwa-reminders-today" aria-live="polite">
             <Icon icon="solar:pills-3-bold-duotone" />
@@ -2010,108 +1793,13 @@ export default function PatientPWAReminder({ profile }) {
         </div>
       </section>
 
-      {isViewAllOpen && typeof document !== "undefined"
-        ? createPortal(
-          <div
-            className={`patient-reminder-view-all-backdrop${
-              isHealthTipsViewAllOpen ? " is-health-tips" : ""
-            }`}
-            onClick={closeViewAllModal}
-            role="presentation"
-          >
-            <section
-              aria-labelledby="patient-reminder-view-all-title"
-              aria-modal="true"
-              className={`patient-reminder-view-all-modal${
-                isHealthTipsViewAllOpen ? " is-health-tips" : ""
-              }`}
-              onClick={(event) => event.stopPropagation()}
-              ref={viewAllModalRef}
-              role="dialog"
-              tabIndex={-1}
-            >
-              <header className="patient-reminder-view-all-header">
-                <div>
-                  <h2 id="patient-reminder-view-all-title">
-                    {isHealthTipsViewAllOpen
-                      ? "All Daily Health Tips"
-                      : "All Medication Reminders"}
-                  </h2>
-                  <p>
-                    {isHealthTipsViewAllOpen
-                      ? `${healthTips.length} active ${
-                          healthTips.length === 1 ? "tip" : "tips"
-                        }`
-                      : `${medicationList.length} ${
-                          activeTab.toLowerCase()
-                        } ${
-                          medicationList.length === 1
-                            ? "reminder"
-                            : "reminders"
-                        }`}
-                  </p>
-                </div>
-                <button
-                  aria-label="Close view all reminders"
-                  autoFocus
-                  className="patient-reminder-view-all-close"
-                  onClick={closeViewAllModal}
-                  type="button"
-                >
-                  <Icon icon="solar:close-circle-bold" />
-                </button>
-              </header>
-
-              {isHealthTipsViewAllOpen ? (
-                <div className="patient-reminder-health-tip-list">
-                  {isLoadingHealthTips && !healthTips.length ? (
-                    <article className="patient-reminder-view-all-empty">
-                      <h3>Loading health tips...</h3>
-                      <p>Checking daily guidance from your clinic.</p>
-                    </article>
-                  ) : healthTipsError && !healthTips.length ? (
-                    <article
-                      className="patient-reminder-view-all-empty"
-                      role="alert"
-                    >
-                      <h3>Health tips could not be loaded.</h3>
-                      <p>{healthTipsError}</p>
-                    </article>
-                  ) : healthTips.length ? (
-                    healthTips.map((tip) => (
-                      <article
-                        className="patient-reminder-health-tip-item"
-                        key={tip.id || `${tip.title}-${tip.text}`}
-                      >
-                        <div className="patient-reminder-health-tip-image">
-                          {tip.image ? (
-                            <img src={tip.image} alt="" />
-                          ) : (
-                            <Icon icon="solar:lightbulb-bold-duotone" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="patient-reminder-health-tip-meta">
-                            <span>{tip.category || "General Health"}</span>
-                            <span>{tip.displaySchedule || "Daily"}</span>
-                          </div>
-                          <h3>{tip.title}</h3>
-                          <p>{tip.text}</p>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <article className="patient-reminder-view-all-empty">
-                      <h3>No active daily health tips right now.</h3>
-                    </article>
-                  )}
-                </div>
-              ) : null}
-            </section>
-          </div>,
-          document.body
-        )
-        : null}
+      <PatientHealthTipsPreview
+        open={isHealthTipsViewAllOpen}
+        tips={healthTips}
+        isLoading={isLoadingHealthTips}
+        error={healthTipsError}
+        onClose={closeViewAllModal}
+      />
 
       <SkipMedicationDialog
         actionState={medicationActionState}

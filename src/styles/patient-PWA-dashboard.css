@@ -1,6 +1,33 @@
 .pwa-dashboard-page {
   max-width: 1040px;
+  min-width: 0;
 }
+
+/* Center edge weeks as well as middle weeks without scrolling the page itself. */
+.pwa-dashboard-page .pwa-journey-carousel .pwa-week-row {
+  display: flex !important;
+  position: relative;
+  min-width: 0;
+  gap: 12px;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px max(0px, calc((100% - 160px) / 2)) 22px !important;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.pwa-dashboard-page .pwa-journey-carousel .pwa-week-card {
+  flex: 0 0 min(160px, 100%);
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 16px !important;
+  scroll-snap-align: center;
+  overflow-wrap: anywhere;
+}
+.pwa-dashboard-page .pwa-week-card em { max-width: 100%; }
+.pwa-dashboard-page .pwa-tip-copy { min-width: 0; }
+.pwa-dashboard-page .pwa-tip-copy h2 { max-width: 100% !important; overflow-wrap: anywhere; }
 
 .pwa-dashboard-hero {
   position: relative;

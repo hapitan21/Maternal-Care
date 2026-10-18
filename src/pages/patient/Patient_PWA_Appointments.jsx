@@ -619,7 +619,6 @@ export default function PatientPWAAppointments({ profile }) {
         title="My Appointments"
         subtitle="Track upcoming clinic visits and review your appointment history."
         className="pwa-appointments-title"
-        actionPlacement="profile-secondary"
         action={(
           <button
             type="button"
@@ -636,10 +635,9 @@ export default function PatientPWAAppointments({ profile }) {
         <section className="pwa-booking-requests" aria-labelledby="patient-booking-requests-title">
           <header>
             <div>
-              <span>Booking requests</span>
-              <h2 id="patient-booking-requests-title">Awaiting clinic review</h2>
+              <h2 id="patient-booking-requests-title">Booking Requests</h2>
             </div>
-            <small>Pending requests are not confirmed appointments yet.</small>
+            <small>Track your appointment requests and their review status.</small>
           </header>
           <div className="pwa-booking-request-list">
             {bookingRequests.map((request) => {

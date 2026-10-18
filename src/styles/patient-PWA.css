@@ -60,12 +60,14 @@ button {
 ========================================================= */
 .pwa-shell {
   width: 100% !important;
-  min-height: 100vh !important;
-  min-height: 100dvh !important;
+  height: 100vh;
+  height: var(--pwa-viewport-height, 100dvh);
+  min-height: 0;
   display: grid !important;
   grid-template-columns: 256px minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr);
   background: var(--pwa-bg) !important;
-  overflow-x: clip !important;
+  overflow: hidden;
 }
 
 .pwa-loading-shell {
@@ -187,12 +189,12 @@ button {
 }
 
 .pwa-sidebar {
-  position: sticky !important;
-  top: 0 !important;
+  position: relative;
   width: 256px !important;
   min-width: 256px !important;
   max-width: 256px !important;
-  height: 100vh !important;
+  height: 100%;
+  min-height: 0;
   background: #ffffff !important;
   border-right: 1px solid var(--pwa-border) !important;
   padding: 32px 16px 28px !important;
@@ -204,18 +206,29 @@ button {
   --pwa-content-inline-gutter: clamp(28px, 3vw, 40px);
   position: relative !important;
   min-width: 0 !important;
-  min-height: 100vh !important;
-  min-height: 100dvh !important;
+  display: block;
+  height: 100%;
+  min-height: 0;
   background: var(--pwa-bg) !important;
-  padding: 40px var(--pwa-content-inline-gutter) 56px !important;
-  overflow-x: hidden !important;
-  overflow-y: visible !important;
-  -webkit-overflow-scrolling: touch !important;
+  padding: 0;
+  /* Header and routed content share this scroll owner; navigation is outside it. */
+  overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .pwa-content {
   width: 100% !important;
-  max-width: 1240px !important;
+  min-height: 0;
+  min-width: 0;
+  padding: 0 max(var(--pwa-content-inline-gutter), env(safe-area-inset-right)) 56px
+    max(var(--pwa-content-inline-gutter), env(safe-area-inset-left));
+}
+
+.pwa-content-inner {
+  width: 100%;
+  max-width: 1240px;
 }
 
 /* =========================================================
@@ -604,7 +617,7 @@ button {
   }
 
   .pwa-main {
-    padding: 26px 26px 44px !important;
+    --pwa-content-inline-gutter: 26px;
   }
 
   .pwa-top-profile {
@@ -617,10 +630,11 @@ button {
   }
 }
 
-@media (max-width: 780px) {
+/* Keep the mobile regions when a touch device rotates beyond the narrow breakpoint. */
+@media (max-width: 780px), (hover: none) and (pointer: coarse) {
   .pwa-shell {
-    display: block !important;
-    min-height: 100dvh !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .pwa-loading-shell {
@@ -633,11 +647,8 @@ button {
   }
 
   .pwa-sidebar {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    top: auto !important;
-    bottom: 0 !important;
+    grid-row: 2;
+    grid-column: 1;
     width: 100% !important;
     min-width: 100% !important;
     max-width: 100% !important;
@@ -706,9 +717,9 @@ button {
   }
 
   .pwa-main {
-    position: relative !important;
-    min-height: 100dvh !important;
-    padding: calc(16px + env(safe-area-inset-top)) 14px calc(var(--pwa-bottom-nav-height) + 20px + env(safe-area-inset-bottom)) !important;
+    grid-row: 1;
+    grid-column: 1;
+    --pwa-content-inline-gutter: 14px;
   }
 
   .pwa-top-profile {
@@ -797,10 +808,6 @@ button {
     margin-bottom: 22px;
   }
 
-  .pwa-main.is-profile-open .pwa-content {
-    padding-top: 330px;
-  }
-
   .pwa-page-title h1 {
     font-size: 24px;
     line-height: 30px;
@@ -815,7 +822,7 @@ button {
 
 @media (max-width: 520px) {
   .pwa-main {
-    padding-inline: 12px !important;
+    --pwa-content-inline-gutter: 12px;
   }
 
   .pwa-top-profile {

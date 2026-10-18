@@ -26,6 +26,8 @@ const recordColumns =
   "id, patient_id, schedule_id, doctor_id, patient_name, type, title, notes, form_data, uploaded_at, uploaded_by";
 const obstetricHistoryColumns =
   "id, patient_id, gravida, para, full_term, preterm, abortion_miscarriage, living_children, age_at_menarche, menstrual_pattern, cycle_length_days, menstruation_duration_days, sexually_active, contraceptive_method, last_menstrual_period, expected_delivery_date, pregnancy_records, created_at, updated_at";
+const followUpHistoryColumns =
+  "id, patient_id, gravida, para, full_term, preterm, abortion_miscarriage, living_children, last_menstrual_period, expected_delivery_date";
 const medicalHistoryColumns =
   "id, patient_id, allergies, allergy_records, medical_conditions, other_medical_condition, family_history, other_family_history, created_at, updated_at";
 const initialAssessmentColumns =
@@ -495,6 +497,48 @@ function HistoryFields({ fields }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+function StoredObstetricHistory({ obstetric, patientId, historyId }) {
+  const [expanded, setExpanded] = useState(false);
+  const available = Boolean(patientId && historyId && obstetric?.id === historyId &&
+    obstetric.patient_id === patientId);
+  const value = (field) => {
+    const stored = obstetric[field];
+    return isMeaningfulClinicalValue(stored) && ["string", "number"].includes(typeof stored)
+      ? stored : "Not provided";
+  };
+  const date = (field) => value(field) === "Not provided"
+    ? "Not provided" : formatHistoryDate(obstetric[field]);
+  const fields = available ? [
+    ["Gravida (G)", value("gravida")], ["Para (P)", value("para")],
+    ["Full Term (T)", value("full_term")], ["Preterm (P)", value("preterm")],
+    ["Abortion/Miscarriage (A)", value("abortion_miscarriage")],
+    ["Living Children (L)", value("living_children")],
+    ["Last Menstrual Period (LMP)", date("last_menstrual_period")],
+    ["Stored EDD", date("expected_delivery_date")],
+  ] : [];
+  return (
+    <FormCard title="Stored Obstetric History" className="appointment-visit-stored-history">
+      <p className="appointment-visit-history-note">
+        Read-only patient history. Stored EDD is separate from this visit's editable EDD.
+        This history is not linked to a specific pregnancy episode.
+      </p>
+      {available ? (
+        <>
+          {!expanded ? <HistoryFields fields={[fields[0], fields[1], fields[6], fields[7]]} /> : null}
+          <button type="button" className="appointment-visit-history-toggle"
+            aria-expanded={expanded} aria-controls="follow-up-stored-obstetric-history"
+            onClick={() => setExpanded((current) => !current)}>
+            {expanded ? "Hide Full History" : "View Full History"}
+          </button>
+          <div id="follow-up-stored-obstetric-history" hidden={!expanded}>
+            <HistoryFields fields={fields} />
+          </div>
+        </>
+      ) : <p role="status">Stored obstetric history is unavailable for this visit.</p>}
+    </FormCard>
   );
 }
 
@@ -1110,7 +1154,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         .limit(30),
       supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
       loadLatestRegistrationHistory("patient_obstetric_history",
-        requestedType === "initial" ? obstetricHistoryColumns : "id, patient_id, expected_delivery_date",
+        requestedType === "initial" ? obstetricHistoryColumns : followUpHistoryColumns,
         schedule.patient_id),
       requestedType === "initial"
         ? loadLatestRegistrationHistory("patient_medical_history", medicalHistoryColumns, schedule.patient_id)
@@ -1122,9 +1166,9 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
 
     if (requestIdRef.current !== requestId) return;
     // Optional history columns must not break the established pregnancy load.
-    // If the expanded Initial query fails, retry the original EDD projection
-    // with the same deterministic row selection.
-    const pregnancyResult = requestedType === "initial" && obstetricResult.error
+    // If optional columns fail, retain the original EDD load and row ordering.
+    // Follow-Up never displays partial history from this fallback.
+    const pregnancyResult = obstetricResult.error
       ? await loadLatestRegistrationHistory("patient_obstetric_history", "id, patient_id, expected_delivery_date", schedule.patient_id)
       : obstetricResult;
     if (requestIdRef.current !== requestId) return;
@@ -1137,7 +1181,11 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       recordResult.error ||
       baselineResult.error ||
       pregnancyResult.error ||
-      staffIntakeError;
+      staffIntakeError ||
+      (requestedType === "follow_up" && pregnancyResult.data && (
+        !pregnancyResult.data.id || pregnancyResult.data.patient_id !== schedule.patient_id ||
+        patientResult.data?.id !== schedule.patient_id
+      ) ? new Error("The stored history did not match this visit's Patient record.") : null);
     if (loadError) {
       logVisitError("visit information load failed", loadError);
       setError(getErrorMessage(loadError, "Unable to load visit information."));
@@ -1160,6 +1208,8 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         obstetric: obstetricHistory,
         medical: medicalHistoryResult.error ? null : medicalHistoryResult.data,
       });
+    } else {
+      setRegistrationHistory({ obstetric: obstetricResult.error ? null : obstetricHistory });
     }
     const completedPriorRecords = (baselineResult.data || []).filter((candidate) => {
       if (!isCompletedClinicalVisitRecord(candidate)) return false;
@@ -1814,6 +1864,12 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
             </div>
           </FormCard>
         </div>
+
+        {isFollowUp && workspace === "doctor" ? (
+          <StoredObstetricHistory key={`${appointment?.id}:${currentPregnancy.obstetricHistoryId}`}
+            obstetric={registrationHistory.obstetric} patientId={patient?.id}
+            historyId={currentPregnancy.obstetricHistoryId} />
+        ) : null}
 
         <FormCard title="Chief Complaints">
           <TextAreaField id="chief-complaint" label="Chief Complaint details" required maxLength={500} size="compact" value={form.chiefComplaint} placeholder="Enter chief complaint details..." readOnly={isReadOnly} error={validationErrors.chiefComplaint} onChange={(value) => updateForm("chiefComplaint", value)} />

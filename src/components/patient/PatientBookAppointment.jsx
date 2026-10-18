@@ -454,6 +454,7 @@ export default function PatientBookAppointment({ profile }) {
   const navigate = useNavigate();
   const tomorrow = useMemo(() => addDays(startOfDay(new Date()), 1), []);
   const [step, setStep] = useState(1);
+  const [isEditingFromReview, setIsEditingFromReview] = useState(false);
   const [serviceId, setServiceId] = useState(SERVICES[0].id);
   const [doctors, setDoctors] = useState([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
@@ -466,6 +467,8 @@ export default function PatientBookAppointment({ profile }) {
   const [unavailableTimes, setUnavailableTimes] = useState(() => new Set());
   const [rejectedSlotKeys, setRejectedSlotKeys] = useState(() => new Set());
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [verifiedAvailabilityKey, setVerifiedAvailabilityKey] = useState("");
+  const [slotRefreshKey, setSlotRefreshKey] = useState(0);
   const [slotAvailabilityError, setSlotAvailabilityError] = useState("");
   const [slotSelectionError, setSlotSelectionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -600,15 +603,41 @@ export default function PatientBookAppointment({ profile }) {
           getSlotKey(selectedDoctorId, selectedDate, selectedTime)
         ))
   );
-  const canContinue =
-    (step === 1 && Boolean(selectedService)) ||
-    (step === 2 && Boolean(selectedDoctor)) ||
-    (step === 3 && Boolean(
-      selectedDate &&
-      selectedTime &&
-      !isLoadingSlots &&
-      !isSelectedTimeUnavailable
-    ));
+  const availabilityKey = `${profile?.recordId || ""}:${serviceId}:${selectedDoctorId}:${selectedDate}`;
+  const hasCurrentAvailability = verifiedAvailabilityKey === availabilityKey &&
+    !isLoadingSlots && !slotAvailabilityError;
+  const hasValidBookingDetails = Boolean(
+    SERVICES.some((service) => service.id === serviceId) &&
+    doctors.some((doctor) => doctor.id === selectedDoctorId) && !isLoadingDoctors &&
+    selectedDate && startOfDay(chosenDate) >= startOfDay(tomorrow) &&
+    TIME_SLOTS.includes(selectedTime) && !isSelectedTimeUnavailable
+  );
+  const canContinue = (!isEditingFromReview || (!isLoadingSlots &&
+    (!selectedTime || hasCurrentAvailability || Boolean(slotAvailabilityError)))) && (
+    (step === 1 && SERVICES.some((service) => service.id === serviceId)) ||
+    (step === 2 && doctors.some((doctor) => doctor.id === selectedDoctorId) && !isLoadingDoctors) ||
+    (step === 3 && hasValidBookingDetails && hasCurrentAvailability)
+  );
+
+  const editFromReview = (nextStep) => {
+    if (isSubmitting) return;
+    setIsEditingFromReview(true);
+    setVerifiedAvailabilityKey("");
+    setIsLoadingSlots(true);
+    setStep(nextStep);
+  };
+
+  const continueBooking = () => {
+    if (!canContinue) return;
+    if (!isEditingFromReview) {
+      setStep((current) => current + 1);
+      return;
+    }
+    if (!doctors.some((doctor) => doctor.id === selectedDoctorId) || isLoadingDoctors) { setStep(2); return; }
+    if (!hasValidBookingDetails || !hasCurrentAvailability) { setStep(3); return; }
+    setIsEditingFromReview(false);
+    setStep(4);
+  };
 
   const clearSelectionBoundErrors = () => {
     setSlotSelectionError("");
@@ -619,15 +648,18 @@ export default function PatientBookAppointment({ profile }) {
   };
 
   useEffect(() => {
-    if (step !== 3 || !profile?.recordId || !selectedDate) return undefined;
-
+    if (step !== 3 && step !== 4 && !isEditingFromReview) return undefined;
     let active = true;
 
     const refreshSlots = async () => {
       setIsLoadingSlots(true);
+      setVerifiedAvailabilityKey("");
       setSlotAvailabilityError("");
 
       try {
+        if (!profile?.recordId || !selectedDate) {
+          throw new Error("Patient record and appointment date are required.");
+        }
         const nextUnavailableTimes = await fetchUnavailableBookingTimes({
           dateKey: selectedDate,
           doctorId: selectedDoctorDatabaseId,
@@ -636,6 +668,7 @@ export default function PatientBookAppointment({ profile }) {
         if (!active) return;
 
         setUnavailableTimes(nextUnavailableTimes);
+        setVerifiedAvailabilityKey(availabilityKey);
         if (
           selectedTime &&
           (nextUnavailableTimes.has(selectedTime) ||
@@ -653,7 +686,9 @@ export default function PatientBookAppointment({ profile }) {
         console.error("Patient booking availability refresh failed:", error);
         setUnavailableTimes(new Set());
         setSlotAvailabilityError(
-          "Availability could not be refreshed. Final availability will be checked when you submit."
+          !profile?.recordId || !selectedDate
+            ? "Your Patient record and appointment date are required to check availability."
+            : "Availability could not be refreshed. Retry the availability check before continuing."
         );
       } finally {
         if (active) setIsLoadingSlots(false);
@@ -666,32 +701,38 @@ export default function PatientBookAppointment({ profile }) {
     };
   }, [
     profile?.recordId,
+    availabilityKey,
+    isEditingFromReview,
     rejectedSlotKeys,
     selectedDate,
     selectedDoctorDatabaseId,
     selectedDoctorId,
     selectedTime,
     step,
+    slotRefreshKey,
   ]);
 
   const handleServiceSelect = (nextServiceId) => {
     clearSelectionBoundErrors();
     setServiceId(nextServiceId);
+    if (nextServiceId !== serviceId) setVerifiedAvailabilityKey("");
   };
 
   const handleDoctorSelect = (nextDoctorId) => {
     clearSelectionBoundErrors();
+    if (nextDoctorId === selectedDoctorId) return;
     setSelectedDoctorId(nextDoctorId);
-    setSelectedTime("");
+    setVerifiedAvailabilityKey("");
     setUnavailableTimes(new Set());
   };
 
   const handleDateSelect = (date) => {
     if (startOfDay(date) < startOfDay(tomorrow)) return;
     clearSelectionBoundErrors();
+    if (toDateKey(date) === selectedDate) return;
     setSelectedDate(toDateKey(date));
     setCalendarMonth(new Date(date.getFullYear(), date.getMonth(), 1));
-    setSelectedTime("");
+    setVerifiedAvailabilityKey("");
     setUnavailableTimes(new Set());
   };
 
@@ -703,7 +744,7 @@ export default function PatientBookAppointment({ profile }) {
   const submitBooking = async () => {
     // The RPC gets the patient_id and patient_name from auth.uid(), so this
     // page does not need to insert directly into the request table.
-    if (!selectedService || !selectedDoctor || !selectedDate || !selectedTime) {
+    if (step !== 4 || isEditingFromReview || !hasValidBookingDetails || !hasCurrentAvailability) {
       setSubmitError("Please complete all booking details before submitting.");
       setIsSubmitErrorSelectionBound(true);
       return;
@@ -727,8 +768,8 @@ export default function PatientBookAppointment({ profile }) {
     const startDate = dateFromKey(selectedDate);
     startDate.setHours(hours, minutes, 0, 0);
 
-    if (Number.isNaN(startDate.getTime())) {
-      setSubmitError("Please select a valid appointment date and time.");
+    if (Number.isNaN(startDate.getTime()) || startDate <= new Date()) {
+      setSubmitError("Please select a valid appointment date and time in the future.");
       setIsSubmitErrorSelectionBound(true);
       return;
     }
@@ -824,7 +865,7 @@ export default function PatientBookAppointment({ profile }) {
     return (
       <section className="pwa-page patient-booking-page">
         <div className="patient-booking-success" role="status">
-          <span><Icon icon="solar:calendar-check-bold" /></span>
+          <span aria-hidden="true"><Check strokeWidth={3} /></span>
           <p>Booking request submitted</p>
           <h1>Your appointment request is on its way.</h1>
           <small>
@@ -993,6 +1034,11 @@ export default function PatientBookAppointment({ profile }) {
                     {slotSelectionError || slotAvailabilityError}
                   </p>
                 ) : null}
+                {slotAvailabilityError ? (
+                  <button type="button" onClick={() => setSlotRefreshKey((current) => current + 1)} disabled={isLoadingSlots}>
+                    Retry availability
+                  </button>
+                ) : null}
               </div>
             </div>
           </section>
@@ -1008,22 +1054,22 @@ export default function PatientBookAppointment({ profile }) {
               <div>
                 <dt><Icon icon="solar:calendar-linear" /> Appointment Type</dt>
                 <dd>{selectedService.title}</dd>
-                <button type="button" onClick={() => setStep(1)}>Change</button>
+                <button type="button" disabled={isSubmitting} aria-label="Edit appointment type" onClick={() => editFromReview(1)}>Change</button>
               </div>
               <div>
                 <dt><Icon icon="solar:user-rounded-linear" /> Doctor</dt>
                 <dd>{selectedDoctor?.name}</dd>
-                <button type="button" onClick={() => setStep(2)}>Change</button>
+                <button type="button" disabled={isSubmitting} aria-label="Edit doctor" onClick={() => editFromReview(2)}>Change</button>
               </div>
               <div>
                 <dt><Icon icon="solar:calendar-linear" /> Date</dt>
                 <dd>{chosenDateLabel}</dd>
-                <button type="button" onClick={() => setStep(3)}>Change</button>
+                <button type="button" disabled={isSubmitting} aria-label="Edit appointment date" onClick={() => editFromReview(3)}>Change</button>
               </div>
               <div>
                 <dt><Icon icon="solar:clock-circle-linear" /> Time</dt>
-                <dd>{formatTime(selectedTime)}</dd>
-                <button type="button" onClick={() => setStep(3)}>Change</button>
+                <dd>{selectedTime ? formatTime(selectedTime) : "Not selected"}</dd>
+                <button type="button" disabled={isSubmitting} aria-label="Edit appointment time" onClick={() => editFromReview(3)}>Change</button>
               </div>
             </dl>
             <div className="patient-booking-notice">
@@ -1031,6 +1077,9 @@ export default function PatientBookAppointment({ profile }) {
               <span>Please make sure all details are correct.<br />You can go back to make changes if needed.</span>
             </div>
             {submitError ? <p className="patient-booking-error" role="alert">{submitError}</p> : null}
+            {isLoadingSlots || slotAvailabilityError || slotSelectionError ? (
+              <p role="status">{isLoadingSlots ? "Checking appointment availability..." : slotAvailabilityError || slotSelectionError}</p>
+            ) : null}
           </section>
         ) : null}
       </div>
@@ -1039,17 +1088,18 @@ export default function PatientBookAppointment({ profile }) {
         <button
           type="button"
           className="is-secondary"
+          disabled={isSubmitting}
           onClick={() => step === 1 ? navigate("/patient/appointments") : setStep((current) => current - 1)}
         >
           {step > 1 ? <Icon icon="solar:arrow-left-linear" /> : null}
           {step === 1 ? "Cancel" : "Back"}
         </button>
         {step < 4 ? (
-          <button type="button" className="is-primary" disabled={!canContinue} onClick={() => setStep((current) => current + 1)}>
-            Next <Icon icon="solar:arrow-right-linear" />
+          <button type="button" className="is-primary" disabled={!canContinue} onClick={continueBooking}>
+            {isEditingFromReview ? "Return to Review" : "Next"} <Icon icon="solar:arrow-right-linear" />
           </button>
         ) : (
-          <button type="button" className="is-primary is-submit" disabled={isSubmitting} onClick={submitBooking}>
+          <button type="button" className="is-primary is-submit" disabled={isSubmitting || !hasValidBookingDetails || !hasCurrentAvailability} onClick={submitBooking}>
             <Icon icon="solar:plain-bold" />
             {isSubmitting ? "Submitting..." : "Submit Booking Request"}
           </button>
