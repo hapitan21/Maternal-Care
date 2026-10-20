@@ -866,6 +866,7 @@ export default function PatientPWAMedicalRecords({ profile }) {
   return (
     <section className="pwa-page pwa-medical-page">
       <PatientPageHeader
+        sharedHeader
         title="My Medical Record"
         subtitle="Review visit summaries, clinical findings, and care plans from your clinic."
         className="pwa-medical-title"

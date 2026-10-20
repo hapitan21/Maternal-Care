@@ -122,6 +122,9 @@ for (const [type, base] of [['initial', initial], ['follow_up', followUp]]) {
       for (const [key, entered] of Object.entries(form)) equal(calls[0].args.p_intake_data[key], entered, `Validated payload: ${key}`);
       equal(navigation.length, 1, 'One navigation after confirmation');
       equal(navigation[0][0], '/staff/appointments', 'Original destination');
+      equal(JSON.parse(JSON.stringify(navigation[0][1])), {
+        replace: true, state: { clinicalSave: { workspace: 'staff', visitType: type } },
+      }, 'Confirmed save hands off only presentation metadata');
       equal(state.intake.status, 'staff_completed', 'Confirmed saved row');
       equal(state.saving, false, 'Save lock UI released');
       equal(JSON.stringify(form), before, 'Form not rewritten');
@@ -134,7 +137,14 @@ await test('Required-field, range, save and UI functions are unchanged from the 
   const beforeTree = ast(before);
   for (const name of ['validateStaffIntake', 'validateBloodPressure', 'saveForm', 'loadForm', 'TextField', 'RiskSelector', 'DateField']) {
     const node = find(beforeTree, name);
-    equal(declaration(name).replace(/\r\n/g, '\n'), before.slice(...node.range).replace(/\r\n/g, '\n'), name);
+    const current = declaration(name).replace(/\r\n/g, '\n');
+    const baseline = before.slice(...node.range).replace(/\r\n/g, '\n');
+    // Only the verified post-save navigation metadata is allowed to differ.
+    const withoutFeedback = name === 'saveForm' ? current.replace(
+      'navigate("/staff/appointments", {\n        replace: true,\n        state: { clinicalSave: { workspace: "staff", visitType } },\n      });',
+      'navigate("/staff/appointments", { replace: true });'
+    ) : current;
+    equal(withoutFeedback, baseline, name);
   }
 });
 console.log(`PASS: ${scenarios} scenarios / ${assertions} assertions. Synthetic validators and actual save handler only; no browser or Supabase calls.`);

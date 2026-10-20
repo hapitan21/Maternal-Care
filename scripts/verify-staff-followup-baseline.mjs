@@ -101,7 +101,12 @@ for (const name of ["saveForm", "loadForm", "progressGestationalAge", "RiskSelec
     const node = find(ast(text), item => (item.type === "VariableDeclarator" || item.type === "FunctionDeclaration") && item.id?.name === name);
     return text.slice(...node.range).replace(/\r\n/g, "\n");
   };
-  equal(select(source), select(head), "existing workflow/UI function unchanged: " + name);
+  const current = select(source);
+  const withoutFeedback = name === "saveForm" ? current.replace(
+    'navigate("/staff/appointments", {\n        replace: true,\n        state: { clinicalSave: { workspace: "staff", visitType } },\n      });',
+    'navigate("/staff/appointments", { replace: true });'
+  ) : current;
+  equal(withoutFeedback, select(head), "existing workflow/UI function unchanged except save feedback: " + name);
 }
 const fromTables = [...source.matchAll(/\.from\("([^"]+)"\)/g)].map(match => match[1]);
 equal(fromTables, ["schedule"], "no new direct frontend Patient/clinical table reads");

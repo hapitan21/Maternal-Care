@@ -1,0 +1,56 @@
+/* Reuse the Appointments footer markup within each Patient table card. */
+.appointment-ui-pagination.patients-table-pagination {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 12px 22px;
+  border-top: 1px solid #eceef4;
+  color: #596174;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.appointment-ui-pagination.patients-table-pagination label,
+.appointment-ui-pagination.patients-table-pagination > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.appointment-ui-pagination.patients-table-pagination button,
+.appointment-ui-pagination.patients-table-pagination select {
+  min-height: 34px;
+  border: 1px solid #d4d7e3;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: #414755;
+  font: inherit;
+}
+
+.appointment-ui-pagination.patients-table-pagination button:disabled { cursor: not-allowed; opacity: 0.48; }
+.appointment-ui-pagination.patients-table-pagination button:not(:disabled):hover { border-color: #ff2f7d; color: #c91668; background: #fff0f6; }
+.appointment-ui-pagination.patients-table-pagination :focus-visible { outline: 2px solid #c91668; outline-offset: 2px; }
+
+/* Doctor's fixed-height desktop card must reserve space for its footer.
+   The legacy scroller height: 100% otherwise clips the sibling footer. */
+@media (min-width: 981px) {
+  .doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-table-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .doctor-dashboard:not(.staff-dashboard-shell) .doctor-patients-page .doctor-patients-table-card > .doctor-patients-table-scroll {
+    height: auto !important;
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .appointment-ui-pagination.patients-table-pagination { padding: 12px; gap: 10px; }
+  .appointment-ui-pagination.patients-table-pagination > div { width: 100%; justify-content: space-between; }
+}

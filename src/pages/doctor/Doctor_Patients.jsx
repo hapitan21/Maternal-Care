@@ -5,6 +5,10 @@ import { useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
 import "../../styles/doctor-patients.css";
+import "../../styles/patient-table-pagination.css";
+import { AppointmentPagination } from "../../components/appointments/AppointmentUi";
+import { usePatientTablePagination } from "../../hooks/usePatientTablePagination";
+import { comparePatientRows } from "../../lib/patientTableSort";
 
 const patientSelectColumns =
   "id, full_name, patient_id, date_of_birth, age, contact_number, email, address, status, archived_at, expected_delivery_date, gestational_age, blood_type, risk_level, created_at";
@@ -206,14 +210,17 @@ function PatientListPage({
     patients.length > 0;
   const filteredPatients = useMemo(() => {
     const value = searchTerm.trim().toLowerCase();
-    if (!value) return patients;
+    if (!value) return [...patients].sort(comparePatientRows);
     return patients.filter((patient) =>
       [patient.name, patient.patientId, patient.sexAge, patient.dateOfBirth]
         .join(" ")
         .toLowerCase()
         .includes(value)
-    );
+    ).sort(comparePatientRows);
   }, [patients, searchTerm]);
+
+  const pagination = usePatientTablePagination(filteredPatients.length, searchTerm);
+  const paginatedPatients = filteredPatients.slice(pagination.startIndex, pagination.startIndex + pagination.pageSize);
 
   return (
     <section className="doctor-patients-list-page">
@@ -293,7 +300,7 @@ function PatientListPage({
             </thead>
 
             <tbody>
-              {loadState === "loaded" || isBackgroundRefreshError ? filteredPatients.map((patient) => (
+              {loadState === "loaded" || isBackgroundRefreshError ? paginatedPatients.map((patient) => (
                 <tr key={patient.recordId}>
                   <td>
                     <div className="doctor-patient-info-cell">
@@ -332,6 +339,17 @@ function PatientListPage({
             </tbody>
           </table>
         </div>
+        <AppointmentPagination
+          className="patients-table-pagination"
+          itemLabel="patients"
+          currentPage={pagination.currentPage}
+          pageSize={pagination.pageSize}
+          pageSizes={[10, 15]}
+          totalItems={filteredPatients.length}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div> : null}
     </section>
   );

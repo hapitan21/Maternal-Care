@@ -222,8 +222,8 @@ function Login() {
 
     if (shouldSkipSessionCheck) {
       signOutWithTimeout()
-        .catch((error) => {
-          console.error("Login session cleanup failed:", error);
+        .catch(() => {
+          if (import.meta.env.DEV) console.warn("Login session cleanup failed.");
         })
         .finally(() => {
           if (active) {
@@ -270,7 +270,7 @@ function Login() {
 
         navigate(redirectPath, { replace: true });
       } catch (error) {
-        console.error("Session profile lookup failed:", error);
+        if (import.meta.env.DEV) console.warn("Session profile lookup failed.");
 
         if (
           error?.code === "staff_account_inactive" ||
@@ -335,6 +335,9 @@ function Login() {
         return;
       }
 
+      setPassword("");
+      setPasswordVisible(false);
+
       let role;
 
       try {
@@ -368,7 +371,7 @@ function Login() {
       });
       navigate(redirectPath, { replace: true });
     } catch (error) {
-      console.error("Login failed:", error);
+      if (import.meta.env.DEV) console.warn("Login failed.");
       if (error?.code === "patient_account_blocked") {
         await signOutWithTimeout().catch(() => null);
       }

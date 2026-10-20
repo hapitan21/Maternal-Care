@@ -45,6 +45,13 @@ export function normalizeAppointmentType(value = "") {
   return String(value).trim().toLowerCase();
 }
 
+// Display only: keep stored type values and clinical visit routing unchanged.
+export function getAppointmentTypeLabel(value = "") {
+  return normalizeAppointmentType(value) === normalizeAppointmentType("Follow-up Prenatal Check-up")
+    ? "Prenatal Check-up"
+    : value;
+}
+
 export function isKnownAppointmentType(value = "") {
   return APPOINTMENT_TYPES.some(
     (type) => normalizeAppointmentType(type) === normalizeAppointmentType(value)

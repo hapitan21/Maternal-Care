@@ -2577,3 +2577,51 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Existing page headings share the naturally scrolling topbar with its controls. */
+.pwa-topbar-heading:empty {
+  display: none;
+}
+
+.pwa-topbar:has(.pwa-topbar-heading:not(:empty)) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px 24px;
+  margin-bottom: 20px;
+}
+
+.pwa-topbar-heading {
+  min-width: 0;
+}
+
+.pwa-topbar-heading > .pwa-ui-page-header {
+  flex-direction: column;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 12px;
+}
+
+.pwa-topbar-heading .pwa-ui-page-header h1,
+.pwa-topbar-heading .pwa-ui-page-header p {
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 780px), (hover: none) and (pointer: coarse) {
+  .pwa-topbar:has(.pwa-topbar-heading:not(:empty)) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    row-gap: 16px;
+    column-gap: 7px;
+    margin-bottom: 16px;
+  }
+
+  .pwa-topbar-heading {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .pwa-topbar:has(.pwa-topbar-heading:not(:empty)) .pwa-topbar-secondary {
+    grid-row: 3;
+  }
+}

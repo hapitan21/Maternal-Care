@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@iconify/react";
+import { AlarmClock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { usePatientSectionScroll } from "../../hooks/usePatientSectionScroll";
 import { supabase } from "../../lib/supabaseClient";
@@ -97,8 +98,14 @@ const navItems = [
   { key: "dashboard", label: "Dashboard", mobileLabel: "Home", icon: "solar:widget-2-bold" },
   { key: "medical-record", label: "Medical Record", mobileLabel: "Records", icon: "solar:document-medicine-linear" },
   { key: "appointments", label: "Appointments", mobileLabel: "Visits", icon: "solar:calendar-linear" },
-  { key: "reminders", label: "Reminders", mobileLabel: "Reminders", icon: "solar:bell-linear" },
+  { key: "reminders", label: "Reminders", mobileLabel: "Reminders", icon: AlarmClock },
 ];
+
+function PatientNavigationIcon({ icon: NavigationIcon }) {
+  return typeof NavigationIcon === "string"
+    ? <Icon icon={NavigationIcon} aria-hidden="true" />
+    : <NavigationIcon strokeWidth={1.5} aria-hidden="true" />;
+}
 
 const pageRoutes = {
   dashboard: "/patient/dashboard",
@@ -325,6 +332,7 @@ export default function PatientPWA() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const mainRef = useRef(null);
   const [topbarSecondaryTarget, setTopbarSecondaryTarget] = useState(null);
+  const [topbarHeadingTarget, setTopbarHeadingTarget] = useState(null);
   const [initialAccountCache] = useState(getCachedPatientAccount);
   const initialAccountCacheRef = useRef(initialAccountCache);
   const [profile, setProfile] = useState(
@@ -910,7 +918,7 @@ export default function PatientPWA() {
 
   return (
     <PatientNotificationsProvider patientId={profile.recordId}>
-      <PatientTopbarSecondaryProvider target={topbarSecondaryTarget}>
+      <PatientTopbarSecondaryProvider target={topbarSecondaryTarget} headingTarget={topbarHeadingTarget}>
         <div className="pwa-shell">
         <aside className="pwa-sidebar">
         <div className="pwa-brand maternal-care-brand">
@@ -929,7 +937,7 @@ export default function PatientPWA() {
               data-mobile-label={item.mobileLabel}
               title={item.label}
             >
-              <Icon icon={item.icon} />
+              <PatientNavigationIcon icon={item.icon} />
               <span>{item.label}</span>
             </button>
           ))}
@@ -948,6 +956,7 @@ export default function PatientPWA() {
               <MaternalCareLogo decorative variant="mobile" />
             </button>
 
+            <div className="pwa-topbar-heading" ref={setTopbarHeadingTarget} />
             <div className="pwa-topbar-actions">
               <PatientNotificationBell onNavigate={(targetPath) => navigate(targetPath)} />
               <TopProfile

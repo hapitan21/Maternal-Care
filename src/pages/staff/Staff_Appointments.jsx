@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import { Check } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useClinicalSaveFeedback } from "../../hooks/useClinicalSaveFeedback";
 import { supabase } from "../../lib/supabaseClient";
 import {
   clinicLocalDateTimeToISOString,
@@ -39,11 +40,14 @@ import {
   AppointmentToolbar,
 } from "../../components/appointments/AppointmentUi";
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
+import AppointmentDateRangeFilter from "../../components/appointments/AppointmentDateRangeFilter";
+import { matchesAppointmentDateRange } from "../../lib/appointmentDateRange";
 import {
   APPOINTMENT_CATEGORIES,
   APPOINTMENT_TYPES,
   getAppointmentTypeCategory,
   getAppointmentTypeForCategory,
+  getAppointmentTypeLabel,
 } from "../../lib/appointmentTypes";
 import {
   classifyAppointment,
@@ -366,15 +370,6 @@ function appointmentStatusMatches(appointment, activeFilter) {
   if (activeFilter === "Cancelled") return status === appointmentStatuses.cancelled;
   if (activeFilter === "Missed") return status === appointmentStatuses.missed;
   return false;
-}
-
-function monthFilterMatches(appointment, selectedMonth) {
-  if (!selectedMonth) return true;
-
-  const scheduleDate = formatInputDate(appointment.startTime);
-  if (!scheduleDate) return false;
-
-  return scheduleDate.slice(0, 7) === selectedMonth;
 }
 
 function isAppointmentToday(value) {
@@ -702,7 +697,7 @@ function StaffWeekCalendar({
                     >
                       <strong>{event.patient}</strong>
                       <span>{event.timeLabel}</span>
-                      {event.label ? <small>{event.label}</small> : null}
+                      {event.label ? <small>{getAppointmentTypeLabel(event.label)}</small> : null}
                     </button>
                   );
                 })}
@@ -1151,7 +1146,7 @@ function AddAppointmentModal({
             </option>
             {appointmentTypeOptions.map((appointmentType) => (
               <option key={appointmentType} value={appointmentType}>
-                {appointmentType}
+                {getAppointmentTypeLabel(appointmentType)}
               </option>
             ))}
           </AppointmentFormField>
@@ -1207,7 +1202,7 @@ function AppointmentDetailsModal({
   const details = [
     ["Patient name", appointment.name],
     ["Appointment ID", appointment.appointmentId],
-    ["Appointment type", appointment.title],
+    ["Appointment type", getAppointmentTypeLabel(appointment.title)],
     ["Doctor", appointment.doctorName || "Not assigned"],
     ["Date and time", `${formatLongDate(appointment.startTime)} at ${appointment.time}`],
     ["Status", getStaffAppointmentStatusLabel(appointment)],
@@ -1239,7 +1234,7 @@ function AppointmentDetailsModal({
           </span>
           <div>
             <h2 id="staff-appointment-detail-title">{appointment.name}</h2>
-            <p>{appointment.title}</p>
+            <p>{getAppointmentTypeLabel(appointment.title)}</p>
           </div>
         </header>
 
@@ -1597,6 +1592,7 @@ function StaffAppointmentRequests({
   miniMonthDays,
   todayAppointments,
   onSearchChange,
+  dateRangeFilter = null,
   onSortChange,
   onPageChange,
   onMonthChange,
@@ -1630,6 +1626,7 @@ function StaffAppointmentRequests({
             </select>
             <Icon icon="solar:alt-arrow-down-linear" aria-hidden="true" />
           </label>
+          {dateRangeFilter}
         </div>
 
         <div className="doctor-request-table-wrap">
@@ -1671,7 +1668,7 @@ function StaffAppointmentRequests({
 
                       <div className="doctor-request-type">
                         <Icon icon={getRequestCategoryIcon(request)} aria-hidden="true" />
-                        <span>{request.title || "Appointment"}</span>
+                        <span>{getAppointmentTypeLabel(request.title || "Appointment")}</span>
                       </div>
 
                       <div className="doctor-request-preferred">
@@ -1814,7 +1811,7 @@ function StaffAppointmentRequests({
                   <time>{formatAppointmentTime(appointment.startTime)}</time>
                   <span className={`is-${appointment.category || "fallback"}`}>
                     <strong>{appointment.name || "Patient"}</strong>
-                    <small>{appointment.title || "Appointment"}</small>
+                    <small>{getAppointmentTypeLabel(appointment.title || "Appointment")}</small>
                   </span>
                 </button>
               ))
@@ -1944,7 +1941,7 @@ function StaffAppointmentRequestDetails({
             <dt>Appointment Type</dt>
             <dd>
               <Icon icon={getRequestCategoryIcon(request)} aria-hidden="true" />{" "}
-              {request?.title || "Appointment"}
+              {getAppointmentTypeLabel(request?.title || "Appointment")}
             </dd>
           </div>
 
@@ -2160,7 +2157,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
     new URLSearchParams(location.search).get("tab") === "requests" ? "Requests" : dashboardStatusTarget || "All"
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState("");
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -2211,7 +2208,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   const [successMessage, setSuccessMessage] = useState("");
   const [successTitle, setSuccessTitle] = useState("");
   const [statusMessageVersion, setStatusMessageVersion] = useState(0);
-  const successToastRef = useAppointmentToastPlacement(successMessage, statusMessageVersion);
+  const successToastRef = useAppointmentToastPlacement(successMessage, statusMessageVersion, ".staff-appointments-page", false);
   const [noShowConfirmationAppointment, setNoShowConfirmationAppointment] = useState(null);
   const [isMarkingNoShow, setIsMarkingNoShow] = useState(false);
   const [cancelConfirmationAppointment, setCancelConfirmationAppointment] = useState(null);
@@ -2244,7 +2241,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   useEffect(() => {
     if (new URLSearchParams(location.search).get("tab") !== "requests") return undefined;
     const timer = window.setTimeout(() => {
-      setActiveFilter("Requests"); setCurrentPage(1); setSearchQuery(""); setSelectedMonth(""); setSelectedRequest(null);
+      setActiveFilter("Requests"); setCurrentPage(1); setSearchQuery(""); setDateRange({ from: "", to: "" }); setSelectedRequest(null);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [location.search]);
@@ -2278,6 +2275,8 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
     setStatusMessage((current) => (current === successMessage ? "" : current));
     setSuccessMessage("");
   }, [clearSuccessTimer, successMessage]);
+
+  useClinicalSaveFeedback("staff", location, navigate, showSuccessMessage);
 
   useEffect(
     () => () => {
@@ -2325,7 +2324,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       if (dashboardTodayTarget) {
         setActiveFilter("All");
         setSearchQuery("");
-        setSelectedMonth("");
+        setDateRange({ from: "", to: "" });
         setCurrentPage(1);
         dashboardStatusTargetAppliedRef.current = false;
         return;
@@ -2833,6 +2832,11 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
     return () => window.removeEventListener("click", closeStatusMenu);
   }, []);
 
+  const applyDateRange = (range) => {
+    setDateRange(range);
+    setCurrentPage(1);
+  };
+
   const filteredAppointments = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
 
@@ -2844,7 +2848,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
         if (!classification.isToday || !classification.isActionable) return false;
       }
 
-      if (!monthFilterMatches(appointment, selectedMonth)) return false;
+      if (!matchesAppointmentDateRange(appointment.startTime, dateRange)) return false;
       if (!keyword) return true;
 
       return [
@@ -2864,7 +2868,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
     appointments,
     dashboardTodayTarget,
     searchQuery,
-    selectedMonth,
+    dateRange,
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAppointments.length / pageSize));
@@ -2876,7 +2880,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   useEffect(() => {
     const pageResetTimer = window.setTimeout(() => setCurrentPage(1), 0);
     return () => window.clearTimeout(pageResetTimer);
-  }, [activeFilter, pageSize, searchQuery, selectedMonth]);
+  }, [activeFilter, pageSize, searchQuery, dateRange]);
 
   const requestSchedules = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
@@ -2896,7 +2900,8 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
           request.patient_id,
           request.doctor_name,
         ].some((value) => String(value || "").toLowerCase().includes(keyword));
-      });
+      })
+      .filter((request) => matchesAppointmentDateRange(request.start_time, dateRange));
 
     return matching.sort((first, second) => {
       const firstTime = new Date(first.created_at || 0).getTime() || 0;
@@ -2905,7 +2910,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
         ? firstTime - secondTime
         : secondTime - firstTime;
     });
-  }, [bookingRequests, requestSort, searchQuery]);
+  }, [bookingRequests, requestSort, searchQuery, dateRange]);
 
   const requestTotalPages = Math.max(1, Math.ceil(requestSchedules.length / 5));
   const requestDisplayedPage = Math.min(currentPage, requestTotalPages);
@@ -2951,7 +2956,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
           const classification = classifyAppointment(appointment);
           if (!classification.isToday || !classification.isActionable) return false;
         }
-        if (!monthFilterMatches(appointment, selectedMonth)) return false;
+        if (!matchesAppointmentDateRange(appointment.startTime, dateRange)) return false;
 
         return [
           appointment.name,
@@ -2974,7 +2979,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
     appointments,
     dashboardTodayTarget,
     searchQuery,
-    selectedMonth,
+    dateRange,
   ]);
 
   const addAppointmentPatientSuggestions = useMemo(() => {
@@ -4553,7 +4558,7 @@ setMiniMonthDate(
           setActiveFilter(nextTab);
           setCurrentPage(1);
           setSearchQuery("");
-          setSelectedMonth("");
+          setDateRange({ from: "", to: "" });
         }}
         action={headerAction}
         className="staff-appointments-header staff-section-header"
@@ -4567,10 +4572,10 @@ setMiniMonthDate(
         <button type="button" onClick={requestNotifications.retry}>Retry</button>
       </div> : null}
 
-      {successMessage ? (
+      {successMessage ? createPortal(
         <div
           key={statusMessageVersion}
-          className="appointment-success-toast"
+          className="appointment-success-toast staff-appointment-feedback-toast"
           ref={successToastRef}
           role="status"
           aria-live="polite"
@@ -4585,7 +4590,7 @@ setMiniMonthDate(
             aria-label="Dismiss success notification" onClick={dismissSuccessMessage}>
             <span aria-hidden="true">×</span>
           </button>
-        </div>
+        </div>, document.body
       ) : null}
 
       {statusMessage && statusMessage !== successMessage ? (
@@ -4607,6 +4612,7 @@ setMiniMonthDate(
           currentPage={requestDisplayedPage}
           totalPages={requestTotalPages}
           searchTerm={searchQuery}
+          dateRangeFilter={<AppointmentDateRangeFilter value={dateRange} onApply={applyDateRange} className="appointment-date-range-request" />}
           sortOrder={requestSort}
           patients={patients}
           miniMonthDate={miniMonthDate}
@@ -4687,35 +4693,11 @@ setMiniMonthDate(
           </div>
         </AppointmentControlGroup>
 
-        <AppointmentControlGroup
-          as="label"
-          label="Filter by Month"
-          area="month"
+        <AppointmentDateRangeFilter
+          value={dateRange}
+          onApply={applyDateRange}
           className="staff-appointments-month-filter staff-appointments-control-group"
-        >
-          <div className="staff-appointments-month-control appointment-ui-month">
-            <Icon icon="solar:calendar-linear" aria-hidden="true" />
-
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-              aria-label="Filter appointments by month"
-            />
-
-            {selectedMonth ? (
-              <button
-                type="button"
-                className="staff-appointments-month-clear"
-                onClick={() => setSelectedMonth("")}
-                aria-label="Clear month filter"
-                title="Clear month filter"
-              >
-                <Icon icon="solar:close-circle-bold" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-        </AppointmentControlGroup>
+        />
 
         <AppointmentControlGroup
           label="Quick Action"
@@ -4884,7 +4866,7 @@ setMiniMonthDate(
               >
                 <span>{formatLongDate(event.start)}</span>
                 <strong>{event.extendedProps.patient}</strong>
-                <small>{event.extendedProps.timeLabel} - {event.extendedProps.label}</small>
+                <small>{event.extendedProps.timeLabel} - {getAppointmentTypeLabel(event.extendedProps.label)}</small>
               </button>
             ))}
 
@@ -4954,7 +4936,7 @@ setMiniMonthDate(
                   <span aria-hidden="true">
                     <Icon icon={category.icon} />
                   </span>
-                  <strong>{category.label}</strong>
+                  <strong>{getAppointmentTypeLabel(category.label)}</strong>
                 </div>
               ))}
             </div>

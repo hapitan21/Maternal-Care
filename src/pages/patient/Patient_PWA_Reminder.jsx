@@ -10,6 +10,7 @@ import { maternalCareLogo } from "../../components/common/MaternalCareLogo";
 import { sendPatientAppointmentBrowserReminder } from "../../lib/patientAppointmentBrowserReminder";
 import { mapScheduleRowToReminder } from "../../lib/patientData";
 import { getPatientHealthTips } from "../../lib/patientHealthTips";
+import { readPatientHealthTipsCache, savePatientHealthTipsCache, retainPatientHealthTipsOnError } from "../../lib/patientHealthTipsCache";
 import {
   classifyAppointment,
   getManilaDateKey,
@@ -19,6 +20,7 @@ import {
 } from "../../lib/appointmentDate";
 import {
   getPatientPwaSessionCache,
+  getPatientPwaSessionCacheGeneration,
   setPatientPwaSessionCache,
 } from "../../lib/patientPwaSessionCache";
 import {
@@ -699,12 +701,13 @@ export default function PatientPWAReminder({ profile }) {
   const [scheduleReminders, setScheduleReminders] = useState(
     () => initialCache?.scheduleReminders || []
   );
-  const [healthTipsResult, setHealthTipsResult] = useState({ patientId: "", tips: [] });
+  const [healthTipsResult, setHealthTipsResult] = useState(() =>
+    readPatientHealthTipsCache(profilePatientId) || { patientId: "", tips: [] });
   const healthTips = useMemo(() => healthTipsResult.patientId === profilePatientId ? healthTipsResult.tips : [],
     [healthTipsResult, profilePatientId]);
   const [isLoadingAppointmentReminders, setIsLoadingAppointmentReminders] = useState(() => !initialCache);
   const [isLoadingScheduleReminders, setIsLoadingScheduleReminders] = useState(() => !initialCache);
-  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(true);
+  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(() => !readPatientHealthTipsCache(profilePatientId));
   const [isLoadingMedicationReminders, setIsLoadingMedicationReminders] = useState(() => !initialCache);
   const [healthTipsError, setHealthTipsError] = useState("");
   const [medicationReminderError, setMedicationReminderError] = useState("");
@@ -724,7 +727,7 @@ export default function PatientPWAReminder({ profile }) {
   const loadedStateRef = useRef({
     appointments: Boolean(initialCache),
     schedule: Boolean(initialCache),
-    healthTips: false,
+    healthTips: Boolean(readPatientHealthTipsCache(profilePatientId)),
     medication: Boolean(initialCache),
   });
   const reminderRefreshRef = useRef(null);
@@ -1052,6 +1055,7 @@ export default function PatientPWAReminder({ profile }) {
     let active = true;
     let refreshInFlight = false;
     let refreshQueued = false;
+    const generation = getPatientPwaSessionCacheGeneration();
 
     const fetchSupabaseReminders = async () => {
       if (!loadedStateRef.current.appointments) {
@@ -1140,7 +1144,7 @@ export default function PatientPWAReminder({ profile }) {
 
         const healthTipsResult = await healthTipsQuery;
 
-        if (!active) {
+        if (!active || generation !== getPatientPwaSessionCacheGeneration()) {
           return;
         }
 
@@ -1149,12 +1153,14 @@ export default function PatientPWAReminder({ profile }) {
             "Patient health tips load failed:",
             healthTipsResult.error
           );
-          setHealthTipsResult({ patientId: profilePatientId, tips: [] });
+          setHealthTipsResult(retainPatientHealthTipsOnError(profilePatientId, healthTipsResult.error));
           setHealthTipsError(
             "Unable to load health tips. Please try again."
           );
         } else {
-          setHealthTipsResult({ patientId: profilePatientId, tips: getPatientHealthTips(healthTipsResult.data, patient?.id) });
+          const result = { patientId: profilePatientId, tips: getPatientHealthTips(healthTipsResult.data, patient?.id) };
+          savePatientHealthTipsCache(result);
+          setHealthTipsResult(result);
           setHealthTipsError("");
         }
         loadedStateRef.current.healthTips = true;
@@ -1175,7 +1181,7 @@ export default function PatientPWAReminder({ profile }) {
           loadMedicationOccurrenceRows(patient.id),
         ]);
 
-      if (!active) {
+      if (!active || generation !== getPatientPwaSessionCacheGeneration()) {
         return;
       }
 
@@ -1247,12 +1253,14 @@ export default function PatientPWAReminder({ profile }) {
           "Patient health tips load failed:",
           healthTipsResult.error
         );
-        setHealthTipsResult({ patientId: profilePatientId, tips: [] });
+        setHealthTipsResult(retainPatientHealthTipsOnError(profilePatientId, healthTipsResult.error));
         setHealthTipsError(
           "Unable to load health tips. Please try again."
         );
       } else {
-        setHealthTipsResult({ patientId: profilePatientId, tips: getPatientHealthTips(healthTipsResult.data, patient.id) });
+        const result = { patientId: profilePatientId, tips: getPatientHealthTips(healthTipsResult.data, patient.id) };
+        savePatientHealthTipsCache(result);
+        setHealthTipsResult(result);
         setTipIndex(0);
         setHealthTipsError("");
       }
@@ -1578,6 +1586,7 @@ export default function PatientPWAReminder({ profile }) {
     <section className="pwa-page pwa-reminders-page">
       <SuccessToast toast={toast} onDismiss={dismissToast} />
       <PatientPageHeader
+        sharedHeader
         title="My Reminders"
         subtitle="See your next visit, medication schedule, and daily care guidance."
         className="pwa-reminders-title"

@@ -86,6 +86,7 @@ export function AppointmentControlGroup({
 
 export function AppointmentPagination({
   className,
+  itemLabel = "appointments",
   currentPage,
   pageSize,
   pageSizes,
@@ -123,7 +124,7 @@ export function AppointmentPagination({
           type="button"
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage <= 1}
-          aria-label="Previous appointments page"
+          aria-label={`Previous ${itemLabel} page`}
         >
           Previous
         </button>
@@ -136,7 +137,7 @@ export function AppointmentPagination({
           type="button"
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage >= totalPages}
-          aria-label="Next appointments page"
+          aria-label={`Next ${itemLabel} page`}
         >
           Next
         </button>

@@ -7,6 +7,8 @@ import {
   PatientSectionHeader,
 } from "../../components/patient/PatientPwaUi";
 import { getPatientHealthTips } from "../../lib/patientHealthTips";
+import { readPatientHealthTipsCache, savePatientHealthTipsCache, retainPatientHealthTipsOnError } from "../../lib/patientHealthTipsCache";
+import { getPatientPwaSessionCacheGeneration } from "../../lib/patientPwaSessionCache";
 import { useDailyPatientHealthTip } from "../../hooks/useDailyPatientHealthTip";
 import { usePatientPregnancyTracking } from "../../hooks/usePatientPregnancyTracking";
 import PatientHealthTipsPreview from "../../components/patient/PatientHealthTipsPreview";
@@ -121,10 +123,11 @@ export default function PatientPWADashboard({ profile }) {
     [hasPregnancy, journeyProfile]
   );
   const [selectedWeek, setSelectedWeek] = useState("");
-  const [healthTipsResult, setHealthTipsResult] = useState({ patientId: "", tips: [] });
+  const [healthTipsResult, setHealthTipsResult] = useState(() =>
+    readPatientHealthTipsCache(profile.recordId) || { patientId: "", tips: [] });
   const healthTips = useMemo(() => healthTipsResult.patientId === profile.recordId ? healthTipsResult.tips : [],
     [healthTipsResult, profile.recordId]);
-  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(true);
+  const [isLoadingHealthTips, setIsLoadingHealthTips] = useState(() => !readPatientHealthTipsCache(profile.recordId));
   const [healthTipsError, setHealthTipsError] = useState("");
   const activeWeek = journeyWeeks.some((item) => item.week === selectedWeek)
     ? selectedWeek
@@ -172,9 +175,11 @@ export default function PatientPWADashboard({ profile }) {
   useEffect(() => {
     let active = true;
     let requestId = 0;
+    const generation = getPatientPwaSessionCacheGeneration();
+    const current = request => active && request === requestId && generation === getPatientPwaSessionCacheGeneration();
     const loadDashboardData = async () => {
       const currentRequest = ++requestId;
-      setIsLoadingHealthTips(true);
+      setIsLoadingHealthTips(!readPatientHealthTipsCache(profile.recordId));
       try {
         const { data, error } = await supabase
           .from("health_tips")
@@ -182,16 +187,18 @@ export default function PatientPWADashboard({ profile }) {
           .eq("is_active", true)
           .order("published_at", { ascending: false })
           .order("created_at", { ascending: false });
-        if (!active || currentRequest !== requestId) return;
+        if (!current(currentRequest)) return;
         if (error) throw error;
-        setHealthTipsResult({ patientId: profile.recordId, tips: getPatientHealthTips(data, profile.recordId) });
+        const result = { patientId: profile.recordId, tips: getPatientHealthTips(data, profile.recordId) };
+        savePatientHealthTipsCache(result);
+        setHealthTipsResult(result);
         setHealthTipsError("");
-      } catch {
-        if (!active || currentRequest !== requestId) return;
-        setHealthTipsResult({ patientId: profile.recordId, tips: [] });
+      } catch (error) {
+        if (!current(currentRequest)) return;
+        setHealthTipsResult(retainPatientHealthTipsOnError(profile.recordId, error));
         setHealthTipsError("Health tips could not be refreshed. Please try again later.");
       }
-      if (active && currentRequest === requestId) setIsLoadingHealthTips(false);
+      if (current(currentRequest)) setIsLoadingHealthTips(false);
     };
     void loadDashboardData();
     const healthTipsChannel = supabase
@@ -209,6 +216,7 @@ export default function PatientPWADashboard({ profile }) {
   return (
     <section className="pwa-page pwa-dashboard-page">
       <PatientPageHeader
+        sharedHeader
         title="Dashboard"
         subtitle="Your pregnancy overview and latest care updates."
       />

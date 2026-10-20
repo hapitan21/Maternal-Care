@@ -616,6 +616,7 @@ export default function PatientPWAAppointments({ profile }) {
   return (
     <section className="pwa-page pwa-appointments-page">
       <PatientPageHeader
+        sharedHeader
         title="My Appointments"
         subtitle="Track upcoming clinic visits and review your appointment history."
         className="pwa-appointments-title"

@@ -7,6 +7,7 @@ import {
   getManilaTimeKey,
 } from "../../lib/appointmentDate";
 import { isMeaningfulClinicalValue, normalizeRiskLevel } from "../../lib/clinicalVisitData";
+import ClinicalSaveErrorToast from "../../components/appointments/ClinicalSaveErrorToast";
 import "../../styles/staff-preconsultation.css";
 
 const scheduleColumns =
@@ -626,7 +627,10 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
 
       // The Staff intake is complete. Return to the Appointments page while
       // leaving the appointment status unchanged (Checked in) for the Doctor.
-      navigate("/staff/appointments", { replace: true });
+      navigate("/staff/appointments", {
+        replace: true,
+        state: { clinicalSave: { workspace: "staff", visitType } },
+      });
     } catch {
       if (requestIdRef.current !== saveRequestId) return;
       setError("The assessment save could not be confirmed. Your entries are unchanged. Reopen the assessment to verify it before saving again.");
@@ -677,7 +681,10 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
         </p>
       ) : null}
       {schemaWarning ? <p className="staff-preconsult-warning">{schemaWarning}</p> : null}
-      {error ? <p className="staff-preconsult-message is-error" role="alert">{error}</p> : null}
+      {error ? <>
+        <p className="staff-preconsult-message is-error">{error}</p>
+        <ClinicalSaveErrorToast key={error} message={error} onDismiss={() => setError("")} />
+      </> : null}
       {message ? <p className="staff-preconsult-message is-success">{message}</p> : null}
       {isFollowUp && !intake?.staff_completed_at && previousDoctorRecord ? (
         <p className="staff-preconsult-message">

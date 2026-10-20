@@ -12,7 +12,7 @@ const notificationTypeConfig = {
     targetPath: "/patient/appointments",
   },
   appointment_cancelled: {
-    icon: "solar:calendar-cross-bold",
+    icon: "lucide:calendar-x",
     targetPath: "/patient/appointments",
   },
   medication_reminder: {
@@ -60,6 +60,10 @@ const allowedPatientTargets = new Set([
 ]);
 
 export function getPatientNotificationConfig(type) {
+  const cancellationType = typeof type === "string" ? type.trim().toLowerCase().replace(/[\s-]+/g, "_") : "";
+  if (cancellationType === "appointment_cancelled" || cancellationType === "appointment_canceled") {
+    return notificationTypeConfig.appointment_cancelled;
+  }
   return notificationTypeConfig[type] || notificationTypeConfig.general;
 }
 

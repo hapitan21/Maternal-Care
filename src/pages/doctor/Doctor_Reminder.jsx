@@ -1073,6 +1073,11 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   const [healthTipManagementFilter, setHealthTipManagementFilter] = React.useState("Active");
   const [healthTipActionMenu, setHealthTipActionMenu] = React.useState(null);
   const [deleteHealthTipTarget, setDeleteHealthTipTarget] = React.useState(null);
+  const [deleteMedicationTarget, setDeleteMedicationTarget] = React.useState(null);
+  const [isDeletingMedication, setIsDeletingMedication] = React.useState(false);
+  const [medicationDeleteError, setMedicationDeleteError] = React.useState("");
+  const [medicationDeleteUncertain, setMedicationDeleteUncertain] = React.useState(false);
+  const medicationDeleteInFlightRef = React.useRef(false);
   const [isDeletingHealthTip, setIsDeletingHealthTip] = React.useState(false);
   const [healthTipForm, setHealthTipForm] = React.useState({
     category: "Nutrition",
@@ -2073,29 +2078,54 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     await loadMedicationReminderData();
   };
 
-  const deleteMedicationReminder = async (reminderId) => {
-    const shouldDelete = window.confirm(
-      "Delete this medication reminder?"
-    );
+  const openDeleteMedication = (reminder) => {
+    if (medicationDeleteInFlightRef.current) return;
+    setViewAllSection(null);
+    setMedicationDeleteError("");
+    setMedicationDeleteUncertain(false);
+    setDeleteMedicationTarget(reminder);
+  };
 
-    if (!shouldDelete) {
+  const closeDeleteMedication = () => {
+    if (!medicationDeleteInFlightRef.current) setDeleteMedicationTarget(null);
+  };
+
+  const deleteMedicationReminder = async () => {
+    const reminderId = deleteMedicationTarget?.sourceReminderId || deleteMedicationTarget?.id;
+    if (!reminderId || medicationDeleteInFlightRef.current || medicationDeleteUncertain) return;
+    medicationDeleteInFlightRef.current = true;
+    setIsDeletingMedication(true);
+    setMedicationDeleteError("");
+    setMedicationStatusMessage("");
+
+    try {
+      const { error } = await supabase
+        .from(medicationRemindersTableName)
+        .delete()
+        .eq("id", reminderId);
+
+      if (error) {
+        setMedicationDeleteError(error.code === "23503"
+          ? "This reminder has linked history and cannot be deleted. Its medication occurrences and adherence history have been preserved."
+          : "Unable to delete this reminder. It may no longer be available or you may not have permission. Close this dialog and refresh the list before trying again.");
+        return;
+      }
+    } catch {
+      setMedicationDeleteUncertain(true);
+      setMedicationDeleteError("Deletion could not be confirmed. Close this dialog and refresh the list before trying again.");
       return;
+    } finally {
+      medicationDeleteInFlightRef.current = false;
+      setIsDeletingMedication(false);
     }
 
-    const { error } = await supabase
-      .from(medicationRemindersTableName)
-      .delete()
-      .eq("id", reminderId);
-
-    if (error) {
-      console.error("Medication reminder delete failed:", error);
-      setMedicationStatusMessage(
-        `Unable to delete medication reminder: ${error.message}`
-      );
-      return;
+    setDeleteMedicationTarget(null);
+    showSuccessToast({ title: "Delete request completed", message: "Refreshing the medication reminder list." });
+    try {
+      await loadMedicationReminderData();
+    } catch {
+      setMedicationStatusMessage("The delete request completed, but the list could not be refreshed. Refresh the page to check the current reminders.");
     }
-
-    await loadMedicationReminderData();
   };
 
   const getAppointmentReminderStatus = (reminder) => {
@@ -2640,7 +2670,7 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
     isMedicationFormOpen ||
     isHealthTipFormOpen ||
     Boolean(viewAllSection) ||
-    Boolean(deleteHealthTipTarget);
+    Boolean(deleteHealthTipTarget) || Boolean(deleteMedicationTarget);
 
   const openReminderForm = () => {
     if (!reminderTargetAppointments.length) {
@@ -2729,16 +2759,18 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
   };
 
   const activeDialog = isHealthTipFormOpen ? "health-tip" : isMedicationFormOpen ? "medication"
-    : isReminderFormOpen ? "appointment" : deleteHealthTipTarget ? "delete"
+    : isReminderFormOpen ? "appointment" : deleteMedicationTarget ? "delete-medication" : deleteHealthTipTarget ? "delete"
       : viewAllSection ? `view-all-${viewAllSection}` : null;
   const dialogSelector = activeDialog?.startsWith("view-all-") ? '.doctor-reminder-view-all'
     : { 'health-tip': '.doctor-health-tip-form', medication: '.doctor-medication-reminder-form',
-      appointment: '.doctor-reminder-form--appointment', delete: '.doctor-health-tip-delete-dialog' }[activeDialog];
+      appointment: '.doctor-reminder-form--appointment', delete: '.doctor-health-tip-delete-dialog',
+      'delete-medication': '.doctor-medication-delete-dialog' }[activeDialog];
   useDoctorModuleDialog(activeDialog, dialogSelector, () => {
     if (activeDialog === "health-tip") closeHealthTipForm();
     else if (activeDialog === "medication") closeMedicationForm();
     else if (activeDialog === "appointment") closeReminderForm();
     else if (activeDialog === "delete") closeDeleteHealthTip();
+    else if (activeDialog === "delete-medication") closeDeleteMedication();
     else closeViewAll();
   });
 
@@ -3056,7 +3088,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                   <button
                     type="button"
                     title="Delete reminder"
-                    onClick={() => deleteMedicationReminder(reminder.sourceReminderId || reminder.id)}
+                    aria-label={`Delete ${reminder.medication || "medication"} reminder for ${reminder.patientName || reminder.patient || "patient"}`}
+                    onClick={() => openDeleteMedication(reminder)}
                   >
                     <Icon icon="charm:menu-kebab" />
                   </button>
@@ -3186,7 +3219,8 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
                         <button
                           type="button"
                           title="Delete reminder"
-                          onClick={() => deleteMedicationReminder(reminder.sourceReminderId || reminder.id)}
+                          aria-label={`Delete ${reminder.medication || "medication"} reminder for ${reminder.patientName || reminder.patient || "patient"}`}
+                          onClick={() => openDeleteMedication(reminder)}
                         >
                           <Icon icon="charm:menu-kebab" />
                         </button>
@@ -3315,6 +3349,36 @@ function DoctorReminderContent({ headerAction = null, doctorIdentity = null }) {
           >
             Delete
           </button>
+        </div>,
+        document.body
+      ) : null}
+
+      {deleteMedicationTarget ? createPortal(
+        <div className="doctor-reminder-modal" onClick={closeDeleteMedication}>
+          <section
+            className="doctor-panel doctor-health-tip-delete-dialog doctor-medication-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="doctor-medication-delete-title"
+            aria-describedby="doctor-medication-delete-description"
+            aria-busy={isDeletingMedication}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="doctor-medication-delete-title">Delete Medication Reminder?</h2>
+            <p className="doctor-medication-delete-context">
+              {deleteMedicationTarget.medication || "Medication"}
+              {deleteMedicationTarget.patientName || deleteMedicationTarget.patient
+                ? ` — ${deleteMedicationTarget.patientName || deleteMedicationTarget.patient}` : ""}
+            </p>
+            <p id="doctor-medication-delete-description">This requests permanent deletion. Reminders with linked history cannot be deleted.</p>
+            {medicationDeleteError ? <p role="alert">{medicationDeleteError}</p> : null}
+            <div>
+              <button type="button" data-dialog-initial-focus onClick={closeDeleteMedication} disabled={isDeletingMedication}>Cancel</button>
+              <button type="button" onClick={deleteMedicationReminder} disabled={isDeletingMedication || medicationDeleteUncertain}>
+                {isDeletingMedication ? "Deleting..." : "Delete Reminder"}
+              </button>
+            </div>
+          </section>
         </div>,
         document.body
       ) : null}

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 
 // Keep appointment feedback in a clear lane above the page's primary content.
-export function useAppointmentToastPlacement(message, version, workspaceSelector) {
+export function useAppointmentToastPlacement(message, version, workspaceSelector, reserveLayoutSpace = true) {
   const ref = useRef(null);
   useLayoutEffect(() => {
     const toast = ref.current;
@@ -13,13 +13,13 @@ export function useAppointmentToastPlacement(message, version, workspaceSelector
     const originalAnchor = scrollContainer?.style.getPropertyValue("overflow-anchor");
     const originalAnchorPriority = scrollContainer?.style.getPropertyPriority("overflow-anchor");
     // Reserving notification space must not make browser scroll anchoring undo it.
-    scrollContainer?.style.setProperty("overflow-anchor", "none");
+    if (reserveLayoutSpace) scrollContainer?.style.setProperty("overflow-anchor", "none");
     const originalMargin = header?.style.getPropertyValue("margin-bottom");
     const originalPriority = header?.style.getPropertyPriority("margin-bottom");
     const baseMargin = header ? parseFloat(getComputedStyle(header).marginBottom) : 0;
     let reservedSpace = 0;
     const reserve = (space) => {
-      if (!header || Math.abs(space - reservedSpace) < 0.1) return;
+      if (!reserveLayoutSpace || !header || Math.abs(space - reservedSpace) < 0.1) return;
       reservedSpace = space;
       header.style.setProperty("margin-bottom", `${baseMargin + space}px`, "important");
     };
@@ -87,15 +87,15 @@ export function useAppointmentToastPlacement(message, version, workspaceSelector
       size.disconnect(); menus.disconnect(); window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", schedule);
       window.removeEventListener("scroll", schedule, true);
-      if (header) {
+      if (reserveLayoutSpace && header) {
         if (originalMargin) header.style.setProperty("margin-bottom", originalMargin, originalPriority);
         else header.style.removeProperty("margin-bottom");
       }
-      if (scrollContainer) {
+      if (reserveLayoutSpace && scrollContainer) {
         if (originalAnchor) scrollContainer.style.setProperty("overflow-anchor", originalAnchor, originalAnchorPriority);
         else scrollContainer.style.removeProperty("overflow-anchor");
       }
     };
-  }, [message, version, workspaceSelector]);
+  }, [message, version, workspaceSelector, reserveLayoutSpace]);
   return ref;
 }
