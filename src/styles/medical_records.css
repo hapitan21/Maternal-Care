@@ -2996,8 +2996,26 @@ body:has(.medical-records-page),
 
 .mr-medical-findings {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+.mr-medical-additional-findings {
+  min-width: 0;
+  margin-top: 14px;
+}
+
+.mr-medical-additional-findings h5 {
+  margin: 0 0 6px;
+  color: var(--mr-text);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.mr-medical-additional-findings p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .mr-medical-findings > div {
@@ -3627,7 +3645,7 @@ body:has(.medical-records-page),
   }
 
   .mr-medical-findings {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mr-medical-obstetric {
@@ -4117,13 +4135,39 @@ body:has(.medical-records-page),
 }
 
 .doctor-dashboard .mr-prenatal-layout {
-  gap: 24px;
+  gap: 18px;
   padding: 0;
 }
 
 .doctor-dashboard .mr-prenatal-two-column-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
+  gap: 18px;
+  align-items: start;
+}
+
+.doctor-dashboard .mr-prenatal-two-column-grid > .mr-prenatal-card {
+  align-self: start;
+  min-height: 0;
+  padding: 18px 20px;
+}
+
+.doctor-dashboard .mr-prenatal-compact-grid .mr-lifestyle-grid {
+  grid-template-columns: 1fr;
+}
+
+.doctor-dashboard .mr-prenatal-compact-grid {
+  grid-auto-rows: 1px;
+  row-gap: 0;
+}
+
+@media (min-width: 901px) {
+  .doctor-dashboard .mr-prenatal-compact-grid > :nth-child(odd) {
+    grid-column: 1;
+  }
+
+  .doctor-dashboard .mr-prenatal-compact-grid > :nth-child(even) {
+    grid-column: 2;
+  }
 }
 
 .doctor-dashboard .mr-prenatal-card {
@@ -4286,6 +4330,11 @@ body:has(.medical-records-page),
 
   .doctor-dashboard .mr-prenatal-two-column-grid {
     grid-template-columns: 1fr;
+  }
+
+  .doctor-dashboard .mr-prenatal-compact-grid {
+    grid-auto-rows: auto;
+    row-gap: 18px;
   }
 
   .doctor-dashboard .mr-lifestyle-grid {
@@ -5921,6 +5970,7 @@ body:has(.medical-records-page),
 .doctor-dashboard .mr-overview-dashboard-grid {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.36fr);
   gap: var(--mr-overview-gap);
+  align-items: start;
 }
 
 .doctor-dashboard .mr-overview-main-column,
@@ -6042,9 +6092,81 @@ body:has(.medical-records-page),
 }
 
 .doctor-dashboard .mr-notes-card {
-  min-height: 270px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.doctor-dashboard .mr-overview-side-column .mr-last-visit-card {
+  min-height: 0;
+}
+
+.mr-clinical-preview {
+  min-width: 0;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.mr-clinical-preview__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--mr-preview-lines, 4);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.mr-clinical-preview__text.is-expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.mr-clinical-preview__toggle {
+  display: block;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 4px 0;
+  color: var(--mr-pink-2);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mr-clinical-preview__toggle:focus-visible,
+.mr-prenatal-table-wrap[tabindex]:focus-visible {
+  outline: 2px solid var(--mr-pink-2);
+  outline-offset: 3px;
+}
+
+.mr-overview-note-field {
+  min-width: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.mr-prenatal-table--visit-notes {
+  min-width: 860px;
+  table-layout: fixed;
+}
+
+.mr-prenatal-table--visit-notes th:first-child { width: 140px; }
+.mr-prenatal-table--visit-notes th:nth-child(2) { width: 135px; }
+.mr-prenatal-table--visit-notes th:nth-child(3) { width: 90px; }
+.mr-prenatal-table--visit-notes th:nth-child(4) { width: 140px; }
+.mr-prenatal-table--visit-notes th:nth-child(5) { width: 130px; }
+
+.mr-prenatal-table--visit-notes td:not(:last-child) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.mr-prenatal-table--visit-notes td:last-child {
+  vertical-align: top;
+  text-align: left;
 }
 
 .doctor-dashboard .mr-schedule-content {

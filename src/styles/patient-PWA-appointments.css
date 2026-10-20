@@ -10,6 +10,14 @@
   padding-bottom: 54px;
 }
 
+@media (max-width: 600px) {
+  .pwa-appointments-page .pwa-ui-page-header.pwa-appointments-title {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+}
+
 .pwa-booking-requests {
   width: 100%;
   margin-bottom: 28px;

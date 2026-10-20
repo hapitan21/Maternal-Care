@@ -48,13 +48,12 @@ const identity = { profile: { id: 'doctor-a', role: 'doctor', account_status: 'a
   personalInformation: { full_name: 'Synthetic Doctor', gender: 'Female' },
   professionalInformation: { license_number: 'LICENSE-FIXTURE', clinic_address: 'Fixture Clinic' } };
 async function profileHarness() {
-  const hooks = runtime(), navigations = [], dom = new Map();
+  const hooks = runtime(), dom = new Map();
   let activeElement = null;
   const module = await evaluate(await source('src/pages/doctor/Doctor_ViewProfile.jsx'), 'profile.jsx', {
-    react: hooks.runtime, 'react/jsx-runtime': jsx, 'react-router-dom': { useNavigate: () => path => navigations.push(path) },
+    react: hooks.runtime, 'react/jsx-runtime': jsx,
     '@iconify/react': { Icon: 'Icon' }, '../../components/common/ProfilePictureActions': { default: 'PhotoActions' },
     '../../components/common/ProfileAvatarContent': { default: 'Avatar' },
-    '../../hooks/useDoctorProfileSummary': { useDoctorProfileSummary: () => ({ status: 'ready', summary: { cancelled: 35, today: 0, pending: 7, completed: 5 } }) },
     '../../lib/clinicAccountStatus': clinicStatus,
   }, vm.createContext({}));
   hooks.mount(module.default, { doctorIdentity: identity }, view => {
@@ -65,7 +64,7 @@ async function profileHarness() {
       const button = dom.get(tab.props.id); button.parentElement = parent; button.props = tab.props;
     }
   });
-  return { hooks, navigations, dom, get activeElement() { return activeElement; },
+  return { hooks, dom, get activeElement() { return activeElement; },
     tabs: () => nodes(hooks.result).filter(node => node.props.role === 'tab'),
     panels: () => nodes(hooks.result).filter(node => node.props.role === 'tabpanel') };
 }
@@ -106,8 +105,7 @@ async function profileHarness() {
   const second = await profileHarness();
   check(!second.tabs().some(tab => originalIds.includes(tab.props.id)), 'Separate Profile instances have unique IDs');
   check(nodes(h.panels()[0]).some(node => node.props.item?.label === 'Full Name') && nodes(h.panels()[1]).some(node => node.props.item?.value === 'LICENSE-FIXTURE'), 'Personal and Professional contents retain the correct fields');
-  const summary = nodes(h.hooks.result).find(node => node.props['aria-label'] === 'Open Pending appointments'); summary.props.onClick();
-  check(h.navigations[0] === '/doctor/appointments?status=pending', 'Summary navigation is preserved');
+  check(!nodes(h.hooks.result).some(node => node.props.className === 'doctor-profile-summary'), 'Doctor profile does not render Appointment Summary');
   second.hooks.unmount(); h.hooks.unmount();
 }
 const css = postcss.parse(await source('src/styles/doctor-viewprofile.css'));
@@ -229,6 +227,12 @@ for (const path of expected) {
   const page = await source(path), block = page.slice(page.indexOf('<ProfilePictureActions'), page.indexOf('/>', page.indexOf('<ProfilePictureActions')) + 2);
   check(block.includes('avatarUrl=') && block.includes('disabled=') && block.includes('onChange='), path + ': public avatar contract preserved');
   if (path.includes('/doctor/')) check(block.includes('key={profile.id}') && block.includes('expectedUserId={profile.id}'), 'Doctor avatar keeps identity key and explicit initiating user');
+}
+for (const path of expected.filter(path => !path.includes('/patient/'))) {
+  const page = await source(path);
+  check(!/Appointment Summary|appointmentSummary|AppointmentSummary|appointmentStats/.test(page), path + ': summary UI/state removed');
+  check(!/useDoctorProfileSummary|\.from\("schedule"\)|staff-profile-appointment-summary/.test(page), path + ': no summary fetching/subscription');
+  check(['doctor-profile-hero-card', 'doctor-profile-tabs-card', 'Personal Information', 'Professional Information', 'contactDetails.map', 'headerAction'].every(part => page.includes(part)), path + ': other profile sections and account controls retained');
 }
 console.log('Doctor Profile tabs/avatar accessibility verification passed: ' + checks + ' assertions.');
 console.log('Actual JSX and handlers exercised with synthetic React/DOM and mocked avatar helpers; consumers/CSS checked from source. Native keyboard/file-picker and screen-reader behavior still need browser verification.');

@@ -91,6 +91,7 @@ function nodes(node, predicate) {
 async function harness(screen, initial = {}, query = "") {
   const runtime = hookRuntime();
   let scenario = initial;
+  let authenticatedAttempts = 0;
   const calls = [], routes = [];
   const context = vm.createContext({
     console: { info() {}, warn() {}, error() {}, log() {} },
@@ -129,8 +130,10 @@ async function harness(screen, initial = {}, query = "") {
       async signInWithPassword(args) {
         calls.push(["signin", args]);
         if (scenario.authThrow) throw scenario.authThrow;
-        return { data: scenario.authError || scenario.missingUser ? {} : { user: { id: "fixture-user" } },
+        const result = { data: scenario.authError || scenario.missingUser ? {} : { user: { id: "fixture-user" } },
           error: scenario.authError || null };
+        if (!result.error && result.data.user) authenticatedAttempts++;
+        return result;
       },
       async signOut() { calls.push(["signout"]); return { error: null }; },
       async resend() {
@@ -212,15 +215,28 @@ async function harness(screen, initial = {}, query = "") {
       input("email").props.onChange({ target: { value: "patient@example.test" } });
       input("password").props.onChange({ target: { value: "synthetic-password" } });
       await runtime.settle();
+      if (screen === "shared") {
+        nodes(runtime.current(), node => node.type === "button" && node.props["aria-label"] === "Show password")[0].props.onClick();
+        await runtime.settle();
+        assert.equal(input("password").props.type, "text");
+      }
     },
     async submit() {
+      const attemptsBefore = authenticatedAttempts;
+      const passwordBefore = input("password").props.value;
+      const passwordTypeBefore = input("password").props.type;
       const form = nodes(runtime.current(), node => node.type === "form")[0];
       const operation = form.props.onSubmit({ preventDefault() {} });
       assert.equal(nodes(runtime.current(), node => node.type === "button" && node.props.type === "submit")[0].props.disabled, true);
       await operation; await runtime.settle();
       assert.equal(nodes(runtime.current(), node => node.type === "button" && node.props.type === "submit")[0].props.disabled, false);
       assert.equal(input("email").props.value, "patient@example.test");
-      assert.equal(input("password").props.value, "synthetic-password");
+      // Shared login clears secrets after Auth succeeds, even if later account checks fail.
+      const clearsPassword = screen === "shared" && authenticatedAttempts > attemptsBefore;
+      assert.equal(input("password").props.value, clearsPassword ? "" : passwordBefore);
+      assert.equal(input("password").props.type, clearsPassword ? "password" : passwordTypeBefore);
+      const signins = calls.filter(call => call[0] === "signin");
+      assert.deepEqual({ ...signins.at(-1)[1] }, { email: "patient@example.test", password: passwordBefore });
     },
     async resend() {
       const button = nodes(runtime.current(), node => node.type === "button" && node.props.className === "login-secondary-btn")[0];

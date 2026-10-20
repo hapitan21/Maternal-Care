@@ -3462,8 +3462,22 @@
 .staff-patients-page .staff-patient-avatar {
   width: 52px !important;
   height: 52px !important;
+  min-width: 0 !important;
   flex: 0 0 52px !important;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
   font-size: 18px !important;
+}
+
+.staff-patients-page .staff-patient-avatar > img {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: block;
+  object-fit: cover;
+  object-position: center;
 }
 
 .staff-patients-page .staff-patient-name-wrap strong {
@@ -4855,4 +4869,73 @@
    The formatted date remains visible in the label. */
 .staff-dashboard-shell .staff-walkin-date-display input[type="date"]:disabled {
   opacity: 0 !important;
+}
+
+/* One centered registration flow: progress, compact access note, then the form. */
+.staff-dashboard-shell .staff-register-page:not(.staff-walkin-page) .staff-register-workspace {
+  grid-template-columns: minmax(0, 1fr) !important;
+  column-gap: 0 !important;
+}
+
+.staff-dashboard-shell .staff-register-page .staff-register-main-column {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+.staff-dashboard-shell .staff-register-page .staff-back-btn {
+  justify-self: start;
+}
+
+.staff-dashboard-shell .staff-register-page .staff-register-stepper {
+  max-width: 780px;
+  justify-self: center;
+}
+
+.staff-dashboard-shell .staff-register-page .staff-register-access {
+  width: 100%;
+  max-width: 640px;
+  min-width: 0;
+  justify-self: center;
+}
+
+.staff-dashboard-shell .staff-register-access > section {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.staff-dashboard-shell .staff-register-access .staff-register-credential-card.is-placeholder {
+  min-height: 0 !important;
+  padding: 14px 18px !important;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-areas: "icon title" "icon description";
+  column-gap: 12px !important;
+  row-gap: 4px !important;
+  justify-items: start;
+  text-align: left;
+}
+
+.staff-dashboard-shell .staff-register-access .staff-access-placeholder-icon {
+  grid-area: icon;
+  align-self: center;
+  width: 42px;
+  height: 42px;
+}
+
+.staff-dashboard-shell .staff-register-access .staff-access-placeholder-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.staff-dashboard-shell .staff-register-access .staff-register-credential-card.is-placeholder h3 {
+  grid-area: title;
+  font-size: 15px;
+}
+
+.staff-dashboard-shell .staff-register-access .staff-register-credential-card.is-placeholder p {
+  grid-area: description;
+  max-width: none !important;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

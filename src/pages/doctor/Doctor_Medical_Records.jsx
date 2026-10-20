@@ -961,7 +961,52 @@ function SectionHeader({ icon, title, subtitle, action, onAction }) {
   );
 }
 
-function MedicalRecordTable({ columns, rows, narrow = false, wide = false, emptyText = "No records found." }) {
+function ClinicalTextPreview({ value, label, lines = 4, moreLabel = "Read More" }) {
+  const textRef = React.useRef(null);
+  const textId = React.useId();
+  const [expandedValue, setExpandedValue] = React.useState(null);
+  const [overflows, setOverflows] = React.useState(false);
+  const expanded = expandedValue !== null && expandedValue === value;
+
+  React.useLayoutEffect(() => {
+    const element = textRef.current;
+    if (expanded || !element) return undefined;
+    const measure = () => setOverflows(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    let frame;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
+    observer.observe(element);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [value, lines, expanded]);
+
+  return (
+    <div className="mr-clinical-preview" style={{ "--mr-preview-lines": lines }}>
+      <div id={textId} ref={textRef} className={`mr-clinical-preview__text${expanded ? " is-expanded" : ""}`}>
+        {value}
+      </div>
+      {overflows || expanded ? (
+        <button
+          type="button"
+          className="mr-clinical-preview__toggle"
+          aria-expanded={expanded}
+          aria-controls={textId}
+          aria-label={`${expanded ? "Show Less" : moreLabel}: ${label}`}
+          onClick={() => setExpandedValue(expanded ? null : value)}
+        >
+          {expanded ? "Show Less" : moreLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function MedicalRecordTable({ columns, rows, narrow = false, wide = false, visitNotes = false, emptyText = "No records found." }) {
   if (!rows.length) {
     return <p className="mr-table-empty">{emptyText}</p>;
   }
@@ -970,12 +1015,13 @@ function MedicalRecordTable({ columns, rows, narrow = false, wide = false, empty
     "mr-prenatal-table",
     narrow ? "mr-prenatal-table--narrow" : "",
     wide ? "mr-prenatal-table--wide" : "",
+    visitNotes ? "mr-prenatal-table--visit-notes" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <div className="mr-prenatal-table-wrap">
+    <div className="mr-prenatal-table-wrap" tabIndex={visitNotes ? 0 : undefined} aria-label={visitNotes ? "Prenatal visit history, scroll horizontally for all columns" : undefined} role={visitNotes ? "region" : undefined}>
       <table className={tableClassName}>
         <thead>
           <tr>
@@ -989,7 +1035,11 @@ function MedicalRecordTable({ columns, rows, narrow = false, wide = false, empty
           {rows.map((row, rowIndex) => (
             <tr key={`${row[0]}-${rowIndex}`}>
               {row.map((cell, cellIndex) => (
-                <td key={`${cellIndex}-${String(cell)}`}>{cell}</td>
+                <td key={`${cellIndex}-${String(cell)}`}>
+                  {visitNotes && cellIndex === columns.length - 1 ? (
+                    <ClinicalTextPreview value={cell} label={`Visit note for ${row[0]}`} lines={3} moreLabel="View Full Note" />
+                  ) : cell}
+                </td>
               ))}
             </tr>
           ))}
@@ -1186,7 +1236,7 @@ export function OverviewPanel({ overview, onOpenRecord, onOpenAppointment }) {
 
               <div className="mr-record-stack">
                 <strong>Assessment:</strong>
-                <span>{lastVisit.assessment}</span>
+                <ClinicalTextPreview key={lastVisit.recordId} value={lastVisit.assessment} label="Last visit assessment" />
               </div>
             </div>
           ) : (
@@ -1213,10 +1263,10 @@ export function OverviewPanel({ overview, onOpenRecord, onOpenAppointment }) {
               <>
                 <div className="mr-notes-text">
                   {latestNotes.sections.map(([label, value]) => (
-                    <p key={label}>
+                    <div className="mr-overview-note-field" key={`${latestNotes.recordId}-${label}`}>
                       <strong>{label}:</strong>
-                      <span>{value}</span>
-                    </p>
+                      <ClinicalTextPreview value={value} label={label} />
+                    </div>
                   ))}
                 </div>
 
@@ -1538,10 +1588,41 @@ function buildPrenatalData(patient, patientRelated, records) {
 }
 
 function PrenatalHistoryPanel({ patient, patientRelated, records }) {
+  const historyCardsRef = React.useRef(null);
   const prenatalData = React.useMemo(
     () => buildPrenatalData(patient, patientRelated, records),
     [patient, patientRelated, records]
   );
+
+  React.useLayoutEffect(() => {
+    const grid = historyCardsRef.current;
+    const cards = [...grid.children];
+    // Independent card heights without changing numbered DOM/keyboard order.
+    const measure = () => {
+      const compact = getComputedStyle(grid).gridAutoRows === "1px";
+      const nextRow = [1, 1];
+      cards.forEach((card, index) => {
+        const height = Math.ceil(card.getBoundingClientRect().height + 18);
+        const start = compact ? String(nextRow[index % 2]) : "auto";
+        const span = compact ? `span ${height}` : "auto";
+        if (card.style.gridRowStart !== start) card.style.gridRowStart = start;
+        if (card.style.gridRowEnd !== span) card.style.gridRowEnd = span;
+        nextRow[index % 2] += height;
+      });
+    };
+    let frame;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
+    observer.observe(grid);
+    cards.forEach((card) => observer.observe(card));
+    measure();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
 
   return (
     <div
@@ -1591,7 +1672,7 @@ function PrenatalHistoryPanel({ patient, patientRelated, records }) {
         </div>
       </PrenatalSection>
 
-      <div className="mr-prenatal-two-column-grid">
+      <div className="mr-prenatal-two-column-grid mr-prenatal-compact-grid" ref={historyCardsRef}>
         <PrenatalSection number="3" title="Maternal Medical Conditions">
           {prenatalData.conditions.length ? (
             <div className="mr-condition-grid">
@@ -1617,9 +1698,6 @@ function PrenatalHistoryPanel({ patient, patientRelated, records }) {
             narrow
           />
         </PrenatalSection>
-      </div>
-
-      <div className="mr-prenatal-two-column-grid">
         <PrenatalSection number="5" title="Allergies">
           <MedicalRecordTable
             columns={["Type", "Allergen", "Reaction"]}
@@ -1667,6 +1745,7 @@ function PrenatalHistoryPanel({ patient, patientRelated, records }) {
           rows={prenatalData.prenatalVisitRows}
           emptyText="No completed Doctor visit records found."
           wide
+          visitNotes
         />
       </PrenatalSection>
     </div>
@@ -3157,6 +3236,9 @@ function MedicalRecordEntry({
   isHighlighted = false,
   onSelect = null,
 }) {
+  const compactFindings = record.findings.filter(([label]) => normalizeLabelText(label) !== "additionalfindings");
+  const additionalFindings = record.findings.filter(([label]) => normalizeLabelText(label) === "additionalfindings");
+
   return (
     <article
       className={`mr-medical-entry ${isPrimary ? "mr-medical-entry--primary" : "mr-medical-entry--secondary"}${isFocused ? " is-focused" : ""}${isHighlighted ? " is-recently-focused" : ""}`}
@@ -3232,15 +3314,23 @@ function MedicalRecordEntry({
         {record.findings.length > 0 ? (
           <section className="mr-medical-section">
             <h4>Clinical Findings</h4>
-            <div className="mr-medical-findings">
-              {record.findings.map(([label, value, unit]) => (
-                <div key={label}>
-                  <small>{label}</small>
-                  <strong>{value}</strong>
-                  {unit ? <span>{unit}</span> : null}
-                </div>
-              ))}
-            </div>
+            {compactFindings.length > 0 ? (
+              <div className="mr-medical-findings">
+                {compactFindings.map(([label, value, unit]) => (
+                  <div key={label}>
+                    <small>{label}</small>
+                    <strong>{value}</strong>
+                    {unit ? <span>{unit}</span> : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {additionalFindings.map(([label, value, unit]) => (
+              <div className="mr-medical-additional-findings" key={label}>
+                <h5>{label}</h5>
+                <p>{value}{unit ? <> {unit}</> : null}</p>
+              </div>
+            ))}
           </section>
         ) : null}
 

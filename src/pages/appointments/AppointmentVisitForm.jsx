@@ -16,6 +16,7 @@ import {
   normalizeRiskLevel,
 } from "../../lib/clinicalVisitData";
 import { calculateCurrentPregnancyWeekFromEdd } from "../../lib/pregnancyTracking";
+import ClinicalSaveErrorToast from "../../components/appointments/ClinicalSaveErrorToast";
 import "../../styles/appointment-visit-form.css";
 
 const scheduleColumns =
@@ -1712,7 +1713,10 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         // - A record edited from the patient's Medical Record returns to that
         //   same patient and the same saved medical record.
         if (workspace === "doctor") {
-          returnFromVisit(data.id, { replace: true });
+          returnFromVisit(data.id, {
+            replace: true,
+            state: { clinicalSave: { workspace, visitType: requestedType } },
+          });
           return;
         }
 
@@ -1752,7 +1756,10 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
       // Initial or Follow-Up Visit and completed the appointment.
       // Preserve the Medical Record origin when this form was opened by Edit Record.
       if (workspace === "doctor") {
-        returnFromVisit(data.id, { replace: true });
+        returnFromVisit(data.id, {
+          replace: true,
+          state: { clinicalSave: { workspace, visitType: requestedType } },
+        });
       }
     } catch (saveError) {
       logVisitError("unexpected save failure", saveError);
@@ -1813,7 +1820,10 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
         </div>
       </header>
 
-      {error ? <p className="appointment-visit-message is-error" role="alert">{error}</p> : null}
+      {error ? <>
+        <p className="appointment-visit-message is-error">{error}</p>
+        <ClinicalSaveErrorToast key={error} message={error} onDismiss={() => setError("")} />
+      </> : null}
       {message ? <p className="appointment-visit-message is-success" role="status">{message}</p> : null}
       {!canSave && !isReadOnly && !isCheckedIn ? (
         <p className="appointment-visit-message is-error" role="alert">

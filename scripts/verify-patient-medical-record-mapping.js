@@ -241,6 +241,32 @@ await scenario("registration G/P/T/P/A/L and dates remain separate and unchanged
   check(api.buildRegistrationObstetricHistory({}, {}).every(item => item.value === "Not provided"), "unknown counts are not fabricated");
 });
 
+await scenario("integrated history summary/disclosure preserves all eight stored values", () => {
+  for (const source of [obstetric, { gravida: 0, para: 0, living_children: 0 }, {},
+    { gravida: null, para: null, living_children: null }]) {
+    const history = { status: "ready", items: api.buildRegistrationObstetricHistory({}, source) };
+    const original = JSON.stringify(history);
+    const markup = renderToStaticMarkup(React.createElement(api.RegistrationObstetricHistory, { history }));
+    check(markup.includes("Pregnancy &amp; Obstetric History"), "updated group title");
+    check(markup.includes("EDD may reflect updates made by your Doctor"), "does not imply immutable registration EDD");
+    check(/<details class="pwa-history-disclosure">/.test(markup), "native disclosure starts collapsed");
+    const summary = markup.match(/<dl class="pwa-history-summary">([\s\S]*?)<\/dl>/)[1];
+    equal((summary.match(/<dt>/g) || []).length, 3, "compact G/P/L summary only");
+    for (const index of [0, 1, 5]) {
+      const { label, value } = history.items[index];
+      check(summary.includes(`<dt>${label}</dt><dd>${value}</dd>`), "summary uses authorized mapped value: " + label);
+    }
+    equal((markup.match(/<strong>/g) || []).length, 8, "expanded panel contains all eight existing fields");
+    check(!/<input|<textarea|<select/.test(markup), "no clinical editing controls");
+    equal(JSON.stringify(history), original, "render never modifies stored or mapped information");
+  }
+  for (const history of [null, { status: "error", error: "Synthetic access unavailable" }]) {
+    const markup = renderToStaticMarkup(React.createElement(api.RegistrationObstetricHistory, { history }));
+    check(!markup.includes("pwa-history-summary") && !markup.includes("<details"), "loading/error never presents invented history");
+    check(markup.includes(history ? 'role="alert"' : 'role="status"'), "accessible loading/error state retained");
+  }
+});
+
 await scenario("report attachments preserve existing storage metadata", () => {
   const mapped = map({ laboratoryAttachment: { name: "lab.pdf", path: "own-patient/lab.pdf", size: 123, type: "application/pdf" },
     ultrasoundAttachment: { name: "scan.pdf", path: "own-patient/scan.pdf", size: 456, type: "application/pdf" } },
@@ -375,7 +401,9 @@ await scenario("real page filters fresh records before mapping and preserves sep
   const page = await mountPage(rows);
   equal(page.snapshot.patientRecords.map(item => item.id), ["completed"], "fresh loader completed only");
   equal(page.snapshot.version, 2, "safe snapshot version written");
-  check(page.final.includes("Registration / Obstetric History") && page.final.includes("January 6, 2027"), "registration still loaded");
+  check(page.final.includes("Pregnancy &amp; Obstetric History") && page.final.includes("January 6, 2027"), "history still loaded");
+  check(page.final.indexOf("Pregnancy &amp; Obstetric History") < page.final.indexOf("Clinical Visit Records"), "history grouped above clinical records");
+  check(page.final.indexOf("Clinical Visit Records") < page.final.indexOf('aria-label="Search medical records"'), "existing search grouped with clinical records");
   check(page.calls.filter(call => call[1] === "patient_id").every(call => call[2] === "own-patient"), "auth-resolved ID for data reads");
   const empty = await mountPage([]);
   equal(empty.snapshot.patientRecords, [], "registration not fabricated into consultation");

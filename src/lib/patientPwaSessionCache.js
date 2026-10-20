@@ -1,6 +1,11 @@
 const patientPwaSessionCache = new Map();
 let activePatientId = "";
 let patientStartupAuthorization = null;
+let cacheGeneration = 0;
+
+export function getPatientPwaSessionCacheGeneration() {
+  return cacheGeneration;
+}
 
 function getCacheKey(patientId, section) {
   const normalizedPatientId = String(patientId || "").trim();
@@ -66,6 +71,7 @@ export function takePatientPwaStartupAuthorization(userId) {
 }
 
 export function clearPatientPwaSessionCache() {
+  cacheGeneration += 1;
   patientPwaSessionCache.clear();
   activePatientId = "";
   patientStartupAuthorization = null;

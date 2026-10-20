@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -34,15 +34,17 @@ import {
   PatientDirectoryToolbar,
 } from "../../components/patients/PatientDirectoryUi";
 import "../../styles/staff-patients.css";
+import "../../styles/patient-table-pagination.css";
+import { AppointmentPagination } from "../../components/appointments/AppointmentUi";
+import { usePatientTablePagination } from "../../hooks/usePatientTablePagination";
+import { comparePatientRows } from "../../lib/patientTableSort";
 
 const patientLoginSelectColumns =
   "id, patient_record_id, full_name, patient_id, control_number, email, status, created_at";
 const patientStatusFilters = [
   "All",
   "Active",
-  "Pending Activation",
   "Not Linked",
-  "Inactive",
   "Archived",
 ];
 
@@ -123,6 +125,126 @@ const optionalObstetricCountFields = [
   { key: "abortionMiscarriage", label: "Abortion / Miscarriage (A)" },
   { key: "livingChildren", label: "Living Children (L)" },
 ];
+
+const registrationNameFields = ["name", "husbandPartner", "emergencyContactPerson"];
+const registrationNumberFields = [
+  "ageMenarche", "cycleLength", "durationMenstruation", "gravida", "para",
+  ...optionalObstetricCountFields.map(({ key }) => key),
+];
+const registrationPhoneFields = [
+  "contactNumber", "partnerContactNumber", "emergencyContactNumber", "workContactNumber",
+];
+
+function getRegistrationInputRestriction(field) {
+  if (registrationNameFields.includes(field)) return "name";
+  if (registrationNumberFields.includes(field)) return "integer";
+  if (registrationPhoneFields.includes(field)) return "phone";
+  return field === "philHealthPin" ? "pin" : "";
+}
+
+function isAllowedRegistrationInput(value, restriction) {
+  const text = String(value ?? "");
+  if (restriction === "name") return /^[\p{L}\p{M} .'\u2019\u02bc-]*$/u.test(text);
+  if (restriction === "integer") return /^\d*$/.test(text);
+  if (restriction === "pin") return /^[\d-]*$/.test(text.trim());
+  if (restriction === "phone") {
+    return /^[\d\s()+-]*$/.test(text) && /^\+?\d*$/.test(text.replace(/[\s()-]/g, ""));
+  }
+  return true;
+}
+
+function createRegistrationInputHandlers({ value, onChange, onBlur, restriction, editRef, setCompositionValue }) {
+  if (!restriction) return { onChange: (event) => onChange(event.target.value), onBlur };
+  const previous = String(value ?? "");
+  const remember = (event) => {
+    const node = event.currentTarget;
+    if (!editRef.current.composing && node.value === previous) {
+      editRef.current.selection = { value: previous, start: node.selectionStart, end: node.selectionEnd, direction: node.selectionDirection };
+    }
+  };
+  const commit = (node) => {
+    if (isAllowedRegistrationInput(node.value, restriction)) {
+      if (node.value !== previous) onChange(node.value);
+      return;
+    }
+    // Reject the entire edit; never reinterpret pasted clinical numbers by stripping text.
+    let start = 0;
+    while (start < previous.length && previous[start] === node.value[start]) start += 1;
+    const selection = editRef.current.selection;
+    node.value = previous;
+    if (selection?.value === previous && selection.start !== null) {
+      node.setSelectionRange(selection.start, selection.end, selection.direction || "none");
+    } else {
+      node.setSelectionRange(start, start);
+    }
+  };
+  const preventInvalidInsertion = (event, text) => {
+    remember(event);
+    if (editRef.current.composing || event.nativeEvent?.isComposing || text == null) return;
+    const node = event.currentTarget;
+    if (node.selectionStart === null) return;
+    const proposed = node.value.slice(0, node.selectionStart) + text + node.value.slice(node.selectionEnd);
+    if (!isAllowedRegistrationInput(proposed, restriction)) event.preventDefault();
+  };
+  const finishComposition = (event) => {
+    editRef.current.composing = false;
+    commit(event.currentTarget);
+    setCompositionValue(null);
+  };
+  return {
+    onFocus: remember,
+    onSelect: remember,
+    onCut: remember,
+    onBeforeInput: (event) => preventInvalidInsertion(event, event.data),
+    onPaste: (event) => preventInvalidInsertion(event, event.clipboardData?.getData("text/plain")),
+    onChange: (event) => {
+      if (editRef.current.composing || event.nativeEvent?.isComposing) {
+        editRef.current.composing = true;
+        setCompositionValue(event.currentTarget.value);
+      } else {
+        commit(event.currentTarget);
+      }
+    },
+    onCompositionStart: (event) => {
+      remember(event);
+      editRef.current.composing = true;
+      setCompositionValue(event.currentTarget.value);
+    },
+    onCompositionEnd: finishComposition,
+    onBlur: (event) => {
+      // If an IME omits compositionend, commit once without a stale parent blur overwriting it.
+      if (editRef.current.composing) finishComposition(event);
+      else onBlur?.(event);
+    },
+  };
+}
+
+function isValidPersonName(value) {
+  const name = String(value ?? "").trim();
+  return /\p{L}/u.test(name) && /^[\p{L}\p{M} .'\u2019\u02bc-]+$/u.test(name);
+}
+
+function normalizePersonName(value) {
+  // Leave intentional mixed/upper case and name particles intact. Never run onChange.
+  return String(value ?? "").trim().replace(/\s+/g, " ")
+    .split(/([ .'’ʼ-]+)/u)
+    .map((part) => {
+      if (/^(?:de|del|dela|da|das|do|dos|du|van|von|der|la|le|las|los|bin|binti|al|el)$/u.test(part)) return part;
+      if (/^[\p{Ll}\p{M}]+$/u.test(part) || /^\p{Ll}\p{Lu}+$/u.test(part)) {
+        const [first, ...rest] = Array.from(part);
+        return first.toLocaleUpperCase() + rest.join("").toLocaleLowerCase();
+      }
+      return part;
+    }).join("");
+}
+
+function isValidRegistrationDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value ?? ""))) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  return day <= [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+}
 
 const civilStatusOptions = [
   "Single",
@@ -572,7 +694,7 @@ function createBlankPregnancyRecord() {
 }
 
 function calculateAgeFromBirthdate(value) {
-  if (!value) return "";
+  if (!isValidRegistrationDate(value)) return "";
   const birthDate = new Date(`${value}T00:00:00`);
   if (Number.isNaN(birthDate.getTime())) return "";
 
@@ -590,7 +712,7 @@ function calculateAgeFromBirthdate(value) {
 }
 
 function isFutureDateInput(value) {
-  if (!value) return false;
+  if (!isValidRegistrationDate(value)) return false;
   const date = new Date(`${value}T00:00:00`);
   const today = new Date(`${getManilaDateKey()}T00:00:00`);
   return !Number.isNaN(date.getTime()) && date > today;
@@ -598,12 +720,12 @@ function isFutureDateInput(value) {
 
 function getAgeValueForBirthdate(age, birthdate) {
   if (birthdate) {
-    if (isFutureDateInput(birthdate)) return "";
+    if (!isValidRegistrationDate(birthdate) || isFutureDateInput(birthdate)) return "";
     const calculatedAge = calculateAgeFromBirthdate(birthdate);
     if (calculatedAge) return calculatedAge;
   }
 
-  return String(age || "").replace(/[^\d]/g, "");
+  return parseOptionalNumber(age) === null ? "" : String(age).trim();
 }
 
 function omitPayloadFields(payload, fields) {
@@ -641,8 +763,7 @@ function formatBirthdate(value) {
 }
 
 function parseAgeValue(value) {
-  const cleanAge = String(value || "").replace(/[^\d]/g, "");
-  return cleanAge ? Number(cleanAge) : null;
+  return parseOptionalNumber(value);
 }
 
 function parsePatientAgeValue(form) {
@@ -650,14 +771,11 @@ function parsePatientAgeValue(form) {
 }
 
 function parseOptionalNumber(value) {
-  const match = String(value ?? "")
-    .replace(/,/g, "")
-    .match(/-?\d+(?:\.\d+)?/);
-
-  if (!match) return null;
-
-  const numberValue = Number(match[0]);
-  return Number.isFinite(numberValue) ? numberValue : null;
+  const text = String(value ?? "").trim();
+  if (!/^\d+$/.test(text)) return null;
+  const numberValue = Number(text);
+  // Existing PostgreSQL integer storage boundary, not a new clinical limit.
+  return Number.isSafeInteger(numberValue) && numberValue <= 2147483647 ? numberValue : null;
 }
 
 function isNumberInRange(value, min, max) {
@@ -717,12 +835,14 @@ function normalizeRegistrationText(form) {
   return humanReadableRegistrationFields.reduce(
     (nextForm, field) => ({
       ...nextForm,
-      [field]: normalizeHumanReadableText(nextForm[field]),
+      [field]: registrationNameFields.includes(field)
+        ? normalizePersonName(nextForm[field])
+        : normalizeHumanReadableText(nextForm[field]),
     }),
     {
       ...form,
       ...normalizeRegistrationHistoryFields(form),
-      email: String(form.email || "").trim(),
+      email: normalizeRegistrationEmail(form.email),
     }
   );
 }
@@ -767,7 +887,7 @@ async function findRegistrationConflict(form, currentRecordId) {
   );
 
   // Email must be unique for every patient account, including across name changes.
-  // A missing email is permitted during Staff registration in the existing flow.
+  // Required for new Staff registration; legacy records may still have no email.
   if (enteredEmail) {
     const emailMatch = otherPatients.find(
       (patient) => normalizeRegistrationEmail(patient.email) === enteredEmail
@@ -792,8 +912,20 @@ function getStepOneValidationErrors(form) {
   if (!String(form.name || "").trim()) {
     errors.name = "This field is required.";
   }
+  registrationNameFields.forEach((field) => {
+    if (String(form[field] ?? "").trim() && !isValidPersonName(form[field])) {
+      errors[field] = "Use letters, spaces, apostrophes, periods, or hyphens only.";
+    }
+  });
+  registrationPhoneFields.forEach((field) => {
+    if (!isAllowedRegistrationInput(form[field], "phone")) {
+      errors[field] = "Use digits, spaces, parentheses, hyphens, and a leading + only.";
+    }
+  });
   if (!form.birthdate) {
     errors.birthdate = "This field is required.";
+  } else if (!isValidRegistrationDate(form.birthdate)) {
+    errors.birthdate = "Enter a valid calendar date of birth.";
   } else if (isFutureDateInput(form.birthdate)) {
     errors.birthdate = "Date of birth cannot be in the future.";
   } else if (!calculateAgeFromBirthdate(form.birthdate)) {
@@ -829,10 +961,10 @@ function getStepOneValidationErrors(form) {
   } else if (!isValidPhilippineMobileNumber(form.contactNumber)) {
     errors.contactNumber = "Enter a valid Philippine mobile number.";
   }
-  if (
-    form.email.trim() &&
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
-  ) {
+  const email = normalizeRegistrationEmail(form.email);
+  if (!email) {
+    errors.email = "Patient email address is required.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errors.email = "Enter a valid Patient email address.";
   }
   if (!String(form.emergencyContactPerson || "").trim()) {
@@ -858,27 +990,22 @@ function getStepTwoValidationErrors(form) {
   const gravida = parseOptionalNumber(form.gravida);
   const para = parseOptionalNumber(form.para);
 
-  if (!isNumberInRange(ageAtMenarche, 8, 25)) {
-    errors.ageMenarche = "Enter 8 to 25, or leave blank if unknown.";
-  }
-  if (!String(form.gravida || "").trim()) {
-    errors.gravida = "This field is required.";
-  } else if (gravida === null || gravida < 0) {
-    errors.gravida = "Gravida must be zero or greater.";
-  }
-  if (!String(form.para || "").trim()) {
-    errors.para = "This field is required.";
-  } else if (para === null || para < 0) {
-    errors.para = "Para must be zero or greater.";
-  } else if (gravida !== null && para > gravida) {
-    errors.para = "Para should not exceed Gravida.";
-  }
-  optionalObstetricCountFields.forEach(({ key }) => {
-    const value = String(form[key] ?? "").trim();
-    if (value && (!/^\d+$/.test(value) || Number(value) > 2147483647)) {
+  registrationNumberFields.forEach((key) => {
+    if (String(form[key] ?? "").trim() && parseOptionalNumber(form[key]) === null) {
       errors[key] = "Enter a nonnegative whole number, or leave blank if unknown.";
     }
   });
+  if (!isNumberInRange(ageAtMenarche, 8, 25)) {
+    errors.ageMenarche = "Enter 8 to 25, or leave blank if unknown.";
+  }
+  if (!String(form.gravida ?? "").trim()) {
+    errors.gravida = "This field is required.";
+  }
+  if (!String(form.para ?? "").trim()) {
+    errors.para = "This field is required.";
+  } else if (para !== null && gravida !== null && para > gravida) {
+    errors.para = "Para should not exceed Gravida.";
+  }
   if (cycleLength !== null && (cycleLength < 15 || cycleLength > 60)) {
     errors.cycleLength = "Enter 15 to 60 days, or leave blank if unknown.";
   }
@@ -888,9 +1015,19 @@ function getStepTwoValidationErrors(form) {
   ) {
     errors.durationMenstruation = "Enter 1 to 15 days, or leave blank if unknown.";
   }
+  ["lmp", "edd"].forEach((key) => {
+    if (form[key] && !isValidRegistrationDate(form[key])) {
+      errors[key] = "Enter a valid calendar date, or leave blank if unknown.";
+    }
+  });
   if (isFutureDateInput(form.lmp)) {
     errors.lmp = "Last Menstrual Period cannot be in the future.";
   }
+  (form.pregnancyRecords || []).forEach((record, index) => {
+    if (record.birthdate && !isValidRegistrationDate(record.birthdate)) {
+      errors[`pregnancyBirthdate-${index}`] = "Enter a valid calendar date, or leave blank if unknown.";
+    }
+  });
 
   return errors;
 }
@@ -933,6 +1070,18 @@ function getAllergyList(form) {
 }
 
 function createRegistrationDataPayload(form, selectedWalkInSlot) {
+  // Final preparation must not silently turn malformed values into null/zero.
+  const malformedEmail = Boolean(getStepOneValidationErrors(form).email);
+  const malformedNumber = registrationNumberFields.some((key) =>
+    String(form[key] ?? "").trim() && parseOptionalNumber(form[key]) === null);
+  const malformedName = registrationNameFields.some((key) =>
+    String(form[key] ?? "").trim() && !isValidPersonName(form[key]));
+  const malformedPhone = registrationPhoneFields.some((key) => !isAllowedRegistrationInput(form[key], "phone"));
+  const dates = [form.birthdate, form.lmp, form.edd,
+    ...(form.pregnancyRecords || []).map((record) => record.birthdate)];
+  if (malformedEmail || malformedNumber || malformedName || malformedPhone || dates.some((value) => value && !isValidRegistrationDate(value))) {
+    throw new Error("Review invalid email, names, whole numbers, and calendar dates before saving.");
+  }
   const normalizedForm = normalizeRegistrationText(form);
   const allergies = normalizeStructuredAllergies(normalizedForm);
   const legacyAllergyLabels = allergies.map(formatAllergyEntry);
@@ -1254,8 +1403,8 @@ function createObstetricHistoryPayload(form, savedPatient) {
           ? false
           : null,
     contraceptive_method: cleanText(form.contraceptiveMethod),
-    gravida: parseOptionalNumber(form.gravida) ?? 0,
-    para: parseOptionalNumber(form.para) ?? 0,
+    gravida: parseOptionalNumber(form.gravida),
+    para: parseOptionalNumber(form.para),
     last_menstrual_period: form.lmp || null,
     expected_delivery_date: form.edd || null,
     updated_at: new Date().toISOString(),
@@ -1324,7 +1473,26 @@ function InputField({
   disabled = false,
   inputMode,
   autoComplete,
+  inputRestriction = "",
 }) {
+  const editRef = useRef({ composing: false, selection: null });
+  const [compositionValue, setCompositionValue] = useState(null);
+  const handleInputEvent = (name, event) => {
+    const handlers = createRegistrationInputHandlers({ value, onChange, onBlur,
+      restriction: inputRestriction, editRef, setCompositionValue });
+    handlers[name]?.(event);
+  };
+  const inputHandlers = {
+    onFocus: (event) => handleInputEvent("onFocus", event),
+    onSelect: (event) => handleInputEvent("onSelect", event),
+    onCut: (event) => handleInputEvent("onCut", event),
+    onBeforeInput: (event) => handleInputEvent("onBeforeInput", event),
+    onPaste: (event) => handleInputEvent("onPaste", event),
+    onChange: (event) => handleInputEvent("onChange", event),
+    onCompositionStart: (event) => handleInputEvent("onCompositionStart", event),
+    onCompositionEnd: (event) => handleInputEvent("onCompositionEnd", event),
+    onBlur: (event) => handleInputEvent("onBlur", event),
+  };
   return (
     <label
       className={`staff-register-field ${className} ${error ? "has-error" : ""}`}
@@ -1341,9 +1509,9 @@ function InputField({
           ref={inputRef}
           id={fieldId}
           type={type}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onBlur={onBlur}
+          required={required}
+          value={compositionValue ?? value}
+          {...inputHandlers}
           placeholder={placeholder}
           readOnly={readOnly}
           disabled={disabled}
@@ -1606,20 +1774,7 @@ function PatientRegisterSuccessCard({ isGenerated }) {
 function CredentialsPanel({ credentials }) {
   const accessUrl = credentials ? buildPatientAccessUrl(credentials) : "";
 
-  if (!credentials?.patientId || !credentials?.controlNumber) {
-    return (
-      <section className="staff-register-credential-card is-placeholder">
-        <span className="staff-access-placeholder-icon">
-          <Icon icon="solar:qr-code-linear" aria-hidden="true" />
-        </span>
-        <h3>Patient Access</h3>
-        <p>
-          Complete all required Patient information to generate the Patient ID,
-          one-time control number, and QR code.
-        </p>
-      </section>
-    );
-  }
+  if (!credentials?.patientId || !credentials?.controlNumber) return null;
 
   return (
     <section className="staff-register-credential-card">
@@ -1733,6 +1888,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     return value && value !== "new" ? value : "";
   }, [location.pathname]);
   const registrationTopRef = useRef(null);
+  const registrationEntryScrollRef = useRef(false);
   const registrationFieldRefs = useRef({});
   const walkInDateInputRef = useRef(null);
   const [screen, setScreen] = useState(() => {
@@ -1857,6 +2013,14 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     },
     []
   );
+
+  useLayoutEffect(() => {
+    if (screen !== "register" || !registrationEntryScrollRef.current) return;
+    registrationEntryScrollRef.current = false;
+    // Reset only an explicit slot-selection entry, once its registration DOM exists.
+    registrationTopRef.current?.closest(".doctor-main")?.scrollTo({ top: 0, behavior: "instant" });
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [screen]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -2546,15 +2710,15 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
           );
         });
 
-    return [...searchedPatients].sort((a, b) => {
-      const firstValue = String(a[sortConfig.key]).toLowerCase();
-      const secondValue = String(b[sortConfig.key]).toLowerCase();
-
-      if (firstValue < secondValue) return sortConfig.direction === "asc" ? -1 : 1;
-      if (firstValue > secondValue) return sortConfig.direction === "asc" ? 1 : -1;
-      return 0;
-    });
+    return [...searchedPatients].sort((a, b) =>
+      comparePatientRows(a, b, sortConfig.key, sortConfig.direction)
+    );
   }, [patientStatusFilter, query, patients, sortConfig]);
+
+  const pagination = usePatientTablePagination(
+    filteredPatients.length, JSON.stringify([query, patientStatusFilter, sortConfig])
+  );
+  const paginatedPatients = filteredPatients.slice(pagination.startIndex, pagination.startIndex + pagination.pageSize);
 
   const activeActionPatient = patientActionMenu
     ? patients.find((patient) => patient.recordId === patientActionMenu.patientId) || null
@@ -2624,6 +2788,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
   };
 
   const updateForm = (field, value) => {
+    if (!isAllowedRegistrationInput(value, getRegistrationInputRestriction(field))) return;
     const nextForm = {
       ...form,
       [field]: value,
@@ -2643,10 +2808,17 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     if (!humanReadableRegistrationFields.includes(field)) return;
     const nextForm = {
       ...form,
-      [field]: normalizeHumanReadableText(form[field]),
+      [field]: registrationNameFields.includes(field)
+        ? normalizePersonName(form[field])
+        : normalizeHumanReadableText(form[field]),
     };
     setForm(nextForm);
     clearResolvedRegistrationError(field, nextForm);
+    if (registrationNameFields.includes(field)) {
+      setRegistrationErrors((current) => ({
+        ...current, [field]: getStepOneValidationErrors(nextForm)[field] || "",
+      }));
+    }
   };
 
   const updateBirthdate = (value) => {
@@ -2663,10 +2835,11 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     const nextForm = {
       ...form,
       lmp: value,
-      edd: value ? addCalendarDaysToDateInput(value, 280) : "",
+      edd: isValidRegistrationDate(value) ? addCalendarDaysToDateInput(value, 280) : "",
     };
     setForm(nextForm);
     clearResolvedRegistrationError("lmp", nextForm);
+    clearResolvedRegistrationError("edd", nextForm);
   };
 
   const addPregnancyRecord = () => {
@@ -2682,24 +2855,32 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
   };
 
   const updatePregnancyRecord = (index, field, value) => {
-    setForm((current) => ({
-      ...current,
-      pregnancyRecords: (Array.isArray(current.pregnancyRecords)
-        ? current.pregnancyRecords
+    const nextForm = {
+      ...form,
+      pregnancyRecords: (Array.isArray(form.pregnancyRecords)
+        ? form.pregnancyRecords
         : []
       ).map((record, recordIndex) =>
         recordIndex === index ? { ...record, [field]: value } : record
       ),
-    }));
+    };
+    setForm(nextForm);
+    if (field === "birthdate") clearResolvedRegistrationError(`pregnancyBirthdate-${index}`, nextForm);
   };
 
   const removePregnancyRecord = (recordId) => {
-    setForm((current) => ({
-      ...current,
-      pregnancyRecords: (Array.isArray(current.pregnancyRecords)
-        ? current.pregnancyRecords
+    const nextForm = {
+      ...form,
+      pregnancyRecords: (Array.isArray(form.pregnancyRecords)
+        ? form.pregnancyRecords
         : []
       ).filter((record) => record.id !== recordId),
+    };
+    setForm(nextForm);
+    setRegistrationErrors((current) => ({
+      ...Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith("pregnancyBirthdate-"))),
+      ...Object.fromEntries(Object.entries(getStepTwoValidationErrors(nextForm))
+        .filter(([key]) => key.startsWith("pregnancyBirthdate-"))),
     }));
   };
 
@@ -3247,6 +3428,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
     persistWalkInSlot(hydratedReservation);
     setWalkInError("");
     setWalkInNotice("");
+    registrationEntryScrollRef.current = true;
     setScreen("register");
     navigate("/staff/patients/new/register");
   };
@@ -3297,6 +3479,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
         slotId: selectedSlot.id,
         expiresAt,
       });
+      registrationEntryScrollRef.current = true;
       navigate("/staff/patients/new/register");
     } catch (error) {
       console.error("Reserve walk-in slot failed:", error);
@@ -3644,6 +3827,8 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
           "cycleLength",
           "durationMenstruation",
           "lmp",
+          "edd",
+          ...Object.keys(current).filter((key) => key.startsWith("pregnancyBirthdate-")),
         ].forEach((field) => delete nextErrors[field]);
         return { ...nextErrors, ...fieldErrors };
       });
@@ -4012,9 +4197,10 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               label="Patient's Name"
               required
               value={form.name}
+              inputRestriction="name"
               onChange={(value) => updateForm("name", value)}
               onBlur={() => normalizeFormField("name")}
-              placeholder="Enter Full Name"
+              placeholder="Maria Dela Cruz"
               className="is-wide"
               error={registrationErrors.name}
               fieldId="registration-patient-name"
@@ -4114,6 +4300,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               label="Patient Contact Number"
               required
               value={form.contactNumber}
+              inputRestriction="phone"
               onChange={(value) => updateForm("contactNumber", value)}
               placeholder="09XXXXXXXXX"
               className="is-half"
@@ -4125,10 +4312,12 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             />
             <InputField
               label="Email Address"
+              required
               type="email"
               value={form.email}
               onChange={(value) => updateForm("email", value)}
-              onBlur={() => updateForm("email", form.email.trim())}
+              onBlur={() => updateForm("email", normalizeRegistrationEmail(form.email))}
+              placeholder="Enter patient's email address"
               className="is-half"
               error={registrationErrors.email}
               fieldId="registration-email"
@@ -4151,9 +4340,11 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                   label="PhilHealth Identification Number (PIN)"
                   required
                   value={form.philHealthPin}
+                  inputRestriction="pin"
+                  inputMode="numeric"
                   onChange={(value) => updateForm("philHealthPin", value)}
                   onBlur={() => updateForm("philHealthPin", form.philHealthPin.trim())}
-                  placeholder="12-digit PIN or XX-XXXXXXXXX-X"
+                  placeholder="XX-XXXXXXXXX-X"
                   fieldId="registration-philhealth-pin"
                   error={registrationErrors.philHealthPin}
                   inputRef={setRegistrationFieldRef("philHealthPin")}
@@ -4169,6 +4360,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <InputField
               label="Occupation"
               value={form.occupation}
+              placeholder="e.g., Teacher"
               onChange={(value) => updateForm("occupation", value)}
               onBlur={() => normalizeFormField("occupation")}
               className="is-half"
@@ -4176,6 +4368,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <InputField
               label="Company"
               value={form.company}
+              placeholder="Company name (optional)"
               onChange={(value) => updateForm("company", value)}
               onBlur={() => normalizeFormField("company")}
               className="is-half"
@@ -4183,6 +4376,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <InputField
               label="Work Address"
               value={form.workAddress}
+              placeholder="Work address (optional)"
               onChange={(value) => updateForm("workAddress", value)}
               onBlur={() => normalizeFormField("workAddress")}
               className="is-half"
@@ -4190,6 +4384,11 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <InputField
               label="Work Contact Number"
               value={form.workContactNumber}
+              inputRestriction="phone"
+              error={registrationErrors.workContactNumber}
+              fieldId="registration-work-contact-number"
+              inputRef={setRegistrationFieldRef("workContactNumber")}
+              placeholder="Contact number (optional)"
               onChange={(value) => updateForm("workContactNumber", value)}
               className="is-half"
               inputMode="tel"
@@ -4202,13 +4401,23 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <InputField
               label="Husband / Partner"
               value={form.husbandPartner}
+              inputRestriction="name"
               onChange={(value) => updateForm("husbandPartner", value)}
               onBlur={() => normalizeFormField("husbandPartner")}
+              placeholder="Juan Dela Cruz (optional)"
+              error={registrationErrors.husbandPartner}
+              fieldId="registration-partner-name"
+              inputRef={setRegistrationFieldRef("husbandPartner")}
               className="is-half"
             />
             <InputField
               label="Partner Contact Number"
               value={form.partnerContactNumber}
+              inputRestriction="phone"
+              error={registrationErrors.partnerContactNumber}
+              fieldId="registration-partner-contact-number"
+              inputRef={setRegistrationFieldRef("partnerContactNumber")}
+              placeholder="09XXXXXXXXX (optional)"
               onChange={(value) => updateForm("partnerContactNumber", value)}
               className="is-half"
               inputMode="tel"
@@ -4222,8 +4431,10 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               label="Contact Person"
               required
               value={form.emergencyContactPerson}
+              inputRestriction="name"
               onChange={(value) => updateForm("emergencyContactPerson", value)}
               onBlur={() => normalizeFormField("emergencyContactPerson")}
+              placeholder="Ana Dela Cruz"
               error={registrationErrors.emergencyContactPerson}
               fieldId="registration-emergency-person"
               inputRef={setRegistrationFieldRef("emergencyContactPerson")}
@@ -4235,6 +4446,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               value={form.emergencyContactRelationship}
               onChange={(value) => updateForm("emergencyContactRelationship", value)}
               onBlur={() => normalizeFormField("emergencyContactRelationship")}
+              placeholder="e.g., Mother or Partner"
               error={registrationErrors.emergencyContactRelationship}
               fieldId="registration-emergency-relationship"
               inputRef={setRegistrationFieldRef("emergencyContactRelationship")}
@@ -4243,6 +4455,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               label="Contact Number"
               required
               value={form.emergencyContactNumber}
+              inputRestriction="phone"
               onChange={(value) => updateForm("emergencyContactNumber", value)}
               placeholder="09XXXXXXXXX"
               className="is-half"
@@ -4278,8 +4491,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <InputField
               label="Age at Menarche"
               value={form.ageMenarche}
+              inputRestriction="integer"
               onChange={(value) => updateForm("ageMenarche", value)}
-              placeholder="Enter age"
+              placeholder="e.g., 12"
               error={registrationErrors.ageMenarche}
               fieldId="registration-age-menarche"
               inputRef={setRegistrationFieldRef("ageMenarche")}
@@ -4294,8 +4508,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <InputField
               label="Cycle Length"
               value={form.cycleLength}
+              inputRestriction="integer"
               onChange={(value) => updateForm("cycleLength", value)}
-              placeholder="Enter days"
+              placeholder="e.g., 28"
               error={registrationErrors.cycleLength}
               fieldId="registration-cycle-length"
               inputRef={setRegistrationFieldRef("cycleLength")}
@@ -4304,8 +4519,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <InputField
               label="Duration of Menstruation"
               value={form.durationMenstruation}
+              inputRestriction="integer"
               onChange={(value) => updateForm("durationMenstruation", value)}
-              placeholder="Enter days"
+              placeholder="e.g., 5"
               error={registrationErrors.durationMenstruation}
               fieldId="registration-menstruation-duration"
               inputRef={setRegistrationFieldRef("durationMenstruation")}
@@ -4326,8 +4542,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                 label="Gravida (G)"
                 required
                 value={form.gravida}
+                inputRestriction="integer"
                 onChange={(value) => updateForm("gravida", value)}
-                placeholder="Enter number"
+                placeholder="e.g., 2"
                 error={registrationErrors.gravida}
                 fieldId="registration-gravida"
                 inputRef={setRegistrationFieldRef("gravida")}
@@ -4337,8 +4554,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                 label="Para (P)"
                 required
                 value={form.para}
+                inputRestriction="integer"
                 onChange={(value) => updateForm("para", value)}
-                placeholder="Enter number"
+                placeholder="e.g., 1"
                 error={registrationErrors.para}
                 fieldId="registration-para"
                 inputRef={setRegistrationFieldRef("para")}
@@ -4349,8 +4567,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                   key={key}
                   label={label}
                   value={form[key]}
+                  inputRestriction="integer"
                   onChange={(value) => updateForm(key, value)}
-                  placeholder="Enter number, if known"
+                  placeholder="e.g., 0 (if known)"
                   error={registrationErrors[key]}
                   fieldId={`registration-${key}`}
                   inputRef={setRegistrationFieldRef(key)}
@@ -4373,6 +4592,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                 value={form.edd}
                 onChange={(value) => updateForm("edd", value)}
                 icon="solar:calendar-linear"
+                error={registrationErrors.edd}
+                fieldId="registration-edd"
+                inputRef={setRegistrationFieldRef("edd")}
               />
             </div>
           </div>
@@ -4415,7 +4637,16 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
                             updatePregnancyRecord(index, "birthdate", event.target.value)
                           }
                           aria-label="Pregnancy birthdate"
+                          ref={setRegistrationFieldRef(`pregnancyBirthdate-${index}`)}
+                          aria-invalid={Boolean(registrationErrors[`pregnancyBirthdate-${index}`])}
+                          aria-describedby={registrationErrors[`pregnancyBirthdate-${index}`]
+                            ? `registration-pregnancy-${index}-error` : undefined}
                         />
+                        {registrationErrors[`pregnancyBirthdate-${index}`] ? (
+                          <small className="staff-register-field-error" id={`registration-pregnancy-${index}-error`}>
+                            {registrationErrors[`pregnancyBirthdate-${index}`]}
+                          </small>
+                        ) : null}
                       </td>
                       <td>
                         <select
@@ -5274,6 +5505,13 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               ) : (
                 <Stepper currentStep={step} onStepSelect={moveToRegistrationStep} />
               )}
+              {registrationView === "confirmation" ? (
+                <aside className="staff-register-access">
+                  <PatientRegisterSuccessCard isGenerated />
+                </aside>
+              ) : (
+                <CredentialsPanel credentials={null} />
+              )}
               {statusMessage ? (
                 <p className="staff-patients-status-message">{statusMessage}</p>
               ) : null}
@@ -5287,13 +5525,6 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
               </main>
             </div>
 
-            <aside className="staff-register-side">
-              {registrationView === "confirmation" ? (
-                <PatientRegisterSuccessCard isGenerated />
-              ) : (
-                <CredentialsPanel credentials={null} />
-              )}
-            </aside>
           </div>
         </div>
       </section>
@@ -5472,7 +5703,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <div className="staff-patients-table-scroll">
               <table className="staff-patients-table staff-patients-table--body">
                 <tbody>
-              {filteredPatients.map((patient) => (
+              {paginatedPatients.map((patient) => (
                 <tr
                   key={patient.id}
                   id={`staff-patient-row-${patient.recordId}`}
@@ -5590,6 +5821,17 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             </div>
           </div>
         </div>
+        <AppointmentPagination
+          className="patients-table-pagination"
+          itemLabel="patients"
+          currentPage={pagination.currentPage}
+          pageSize={pagination.pageSize}
+          pageSizes={[10, 15]}
+          totalItems={filteredPatients.length}
+          totalPages={pagination.totalPages}
+          onPageChange={(page) => { setPatientActionMenu(null); pagination.setCurrentPage(page); }}
+          onPageSizeChange={(size) => { setPatientActionMenu(null); pagination.setPageSize(size); }}
+        />
       </section>
 
       {patientActionMenu && activeActionPatient ? (

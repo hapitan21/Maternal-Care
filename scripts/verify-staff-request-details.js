@@ -13,6 +13,8 @@ import { parse } from 'espree';
 import react from '@vitejs/plugin-react';
 import { build } from 'vite';
 import postcss from 'postcss';
+import { matchesAppointmentDateRange } from '../src/lib/appointmentDateRange.js';
+const dateRangeContext = { matchesAppointmentDateRange, dateRange: { from: '', to: '' } };
 
 const root = fileURLToPath(new URL('..', import.meta.url)).replaceAll('\\', '/');
 const componentPath = 'src/pages/staff/Staff_Appointments.jsx';
@@ -35,7 +37,8 @@ function find(node, name) {
 }
 const sortCallback = find(ast, 'requestSchedules').init.arguments[0];
 const baselineSort = find(headAst, 'requestSchedules').init.arguments[0];
-check(sortCallback.body.body.slice(0,2).map(node=>source.slice(...node.range)).join('').replaceAll('\r\n','\n') === baselineSort.body.body.slice(0,2).map(node=>headSource.slice(...node.range)).join('').replaceAll('\r\n','\n'), 'Request search and pending-status filtering unchanged');
+const withoutDateRange = text => text.replaceAll('\r\n','\n').replace(/\n\s*\.filter\(\(request\) => matchesAppointmentDateRange\(request\.start_time, dateRange\)\)/g, '');
+check(withoutDateRange(sortCallback.body.body.slice(0,2).map(node=>source.slice(...node.range)).join('')) === withoutDateRange(baselineSort.body.body.slice(0,2).map(node=>headSource.slice(...node.range)).join('')), 'Request search and pending filtering unchanged apart from the new date range');
 check(find(ast, 'requestSort').init.arguments[0].value === 'newest', 'Production default is Newest First');
 const pagination = find(ast, 'paginatedRequests').init.arguments[0];
 const baselinePagination = find(headAst, 'paginatedRequests').init.arguments[0];
@@ -47,15 +50,19 @@ for (const [requestSort, expected] of [['newest','b,a,c'],['oldest','c,a,b']]) {
     {id:'b',created_at:'2026-10-03',start_time:'2026-10-01',status:'pending'},
     {id:'c',created_at:'2026-10-01',start_time:'2026-10-02',status:'pending'},
   ];
-  const result = vm.runInNewContext('(' + source.slice(...sortCallback.range) + ')', {bookingRequests,requestSort,searchQuery:'',Date})();
+  const result = vm.runInNewContext('(' + source.slice(...sortCallback.range) + ')', {...dateRangeContext,bookingRequests,requestSort,searchQuery:'',Date})();
   check(result.map(item=>item.id).join(',') === expected, requestSort + ': creation timestamps determine order, not appointment dates');
   const missingDates = [...bookingRequests, {id:'missing',start_time:'2099-01-01',status:'pending'}, {id:'invalid',created_at:'invalid',start_time:'2099-01-02',status:'pending'}];
-  const missingResult = vm.runInNewContext('(' + source.slice(...sortCallback.range) + ')', {bookingRequests:missingDates,requestSort,searchQuery:'',Date})();
+  const missingResult = vm.runInNewContext('(' + source.slice(...sortCallback.range) + ')', {...dateRangeContext,bookingRequests:missingDates,requestSort,searchQuery:'',Date})();
   check(missingResult.map(item=>item.id).join(',') === (requestSort === 'newest' ? 'b,a,c,missing,invalid' : 'missing,invalid,c,a,b'), requestSort + ': missing/invalid creation dates never use preferred dates');
-  const filtered = vm.runInNewContext('(' + source.slice(...sortCallback.range) + ')', {bookingRequests:[...bookingRequests.map(item=>({...item,patient_name:item.id==='a'?'Other':'Matching'})),{id:'closed',patient_name:'Matching',status:'approved',created_at:'2099-01-01'}],requestSort,searchQuery:'matching',Date,getRequestId:requestIdHelper})();
+  const filtered = vm.runInNewContext('(' + source.slice(...sortCallback.range) + ')', {...dateRangeContext,bookingRequests:[...bookingRequests.map(item=>({...item,patient_name:item.id==='a'?'Other':'Matching'})),{id:'closed',patient_name:'Matching',status:'approved',created_at:'2099-01-01'}],requestSort,searchQuery:'matching',Date,getRequestId:requestIdHelper})();
   check(filtered.map(item=>item.id).join(',') === (requestSort === 'newest' ? 'b,c' : 'c,b'), requestSort + ': search and pending filtering preserved');
   const page = vm.runInNewContext('(' + source.slice(...pagination.range) + ')', {requestDisplayedPage:2,requestSchedules:[...result,...result,...result]})();
   check(page.map(item=>item.id).join(',') === [...result,...result,...result].slice(5,10).map(item=>item.id).join(','), requestSort + ': five-row pagination preserved');
+}
+if (process.argv.includes('--filter-only')) {
+  console.log('PASS: ' + assertions + ' existing request search/sort/pagination assertions. Filter-only mode; browser and RPC tests not executed.');
+  process.exit(0);
 }
 for (const operation of ['acceptPatientRequest', 'declinePatientRequest']) {
   const callback = find(ast, operation).init.arguments[0];

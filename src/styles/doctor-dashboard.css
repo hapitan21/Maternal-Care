@@ -2440,3 +2440,8 @@ body:has(.doctor-dashboard) {
   height: 17px;
   flex: 0 0 17px;
 }
+
+/* Bold only navigation labels; preserve icons, badges and profile styling. */
+.doctor-dashboard .doctor-sidebar .doctor-nav-link > span:first-of-type {
+  font-weight: 700;
+}

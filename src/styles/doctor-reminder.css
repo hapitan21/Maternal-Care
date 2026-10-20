@@ -2969,7 +2969,7 @@ body:has(.doctor-reminder-modal) {
   color: #4d494a !important;
   font-size: 16px !important;
   line-height: 1.25 !important;
-  font-weight: 500 !important;
+  font-weight: 700 !important;
   letter-spacing: -0.04em !important;
   white-space: nowrap !important;
 }
@@ -5329,6 +5329,16 @@ body:has(.doctor-reminder-modal) {
   opacity: 0.7 !important;
 }
 
+.doctor-medication-delete-dialog {
+  max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.doctor-medication-delete-dialog .doctor-medication-delete-context {
+  font-weight: 600 !important;
+}
+
 @media (max-width: 680px) {
   .doctor-reminder-view-all__header {
     grid-template-columns: minmax(0, 1fr) auto !important;
@@ -7263,4 +7273,9 @@ body:has(.doctor-reminder-modal) {
     grid-column: 2 !important;
     justify-self: start !important;
   }
+}
+
+/* Match section-heading Bold; override the shared important card-heading rule. */
+.doctor-dashboard:not(.staff-dashboard-shell) .clinical-workflow--reminders .doctor-reminder-card__header h2 {
+  font-weight: 700 !important;
 }

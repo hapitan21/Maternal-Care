@@ -2,6 +2,7 @@ import { createDoctorSessionCache } from "../../lib/doctorSessionCache";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useClinicalSaveFeedback } from "../../hooks/useClinicalSaveFeedback";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import { parseAppointmentVisitRoute } from "../../lib/appointmentVisitRoute";
@@ -33,6 +34,7 @@ import {
   APPOINTMENT_CATEGORIES,
   APPOINTMENT_TYPES,
   getAppointmentTypeCategory,
+  getAppointmentTypeLabel,
 } from "../../lib/appointmentTypes";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
 import { buildAppointmentSuccessFeedback } from "../../lib/appointmentSuccessFeedback";
@@ -44,6 +46,8 @@ import {
   AppointmentToolbar,
 } from "../../components/appointments/AppointmentUi";
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
+import AppointmentDateRangeFilter from "../../components/appointments/AppointmentDateRangeFilter";
+import { matchesAppointmentDateRange } from "../../lib/appointmentDateRange";
 import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
 import { useDoctorModuleDialog } from "../../hooks/useDoctorModuleDialog";
 import {
@@ -332,15 +336,6 @@ function statusMatches(schedule, activeTab) {
   if (activeTab === "Missed") return normalized === appointmentStatuses.missed;
 
   return true;
-}
-
-function monthFilterMatches(schedule, monthFilter) {
-  if (!monthFilter) return true;
-
-  const scheduleDate = toDateInputValue(schedule.start_time);
-  if (!scheduleDate) return false;
-
-  return scheduleDate.slice(0, 7) === monthFilter;
 }
 
 function isAppointmentToday(value) {
@@ -931,7 +926,7 @@ function DoctorAppointmentDetailsModal({
   const details = [
     ["Patient Name", schedule.patient_name || "NA"],
     ["Appointment ID", getVisibleAppointmentId(schedule)],
-    ["Appointment Type", schedule.title || "NA"],
+    ["Appointment Type", getAppointmentTypeLabel(schedule.title || "NA")],
     ["Doctor", schedule.doctor_name || "NA"],
     ["Date and Time", detailDate && detailTime !== "-" ? `${detailDate} at ${detailTime}` : "NA"],
     ["Status", statusLabel],
@@ -969,7 +964,7 @@ function DoctorAppointmentDetailsModal({
             <h2 id="doctor-appointment-detail-title">
               {schedule.patient_name || "NA"}
             </h2>
-            <p>{schedule.title || "NA"}</p>
+            <p>{getAppointmentTypeLabel(schedule.title || "NA")}</p>
           </div>
         </header>
 
@@ -1134,7 +1129,7 @@ function FigmaWeekCalendar({
                     >
                       <strong>{schedule.patient_name}</strong>
                       <span>{formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}</span>
-                      <small>{schedule.title}</small>
+                      <small>{getAppointmentTypeLabel(schedule.title)}</small>
                     </button>
                   );
                 })}
@@ -1270,7 +1265,7 @@ export function DoctorAppointmentsContent({
     dashboardStatusTarget || "All"
   );
   const [searchTerm, setSearchTerm] = useState("");
-  const [monthFilter, setMonthFilter] = useState("");
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDate, setSelectedDate] = useState(() => getManilaDateKey());
@@ -1358,6 +1353,8 @@ export function DoctorAppointmentsContent({
     setSuccessMessage("");
   }, [clearSuccessTimer, successMessage]);
 
+  useClinicalSaveFeedback("doctor", location, navigate, showSuccessMessage);
+
   const dispatchAutomaticAppointmentNotification = useCallback(
     ({ patientId, scheduleId, notificationType, appointmentEventId = null }, onSettled) => {
       const dispatchKey = [
@@ -1411,7 +1408,7 @@ export function DoctorAppointmentsContent({
       if (dashboardTodayTarget) {
         setActiveTab("All");
         setSearchTerm("");
-        setMonthFilter("");
+        setDateRange({ from: "", to: "" });
         setCurrentPage(1);
         dashboardStatusTargetAppliedRef.current = false;
         return;
@@ -1526,6 +1523,11 @@ export function DoctorAppointmentsContent({
     }));
   }, [miniMonthDate, schedules, selectedDate]);
 
+  const applyDateRange = (range) => {
+    setDateRange(range);
+    setCurrentPage(1);
+  };
+
   const visibleSchedules = useMemo(
     () =>
       schedules
@@ -1539,12 +1541,12 @@ export function DoctorAppointmentsContent({
         })
         .filter((schedule) => statusMatches(schedule, activeTab))
         .filter((schedule) => searchMatches(schedule, searchTerm))
-        .filter((schedule) => monthFilterMatches(schedule, monthFilter))
+        .filter((schedule) => matchesAppointmentDateRange(schedule.start_time, dateRange))
         .sort(compareAppointmentsByStatusPriority),
     [
       activeTab,
       dashboardTodayTarget,
-      monthFilter,
+      dateRange,
       schedules,
       searchTerm,
     ]
@@ -1583,7 +1585,7 @@ export function DoctorAppointmentsContent({
     setActiveTab(nextTab);
     setCurrentPage(1);
     setSearchTerm("");
-    setMonthFilter("");
+    setDateRange({ from: "", to: "" });
   };
 
   const loadAppointments = useCallback(() => {
@@ -1776,7 +1778,7 @@ export function DoctorAppointmentsContent({
 
       setActiveTab("All");
       setSearchTerm(visibleAppointmentId);
-      setMonthFilter("");
+      setDateRange({ from: "", to: "" });
       setCurrentPage(1);
       selectCalendarDate(toDateInputValue(target.start_time));
       setDetailActionError("");
@@ -1841,7 +1843,7 @@ export function DoctorAppointmentsContent({
     }
   }, [
     activeTab,
-    monthFilter,
+    dateRange,
     displayedPage,
     pageSize,
     searchTerm,
@@ -2885,40 +2887,11 @@ export function DoctorAppointmentsContent({
           </form>
         </AppointmentControlGroup>
 
-        <AppointmentControlGroup
-          as="label"
-          label="Filter by Month"
-          area="month"
+        <AppointmentDateRangeFilter
+          value={dateRange}
+          onApply={applyDateRange}
           className="doctor-appointments-month-filter doctor-appointments-control-group"
-        >
-          <div
-            className={`doctor-appointments-month-input appointment-ui-month${monthFilter ? "" : " is-empty"}`}
-          >
-            <Icon icon="solar:calendar-linear" />
-            {!monthFilter ? (
-              <span className="doctor-appointments-month-placeholder" aria-hidden="true">
-                All months
-              </span>
-            ) : null}
-            <input
-              type="month"
-              value={monthFilter}
-              onChange={(event) => setMonthFilter(event.target.value)}
-              aria-label="Filter appointments by month"
-            />
-            {monthFilter ? (
-              <button
-                type="button"
-                className="doctor-appointments-month-clear"
-                aria-label="Clear month filter"
-                title="Clear month filter"
-                onClick={() => setMonthFilter("")}
-              >
-                <Icon icon="material-symbols:close-rounded" />
-              </button>
-            ) : null}
-          </div>
-        </AppointmentControlGroup>
+        />
 
         <AppointmentControlGroup
           label="Quick Action"
@@ -3076,7 +3049,7 @@ export function DoctorAppointmentsContent({
                   <span aria-hidden="true">
                     <Icon icon={category.icon} />
                   </span>
-                  <strong>{category.label}</strong>
+                  <strong>{getAppointmentTypeLabel(category.label)}</strong>
                 </div>
               ))}
             </div>
@@ -3187,7 +3160,7 @@ export function DoctorAppointmentsContent({
                       </option>
                       {APPOINTMENT_TYPES.map((appointmentType) => (
                         <option key={appointmentType} value={appointmentType}>
-                          {appointmentType}
+                          {getAppointmentTypeLabel(appointmentType)}
                         </option>
                       ))}
                     </select>

@@ -1,4 +1,5 @@
 import { Icon } from "@iconify/react";
+import { CalendarX, Check } from "lucide-react";
 import {
   getPatientNotificationConfig,
   getSafePatientNotificationTarget,
@@ -117,7 +118,7 @@ export default function PatientNotificationPanel({
               onClick={onMarkAllAsRead}
               disabled={updating || !online}
             >
-              <Icon icon="solar:check-read-linear" />
+              <Check width="1em" height="1em" strokeWidth={1.5} aria-hidden="true" />
               Mark all read
             </button>
           ) : null}
@@ -184,7 +185,9 @@ export default function PatientNotificationPanel({
                       disabled={updating}
                     >
                       <span className={`pwa-notification-icon type-${notification.type}`}>
-                        <Icon icon={config.icon} />
+                        {config.icon === "lucide:calendar-x"
+                          ? <CalendarX aria-hidden="true" />
+                          : <Icon icon={config.icon} />}
                       </span>
                       <span className="pwa-notification-copy">
                         <span className="pwa-notification-title-row">
