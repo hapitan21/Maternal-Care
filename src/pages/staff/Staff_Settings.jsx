@@ -2355,7 +2355,7 @@ function StaffSettingsContent({ headerAction }) {
                 </div>
               </header>
 
-              <div className="doctor-settings-security-grid">
+              <div className="doctor-settings-security-grid doctor-settings-security-grid--password-only">
                 <section className="doctor-settings-security-card doctor-settings-password-card">
                   <h3>
                     <StaffIcon name="key" />
@@ -2480,42 +2480,6 @@ function StaffSettingsContent({ headerAction }) {
                       ? "Verifying..."
                       : "Save Changes"}
                   </button>
-                </section>
-
-                <section className="doctor-settings-security-card doctor-settings-options-card">
-                  <h3>
-                    <StaffIcon name="shield" />
-                    Security Options
-                  </h3>
-
-                  <label className="doctor-settings-security-option">
-                    <span>
-                      <strong>
-                        Two-Factor Authentication (2FA)
-                      </strong>
-
-                      <small>
-                        MFA enrollment and sign-in challenge enforcement are not
-                        available yet.
-                      </small>
-                    </span>
-
-                    <span className="staff-security-unavailable">Unavailable</span>
-                  </label>
-
-                  <label className="doctor-settings-security-option">
-                    <span>
-                      <strong>
-                        Login Notifications
-                      </strong>
-
-                      <small>
-                        Login-event security emails are not available yet.
-                      </small>
-                    </span>
-
-                    <span className="staff-security-unavailable">Unavailable</span>
-                  </label>
                 </section>
               </div>
             </form>
