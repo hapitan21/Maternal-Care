@@ -4,7 +4,7 @@ const PATIENT = "22222222-2222-4222-8222-222222222222";
 const SCHEDULE = "33333333-3333-4333-8333-333333333333";
 const FOREIGN = "44444444-4444-4444-8444-444444444444";
 const DISPATCH = "55555555-5555-4555-8555-555555555555";
-const SECRET = "sb_secret_synthetic_appointment_handler";
+const SECRET = "sb_secret_SYNTHETIC_TEST_ONLY_NEVER_REAL";
 function assert(value: unknown): asserts value {
   if (!value) throw new Error("Synthetic appointment handler assertion failed");
 }
@@ -105,7 +105,7 @@ for (const role of ["staff", "doctor", "admin"]) Deno.test(`actual ${role} handl
 Deno.test("actual appointment handler refuses server-secret confirmation and invalid server secret", async () => {
   const f = await fixture();
   assert((await f.request(null, {}, SECRET)).status === 403);
-  assert((await f.request(null, {}, "sb_secret_wrong_synthetic")).status === 401);
+  assert((await f.request(null, {}, "sb_secret_INVALID_TEST_ONLY_NEVER_REAL")).status === 401);
   assert(f.claims() === 0 && f.calls() === 0);
 });
 Deno.test("actual appointment handler refuses user reminder and concurrent duplicate transport", async () => {
