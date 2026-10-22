@@ -138,7 +138,8 @@ function isPendingPatientBooking(appointment: AppointmentSmsRow): boolean {
   )
     .trim()
     .toLowerCase();
-  const requestedByPatient = details.requestedByPatient === true ||
+  const requestedByPatient = details.source === "patient-booking-request" ||
+    details.requestedByPatient === true ||
     details.requestedByPatient === "true";
 
   return requestedByPatient && requestStatus !== "accepted";
@@ -153,18 +154,19 @@ export function formatAppointmentSmsDate(value: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(date);
+  }).format(date).replace(/\s+/g, " ");
 }
 
 export function formatAppointmentSmsTime(value: string): string {
   const date = parseTimestamp(value);
   if (!date) return "";
 
+  // ICU can insert non-ASCII spaces before AM/PM; keep SMS text ASCII-safe.
   return new Intl.DateTimeFormat("en-US", {
     timeZone: APPOINTMENT_SMS_TIME_ZONE,
     hour: "numeric",
     minute: "2-digit",
-  }).format(date);
+  }).format(date).replace(/\s+/g, " ");
 }
 
 function getManilaDateKey(value: string | Date): string {
@@ -194,6 +196,7 @@ export function buildAppointmentSmsMessage(
   event: AppointmentSmsEvent,
   appointment: AppointmentSmsRow,
   now = new Date(),
+  appointmentEvent: AppointmentEventRow | null = null,
 ): string {
   const date = formatAppointmentSmsDate(appointment.start_time);
   const time = formatAppointmentSmsTime(appointment.start_time);
@@ -201,10 +204,16 @@ export function buildAppointmentSmsMessage(
   switch (event) {
     case appointmentSmsEvents.confirmed:
       return `Maternal Care: Your appointment is confirmed for ${date} at ${time}. Please arrive 15 minutes early.`;
-    case appointmentSmsEvents.rescheduled:
-      return `Maternal Care: Your appointment has been rescheduled to ${date} at ${time}. Please check the app for details.`;
+    case appointmentSmsEvents.rescheduled: {
+      const previous = appointmentEvent?.previous_start_time;
+      const next = appointmentEvent?.new_start_time;
+      if (!previous || !next || !parseTimestamp(previous) || !parseTimestamp(next)) {
+        return "";
+      }
+      return `Maternal Care: Your appointment has been rescheduled from ${formatAppointmentSmsDate(previous)} at ${formatAppointmentSmsTime(previous)} to ${formatAppointmentSmsDate(next)} at ${formatAppointmentSmsTime(next)}. Please contact the clinic for assistance.`;
+    }
     case appointmentSmsEvents.cancelled:
-      return `Maternal Care: Your appointment on ${date} at ${time} has been cancelled. Please check the app for details.`;
+      return `Maternal Care: Your appointment on ${date} at ${time} has been cancelled. Please contact the clinic for assistance.`;
     case appointmentSmsEvents.reminder:
       return isTomorrowInManila(appointment.start_time, now)
         ? `Maternal Care reminder: You have an appointment tomorrow at ${time}. Please arrive 15 minutes early.`
@@ -258,7 +267,14 @@ export function buildAppointmentSmsPlan({
     }
     const eventStart = parseTimestamp(appointmentEvent.new_start_time);
     const eventEnd = parseTimestamp(appointmentEvent.new_end_time);
-    if (!eventStart || !eventEnd || eventEnd <= eventStart) {
+    const previousStart = parseTimestamp(appointmentEvent.previous_start_time);
+    const previousEnd = parseTimestamp(appointmentEvent.previous_end_time);
+    if (
+      !eventStart || !eventEnd || eventEnd <= eventStart ||
+      !previousStart || !previousEnd || previousEnd <= previousStart ||
+      (eventStart.getTime() === previousStart.getTime() &&
+        eventEnd.getTime() === previousEnd.getTime())
+    ) {
       return { plan: null, reason: "invalid_appointment_reschedule_time" };
     }
     dispatchKey =
@@ -330,14 +346,9 @@ export function buildAppointmentSmsPlan({
       scheduledFor,
       message: buildAppointmentSmsMessage(
         event,
-        event === appointmentSmsEvents.rescheduled && appointmentEvent
-          ? {
-            ...appointment,
-            start_time: appointmentEvent.new_start_time,
-            end_time: appointmentEvent.new_end_time,
-          }
-          : appointment,
+        appointment,
         now,
+        appointmentEvent,
       ),
     },
     reason: null,
@@ -382,6 +393,21 @@ export async function orchestrateAppointmentSms(
     dispatchId: claim.dispatch_id,
     message: planning.plan.message,
   });
+
+  if (
+    transport.ok === true && transport.sent === false &&
+    transport.skipped === true && transport.status === "cancelled" &&
+    transport.reason === "appointment_event_sms_disabled"
+  ) {
+    return {
+      ok: true,
+      sent: false,
+      skipped: true,
+      reason: "appointment_event_sms_disabled",
+      dispatchId: claim.dispatch_id,
+      dispatchStatus: "cancelled",
+    };
+  }
 
   return {
     ok: transport.ok === true && transport.sent === true,

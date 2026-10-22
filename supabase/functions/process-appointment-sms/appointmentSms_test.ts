@@ -103,7 +103,13 @@ function appointmentEvent(
   };
 }
 
-function createDependencies(transportResult = { ok: true, sent: true, status: "sent" }) {
+function createDependencies(transportResult: {
+  ok: boolean;
+  sent: boolean;
+  status: string;
+  skipped?: boolean;
+  reason?: string;
+} = { ok: true, sent: true, status: "sent" }) {
   const claims = new Map<string, string>();
   const claimPlans: AppointmentSmsPlan[] = [];
   const transportRequests: Array<{ dispatchId: string; message: string }> = [];
@@ -168,6 +174,90 @@ Deno.test("duplicate confirmation invokes transport only once", async () => {
 
   assertEquals(harness.transportRequests.length, 1);
 });
+
+const unapprovedBookingCases: Array<[string, Record<string, unknown>]> = [
+  ["source-only pending", { source: "patient-booking-request", requestStatus: "pending" }],
+  ["source-only missing status", { source: "patient-booking-request" }],
+  ["source-only blank status", { source: "patient-booking-request", requestStatus: "" }],
+  ["source-only rejected", { source: "patient-booking-request", requestStatus: "rejected" }],
+  ["requestedByPatient-only pending", { requestedByPatient: true, requestStatus: "pending" }],
+  ["string requestedByPatient pending", { requestedByPatient: "true", requestStatus: "pending" }],
+  ["both markers pending", {
+    source: "patient-booking-request",
+    requestedByPatient: true,
+    requestStatus: "pending",
+  }],
+];
+
+for (const [name, description] of unapprovedBookingCases) {
+  Deno.test(`${name} booking is blocked before dispatch claim or transport`, async () => {
+    const harness = createDependencies();
+    const input = {
+      event: appointmentSmsEvents.confirmed,
+      appointment: appointment({ description: JSON.stringify(description) }),
+      now: NOW,
+    };
+    const planning = buildAppointmentSmsPlan(input);
+    assertEquals(planning.plan, null);
+    assertEquals(planning.reason, "booking_request_pending");
+
+    const result = await orchestrateAppointmentSms(input, harness.dependencies);
+    assertEquals(result.ok, true);
+    assertEquals(result.sent, false);
+    assertEquals(result.skipped, true);
+    assertEquals(result.reason, "booking_request_pending");
+    assertEquals(harness.claimPlans.length, 0);
+    assertEquals(harness.transportRequests.length, 0);
+  });
+}
+
+const eligibleConfirmationCases: Array<[
+  string,
+  string,
+  Record<string, unknown> | null,
+]> = [
+  ["ordinary scheduled", "scheduled", null],
+  ["ordinary Pending", "Pending", null],
+  ["source-only accepted", "scheduled", {
+    source: "patient-booking-request",
+    requestStatus: "accepted",
+  }],
+  ["requestedByPatient-only accepted", "scheduled", {
+    requestedByPatient: true,
+    requestStatus: "accepted",
+  }],
+  ["string requestedByPatient accepted", "scheduled", {
+    requestedByPatient: "true",
+    requestStatus: "accepted",
+  }],
+  ["source-only normalized alternate status", "scheduled", {
+    source: "patient-booking-request",
+    request_status: " Accepted ",
+  }],
+];
+
+for (const [name, status, description] of eligibleConfirmationCases) {
+  Deno.test(`${name} appointment retains confirmation eligibility and key`, async () => {
+    const harness = createDependencies();
+    const result = await orchestrateAppointmentSms({
+      event: appointmentSmsEvents.confirmed,
+      appointment: appointment({
+        status,
+        description: description === null ? null : JSON.stringify(description),
+      }),
+      now: NOW,
+    }, harness.dependencies);
+
+    assertEquals(result.ok, true);
+    assertEquals(result.sent, true);
+    assertEquals(harness.claimPlans.length, 1);
+    assertEquals(harness.transportRequests.length, 1);
+    assertEquals(
+      harness.claimPlans[0]?.dispatchKey,
+      `appointment:${SCHEDULE_ID}:confirmed:sms`,
+    );
+  });
+}
 
 Deno.test("pending Patient booking request does not create confirmation SMS", () => {
   const result = buildAppointmentSmsPlan({
@@ -255,7 +345,7 @@ Deno.test("unrelated schedule updates cannot change a reschedule key", () => {
 
 Deno.test("a second genuine reschedule event creates a different key", () => {
   const secondEventId = "66666666-6666-4666-8666-666666666666";
-  assert(APPOINTMENT_EVENT_ID !== secondEventId, "Event IDs must differ");
+  assertEquals(new Set([APPOINTMENT_EVENT_ID, secondEventId]).size, 2);
   const first = buildAppointmentSmsPlan({
     event: appointmentSmsEvents.rescheduled,
     appointment: appointment(),
@@ -571,6 +661,104 @@ Deno.test("date and time formatting use the project Manila timezone", () => {
   );
 });
 
+for (const spacing of ["\u00a0", "\u202f", "\u2009"]) {
+  Deno.test(`appointment SMS normalizes ICU spacing U+${spacing.charCodeAt(0).toString(16)}`, () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Intl.DateTimeFormat.prototype,
+      "format",
+    )!;
+    // Reproduce runtime-dependent ICU spacing without depending on local ICU.
+    Object.defineProperty(Intl.DateTimeFormat.prototype, "format", {
+      ...descriptor,
+      get() {
+        const format = descriptor.get!.call(this);
+        return (date?: Date | number) => format(date).replace(/ /g, spacing);
+      },
+    });
+    try {
+      const row = appointment({ start_time: "2026-10-21T00:00:00.000Z" });
+      assertEquals(formatAppointmentSmsDate(row.start_time), "Oct 21, 2026");
+      assertEquals(formatAppointmentSmsTime(row.start_time), "8:00 AM");
+      for (const event of Object.values(appointmentSmsEvents)) {
+        const message = buildAppointmentSmsMessage(event, row, NOW, appointmentEvent({
+          new_start_time: row.start_time,
+        }));
+        assert(message.includes("Oct 21, 2026 at 8:00 AM"), "Preserve Manila date and time");
+        assert(!/[^\x20-\x7e]/.test(message), "SMS must contain printable ASCII only");
+      }
+      const tomorrow = buildAppointmentSmsMessage(
+        appointmentSmsEvents.reminder,
+        row,
+        new Date("2026-10-20T02:00:00.000Z"),
+      );
+      assert(tomorrow.includes("tomorrow at 8:00 AM"), "Preserve tomorrow wording");
+      assert(!/[^\x20-\x7e]/.test(tomorrow), "Tomorrow reminder must also be ASCII");
+    } finally {
+      Object.defineProperty(Intl.DateTimeFormat.prototype, "format", descriptor);
+    }
+  });
+}
+
+for (const [timestamp, expectedDate, expectedTime] of [
+  ["2026-10-20T16:00:00.000Z", "Oct 21, 2026", "12:00 AM"],
+  ["2026-10-21T04:00:00.000Z", "Oct 21, 2026", "12:00 PM"],
+  ["2026-10-21T12:05:00.000Z", "Oct 21, 2026", "8:05 PM"],
+  ["2026-12-31T16:00:00.000Z", "Jan 1, 2027", "12:00 AM"],
+]) {
+  Deno.test(`ASCII SMS formatting preserves Manila boundary ${timestamp}`, () => {
+    assertEquals(formatAppointmentSmsDate(timestamp), expectedDate);
+    assertEquals(formatAppointmentSmsTime(timestamp), expectedTime);
+  });
+}
+
+Deno.test("confirmation passes exact ASCII date and time to mocked transport", async () => {
+  const harness = createDependencies();
+  await orchestrateAppointmentSms({
+    event: appointmentSmsEvents.confirmed,
+    appointment: appointment({ start_time: "2026-10-21T00:00:00.000Z" }),
+    now: NOW,
+  }, harness.dependencies);
+  assertEquals(harness.transportRequests.length, 1);
+  assertEquals(
+    harness.transportRequests[0].message,
+    "Maternal Care: Your appointment is confirmed for Oct 21, 2026 at 8:00 AM. Please arrive 15 minutes early.",
+  );
+});
+
+Deno.test("invalid timestamps retain empty date and time formatting", () => {
+  assertEquals(formatAppointmentSmsDate("not-a-date"), "");
+  assertEquals(formatAppointmentSmsTime("not-a-date"), "");
+});
+
+Deno.test("uncertain transport response never triggers a blind resend", async () => {
+  const harness = createDependencies();
+  const input = {
+    event: appointmentSmsEvents.confirmed,
+    appointment: appointment(),
+    now: NOW,
+  };
+  const before = JSON.stringify(input.appointment);
+  let calls = 0;
+  const dependencies = {
+    ...harness.dependencies,
+    invokeTransport: () => {
+      calls++;
+      return Promise.reject(new Error("synthetic_timeout"));
+    },
+  };
+  let rejected = false;
+  try {
+    await orchestrateAppointmentSms(input, dependencies);
+  } catch {
+    rejected = true;
+  }
+  assert(rejected, "Uncertain transport must not claim success");
+  const retry = await orchestrateAppointmentSms(input, dependencies);
+  assertEquals(retry.idempotent, true);
+  assertEquals(calls, 1);
+  assertEquals(JSON.stringify(input.appointment), before);
+});
+
 Deno.test("Phase 2 transport runs only when claim may_send is true", async () => {
   let transportCalls = 0;
   const result = await orchestrateAppointmentSms(
@@ -642,4 +830,87 @@ Deno.test("targeted orchestration tests use injected transport with no network",
 
   assertEquals(result.sent, true);
   assertEquals(injectedTransportCalls, 1);
+});
+
+Deno.test("reschedule template uses persisted old and new times, never current schedule", () => {
+  const result = buildAppointmentSmsPlan({
+    event: appointmentSmsEvents.rescheduled,
+    appointment: appointment({ start_time: "2026-11-01T00:00:00.000Z" }),
+    appointmentEvent: appointmentEvent({
+      previous_start_time: "2026-10-21T00:00:00.000Z",
+      previous_end_time: "2026-10-21T00:30:00.000Z",
+      new_start_time: "2026-10-23T01:00:00.000Z",
+      new_end_time: "2026-10-23T01:30:00.000Z",
+    }),
+    now: NOW,
+  });
+  assertEquals(result.plan?.message,
+    "Maternal Care: Your appointment has been rescheduled from Oct 21, 2026 at 8:00 AM to Oct 23, 2026 at 9:00 AM. Please contact the clinic for assistance.");
+});
+
+Deno.test("cancellation template retains date and distinguishes a committed cancellation", () => {
+  const result = buildAppointmentSmsPlan({
+    event: appointmentSmsEvents.cancelled,
+    appointment: appointment({ status: "cancelled", start_time: "2026-10-21T00:00:00.000Z" }),
+    now: NOW,
+  });
+  assertEquals(result.plan?.message,
+    "Maternal Care: Your appointment on Oct 21, 2026 at 8:00 AM has been cancelled. Please contact the clinic for assistance.");
+});
+
+for (const updates of [
+  { previous_start_time: null },
+  { previous_start_time: "invalid" },
+  { previous_end_time: null },
+  { previous_end_time: "2026-10-20T00:00:00.000Z" },
+  { previous_start_time: "2026-10-21T02:00:00.000Z", previous_end_time: "2026-10-21T02:30:00.000Z" },
+]) {
+  Deno.test(`invalid or unchanged reschedule history blocks SMS ${JSON.stringify(updates)}`, async () => {
+    const harness = createDependencies();
+    const result = await orchestrateAppointmentSms({
+      event: appointmentSmsEvents.rescheduled,
+      appointment: appointment(),
+      appointmentEvent: appointmentEvent(updates),
+      now: NOW,
+    }, harness.dependencies);
+    assertEquals(result.sent, false);
+    assertEquals(harness.claimPlans.length, 0);
+    assertEquals(harness.transportRequests.length, 0);
+  });
+}
+
+for (const event of Object.values(appointmentSmsEvents)) {
+  Deno.test(`declined Patient request never emits ${event}`, async () => {
+    const harness = createDependencies();
+    const result = await orchestrateAppointmentSms({
+      event,
+      appointment: appointment({
+        status: "cancelled",
+        description: JSON.stringify({ source: "patient-booking-request", requestStatus: "declined" }),
+      }),
+      appointmentEvent: appointmentEvent(),
+      now: NOW,
+    }, harness.dependencies);
+    assertEquals(result.sent, false);
+    assertEquals(harness.claimPlans.length, 0);
+    assertEquals(harness.transportRequests.length, 0);
+  });
+}
+
+Deno.test("disabled event transport is an intentional skip without appointment mutation or replay", async () => {
+  const harness = createDependencies({
+    ok: true, sent: false, skipped: true, status: "cancelled",
+    reason: "appointment_event_sms_disabled",
+  });
+  const row = appointment();
+  const before = JSON.stringify(row);
+  const input = { event: appointmentSmsEvents.confirmed, appointment: row, now: NOW };
+  const result = await orchestrateAppointmentSms(input, harness.dependencies);
+  assertEquals(result.ok, true);
+  assertEquals(result.skipped, true);
+  assertEquals(result.sent, false);
+  assertEquals(result.reason, "appointment_event_sms_disabled");
+  await orchestrateAppointmentSms(input, harness.dependencies);
+  assertEquals(harness.transportRequests.length, 1);
+  assertEquals(JSON.stringify(row), before);
 });

@@ -42,20 +42,27 @@ export async function recordAuditEvent({
   metadata = {},
   requestId,
 }) {
-  const { data, error } = await supabase.rpc("record_audit_event", {
-    p_module: cleanOptionalText(module),
-    p_action: cleanOptionalText(action),
-    p_entity_type: cleanOptionalText(entityType),
-    p_entity_id: cleanOptionalText(entityId),
-    p_description: cleanOptionalText(description),
-    p_metadata: metadata && typeof metadata === "object" ? metadata : {},
-    p_request_id: requestId || null,
-  });
+  try {
+    const { data, error } = await supabase.rpc("record_audit_event", {
+      p_module: cleanOptionalText(module),
+      p_action: cleanOptionalText(action),
+      p_entity_type: cleanOptionalText(entityType),
+      p_entity_id: cleanOptionalText(entityId),
+      p_description: cleanOptionalText(description),
+      p_metadata: metadata && typeof metadata === "object" ? metadata : {},
+      p_request_id: requestId || null,
+    });
 
-  if (error) {
+    if (error) {
+      logAuditError(error);
+      return { data: null, error };
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    // Audit transport uncertainty must not turn a completed action into a failure.
+    // Do not retry: the event may already have been recorded.
     logAuditError(error);
     return { data: null, error };
   }
-
-  return { data, error: null };
 }

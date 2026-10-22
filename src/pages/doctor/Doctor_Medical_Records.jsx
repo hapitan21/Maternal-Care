@@ -1,3 +1,5 @@
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import { settleQuery } from "../../lib/settleQuery";
 import React from "react";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
@@ -2225,6 +2227,7 @@ function MedicationAdherencePanel({ patient, doctorName }) {
   const [trendOccurrences, setTrendOccurrences] = React.useState([]);
   const [alertOccurrences, setAlertOccurrences] = React.useState([]);
   const [isLoading, setIsLoading] = React.useState(false);
+  const adherenceRequestRef = React.useRef(0);
   const [loadError, setLoadError] = React.useState(false);
   const [trendLoadError, setTrendLoadError] = React.useState(false);
   const [alertLoadError, setAlertLoadError] = React.useState(false);
@@ -2252,6 +2255,7 @@ function MedicationAdherencePanel({ patient, doctorName }) {
   );
 
   const loadAdherenceRecords = React.useCallback(async () => {
+    const requestId = ++adherenceRequestRef.current;
     if (
       !patientId ||
       dateRange.error ||
@@ -2266,6 +2270,7 @@ function MedicationAdherencePanel({ patient, doctorName }) {
       setLoadError(false);
       setTrendLoadError(false);
       setAlertLoadError(false);
+      setIsLoading(false);
       return;
     }
 
@@ -2328,8 +2333,9 @@ function MedicationAdherencePanel({ patient, doctorName }) {
         .lte("scheduled_for", nowIso)
         .in("status", ["taken", "skipped", "missed"])
         .order("scheduled_for", { ascending: true }),
-    ]);
+    ].map(settleQuery));
 
+    if (adherenceRequestRef.current !== requestId) return;
     setIsLoading(false);
 
     if (reminderResult.error || occurrenceResult.error) {
@@ -2382,7 +2388,10 @@ function MedicationAdherencePanel({ patient, doctorName }) {
 
   React.useEffect(() => {
     const initialLoadTimer = window.setTimeout(loadAdherenceRecords, 0);
-    return () => window.clearTimeout(initialLoadTimer);
+    return () => {
+      adherenceRequestRef.current += 1;
+      window.clearTimeout(initialLoadTimer);
+    };
   }, [loadAdherenceRecords]);
 
   React.useEffect(() => {
@@ -3578,10 +3587,7 @@ function MedicalRecordsPanel({
 
       <div className="mr-medical-record-list">
         {showInitialLoading ? (
-          <div className="mr-medical-no-results">
-            <Icon icon="eos-icons:loading" />
-            <p>Loading medical records...</p>
-          </div>
+          <WorkspaceSectionFallback label="medical records" />
         ) : selectedRecord ? (
           <>
             {filteredRecords.length > 1 ? (
@@ -3871,11 +3877,11 @@ export default function Doctor_Medical_Records({
     setRecordMessage("");
     setMedicalRecordsError(null);
 
-    const { data, error } = await supabase
+    const { data, error } = await settleQuery(supabase
       .from("medical_records")
       .select(medicalRecordColumns)
       .eq("patient_id", selectedPatient.id)
-      .order("uploaded_at", { ascending: false });
+      .order("uploaded_at", { ascending: false }));
 
     if (medicalRecordRequestRef.current !== requestId) {
       return;
@@ -3924,9 +3930,9 @@ export default function Doctor_Medical_Records({
       return;
     }
 
-    const { data, error } = await supabase.rpc("get_patient_avatar_url", {
+    const { data, error } = await settleQuery(supabase.rpc("get_patient_avatar_url", {
       p_patient_id: selectedPatient.id,
-    });
+    }));
 
     if (patientAvatarRequestRef.current !== requestId) return;
 
@@ -3944,6 +3950,8 @@ export default function Doctor_Medical_Records({
       const requestId = patientRequestRef.current + 1;
       patientRequestRef.current = requestId;
       const selectedInitialPatient = selectedInitialPatientRef.current;
+      setIsLoadingRecords(false);
+      setIsLoadingPrenatalDetails(false);
 
       if (!selectedInitialPatient?.id) {
         setPatient(null);
@@ -3981,11 +3989,11 @@ export default function Doctor_Medical_Records({
       setStableEditRecordId(focusedRecordIdRef.current);
       setIsOpeningEditRecord(false);
       setFocusedAppointmentId("");
-      const { data, error } = await supabase
+      const { data, error } = await settleQuery(supabase
         .rpc("get_doctor_patient_directory")
         .select(patientSelectColumns)
         .eq("id", selectedInitialPatient.id)
-        .maybeSingle();
+        .maybeSingle());
 
       if (patientRequestRef.current !== requestId) {
         return;
@@ -4070,6 +4078,9 @@ export default function Doctor_Medical_Records({
 
     return () => {
       patientRequestRef.current += 1;
+      medicalRecordRequestRef.current += 1;
+      prenatalRequestRef.current += 1;
+      patientAvatarRequestRef.current += 1;
     };
   }, [initialPatientId, loadPatientAvatar]);
 
@@ -4154,7 +4165,7 @@ export default function Doctor_Medical_Records({
         .eq("patient_id", selectedPatient.id)
         .limit(1)
         .maybeSingle(),
-    ]);
+    ].map(settleQuery));
 
     if (prenatalRequestRef.current !== requestId) return;
 
@@ -4475,9 +4486,7 @@ export default function Doctor_Medical_Records({
             </section>
           ) : isLoadingPatient || isLoadingPatientRelated || !patient ? (
             <section className="mr-record-panel" aria-busy="true">
-              <div className="mr-empty-tab" role="status">
-                Loading patient information...
-              </div>
+              <WorkspaceSectionFallback label="patient information" />
             </section>
           ) : (
             <>
@@ -4588,7 +4597,7 @@ export default function Doctor_Medical_Records({
 
           {activeTab === "Prenatal History" && (
             visibleRecordsLoading || visiblePrenatalDetailsLoading ? (
-              <div className="mr-empty-tab">Loading prenatal history...</div>
+              <WorkspaceSectionFallback label="prenatal history" />
             ) : medicalRecordsError ? (
               <div className="mr-empty-tab" role="alert">{recordMessage}</div>
             ) : (
@@ -4618,7 +4627,7 @@ export default function Doctor_Medical_Records({
 
           {activeTab === "Diagnostic Results" && (
             visibleRecordsLoading ? (
-              <div className="mr-empty-tab">Loading diagnostic results...</div>
+              <WorkspaceSectionFallback label="diagnostic results" />
             ) : medicalRecordsError ? (
               <div className="mr-empty-tab">{recordMessage}</div>
             ) : (
@@ -4628,7 +4637,7 @@ export default function Doctor_Medical_Records({
 
           {activeTab === "Prescriptions" && (
             visibleRecordsLoading ? (
-              <div className="mr-empty-tab">Loading prescriptions...</div>
+              <WorkspaceSectionFallback label="prescriptions" />
             ) : medicalRecordsError ? (
               <div className="mr-empty-tab">{recordMessage}</div>
             ) : (
@@ -4642,7 +4651,7 @@ export default function Doctor_Medical_Records({
 
           {activeTab === "Pregnancy Tracking" && (
             visibleRecordsLoading ? (
-              <div className="mr-empty-tab">Loading pregnancy tracking...</div>
+              <WorkspaceSectionFallback label="pregnancy tracking" />
             ) : (
               <PregnancyTrackingPanel
                 patient={patient}

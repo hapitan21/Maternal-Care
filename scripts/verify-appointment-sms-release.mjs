@@ -1,0 +1,33 @@
+// Synthetic file-tampering tests. No credentials, SQL, Docker, network or deployment.
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { preparePacket, verifyPacket, packetFiles } from "./prepare-appointment-sms-release.mjs";
+
+const result = preparePacket(), root = result.packet;
+let assertions = 0;
+const check = (a,b) => { assert.deepEqual(a,b); assertions++; };
+check(result.files, 12); check(result.status, "REVIEW_REQUIRED");
+check(packetFiles.some(p => /audit|android|\.env|migrations|process-medication/.test(p)), false);
+const file = path.join(root, "supabase/functions/_shared/appointmentEventSmsControl.ts");
+const original = fs.readFileSync(file);
+fs.appendFileSync(file, "\n// synthetic tampering\n");
+assert.throws(() => verifyPacket(root), /Packet hash mismatch/); assertions++;
+fs.writeFileSync(file, original); check(verifyPacket(root).manifestSha256, result.manifestSha256);
+const manifestPath = path.join(root, "release-manifest.json"), manifestText = fs.readFileSync(manifestPath, "utf8");
+const manifest = JSON.parse(manifestText); manifest.files["../outside"] = "0".repeat(64);
+fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+assert.throws(() => verifyPacket(root), /Unexpected manifest paths/); assertions++;
+fs.writeFileSync(manifestPath, manifestText);
+const otherManifest = JSON.parse(manifestText); otherManifest.deploymentApproved = true;
+fs.writeFileSync(manifestPath, JSON.stringify(otherManifest));
+assert.throws(() => verifyPacket(root)); assertions++;
+fs.writeFileSync(manifestPath, manifestText);
+const source = fs.readFileSync(new URL("../docs/sql-drafts/appointment-event-sms-release-preflight.sql", import.meta.url), "utf8");
+const stripped = source.replace(/--[^\n]*/g, "").replace(/'(?:[^']|'')*'/g, "''");
+const statements = stripped.split(";").map(s => s.trim()).filter(Boolean);
+check(statements.every(s => /^select\b/i.test(s)), true);
+check(/\b(insert|update|delete|create|alter|drop|grant|revoke|do|call|execute)\b/i.test(stripped), false);
+check(/\b(create_secret|update_secret|net\.|http_post|is_appointment_event_sms_enabled\s*\()/i.test(stripped), false);
+check(verifyPacket(root).manifestSha256, result.manifestSha256);
+console.log(`PASS ${assertions} release-isolation/tamper/SELECT-only assertions; 0 SQL, Docker, provider or deployment operations.`);

@@ -2627,6 +2627,13 @@
   margin-top: 1px;
 }
 
+.staff-add-appointment-slot-message {
+  margin: -8px 0 0;
+  color: #6b5360;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .staff-add-appointment-field input,
 .staff-add-appointment-field select {
   height: 50px;
@@ -3363,35 +3370,12 @@
   opacity: 0.78 !important;
 }
 
-/* Appointment type category overrides shared with Doctor appointments. */
-.staff-week-event-prenatal,
-.staff-fullcalendar-event-prenatal {
-  color: var(--staff-appointments-pink);
-  background: #ffe3ef;
-}
-
-.staff-week-event-laboratory,
-.staff-fullcalendar-event-laboratory {
-  color: #147a86;
-  background: #dff7f8;
-}
-
-.staff-week-event-ultrasound,
-.staff-fullcalendar-event-ultrasound {
-  color: #5264f2;
-  background: #e6ebff;
-}
-
-.staff-week-event-vaccination,
-.staff-fullcalendar-event-vaccination {
-  color: #8b4dff;
-  background: #f0ddff;
-}
-
-.staff-week-event-fallback,
-.staff-fullcalendar-event-fallback {
-  color: #697386;
-  background: #eef1f6;
+/* Color, surface, and accent stay in sync with the shared appointment map. */
+.staff-week-event,
+.staff-mobile-calendar-item {
+  color: var(--appointment-category-color, #697386);
+  background: var(--appointment-category-background, #eef1f6);
+  border-left-color: var(--appointment-category-color, #697386);
 }
 
 .staff-week-event strong,
@@ -3405,24 +3389,38 @@
   overflow-wrap: anywhere;
 }
 
-.staff-category-item.is-prenatal span {
-  background: #ffe0ee;
-  color: var(--staff-appointments-pink);
+.staff-category-item span {
+  background: var(--appointment-category-background);
+  color: var(--appointment-category-color);
 }
 
-.staff-category-item.is-laboratory span {
-  background: #dff7f8;
-  color: #147a86;
+.staff-week-event.is-completed > strong {
+  padding-right: 18px;
 }
 
-.staff-category-item.is-ultrasound span {
-  background: #e6ebff;
-  color: #5264f2;
+.staff-week-event .staff-week-event-completed {
+  position: absolute;
+  z-index: 2;
+  top: 5px;
+  right: 5px;
+  display: grid !important;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin: 0 !important;
+  border-radius: 50%;
+  border: 1px solid var(--appointment-status-color);
+  background: var(--appointment-status-background);
+  color: var(--appointment-status-color) !important;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.staff-category-item.is-vaccination span {
-  background: #f0ddff;
-  color: #8b4dff;
+.staff-mobile-calendar-item .staff-mobile-calendar-completed {
+  color: var(--appointment-status-color);
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .staff-category-item strong {
@@ -4705,6 +4703,15 @@
     overflow-y: auto;
     overscroll-behavior: contain;
   }
+}
+
+.staff-week-calendar-body,
+.staff-week-calendar-day {
+  min-height: calc(var(--staff-week-hour-height) * var(--staff-week-slot-count));
+}
+
+.staff-week-calendar-times {
+  grid-template-rows: repeat(var(--staff-week-slot-count), var(--staff-week-hour-height));
 }
 
 /* Staff request detail information alignment */

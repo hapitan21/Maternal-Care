@@ -1,4 +1,5 @@
 import { sendIprogSms } from "../_shared/iprogSms.ts";
+import { evaluateAppointmentEventSmsControl } from "../_shared/appointmentEventSmsControl.ts";
 import {
   classifySmsDispatch,
   type SmsDispatchRecoveryRow,
@@ -24,11 +25,21 @@ async function fixture(options: {
   timeoutMs?: number;
   failSuccessWrite?: boolean;
   missingToken?: boolean;
+  notificationType?: unknown;
+  setting?: unknown;
+  readSettingError?: boolean;
+  readSettingThrows?: boolean;
+  failFinalSettingRead?: boolean;
+  disableDuringLookup?: boolean;
+  failSuppressionWrite?: boolean;
 } = {}) {
-  const row: SmsDispatchRecoveryRow & { patient_id: string } = {
+  const row: SmsDispatchRecoveryRow & { patient_id: string; notification_type: unknown } = {
     id: DISPATCH_ID,
     patient_id: PATIENT_ID,
     channel: "sms",
+    notification_type: options.notificationType === undefined
+      ? "appointment_confirmed"
+      : options.notificationType,
     dispatch_key: `appointment:${DISPATCH_ID}:confirmed:sms`,
     status: options.status ?? "processing",
     provider: options.provider ?? null,
@@ -40,10 +51,12 @@ async function fixture(options: {
     failed_at: null,
     updated_at: NOW,
     last_error: null,
-  } as SmsDispatchRecoveryRow & { patient_id: string };
+  };
   const updates: Record<string, unknown>[] = [];
   const logs: unknown[][] = [];
   let calls = 0;
+  let setting: unknown = "setting" in options ? options.setting : true;
+  let settingReads = 0;
   const readEnvironment = (name: string) => {
     if (name === "SUPABASE_URL") return "https://example.test";
     if (name === "SUPABASE_SECRET_KEYS") {
@@ -53,6 +66,16 @@ async function fixture(options: {
     return undefined;
   };
   const createClient = () => ({
+    rpc(name: string) {
+      assert(name === "is_appointment_event_sms_enabled");
+      settingReads++;
+      if (options.readSettingThrows) throw new Error("synthetic-read-error");
+      return Promise.resolve({
+        data: setting,
+        error: options.readSettingError || (options.failFinalSettingRead && settingReads === 2)
+          ? { code: "synthetic-read-error" } : null,
+      });
+    },
     from(table: string) {
       const filters = new Map<string, unknown>();
       let update: Record<string, unknown> | null = null;
@@ -75,6 +98,7 @@ async function fixture(options: {
         maybeSingle() {
           if (table === "patients") {
             assert(filters.get("id") === PATIENT_ID);
+            if (options.disableDuringLookup) setting = false;
             return Promise.resolve({
               data: {
                 id: PATIENT_ID,
@@ -90,7 +114,10 @@ async function fixture(options: {
             }
           }
           if (update) {
-            if (options.failSuccessWrite && update.status === "sent") {
+            if (
+              (options.failSuccessWrite && update.status === "sent") ||
+              (options.failSuppressionWrite && update.status === "cancelled")
+            ) {
               return Promise.resolve({
                 data: null,
                 error: { code: "synthetic-write-failure" },
@@ -175,6 +202,8 @@ const console = _runtime.console;
     updates,
     logs,
     calls: () => calls,
+    settingReads: () => settingReads,
+    setEnabled(value: unknown) { setting = value; },
     request: (apikey = SERVER_SECRET) =>
       handler!(
         new Request("https://example.test/sms", {
@@ -187,6 +216,8 @@ const console = _runtime.console;
             phone_number: "639999999999",
             api_token: "client-token",
             provider: "client-provider",
+            notification_type: "medication_reminder",
+            appointment_event_sms_enabled: true,
             url: "https://wrong.test",
           }),
         }),
@@ -315,5 +346,121 @@ Deno.test("raw transport rejects ordinary browser and invalid server credentials
     const f = await fixture();
     assert((await f.request(key)).status === 401);
     assert(f.calls() === 0 && f.updates.length === 0);
+  }
+});
+
+const eventTypes = [
+  "appointment_confirmed", "appointment_rescheduled", "appointment_cancelled",
+];
+for (const notificationType of eventTypes) {
+  Deno.test(`${notificationType} enabled dispatch checks the switch at provider boundary`, async () => {
+    const f = await fixture({ notificationType, setting: true });
+    assert((await f.request()).status === 200);
+    assert(f.calls() === 1 && f.settingReads() === 2);
+  });
+
+  for (const setting of [false, null, undefined, "true", "false", "", 1, {}, [true]]) {
+    Deno.test(`${notificationType} fails closed for setting ${JSON.stringify(setting)}`, async () => {
+      const f = await fixture({ notificationType, setting });
+      const result = await (await f.request()).json();
+      assert(result.ok === true && result.sent === false && result.skipped === true);
+      assert(result.reason === "appointment_event_sms_disabled");
+      assert(f.calls() === 0 && f.row.status === "cancelled");
+      assert(f.row.provider === null && f.row.attempt_count === 1);
+      assert(classifySmsDispatch(f.row) === "terminal_cancelled");
+      f.setEnabled(true);
+      await f.request();
+      assert(f.calls() === 0 && f.settingReads() === 1);
+      assertPrivate(f, result);
+    });
+  }
+
+  Deno.test(`${notificationType} queued request observes OFF after reservation`, async () => {
+    const f = await fixture({ notificationType, disableDuringLookup: true });
+    const result = await (await f.request()).json();
+    assert(result.reason === "appointment_event_sms_disabled");
+    assert(f.calls() === 0 && f.settingReads() === 2);
+    assert(f.row.status === "cancelled" && f.row.provider === "iprogsms");
+    f.setEnabled(true);
+    await f.request();
+    assert(f.calls() === 0);
+  });
+}
+
+for (const option of ["readSettingError", "readSettingThrows"] as const) {
+  Deno.test(`configuration ${option} cannot reach provider`, async () => {
+    const f = await fixture({ [option]: true });
+    const result = await (await f.request()).json();
+    assert(result.sent === false && f.calls() === 0 && f.row.status === "cancelled");
+  });
+}
+
+for (const notificationType of [null, "unknown", "appointment_created"]) {
+  Deno.test(`unrecognized persisted SMS type ${notificationType} cannot bypass control`, async () => {
+    const f = await fixture({ notificationType });
+    assert((await f.request()).status === 409);
+    assert(f.calls() === 0 && f.settingReads() === 0);
+  });
+}
+
+for (const notificationType of ["appointment_reminder", "medication_reminder"]) {
+  Deno.test(`${notificationType} retains independent bridge behavior`, async () => {
+    const f = await fixture({ notificationType, setting: false, readSettingThrows: true });
+    assert((await f.request()).status === 200);
+    assert(f.calls() === 1 && f.settingReads() === 0);
+  });
+}
+
+Deno.test("failed suppression persistence never falls through to IPROG", async () => {
+  const f = await fixture({ setting: false, failSuppressionWrite: true });
+  assert((await f.request()).status === 500);
+  assert(f.calls() === 0 && f.row.status === "processing" && f.row.provider === null);
+});
+
+Deno.test("concurrent disabled requests never send and keep one terminal event", async () => {
+  const f = await fixture({ setting: false });
+  await Promise.all([f.request(), f.request()]);
+  assert(f.calls() === 0 && f.row.status === "cancelled");
+  assert(f.updates.filter(update => update.status === "cancelled").length === 1);
+});
+
+Deno.test("pure control rejects read failures and never reads event setting for reminders", async () => {
+  let reads = 0;
+  const fail = () => { reads++; return Promise.reject(new Error("synthetic")); };
+  for (const type of eventTypes) {
+    assert(await evaluateAppointmentEventSmsControl(type, fail) === "disabled");
+  }
+  assert(reads === 3);
+  assert(await evaluateAppointmentEventSmsControl("appointment_reminder", fail) === "enabled");
+  assert(await evaluateAppointmentEventSmsControl("medication_reminder", fail) === "enabled");
+  assert(reads === 3);
+});
+
+Deno.test("final configuration read failure suppresses a reserved event", async () => {
+  const f = await fixture({ failFinalSettingRead: true });
+  await f.request();
+  assert(f.calls() === 0 && f.settingReads() === 2);
+  assert(f.row.status === "cancelled" && f.row.provider === "iprogsms");
+});
+
+Deno.test("OFF cannot recall an SMS whose provider call already began", async () => {
+  let disable = () => {};
+  const f = await fixture({ response: () => {
+    disable();
+    return Promise.resolve(Response.json({ status: 200, message_id: "iSms-inflight" }));
+  } });
+  disable = () => f.setEnabled(false);
+  assert((await f.request()).status === 200);
+  assert(f.calls() === 1 && f.row.status === "sent");
+  await f.request();
+  assert(f.calls() === 1 && f.row.status === "sent");
+});
+
+Deno.test("OFF never overwrites an earlier provider reservation or historical success", async () => {
+  for (const status of ["processing", "sent", "delivered", "failed"]) {
+    const f = await fixture({ status, provider: "iprogsms", setting: false });
+    await f.request();
+    assert(f.calls() === 0 && f.updates.length === 0 && f.settingReads() === 0);
+    assert(f.row.status === status && f.row.provider === "iprogsms");
   }
 });

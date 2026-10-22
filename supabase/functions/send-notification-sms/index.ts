@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { evaluateAppointmentEventSmsControl } from "../_shared/appointmentEventSmsControl.ts";
 import {
   maskPhoneNumber,
   normalizePhilippinePhoneNumber,
@@ -235,14 +236,16 @@ async function handleAuthenticatedSmsRequest(
 
     const { data: dispatchData, error: dispatchError } = await supabase
       .from("notification_dispatches")
-      .select("id, patient_id, channel, status, provider")
+      .select("id, patient_id, channel, status, provider, notification_type")
       .eq("id", dispatchId)
       .maybeSingle();
 
     if (dispatchError) throw new DatabaseFailure("load_dispatch");
     if (!dispatchData) throw new RequestFailure(404, "dispatch_not_found");
 
-    const loadedDispatch = dispatchData as SmsDispatchRow;
+    const loadedDispatch = dispatchData as SmsDispatchRow & {
+      notification_type: string;
+    };
     if (loadedDispatch.channel !== "sms") {
       throw new RequestFailure(409, "dispatch_channel_not_sms");
     }
@@ -273,6 +276,55 @@ async function handleAuthenticatedSmsRequest(
         },
         409,
       );
+    }
+
+    const checkEventSmsControl = async (reservedByThisRequest: boolean) => {
+      const decision = await evaluateAppointmentEventSmsControl(
+        loadedDispatch.notification_type,
+        async () => {
+          const { data, error } = await supabase.rpc(
+            "is_appointment_event_sms_enabled",
+          );
+          if (error) throw new DatabaseFailure("read_appointment_event_sms_control");
+          return data;
+        },
+      );
+      if (decision === "unsupported") {
+        throw new RequestFailure(409, "dispatch_notification_type_unsupported");
+      }
+      if (decision === "enabled") return null;
+
+      // Consume this existing event key without sending. Re-enabling must not
+      // replay suppressed events. Never rewrite another request's reservation.
+      let query = supabase.from("notification_dispatches")
+        .update({
+          status: "cancelled",
+          last_error: "appointment_event_sms_disabled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", loadedDispatch.id)
+        .eq("channel", "sms")
+        .eq("status", "processing");
+      query = reservedByThisRequest
+        ? query.eq("provider", IPROGSMS_PROVIDER)
+        : query.is("provider", null);
+      const { data, error } = await query.select("id").maybeSingle();
+      if (error) throw new DatabaseFailure("suppress_appointment_event_sms");
+      if (!data) throw new RequestFailure(409, "dispatch_state_changed");
+      return jsonResponse({
+        ok: true,
+        sent: false,
+        skipped: true,
+        may_send: false,
+        reason: "appointment_event_sms_disabled",
+        dispatch_id: loadedDispatch.id,
+        status: "cancelled",
+      });
+    };
+
+    if (loadedDispatch.provider === null) {
+      const suppressed = await checkEventSmsControl(false);
+      if (suppressed) return suppressed;
     }
 
     const reservation = await reserveDispatchTransport(
@@ -379,6 +431,11 @@ async function handleAuthenticatedSmsRequest(
         422,
       );
     }
+
+    // Re-read immediately before provider dispatch: a queued request or a
+    // request paused during patient lookup must observe a newly disabled flag.
+    const suppressed = await checkEventSmsControl(true);
+    if (suppressed) return suppressed;
 
     console.info("SMS dispatch started", {
       executionId,

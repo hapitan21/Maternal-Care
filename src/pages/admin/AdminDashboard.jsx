@@ -57,7 +57,7 @@ function MetricCard({ icon, label, value, helper, loading, error }) {
 function PanelError({ message, onRetry }) {
   return (
     <div className="admin-panel-error" role="alert">
-      <Icon icon="solar:danger-triangle-linear" aria-hidden="true" />
+      <Icon icon="solar:danger-triangle-bold" aria-hidden="true" />
       <p>{message}</p>
       <button type="button" onClick={onRetry}>Retry</button>
     </div>
@@ -170,6 +170,7 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
     activityLoading,
     summaryError,
     activityError,
+    realtimeError,
     refresh,
   } = dashboardData;
   const summaryErrorMessage = summaryError?.code === "PGRST202" || summaryError?.code === "42883"
@@ -177,25 +178,25 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
     : summaryError?.message || "Dashboard summary metrics could not be loaded.";
   const metricCards = [
     {
-      icon: "solar:users-group-rounded-linear",
+      icon: "solar:users-group-rounded-bold",
       label: "Total Patients",
       value: totals.patients,
       helper: "Registered patient accounts",
     },
     {
-      icon: "solar:stethoscope-linear",
+      icon: "solar:stethoscope-bold",
       label: "Total Doctors",
       value: totals.doctors,
       helper: "Doctor accounts",
     },
     {
-      icon: "solar:user-id-linear",
+      icon: "solar:user-id-bold",
       label: "Total Staff",
       value: totals.staff,
       helper: "Staff accounts",
     },
     {
-      icon: "solar:calendar-date-linear",
+      icon: "solar:calendar-date-bold",
       label: "Today's Appointments",
       value: totals.todaysAppointments,
       helper: "Scheduled for today",
@@ -223,7 +224,7 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
             </select>
           </label>
           <button className="admin-refresh-btn" type="button" onClick={refresh} disabled={loading} aria-label="Refresh dashboard data" title="Refresh dashboard data">
-            <Icon icon="solar:refresh-linear" />
+            <Icon icon="solar:refresh-bold" />
           </button>
         </div>
       </section>
@@ -274,6 +275,7 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
           </header>
 
           <div className="admin-activity-list">
+            {realtimeError ? <p className="admin-empty" role="status">{realtimeError}</p> : null}
             {activityLoading ? (
               Array.from({ length: 5 }, (_, index) => (
                 <div className="admin-activity-item" key={index}>
@@ -297,7 +299,7 @@ function DashboardContent({ identity, dateRange, setDateRange, dashboardData, on
                     <small>{activity.actor} ({activity.actorRole}) | {activity.timeLabel}</small>
                     <span className="admin-activity-meta">{activity.module} | {activity.action}</span>
                   </div>
-                  <Icon icon="solar:alt-arrow-right-linear" />
+                  <Icon icon="solar:alt-arrow-right-bold" />
                 </button>
               ))
             ) : (

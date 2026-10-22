@@ -75,6 +75,11 @@ textarea {
   text-align: center;
 }
 
+.workspace-section-loading--compact {
+  min-height: 0;
+  padding: 16px 20px;
+}
+
 .workspace-section-loading > span {
   width: 34px;
   height: 34px;

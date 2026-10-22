@@ -12,19 +12,19 @@ const navGroups = [
     label: "Management",
     items: [
       { label: "User Management", icon: "solar:users-group-rounded-bold", path: "/admin/user-management" },
-      { label: "Appointment Overview", icon: "solar:calendar-mark-linear", path: "/admin/appointment-overview" },
+      { label: "Appointment Overview", icon: "solar:calendar-mark-bold", path: "/admin/appointment-overview" },
     ],
   },
   {
     label: "Reports & Logs",
     items: [
-      { label: "Reports", icon: "solar:chart-2-linear", path: "/admin/reports" },
-      { label: "Audit Logs", icon: "solar:clipboard-list-linear", path: "/admin/audit-logs", end: true },
+      { label: "Reports", icon: "solar:chart-2-bold", path: "/admin/reports" },
+      { label: "Audit Logs", icon: "solar:clipboard-list-bold", path: "/admin/audit-logs", end: true },
     ],
   },
   {
     label: "System",
-    items: [{ label: "System Settings", icon: "solar:settings-linear", path: "/admin/system-settings", end: true }],
+    items: [{ label: "System Settings", icon: "solar:settings-bold", path: "/admin/system-settings", end: true }],
   },
 ];
 

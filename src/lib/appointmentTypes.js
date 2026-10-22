@@ -10,35 +10,68 @@ export const APPOINTMENT_TYPES = [
 export const APPOINTMENT_CATEGORIES = [
   {
     id: "prenatal",
-    label: "Follow-up Prenatal Check-up",
+    label: "Prenatal Check-up",
     icon: "solar:heart-pulse-bold",
     colorClass: "is-prenatal",
+    color: "#FF2F7D",
+    background: "#FFE4EF",
+  },
+  {
+    id: "initial-prenatal",
+    label: "Initial Prenatal Check-up",
+    icon: "solar:medical-kit-bold",
+    colorClass: "is-initial-prenatal",
+    color: "#F97345",
+    background: "#FFECDF",
+  },
+  {
+    id: "follow-up",
+    label: "Follow-up Consultation",
+    icon: "solar:stethoscope-bold",
+    colorClass: "is-follow-up",
+    color: "#8B5CF6",
+    background: "#F0E8FF",
   },
   {
     id: "laboratory",
     label: "Laboratory Test",
     icon: "solar:test-tube-bold",
     colorClass: "is-laboratory",
+    color: "#008E99",
+    background: "#DDF7F8",
   },
   {
     id: "ultrasound",
     label: "Ultrasound Examination",
     icon: "solar:monitor-camera-bold",
     colorClass: "is-ultrasound",
+    color: "#5064F5",
+    background: "#E5E9FF",
   },
   {
     id: "vaccination",
     label: "Vaccination / Immunization",
     icon: "solar:syringe-bold",
     colorClass: "is-vaccination",
+    color: "#B94AEC",
+    background: "#F4E2FF",
   },
 ];
 
 const CATEGORY_BY_TYPE = {
+  [normalizeAppointmentType("Prenatal Check-up")]: "prenatal",
   [normalizeAppointmentType("Follow-up Prenatal Check-up")]: "prenatal",
+  [normalizeAppointmentType("Initial Prenatal Check-up")]: "initial-prenatal",
+  [normalizeAppointmentType("Follow-up Consultation")]: "follow-up",
+  [normalizeAppointmentType("Follow up Consultation")]: "follow-up",
   [normalizeAppointmentType("Laboratory Test")]: "laboratory",
   [normalizeAppointmentType("Ultrasound Examination")]: "ultrasound",
   [normalizeAppointmentType("Vaccination / Immunization")]: "vaccination",
+};
+
+const COMPLETED_APPOINTMENT_STATUS_COLORS = {
+  color: "#159B53",
+  background: "#E1F7E9",
 };
 
 export function normalizeAppointmentType(value = "") {
@@ -60,6 +93,27 @@ export function isKnownAppointmentType(value = "") {
 
 export function getAppointmentTypeCategory(value = "") {
   return CATEGORY_BY_TYPE[normalizeAppointmentType(value)] || "fallback";
+}
+
+export function getAppointmentCategoryStyle(categoryId = "") {
+  const category = APPOINTMENT_CATEGORIES.find((item) => item.id === categoryId);
+  if (!category) return undefined;
+
+  return {
+    "--appointment-category-color": category.color,
+    "--appointment-category-background": category.background,
+  };
+}
+
+export function isCompletedAppointmentStatus(status = "") {
+  return String(status).trim().toLowerCase() === "completed";
+}
+
+export function getCompletedAppointmentStatusStyle() {
+  return {
+    "--appointment-status-color": COMPLETED_APPOINTMENT_STATUS_COLORS.color,
+    "--appointment-status-background": COMPLETED_APPOINTMENT_STATUS_COLORS.background,
+  };
 }
 
 export function getAppointmentTypeForCategory(categoryId = "") {

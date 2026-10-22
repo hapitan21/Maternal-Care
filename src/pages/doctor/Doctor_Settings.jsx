@@ -1,3 +1,4 @@
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import React from "react";
 import { rememberDoctorSettingsDialogTrigger, useDoctorSettingsDialog } from "../../hooks/useDoctorSettingsDialog";
 import { DoctorSignOutContext } from "../../context/roleInactivityContext";
@@ -1469,6 +1470,8 @@ function DoctorSettingsContent({ headerAction = null, doctorIdentity = null }) {
         </div>
         {headerAction ?? <SettingsHeaderAction settings={settings} />}
       </header>
+
+      {isLoading ? <WorkspaceSectionFallback label="settings" compact /> : null}
 
       {loadError ? (
         <div className="doctor-settings-inline-actions" role="alert">

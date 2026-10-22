@@ -1,3 +1,4 @@
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import React from "react";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
@@ -1948,6 +1949,8 @@ function StaffSettingsContent({ headerAction }) {
 
         {headerAction}
       </header>
+
+      {isLoadingSettings ? <WorkspaceSectionFallback label="settings" compact /> : null}
 
       {successMessage ? (
         <div

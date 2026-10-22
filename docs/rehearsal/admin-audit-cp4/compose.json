@@ -1,0 +1,335 @@
+{
+  "name": "mc-audit-cp4-compose-__CP4_NONCE__",
+  "services": {
+    "db": {
+      "image": "public.ecr.aws/supabase/postgres@sha256:0450166354dc9c1d25f0322ac8b580774d4fb0184d2b087f6e4fe9499c66cf53",
+      "pull_policy": "never",
+      "restart": "no",
+      "labels": {
+        "maternal.audit.cp4.nonce": "__CP4_NONCE__",
+        "maternal.audit.cp4.synthetic": "true"
+      },
+      "networks": {
+        "isolated": {
+          "aliases": [
+            "db",
+            "db.supabase.internal"
+          ]
+        }
+      },
+      "environment": {
+        "POSTGRES_USER": "supabase_admin",
+        "POSTGRES_DB": "postgres",
+        "POSTGRES_HOST": "/var/run/postgresql",
+        "PGDATA": "/var/lib/postgresql/data",
+        "JWT_EXP": "3600"
+      },
+      "env_file": [
+        {
+          "path": "./private/db.env",
+          "format": "raw"
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U postgres -h 127.0.0.1 -p 5432"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "30s"
+      },
+      "entrypoint": [
+        "sh",
+        "/cp4/db-start.sh"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "database",
+          "target": "/var/lib/postgresql/data"
+        },
+        {
+          "type": "bind",
+          "source": "./db-start.sh",
+          "target": "/cp4/db-start.sh",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ]
+    },
+    "auth": {
+      "image": "public.ecr.aws/supabase/gotrue@sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b",
+      "pull_policy": "never",
+      "restart": "no",
+      "labels": {
+        "maternal.audit.cp4.nonce": "__CP4_NONCE__",
+        "maternal.audit.cp4.synthetic": "true"
+      },
+      "networks": {
+        "isolated": {
+          "aliases": [
+            "auth"
+          ]
+        }
+      },
+      "environment": {
+        "GOTRUE_API_HOST": "0.0.0.0",
+        "GOTRUE_API_PORT": "9999",
+        "GOTRUE_DB_DRIVER": "postgres",
+        "API_EXTERNAL_URL": "http://127.0.0.1:55421/auth/v1",
+        "GOTRUE_SITE_URL": "http://127.0.0.1:58973",
+        "GOTRUE_URI_ALLOW_LIST": "http://127.0.0.1:58973",
+        "GOTRUE_JWT_ISSUER": "http://127.0.0.1:55421/auth/v1",
+        "GOTRUE_JWT_AUD": "authenticated",
+        "GOTRUE_JWT_ADMIN_ROLES": "service_role",
+        "GOTRUE_JWT_DEFAULT_GROUP_NAME": "authenticated",
+        "GOTRUE_JWT_EXP": "3600",
+        "GOTRUE_DISABLE_SIGNUP": "true",
+        "GOTRUE_EXTERNAL_EMAIL_ENABLED": "true",
+        "GOTRUE_MAILER_AUTOCONFIRM": "true",
+        "GOTRUE_EXTERNAL_PHONE_ENABLED": "false",
+        "GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED": "false",
+        "GOTRUE_SMTP_HOST": "",
+        "GOTRUE_HOOK_SEND_SMS_ENABLED": "false",
+        "GOTRUE_HOOK_SEND_EMAIL_ENABLED": "false",
+        "GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED": "true"
+      },
+      "env_file": [
+        {
+          "path": "./private/auth.env",
+          "format": "raw"
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:9999/health"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "30s"
+      },
+      "depends_on": {
+        "db": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "rest": {
+      "image": "public.ecr.aws/supabase/postgrest@sha256:d155c6718ed9a9f990d159a2ab7c0a3f16944dbb6d0a0344557421042acfe0df",
+      "pull_policy": "never",
+      "restart": "no",
+      "labels": {
+        "maternal.audit.cp4.nonce": "__CP4_NONCE__",
+        "maternal.audit.cp4.synthetic": "true"
+      },
+      "networks": {
+        "isolated": {
+          "aliases": [
+            "rest"
+          ]
+        }
+      },
+      "environment": {
+        "PGRST_DB_SCHEMAS": "public",
+        "PGRST_DB_EXTRA_SEARCH_PATH": "public,extensions",
+        "PGRST_DB_ANON_ROLE": "anon",
+        "PGRST_DB_MAX_ROWS": "1000",
+        "PGRST_ADMIN_SERVER_PORT": "3001",
+        "PGRST_SERVER_HOST": "0.0.0.0"
+      },
+      "env_file": [
+        {
+          "path": "./private/rest.env",
+          "format": "raw"
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/bin/postgrest",
+          "--ready"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "30s"
+      },
+      "depends_on": {
+        "db": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "realtime": {
+      "image": "public.ecr.aws/supabase/realtime@sha256:f66c721c71b576f5854c78f86df0c78a98368d900dcf62e4ddd96c6913139999",
+      "pull_policy": "never",
+      "restart": "no",
+      "labels": {
+        "maternal.audit.cp4.nonce": "__CP4_NONCE__",
+        "maternal.audit.cp4.synthetic": "true"
+      },
+      "networks": {
+        "isolated": {
+          "aliases": [
+            "realtime",
+            "realtime-dev"
+          ]
+        }
+      },
+      "environment": {
+        "DB_HOST": "db",
+        "DB_PORT": "5432",
+        "DB_USER": "supabase_admin",
+        "DB_NAME": "postgres",
+        "DB_AFTER_CONNECT_QUERY": "SET search_path TO _realtime",
+        "DB_IP_VERSION": "ipv4",
+        "PORT": "4000",
+        "APP_NAME": "realtime",
+        "SEED_SELF_HOST": "true",
+        "SELF_HOST_TENANT_NAME": "realtime-dev",
+        "RUN_JANITOR": "true",
+        "ERL_AFLAGS": "-proto_dist inet_tcp",
+        "RLIMIT_NOFILE": "65536"
+      },
+      "env_file": [
+        {
+          "path": "./private/realtime.env",
+          "format": "raw"
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "curl -sSf --head -o /dev/null -H Host:realtime-dev http://127.0.0.1:4000/api/ping"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "30s"
+      },
+      "depends_on": {
+        "db": {
+          "condition": "service_healthy"
+        }
+      },
+      "ulimits": {
+        "nofile": {
+          "soft": 65536,
+          "hard": 65536
+        }
+      }
+    },
+    "kong": {
+      "image": "public.ecr.aws/supabase/kong@sha256:1b53405d8680a09d6f44494b7990bf7da2ea43f84a258c59717d4539abf09f6d",
+      "pull_policy": "never",
+      "restart": "no",
+      "labels": {
+        "maternal.audit.cp4.nonce": "__CP4_NONCE__",
+        "maternal.audit.cp4.synthetic": "true"
+      },
+      "networks": {
+        "isolated": {
+          "aliases": [
+            "kong",
+            "api.supabase.internal"
+          ]
+        },
+        "gateway": {}
+      },
+      "environment": {
+        "KONG_DATABASE": "off",
+        "KONG_DECLARATIVE_CONFIG": "/cp4/kong.json",
+        "KONG_PLUGINS": "cors,request-transformer,key-auth",
+        "KONG_PROXY_LISTEN": "0.0.0.0:8000",
+        "KONG_ADMIN_LISTEN": "off",
+        "KONG_NGINX_WORKER_PROCESSES": "1",
+        "KONG_DNS_ORDER": "LAST,A,CNAME",
+        "KONG_DNS_NOT_FOUND_TTL": "1"
+      },
+      "env_file": [],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "kong",
+          "health"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "30s"
+      },
+      "depends_on": {
+        "auth": {
+          "condition": "service_healthy"
+        },
+        "rest": {
+          "condition": "service_healthy"
+        },
+        "realtime": {
+          "condition": "service_healthy"
+        }
+      },
+      "ports": [
+        {
+          "target": 8000,
+          "published": "55421",
+          "host_ip": "127.0.0.1",
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "./private/kong.json",
+          "target": "/cp4/kong.json",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ]
+    }
+  },
+  "networks": {
+    "isolated": {
+      "name": "mc-audit-cp4-compose-__CP4_NONCE__-net",
+      "driver": "bridge",
+      "internal": true,
+      "labels": {
+        "maternal.audit.cp4.nonce": "__CP4_NONCE__"
+      },
+      "driver_opts": {
+        "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1"
+      }
+    },
+    "gateway": {
+      "name": "mc-audit-cp4-compose-__CP4_NONCE__-gateway",
+      "driver": "bridge",
+      "internal": false,
+      "labels": {
+        "maternal.audit.cp4.nonce": "__CP4_NONCE__"
+      },
+      "driver_opts": {
+        "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1"
+      }
+    }
+  },
+  "volumes": {
+    "database": {
+      "name": "mc-audit-cp4-compose-__CP4_NONCE__-db",
+      "labels": {
+        "maternal.audit.cp4.nonce": "__CP4_NONCE__"
+      }
+    }
+  }
+}

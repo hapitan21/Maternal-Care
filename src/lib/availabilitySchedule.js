@@ -27,3 +27,25 @@ export function getAvailabilityDayOfWeek(dateValue) {
       date.getUTCDate() !== day) return -1;
   return date.getUTCDay();
 }
+
+function getTimeMinutes(value) {
+  const match = /^(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(String(value || ""));
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+export function getAvailabilityWindowForDate(rows, dateValue) {
+  const dayOfWeek = getAvailabilityDayOfWeek(dateValue);
+  const row = dayOfWeek < 0 || !Array.isArray(rows)
+    ? null
+    : rows.find((item) => item.day_of_week != null && Number(item.day_of_week) === dayOfWeek);
+  if (!row?.is_available) return null;
+
+  const startMinute = getTimeMinutes(row.start_time);
+  const endMinute = getTimeMinutes(row.end_time);
+  if (startMinute === null || endMinute === null || endMinute <= startMinute) return null;
+  return { startMinute, endMinute };
+}
