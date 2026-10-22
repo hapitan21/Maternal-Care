@@ -4987,30 +4987,11 @@ body:has(.doctor-dashboard) .appointment-no-show-overlay {
   }
 }
 
-/* Appointment type category overrides shared with Staff appointments. */
-.doctor-week-event.is-prenatal {
-  color: var(--doctor-appointments-pink);
-  background: #ffe3ec;
-}
-
-.doctor-week-event.is-laboratory {
-  color: #147a86;
-  background: #dff7f8;
-}
-
-.doctor-week-event.is-ultrasound {
-  color: #5264f2;
-  background: #e6ebff;
-}
-
-.doctor-week-event.is-vaccination {
-  color: #8b4dff;
-  background: #f0e3ff;
-}
-
-.doctor-week-event.is-fallback {
-  color: #697386;
-  background: #eef1f6;
+/* Appointment colors come from the shared Doctor/Staff category mapping. */
+.doctor-week-event[class*="is-"] {
+  color: var(--appointment-category-color, #697386);
+  background: var(--appointment-category-background, #eef1f6);
+  border-left-color: var(--appointment-category-color, #697386);
 }
 
 .doctor-week-event strong,
@@ -5861,50 +5842,33 @@ body:has(.doctor-dashboard) .appointment-no-show-overlay {
   word-break: normal;
 }
 
-.doctor-category-item.is-prenatal > span {
-  background: #ffe0ee;
-  color: var(--doctor-appointments-pink);
+.doctor-category-item > span {
+  background: var(--appointment-category-background);
+  color: var(--appointment-category-color);
 }
 
-.doctor-category-item.is-laboratory > span {
-  background: #dff7f8;
-  color: #147a86;
+/* Color, surface, and accent stay in sync with the shared appointment map. */
+.doctor-week-event.is-completed > strong {
+  padding-right: 18px;
 }
 
-.doctor-category-item.is-ultrasound > span {
-  background: #e6ebff;
-  color: #5264f2;
-}
-
-.doctor-category-item.is-vaccination > span {
-  background: #f0ddff;
-  color: #8b4dff;
-}
-
-/* Calendar event colors now match the four Categories legend items. */
-.doctor-week-event.is-prenatal {
-  color: var(--doctor-appointments-pink);
-  background: #ffe3ef;
-}
-
-.doctor-week-event.is-laboratory {
-  color: #147a86;
-  background: #dff7f8;
-}
-
-.doctor-week-event.is-ultrasound {
-  color: #5264f2;
-  background: #e6ebff;
-}
-
-.doctor-week-event.is-vaccination {
-  color: #8b4dff;
-  background: #f0ddff;
-}
-
-.doctor-week-event.is-fallback {
-  color: #697386;
-  background: #eef1f6;
+.doctor-week-event .doctor-week-event-completed {
+  position: absolute;
+  z-index: 2;
+  top: 5px;
+  right: 5px;
+  display: grid !important;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin: 0 !important;
+  border-radius: 50%;
+  border: 1px solid var(--appointment-status-color);
+  background: var(--appointment-status-background);
+  color: var(--appointment-status-color) !important;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 @media (max-width: 520px) {
@@ -7526,4 +7490,348 @@ body:has(.doctor-dashboard) .appointment-no-show-overlay {
 .doctor-appointments-page .doctor-appointments-tabs button {
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.doctor-appointments-page .doctor-calendar-availability-note {
+  margin: 0;
+  padding: 8px 24px;
+  color: #697183;
+  font-size: 12px;
+}
+
+.doctor-appointments-page .doctor-week-calendar-time-head,
+.doctor-appointments-page .doctor-week-calendar-days button {
+  min-height: 78px !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days button span {
+  color: #bd2d69;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days button.is-unavailable span {
+  color: #8a90a0;
+}
+
+.doctor-appointments-page .doctor-week-calendar-body,
+.doctor-appointments-page .doctor-week-calendar-grid,
+.doctor-appointments-page .doctor-week-calendar-day {
+  min-height: calc(var(--hour-height) * var(--slot-count)) !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-times {
+  grid-template-rows: repeat(var(--slot-count), var(--hour-height)) !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-day.is-schedule-known {
+  background: #f6f7fa;
+}
+
+.doctor-appointments-page .doctor-week-calendar-line {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Match the Staff appointment calendar while retaining Doctor availability cues. */
+.doctor-appointments-page .doctor-calendar-layout {
+  grid-template-columns: minmax(0, 1fr) 315px !important;
+  gap: 16px !important;
+  min-width: 0;
+}
+
+.doctor-appointments-page .doctor-calendar-panel {
+  border: 1px solid #cfd2e0 !important;
+  border-radius: 14px !important;
+  padding: 24px 24px 20px !important;
+  box-shadow: var(--staff-appointments-shadow) !important;
+}
+
+.doctor-appointments-page .doctor-calendar-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  min-height: 0 !important;
+  margin-bottom: 18px !important;
+}
+
+.doctor-appointments-page .doctor-calendar-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px !important;
+  min-width: 0;
+}
+
+.doctor-appointments-page .doctor-calendar-title-group h2 {
+  margin: 0 !important;
+  color: #202432;
+  font-size: 22px !important;
+  font-weight: 700;
+  line-height: 1 !important;
+  letter-spacing: -0.03em !important;
+}
+
+.doctor-appointments-page .doctor-calendar-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.doctor-appointments-page .doctor-calendar-title-group button {
+  display: grid;
+  place-items: center;
+  width: 32px !important;
+  height: 32px !important;
+  border: 1px solid #cfd2e0;
+  border-radius: 8px !important;
+  background: #fff;
+  color: #3f4453;
+  font-size: 16px !important;
+}
+
+.doctor-appointments-page .doctor-calendar-header strong {
+  color: #424654;
+  font-size: 19px !important;
+  font-weight: 700;
+  line-height: 1.1 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap;
+}
+
+.doctor-appointments-page .doctor-calendar-availability-note {
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.doctor-appointments-page .doctor-week-calendar {
+  min-width: 0;
+  border-top: 1px solid #e1e5ef;
+  padding-bottom: 0;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days,
+.doctor-appointments-page .doctor-week-calendar-body {
+  min-width: 820px !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days {
+  grid-template-columns: 64px repeat(7, minmax(92px, 1fr)) !important;
+  border-bottom: 2px solid #dfe2ec;
+}
+
+.doctor-appointments-page .doctor-week-calendar-body {
+  grid-template-columns: 64px minmax(756px, 1fr) !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-grid {
+  grid-template-columns: repeat(7, minmax(92px, 1fr));
+}
+
+.doctor-appointments-page .doctor-week-calendar-time-head,
+.doctor-appointments-page .doctor-week-calendar-days button {
+  min-height: 62px !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-time-head {
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
+  color: #7b8294;
+  font-size: 11px !important;
+  font-weight: 800;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days button {
+  align-content: center;
+  gap: 2px;
+  border-left: 1px solid #eef0f5;
+  border-radius: 0 !important;
+  background: #fff;
+  cursor: pointer;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days button small {
+  color: #697183 !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  line-height: 1.1 !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days button strong {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #202432 !important;
+  font-size: 18px !important;
+  font-weight: 900;
+  line-height: 1 !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days button.is-selected,
+.doctor-appointments-page .doctor-week-calendar-days button:hover {
+  background: #fff;
+}
+
+.doctor-appointments-page .doctor-week-calendar-days button.is-selected strong,
+.doctor-appointments-page .doctor-week-calendar-days button:hover strong {
+  background: var(--doctor-appointments-pink);
+  color: #fff !important;
+}
+
+.doctor-appointments-page .doctor-week-calendar-times {
+  color: #323746;
+  font-size: 11px !important;
+  font-weight: 700;
+}
+
+.doctor-appointments-page .doctor-week-calendar-times span {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 8px !important;
+  border-bottom: 1px solid #e7e9f0;
+}
+
+.doctor-appointments-page .doctor-week-calendar-day {
+  border-left: 1px solid #eef0f5;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.doctor-appointments-page .doctor-week-calendar-line {
+  border-bottom: 1px solid #e7e9f0;
+}
+
+.doctor-appointments-page .doctor-week-event {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  left: var(--event-left) !important;
+  right: auto !important;
+  width: var(--event-width) !important;
+  height: var(--event-height) !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 8px 9px !important;
+  border-left-width: 4px !important;
+  border-radius: 9px !important;
+  box-shadow: 0 8px 18px rgba(22, 27, 41, 0.08);
+}
+
+.doctor-appointments-page .doctor-week-event strong,
+.doctor-appointments-page .doctor-week-event span,
+.doctor-appointments-page .doctor-week-event small {
+  display: block !important;
+  min-width: 0;
+  margin: 0 !important;
+  overflow: hidden !important;
+  color: currentColor !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  -webkit-line-clamp: unset !important;
+}
+
+.doctor-appointments-page .doctor-week-event strong {
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+}
+
+.doctor-appointments-page .doctor-week-event span,
+.doctor-appointments-page .doctor-week-event small {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+}
+
+.doctor-appointments-page .doctor-week-event.is-compact {
+  gap: 0;
+  padding: 3px 5px !important;
+}
+
+.doctor-appointments-page .doctor-week-event.is-compact strong {
+  font-size: 9px !important;
+  line-height: 10px !important;
+}
+
+.doctor-appointments-page .doctor-week-event.is-compact span,
+.doctor-appointments-page .doctor-week-event.is-compact small {
+  font-size: 8px !important;
+  line-height: 9px !important;
+}
+
+.doctor-appointments-page .doctor-categories-card {
+  border: 1px solid #cfd2e0;
+  border-radius: 18px;
+  padding: 24px 22px;
+}
+
+.doctor-appointments-page .doctor-categories-card h3 {
+  font-weight: 600;
+}
+
+.doctor-appointments-page .doctor-category-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.doctor-appointments-page .doctor-category-item {
+  min-height: 78px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px;
+}
+
+.doctor-appointments-page .doctor-category-item > span {
+  width: 34px;
+  height: 34px;
+}
+
+.doctor-appointments-page .doctor-category-item strong {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: normal;
+}
+
+@media (max-width: 1180px) {
+  .doctor-appointments-page .doctor-calendar-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .doctor-appointments-page .staff-calendar-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .doctor-appointments-page .doctor-calendar-header {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .doctor-appointments-page .doctor-calendar-header strong {
+    text-align: left !important;
+  }
+
+  .doctor-appointments-page .staff-calendar-sidebar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .doctor-appointments-page .doctor-calendar-panel {
+    padding: 20px !important;
+  }
+
+  .doctor-appointments-page .doctor-category-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

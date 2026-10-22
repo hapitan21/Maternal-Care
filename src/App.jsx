@@ -18,6 +18,7 @@ import { AdminAuthProvider } from "./context/AdminAuthContext.jsx";
 
 import { useAuthenticatedStaff } from "./hooks/useAuthenticatedStaff";
 import { useDoctorRouteAuthorization } from "./hooks/useDoctorRouteAuthorization";
+import WorkspaceLoadingScreen from "./components/common/WorkspaceLoadingScreen";
 import {
   canOpenPatientNativePushWorkspace,
   getPatientNativePushNavigationSnapshot,
@@ -71,6 +72,10 @@ const PatientPWA = lazy(() => import("./pages/patient/Patient_PWA"));
 
 
 function RouteLoadingFallback() {
+  const { pathname } = useLocation();
+  if (/^\/(admin|staff|doctor)(\/|$)/.test(pathname)) {
+    return <WorkspaceLoadingScreen />;
+  }
   return (
     <main className="app-route-loading" role="status" aria-live="polite">
       <span aria-hidden="true" />
@@ -80,12 +85,7 @@ function RouteLoadingFallback() {
 }
 
 function DoctorAuthorizationLoadingFallback() {
-  return (
-    <main className="app-route-loading" role="status" aria-live="polite">
-      <span aria-hidden="true" />
-      <p>Checking Doctor account access...</p>
-    </main>
-  );
+  return <WorkspaceLoadingScreen />;
 }
 
 function ApplicationNotFound() {
@@ -339,15 +339,7 @@ function StaffRoute() {
    * authorization in this mounted route.
    */
   if (staffAccess.loading && !staffAccess.identity) {
-    return (
-      <main
-        className="admin-auth-state"
-        role="status"
-        aria-live="polite"
-      >
-        <p>Checking Staff account access...</p>
-      </main>
-    );
+    return <WorkspaceLoadingScreen />;
   }
 
   /*
@@ -393,15 +385,7 @@ function StaffRoute() {
    * Supabase performs background revalidation.
    */
   if (!staffAccess.identity) {
-    return (
-      <main
-        className="admin-auth-state"
-        role="status"
-        aria-live="polite"
-      >
-        <p>Checking Staff account access...</p>
-      </main>
-    );
+    return <WorkspaceLoadingScreen />;
   }
 
   return (

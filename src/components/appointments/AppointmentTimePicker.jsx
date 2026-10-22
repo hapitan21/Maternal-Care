@@ -5,6 +5,7 @@ import {
   useId,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -33,6 +34,42 @@ function getTimeDraft(value, fallbackValue = "08:00") {
     minute: String(minute).padStart(2, "0"),
     period: hour24 >= 12 ? "PM" : "AM",
   };
+}
+
+function getAllowedTimeValues(values) {
+  if (!Array.isArray(values)) return null;
+  return [
+    ...new Set(
+      values
+        .map(String)
+        .filter((value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value))
+    ),
+  ];
+}
+
+function getDraftFromAllowedValues(value, fallbackValue, allowedValues) {
+  const currentValue = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ""))
+    ? String(value)
+    : "";
+  const fallback = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(fallbackValue || ""))
+    ? String(fallbackValue)
+    : "08:00";
+  const selected = currentValue && (!allowedValues || allowedValues.includes(currentValue))
+    ? currentValue
+    : allowedValues?.[0] || fallback;
+  return getTimeDraft(selected);
+}
+
+function getScheduleHourDrafts(hourRangeMinutes) {
+  if (!hourRangeMinutes || !Number.isFinite(hourRangeMinutes.startMinute) ||
+      !Number.isFinite(hourRangeMinutes.endMinute) ||
+      hourRangeMinutes.endMinute <= hourRangeMinutes.startMinute) return null;
+
+  const firstHour = Math.floor(hourRangeMinutes.startMinute / 60);
+  const lastHour = Math.floor(hourRangeMinutes.endMinute / 60);
+  return Array.from({ length: lastHour - firstHour + 1 }, (_, index) =>
+    getTimeDraft(`${String(firstHour + index).padStart(2, "0")}:00`)
+  );
 }
 
 function getTimeValue(draft) {
@@ -72,6 +109,9 @@ const AppointmentTimePicker = forwardRef(function AppointmentTimePicker(
     defaultValue = "08:00",
     placeholder = "Select time",
     className = "",
+    allowedValues,
+    hourRangeMinutes,
+    onInvalid,
   },
   ref
 ) {
@@ -85,11 +125,77 @@ const AppointmentTimePicker = forwardRef(function AppointmentTimePicker(
   const [isOpen, setIsOpen] = useState(false);
   const [placement, setPlacement] = useState("below");
   const [draft, setDraft] = useState(() => getTimeDraft(value, defaultValue));
+  const normalizedAllowedValues = useMemo(
+    () => getAllowedTimeValues(allowedValues),
+    [allowedValues]
+  );
+  const allowedDrafts = useMemo(
+    () => normalizedAllowedValues?.map((time) => getTimeDraft(time)) || null,
+    [normalizedAllowedValues]
+  );
+  const scheduleHourDrafts = useMemo(
+    () => getScheduleHourDrafts(hourRangeMinutes),
+    [hourRangeMinutes]
+  );
   const displayValue = formatAppointmentTimePickerValue(value);
 
   const resetDraft = useCallback(() => {
-    setDraft(getTimeDraft(value, defaultValue));
-  }, [defaultValue, value]);
+    setDraft(getDraftFromAllowedValues(value, defaultValue, normalizedAllowedValues));
+  }, [defaultValue, normalizedAllowedValues, value]);
+
+  const updateDraftPart = (part, nextValue) => {
+    const candidate = { ...draft, [part]: nextValue };
+    if (!allowedDrafts) {
+      setDraft(candidate);
+      return;
+    }
+
+    const matchingPart = allowedDrafts.filter((option) => option[part] === nextValue);
+    if (!matchingPart.length) {
+      if (part === "period") setDraft(candidate);
+      return;
+    }
+    const bestMatch = matchingPart.find((option) =>
+      option.hour === candidate.hour && option.minute === candidate.minute && option.period === candidate.period
+    ) || matchingPart.find((option) =>
+      option.hour === candidate.hour && option.period === candidate.period
+    ) || matchingPart.find((option) => option.hour === candidate.hour) || matchingPart[0];
+    setDraft(bestMatch);
+  };
+
+  const basePickerHourDrafts = scheduleHourDrafts || (allowedDrafts
+    ? [...new Map(allowedDrafts.map((option) => [`${option.hour}-${option.period}`, option])).values()]
+    : hourOptions.map((hour) => ({ hour, period: draft.period })));
+  const selectedHourKey = `${draft.hour}-${draft.period}`;
+  const pickerHourDrafts = basePickerHourDrafts.some((option) =>
+    `${option.hour}-${option.period}` === selectedHourKey
+  )
+    ? basePickerHourDrafts
+    : [...basePickerHourDrafts, { hour: draft.hour, period: draft.period, currentOnly: true }];
+  const hourOptionsForPicker = pickerHourDrafts.map((option) => ({
+    ...option,
+    key: `${option.hour}-${option.period}`,
+    disabled: Boolean(option.currentOnly || (allowedDrafts && !allowedDrafts.some((allowed) =>
+      allowed.hour === option.hour && allowed.period === option.period
+    ))),
+  }));
+  const minuteOptionsForPicker = allowedDrafts
+    ? minuteOptions.map((minute) => ({
+        minute,
+        disabled: !allowedDrafts.some((option) =>
+          option.hour === draft.hour && option.period === draft.period && option.minute === minute
+        ),
+      }))
+    : minuteOptions.map((minute) => ({ minute, disabled: false }));
+  const periodOptionsForPicker = ["AM", "PM"];
+
+  const updateHourChoice = (key) => {
+    const [hour, period] = key.split("-");
+    const allowedChoice = allowedDrafts?.find((option) =>
+      option.hour === hour && option.period === period && option.minute === draft.minute
+    ) || allowedDrafts?.find((option) => option.hour === hour && option.period === period);
+    setDraft(allowedChoice || { ...draft, hour, period });
+  };
 
   const focusTrigger = useCallback(() => {
     window.requestAnimationFrame(() => triggerRef.current?.focus());
@@ -195,6 +301,10 @@ const AppointmentTimePicker = forwardRef(function AppointmentTimePicker(
   const handleApply = () => {
     const nextValue = getTimeValue(draft);
     if (!nextValue) return;
+    if (normalizedAllowedValues && !normalizedAllowedValues.includes(nextValue)) {
+      onInvalid?.("That time is outside this Doctor's available schedule or conflicts with another appointment. Choose an available time.");
+      return;
+    }
 
     onChange(nextValue);
     setIsOpen(false);
@@ -261,18 +371,13 @@ const AppointmentTimePicker = forwardRef(function AppointmentTimePicker(
               <select
                 ref={hourSelectRef}
                 className="appointment-time-picker__select"
-                value={draft.hour}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    hour: event.target.value,
-                  }))
-                }
+                value={selectedHourKey}
+                onChange={(event) => updateHourChoice(event.target.value)}
                 aria-label="Hour"
               >
-                {hourOptions.map((hour) => (
-                  <option key={hour} value={hour}>
-                    {hour}
+                {hourOptionsForPicker.map((option) => (
+                  <option key={option.key} value={option.key} disabled={option.disabled}>
+                    {option.hour}
                   </option>
                 ))}
               </select>
@@ -283,16 +388,11 @@ const AppointmentTimePicker = forwardRef(function AppointmentTimePicker(
               <select
                 className="appointment-time-picker__select"
                 value={draft.minute}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    minute: event.target.value,
-                  }))
-                }
+                onChange={(event) => updateDraftPart("minute", event.target.value)}
                 aria-label="Minute"
               >
-                {minuteOptions.map((minute) => (
-                  <option key={minute} value={minute}>
+                {minuteOptionsForPicker.map(({ minute, disabled: minuteDisabled }) => (
+                  <option key={minute} value={minute} disabled={minuteDisabled}>
                     {minute}
                   </option>
                 ))}
@@ -304,16 +404,12 @@ const AppointmentTimePicker = forwardRef(function AppointmentTimePicker(
               <select
                 className="appointment-time-picker__select"
                 value={draft.period}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    period: event.target.value,
-                  }))
-                }
+                onChange={(event) => updateDraftPart("period", event.target.value)}
                 aria-label="AM or PM"
               >
-                <option value="AM">AM</option>
-                <option value="PM">PM</option>
+                {periodOptionsForPicker.map((period) => (
+                  <option key={period} value={period}>{period}</option>
+                ))}
               </select>
             </label>
           </div>

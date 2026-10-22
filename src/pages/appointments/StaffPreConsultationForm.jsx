@@ -1,3 +1,4 @@
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar, Info } from "lucide-react";
@@ -414,107 +415,115 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
     setSchemaWarning("");
     setValidationErrors({});
 
-    const { data: routingData, error: routingError } = await supabase.rpc(
-      "get_appointment_visit_form_type",
-      { p_appointment_id: appointmentId }
-    );
-
-    if (requestIdRef.current !== requestId) return;
-    if (routingError) {
-      setError(getErrorMessage(routingError, "Unable to determine the visit form type."));
-      setLoading(false);
-      return;
-    }
-
-    const routeResult = Array.isArray(routingData) ? routingData[0] : routingData;
-    if (!routeResult?.visit_form_type) {
-      setError("The visit-routing RPC did not return a form type.");
-      setLoading(false);
-      return;
-    }
-
-    if (routeResult.visit_form_type !== visitType) {
-      const routeSegment = routeResult.visit_form_type === "initial"
-        ? "initial-visit"
-        : "follow-up";
-      navigate(`/staff/appointments/${appointmentId}/${routeSegment}`, { replace: true });
-      return;
-    }
-
-    const { data: schedule, error: scheduleError } = await supabase
-      .from("schedule")
-      .select(scheduleColumns)
-      .eq("id", appointmentId)
-      .maybeSingle();
-
-    if (requestIdRef.current !== requestId) return;
-    if (scheduleError || !schedule?.patient_id) {
-      setError(getErrorMessage(scheduleError, "The appointment could not be loaded."));
-      setLoading(false);
-      return;
-    }
-
-    const [patientResult, intakeResult, previousRecordResult] = await Promise.all([
-      supabase
-        .rpc("get_staff_patient_directory")
-        .select(patientColumns)
-        .eq("id", schedule.patient_id)
-        .maybeSingle(),
-      supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
-      isFollowUp
-        ? supabase.rpc("get_staff_followup_baseline", {
-            p_appointment_id: appointmentId,
-          })
-        : Promise.resolve({ data: null, error: null }),
-    ]);
-
-    if (requestIdRef.current !== requestId) return;
-    if (patientResult.error) {
-      setError(getErrorMessage(patientResult.error, "The Patient record could not be loaded."));
-      setLoading(false);
-      return;
-    }
-
-    if (previousRecordResult.error) {
-      setError(
-        getErrorMessage(
-          previousRecordResult.error,
-          "Previous Doctor visit baseline could not be loaded for follow-up autofill."
-        )
+    try {
+      const { data: routingData, error: routingError } = await supabase.rpc(
+        "get_appointment_visit_form_type",
+        { p_appointment_id: appointmentId }
       );
-      setLoading(false);
-      return;
-    }
 
-    let loadedIntake = Array.isArray(intakeResult.data) ? intakeResult.data[0] : intakeResult.data;
-    if (intakeResult.error) {
-      loadedIntake = null;
-      if (isMissingIntakeSupport(intakeResult.error)) {
-        setSchemaWarning(
-          "Staff intake storage is not installed yet. Manually run supabase_staff_preconsultation_intake.sql before saving."
-        );
-      } else {
-        setError(getErrorMessage(intakeResult.error, "The Staff intake record could not be loaded."));
+      if (requestIdRef.current !== requestId) return;
+      if (routingError) {
+        setError(getErrorMessage(routingError, "Unable to determine the visit form type."));
         setLoading(false);
         return;
       }
+
+      const routeResult = Array.isArray(routingData) ? routingData[0] : routingData;
+      if (!routeResult?.visit_form_type) {
+        setError("The visit-routing RPC did not return a form type.");
+        setLoading(false);
+        return;
+      }
+
+      if (routeResult.visit_form_type !== visitType) {
+        const routeSegment = routeResult.visit_form_type === "initial"
+          ? "initial-visit"
+          : "follow-up";
+        navigate(`/staff/appointments/${appointmentId}/${routeSegment}`, { replace: true });
+        return;
+      }
+
+      const { data: schedule, error: scheduleError } = await supabase
+        .from("schedule")
+        .select(scheduleColumns)
+        .eq("id", appointmentId)
+        .maybeSingle();
+
+      if (requestIdRef.current !== requestId) return;
+      if (scheduleError || !schedule?.patient_id) {
+        setError(getErrorMessage(scheduleError, "The appointment could not be loaded."));
+        setLoading(false);
+        return;
+      }
+
+      const [patientResult, intakeResult, previousRecordResult] = await Promise.all([
+        supabase
+          .rpc("get_staff_patient_directory")
+          .select(patientColumns)
+          .eq("id", schedule.patient_id)
+          .maybeSingle(),
+        supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
+        isFollowUp
+          ? supabase.rpc("get_staff_followup_baseline", {
+              p_appointment_id: appointmentId,
+            })
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+
+      if (requestIdRef.current !== requestId) return;
+      if (patientResult.error) {
+        setError(getErrorMessage(patientResult.error, "The Patient record could not be loaded."));
+        setLoading(false);
+        return;
+      }
+
+      if (previousRecordResult.error) {
+        setError(
+          getErrorMessage(
+            previousRecordResult.error,
+            "Previous Doctor visit baseline could not be loaded for follow-up autofill."
+          )
+        );
+        setLoading(false);
+        return;
+      }
+
+      let loadedIntake = Array.isArray(intakeResult.data) ? intakeResult.data[0] : intakeResult.data;
+      if (intakeResult.error) {
+        loadedIntake = null;
+        if (isMissingIntakeSupport(intakeResult.error)) {
+          setSchemaWarning(
+            "Staff intake storage is not installed yet. Manually run supabase_staff_preconsultation_intake.sql before saving."
+          );
+        } else {
+          setError(getErrorMessage(intakeResult.error, "The Staff intake record could not be loaded."));
+          setLoading(false);
+          return;
+        }
+      }
+
+      const patientRow = patientResult.data || null;
+      const previousRecord = isFollowUp
+        ? (Array.isArray(previousRecordResult.data)
+            ? previousRecordResult.data[0]
+            : previousRecordResult.data) || null
+        : null;
+
+      setRouting(routeResult);
+      setAppointment(schedule);
+      setPatient(patientRow);
+      setIntake(loadedIntake || null);
+      setPreviousDoctorRecord(previousRecord);
+      setForm(normalizeLoadedForm(visitType, schedule, loadedIntake, previousRecord));
+      setLoading(false);
+    } catch (loadError) {
+      if (requestIdRef.current === requestId) {
+        setError(getErrorMessage(loadError, "Unable to load pre-consultation form. Please retry."));
+      }
+    } finally {
+      if (requestIdRef.current === requestId) setLoading(false);
     }
-
-    const patientRow = patientResult.data || null;
-    const previousRecord = isFollowUp
-      ? (Array.isArray(previousRecordResult.data)
-          ? previousRecordResult.data[0]
-          : previousRecordResult.data) || null
-      : null;
-
-    setRouting(routeResult);
-    setAppointment(schedule);
-    setPatient(patientRow);
-    setIntake(loadedIntake || null);
-    setPreviousDoctorRecord(previousRecord);
-    setForm(normalizeLoadedForm(visitType, schedule, loadedIntake, previousRecord));
-    setLoading(false);
-  }, [appointmentId, navigate, visitType]);
+  }, [appointmentId, isFollowUp, navigate, visitType]);
 
   useEffect(() => {
     const timer = window.setTimeout(loadForm, 0);
@@ -641,7 +650,7 @@ export default function StaffPreConsultationForm({ appointmentId, requestedType 
   };
 
   if (loading) {
-    return <main className="staff-preconsult-state">Loading pre-consultation form...</main>;
+    return <WorkspaceSectionFallback label="pre-consultation form" />;
   }
 
   if (error && !appointment) {

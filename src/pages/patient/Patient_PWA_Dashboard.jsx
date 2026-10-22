@@ -322,7 +322,7 @@ export default function PatientPWADashboard({ profile }) {
         {isPregnancyLoading ? (
           <div className="pwa-empty-card pwa-journey-empty pwa-journey-loading" role="status">
             <span aria-hidden="true">
-              <Icon icon="solar:refresh-circle-bold-duotone" />
+              <Icon icon="solar:refresh-circle-bold" />
             </span>
             <div>
               <h2>Loading your pregnancy journey</h2>
@@ -337,7 +337,7 @@ export default function PatientPWADashboard({ profile }) {
             onClick={() => moveWeek(-1)}
             aria-label="Previous week"
           >
-            <Icon icon="solar:alt-arrow-left-linear" />
+            <Icon icon="solar:alt-arrow-left-bold" />
           </button>
 
           <div className="pwa-week-row" ref={journeyRowRef} aria-label="Pregnancy weeks">
@@ -372,13 +372,13 @@ export default function PatientPWADashboard({ profile }) {
             onClick={() => moveWeek(1)}
             aria-label="Next week"
           >
-            <Icon icon="solar:alt-arrow-right-linear" />
+            <Icon icon="solar:alt-arrow-right-bold" />
           </button>
           </div>
         ) : pregnancyState.status === "error" ? (
           <div className="pwa-empty-card pwa-journey-empty pwa-journey-error" role="alert">
             <span aria-hidden="true">
-              <Icon icon="solar:danger-triangle-bold-duotone" />
+              <Icon icon="solar:danger-triangle-bold" />
             </span>
             <div>
               <h2>Pregnancy journey could not be loaded</h2>
@@ -389,7 +389,7 @@ export default function PatientPWADashboard({ profile }) {
         ) : (
           <div className="pwa-empty-card pwa-journey-empty" role="status">
             <span aria-hidden="true">
-              <Icon icon="solar:calendar-mark-bold-duotone" />
+              <Icon icon="solar:calendar-mark-bold" />
             </span>
             <div>
               <h2>Pregnancy journey is being prepared</h2>
@@ -401,7 +401,7 @@ export default function PatientPWADashboard({ profile }) {
 
       <section className="pwa-health-tip-card">
         <div className="pwa-tip-image" aria-hidden="true">
-          <Icon icon="healthicons:doctor-female-outline" />
+          <Icon icon="healthicons:doctor-female" />
         </div>
 
         <div className="pwa-tip-copy">
@@ -423,7 +423,7 @@ export default function PatientPWADashboard({ profile }) {
             })}
           >
             View All Tips
-            <Icon icon="solar:arrow-right-linear" />
+            <Icon icon="solar:arrow-right-bold" />
           </button>
         </div>
       </section>

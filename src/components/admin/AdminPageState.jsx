@@ -1,21 +1,20 @@
 import { Icon } from "@iconify/react";
+import WorkspaceLoadingScreen from "../common/WorkspaceLoadingScreen";
 
 export default function AdminPageState({ type = "loading", message, onRetry }) {
   const isLoading = type === "loading";
 
+  if (isLoading) return <WorkspaceLoadingScreen />;
+
   return (
     <main
       className={`admin-auth-state is-${type}`}
-      role={isLoading ? "status" : "alert"}
-      aria-live={isLoading ? "polite" : "assertive"}
+      role="alert"
+      aria-live="assertive"
     >
-      {isLoading ? (
-        <span className="admin-layout-skeleton-avatar" aria-hidden="true" />
-      ) : (
-        <Icon icon="solar:shield-warning-linear" aria-hidden="true" />
-      )}
-      <p>{message || (isLoading ? "Loading Admin profile..." : "Admin access could not be verified.")}</p>
-      {!isLoading && onRetry ? (
+      <Icon icon="solar:shield-warning-linear" aria-hidden="true" />
+      <p>{message || "Admin access could not be verified."}</p>
+      {onRetry ? (
         <button type="button" onClick={onRetry}>Retry</button>
       ) : null}
     </main>

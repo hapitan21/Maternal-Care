@@ -1,3 +1,4 @@
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { QRCodeSVG } from "qrcode.react";
@@ -5668,7 +5669,7 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
         <span>Clinical medical records remain available to authorized Doctors only.</span>
       </p>
 
-      <section className="staff-patients-card" aria-label="Patients table">
+      <section className="staff-patients-card" aria-label="Patients table" aria-busy={isLoadingPatients}>
         <div className="staff-patients-table-xscroll">
           <div className="staff-patients-table-inner">
             <div className="staff-patients-table-head-shell">
@@ -5703,6 +5704,9 @@ function StaffPatientsContent({ headerAction, staffUserId }) {
             <div className="staff-patients-table-scroll">
               <table className="staff-patients-table staff-patients-table--body">
                 <tbody>
+              {isLoadingPatients && !patients.length ? (
+                <tr><td colSpan="5"><WorkspaceSectionFallback label="patients" compact /></td></tr>
+              ) : null}
               {paginatedPatients.map((patient) => (
                 <tr
                   key={patient.id}

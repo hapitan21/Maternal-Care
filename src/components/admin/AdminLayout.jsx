@@ -6,6 +6,7 @@ import { useAdminAuth } from "../../hooks/useAdminAuth";
 import AdminPageState from "./AdminPageState";
 import AdminProfileDropdown from "./AdminProfileDropdown";
 import AdminSidebar from "./AdminSidebar";
+import WorkspaceSectionFallback from "../common/WorkspaceSectionFallback";
 import "../../styles/adminLayout.css";
 
 const roleRoutes = { doctor: "/doctor", staff: "/staff", patient: "/patient" };
@@ -82,7 +83,9 @@ export default function AdminLayout() {
           <AdminProfileDropdown />
         </header>
         <div className="admin-page-content">
-          <Outlet />
+          <React.Suspense fallback={<WorkspaceSectionFallback label="Admin workspace" />}>
+            <Outlet />
+          </React.Suspense>
         </div>
       </main>
     </div>

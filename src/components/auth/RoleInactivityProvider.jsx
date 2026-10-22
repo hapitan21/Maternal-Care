@@ -8,6 +8,7 @@ import {
   INACTIVITY_LOGIN_PATH, INACTIVITY_STORAGE_PREFIX, isClinicPath, isClinicRole, signOutExpiredClinicSession,
 } from "../../lib/roleInactivity";
 import InactivityWarningDialog from "./InactivityWarningDialog";
+import WorkspaceLoadingScreen from "../common/WorkspaceLoadingScreen";
 
 const authStorageKey = "sb-" + new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split(".")[0] + "-auth-token";
 
@@ -314,10 +315,10 @@ export default function RoleInactivityProvider({ children }) {
       <DoctorSignOutContext.Provider value={requestDoctorSignOut}>
         <div ref={rootRef} hidden={clinicPath && restoring} inert={clinicPath && (restoring || view.phase === "warning") ? true : undefined}>
           {clinicPath && view.phase === "expired" ? (
-            <main ref={logoutStatusRef} className="inactivity-state" role="status" tabIndex={-1}>
-              <p>{manualLogout
+            <main ref={logoutStatusRef} className={manualLogout && !logoutFailed ? undefined : "inactivity-state"} role="status" tabIndex={-1}>
+              {manualLogout && !logoutFailed ? <WorkspaceLoadingScreen /> : <p>{manualLogout
                 ? logoutFailed ? "Unable to finish signing out. Your workspace is blocked. Please retry." : "Signing you out..."
-                : logoutFailed ? "Your session has expired. Please retry signing out." : "Your session has expired. Signing you out..."}</p>
+                : logoutFailed ? "Your session has expired. Please retry signing out." : "Your session has expired. Signing you out..."}</p>}
               {logoutFailed ? <button type="button" onClick={logoutExpired}>Retry sign out</button> : null}
             </main>
           ) : children}

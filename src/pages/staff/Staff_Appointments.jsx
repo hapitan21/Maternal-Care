@@ -1,3 +1,5 @@
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import { settleQuery } from "../../lib/settleQuery";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { Check } from "lucide-react";
@@ -42,12 +44,16 @@ import {
 import AppointmentTimePicker from "../../components/appointments/AppointmentTimePicker";
 import AppointmentDateRangeFilter from "../../components/appointments/AppointmentDateRangeFilter";
 import { matchesAppointmentDateRange } from "../../lib/appointmentDateRange";
+import { getAvailabilityDayOfWeek, getAvailabilityWindowForDate } from "../../lib/availabilitySchedule";
 import {
   APPOINTMENT_CATEGORIES,
   APPOINTMENT_TYPES,
+  getAppointmentCategoryStyle,
+  getCompletedAppointmentStatusStyle,
   getAppointmentTypeCategory,
   getAppointmentTypeForCategory,
   getAppointmentTypeLabel,
+  isCompletedAppointmentStatus,
 } from "../../lib/appointmentTypes";
 import {
   classifyAppointment,
@@ -202,6 +208,7 @@ const inactiveDoctorAccountStatuses = new Set([
   "disabled",
   "suspended",
   "archived",
+  "deleted",
 ]);
 
 function getDoctorDisplayName(profile, personalInformation) {
@@ -222,7 +229,7 @@ function createBlankAppointmentForm(doctor = null) {
     doctorName: doctor?.name || "",
     appointmentType: "",
     date: today,
-    startTime: "08:00",
+    startTime: "",
     category: "prenatal",
     notes: "",
   };
@@ -340,10 +347,7 @@ function getRequestCategory(request) {
 
 function getRequestCategoryIcon(request) {
   const category = getRequestCategory(request);
-  if (category === "laboratory") return "solar:test-tube-linear";
-  if (category === "ultrasound") return "solar:monitor-camera-linear";
-  if (category === "prenatal") return "solar:medical-kit-linear";
-  return "solar:heart-pulse-linear";
+  return categoryList.find((item) => item.id === category)?.icon || "solar:heart-pulse-bold";
 }
 
 function isCheckedInStatus(status) {
@@ -520,6 +524,7 @@ function mapScheduleToCalendarEvent(schedule) {
     timeLabel: `${formatTableTime(schedule.start_time)} - ${formatTableTime(schedule.end_time)}`,
     calendarId: category,
     category,
+    doctorId: schedule.doctor_id || "",
     doctorName: schedule.doctor_name || "",
     status: displayStatus,
     description: schedule.description || "",
@@ -529,6 +534,66 @@ function mapScheduleToCalendarEvent(schedule) {
     start: schedule.start_time,
     end: schedule.end_time,
   };
+}
+
+function getDoctorScheduleState(rows, date, doctorId) {
+  if (!Array.isArray(rows) || !rows.length || rows.some((row) => row.profile_id !== doctorId)) {
+    return { kind: "unverified", window: null };
+  }
+  const weekday = getAvailabilityDayOfWeek(date);
+  const dayRow = rows.find((row) => Number(row.day_of_week) === weekday);
+  if (!dayRow) return { kind: "missing-day", window: null };
+  if (dayRow.is_available === false) return { kind: "unavailable", window: null };
+  const window = getAvailabilityWindowForDate(rows, date);
+  return window
+    ? { kind: "available", window }
+    : { kind: "invalid-hours", window: null };
+}
+
+function getDoctorScheduleMessage(kind) {
+  if (kind === "unverified") return "This Doctor's saved schedule could not be verified. Check Doctor Settings and Staff schedule access.";
+  if (kind === "missing-day") return "No saved schedule was returned for this Doctor on the selected weekday. Check Doctor Settings and Staff schedule access.";
+  if (kind === "invalid-hours") return "This Doctor's saved hours are invalid. Ask the Doctor to update Schedule Availability.";
+  if (kind === "unavailable") return "This Doctor is unavailable on the selected date. Choose another date or Doctor.";
+  return "";
+}
+
+async function getDoctorAvailabilityError(doctorId, startTime, endTime) {
+  if (!doctorId) return "Select a Doctor before saving the appointment.";
+
+  // Read at save time so changes in Doctor Settings are respected without a stale cache.
+  const { data, error } = await settleQuery(supabase.rpc(
+    "get_staff_doctor_schedule_availability",
+    { p_doctor_ids: [doctorId] }
+  ));
+
+  if (error) {
+    return "Unable to verify this Doctor's schedule. Please try again.";
+  }
+
+  const dateKey = getManilaDateKey(startTime);
+  const startKey = getManilaTimeKey(startTime);
+  const endKey = getManilaTimeKey(endTime);
+  if (!dateKey || !startKey || !endKey || getManilaDateKey(endTime) !== dateKey) {
+    return "The appointment must start and end on the same clinic day.";
+  }
+
+  const schedule = getDoctorScheduleState(data, dateKey, doctorId);
+  if (schedule.kind !== "available") return getDoctorScheduleMessage(schedule.kind);
+  const { window } = schedule;
+
+  const startMinute = Number(startKey.slice(0, 2)) * 60 + Number(startKey.slice(3, 5));
+  const endMinute = Number(endKey.slice(0, 2)) * 60 + Number(endKey.slice(3, 5));
+  if (startMinute < window.startMinute || endMinute > window.endMinute || endMinute <= startMinute) {
+    const formatMinute = (minute) => {
+      const hour = Math.floor(minute / 60);
+      const remainder = minute % 60;
+      return `${hour % 12 || 12}:${String(remainder).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
+    };
+    return `This Doctor is available from ${formatMinute(window.startMinute)} to ${formatMinute(window.endMinute)} on the selected date. Choose a time within those hours.`;
+  }
+
+  return "";
 }
 
 function hasAppointmentConflict(appointments, candidate) {
@@ -548,6 +613,39 @@ function hasAppointmentConflict(appointments, candidate) {
     if (!Number.isFinite(existingStart) || !Number.isFinite(existingEnd)) return false;
     return candidateStart < existingEnd && candidateEnd > existingStart;
   });
+}
+
+function getAvailableAppointmentTimes({ rows, date, policy, appointments, editingAppointmentId }) {
+  if (!Array.isArray(rows) || !policy) return [];
+  const window = getAvailabilityWindowForDate(rows, date);
+  if (!window) return [];
+
+  const existing = appointments.find((appointment) => appointment.id === editingAppointmentId);
+  const duration = existing
+    ? (new Date(existing.endTime).getTime() - new Date(existing.startTime).getTime()) / 60000
+    : policy.defaultAppointmentDurationMinutes;
+  if (!Number.isFinite(duration) || duration <= 0) return [];
+
+  const toMinutes = (value) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+  const openingMinute = toMinutes(policy.clinicOpeningTime) + (Number(policy.clinicOpeningTime.slice(6, 8)) > 0 ? 1 : 0);
+  const firstMinute = Math.max(window.startMinute, openingMinute);
+  const lastMinute = Math.min(window.endMinute, toMinutes(policy.clinicClosingTime)) - duration;
+  const options = [];
+
+  // The existing standard appointment picker accepted any minute; preserve that interval.
+  for (let minute = firstMinute; minute <= lastMinute; minute += 1) {
+    const value = `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+    let start;
+    try {
+      start = clinicLocalDateTimeToISOString(date, value, policy.timezone);
+    } catch {
+      continue;
+    }
+    const end = new Date(new Date(start).getTime() + duration * 60000).toISOString();
+    if (new Date(start) <= new Date() || hasAppointmentConflict(appointments, { id: editingAppointmentId, start, end })) continue;
+    options.push(value);
+  }
+  return options;
 }
 
 function logAppointmentReminderError(context, error) {
@@ -591,6 +689,7 @@ function CustomCalendarHeader({
 
 function StaffWeekCalendar({
   events,
+  availabilityRows,
   selectedDate,
   onSelectDate,
   onSelectSlot,
@@ -611,15 +710,44 @@ function StaffWeekCalendar({
     });
   }, [selectedDate]);
 
-  const timeSlots = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
-  const startHour = timeSlots[0];
   const hourHeight = 70;
-  const visibleEvents = events;
+  const weekKeys = new Set(weekDays.map((day) => day.key));
+  const visibleMinutes = [
+    6 * 60,
+    19 * 60,
+  ];
+  if (Array.isArray(availabilityRows)) {
+    const rowsByDoctor = new Map();
+    availabilityRows.forEach((row) => {
+      if (!rowsByDoctor.has(row.profile_id)) rowsByDoctor.set(row.profile_id, []);
+      rowsByDoctor.get(row.profile_id).push(row);
+    });
+    weekDays.forEach((day) => {
+      rowsByDoctor.forEach((rows) => {
+        const window = getAvailabilityWindowForDate(rows, day.key);
+        if (window) visibleMinutes.push(window.startMinute, window.endMinute);
+      });
+    });
+  }
+  events.forEach((event) => {
+    if (!weekKeys.has(getManilaDateKey(event.start))) return;
+    const startTime = getManilaTimeKey(event.start);
+    if (!startTime) return;
+    const startMinute = Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5));
+    const endTime = getManilaTimeKey(event.end);
+    const endMinute = getManilaDateKey(event.end) === getManilaDateKey(event.start) && endTime
+      ? Number(endTime.slice(0, 2)) * 60 + Number(endTime.slice(3, 5))
+      : 24 * 60;
+    visibleMinutes.push(startMinute, Math.max(startMinute + 30, endMinute));
+  });
+  const startHour = 6;
+  const endHour = Math.min(24, Math.ceil(Math.max(...visibleMinutes) / 60));
+  const timeSlots = Array.from({ length: endHour - startHour }, (_, index) => startHour + index);
 
   return (
     <div
       className="staff-week-calendar"
-      style={{ "--staff-week-hour-height": `${hourHeight}px` }}
+      style={{ "--staff-week-hour-height": `${hourHeight}px`, "--staff-week-slot-count": timeSlots.length }}
     >
       <div className="staff-week-calendar-days">
         <span className="staff-week-calendar-time-head">Time</span>
@@ -651,28 +779,26 @@ function StaffWeekCalendar({
                   type="button"
                   className="staff-week-calendar-line"
                   key={hour}
-                  aria-label={`Add appointment on ${day.dayName} at ${formatHourLabel(hour)}`}
+                  aria-label={`Check appointment availability on ${day.dayName} at ${formatHourLabel(hour)}`}
                   onClick={() => {
                     const start = new Date(day.date);
                     start.setHours(hour, 0, 0, 0);
-                    const end = new Date(start);
-                    end.setTime(start.getTime() + 30 * 60 * 1000);
-                    onSelectSlot(start, end);
+                    onSelectSlot(start);
                   }}
                 />
               ))}
 
-              {visibleEvents
+              {events
                 .filter((event) => {
-                  const eventDate = new Date(event.start);
-                  return !Number.isNaN(eventDate.getTime()) && isSameDay(eventDate, day.date);
+                  return getManilaDateKey(event.start) === day.key;
                 })
                 .map((event) => {
                   const start = new Date(event.start);
                   const end = new Date(event.end);
+                  const timeKey = getManilaTimeKey(event.start);
                   const startMinutes = Math.max(
                     0,
-                    (start.getHours() - startHour) * 60 + start.getMinutes()
+                    Number(timeKey.slice(0, 2)) * 60 + Number(timeKey.slice(3, 5)) - startHour * 60
                   );
                   const durationMinutes =
                     !Number.isNaN(end.getTime()) && end > start
@@ -684,17 +810,19 @@ function StaffWeekCalendar({
                   return (
                     <button
                       type="button"
-                      className={`staff-week-event staff-week-event-${event.category}`}
+                      className={`staff-week-event staff-week-event-${event.category}${isCompletedAppointmentStatus(event.status) ? " is-completed" : ""}`}
                       key={event.id}
                       style={{
                         top: `${top}px`,
                         height: `${height}px`,
+                        ...getAppointmentCategoryStyle(event.category),
                       }}
                       onClick={(clickEvent) => {
                         clickEvent.stopPropagation();
                         onSelectEvent(event.id);
                       }}
                     >
+                      {isCompletedAppointmentStatus(event.status) ? <span className="staff-week-event-completed" style={getCompletedAppointmentStatusStyle()} role="img" aria-label="Completed" title="Completed">✓</span> : null}
                       <strong>{event.patient}</strong>
                       <span>{event.timeLabel}</span>
                       {event.label ? <small>{getAppointmentTypeLabel(event.label)}</small> : null}
@@ -946,6 +1074,7 @@ function AppointmentFormField({
   placeholder = "",
   className = "",
   min,
+  disabled = false,
 }) {
   return (
     <label className={`staff-add-appointment-field ${className}`}>
@@ -957,6 +1086,7 @@ function AppointmentFormField({
             value={value}
             onChange={(event) => onChange(event.target.value)}
             required={required}
+            disabled={disabled}
           >
             {children}
           </select>
@@ -989,7 +1119,12 @@ function AddAppointmentModal({
   isLoadingPatients,
   doctors,
   isLoadingDoctors,
+  doctorsLoadError,
+  availableTimes,
+  availabilityWindow,
+  slotMessage,
   error,
+  onTimeInvalid,
 }) {
   const [isPatientResultsOpen, setIsPatientResultsOpen] = useState(false);
 
@@ -1103,9 +1238,11 @@ function AddAppointmentModal({
             <option value="" disabled>
               {isLoadingDoctors
                 ? "Loading Doctors..."
-                : doctors.length
-                  ? "Select Doctor"
-                  : "No active Doctor available"}
+                : doctorsLoadError
+                  ? "Unable to load Doctors"
+                  : doctors.length
+                    ? "Select Doctor"
+                    : "No Doctors returned for this date"}
             </option>
 
             {doctors.map((doctor) => (
@@ -1114,6 +1251,10 @@ function AddAppointmentModal({
               </option>
             ))}
           </AppointmentFormField>
+
+          {doctorsLoadError ? (
+            <p className="staff-add-appointment-error" role="alert">{doctorsLoadError}</p>
+          ) : null}
 
           <AppointmentFormField
             label="Select Date:"
@@ -1125,15 +1266,23 @@ function AddAppointmentModal({
           />
 
           <div className="staff-add-appointment-field">
-            <span id="staff-add-appointment-time-label">Select Time:</span>
+            <span id="staff-add-appointment-time-label">Choose time</span>
             <AppointmentTimePicker
               id="staff-add-appointment-time"
+              label="appointment time"
               labelId="staff-add-appointment-time-label"
               value={form.startTime}
               onChange={(value) => onChange("startTime", value)}
+              allowedValues={availableTimes}
+              hourRangeMinutes={availabilityWindow}
+              onInvalid={onTimeInvalid}
+              disabled={!availableTimes.length}
               required
+              placeholder="Select an available time"
             />
           </div>
+
+          {slotMessage ? <p className="staff-add-appointment-slot-message" role="status">{slotMessage}</p> : null}
 
           <AppointmentFormField
             label="Select Type:"
@@ -1169,7 +1318,7 @@ function AddAppointmentModal({
           ) : null}
 
           <footer>
-            <button type="submit" disabled={saving}>
+            <button type="submit" disabled={saving || Boolean(doctorsLoadError) || !form.doctorId || !availableTimes.includes(form.startTime)}>
               {saving ? "Saving..." : mode === "edit" ? "Update" : "Save"}
             </button>
 
@@ -2189,6 +2338,8 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
   const [doctors, setDoctors] = useState([]);
   const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
+  const [doctorsLoadError, setDoctorsLoadError] = useState("");
+  const [calendarAvailabilityState, setCalendarAvailabilityState] = useState({ doctorIdsKey: "", rows: null });
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [detailAppointment, setDetailAppointment] = useState(null);
   const [followUpForm, setFollowUpForm] = useState(() => createFollowUpForm(null, null));
@@ -2197,6 +2348,8 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState("");
   const [addAppointmentError, setAddAppointmentError] = useState("");
+  const [calendarRequestedTime, setCalendarRequestedTime] = useState("");
+  const [addSlotState, setAddSlotState] = useState({ doctorId: "", date: "", rows: null, policy: null, error: "" });
   const [addAppointmentForm, setAddAppointmentForm] = useState(() =>
     createBlankAppointmentForm()
   );
@@ -2205,6 +2358,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   const [openStatusMenu, setOpenStatusMenu] = useState(null);
   const [statusMenuPosition, setStatusMenuPosition] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [appointmentsLoadError, setAppointmentsLoadError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [successTitle, setSuccessTitle] = useState("");
   const [statusMessageVersion, setStatusMessageVersion] = useState(0);
@@ -2230,6 +2384,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   const bookingRequestsAbortRef = useRef(null);
   const bookingRequestsEpochRef = useRef(0);
   const appointmentsRequestRef = useRef(null);
+  const appointmentsEpochRef = useRef(0);
   const successTimerRef = useRef(null);
   const dashboardStatusTargetAppliedRef = useRef(Boolean(dashboardStatusTarget));
 
@@ -2355,15 +2510,18 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       return appointmentsRequestRef.current;
     }
 
+    const epoch = appointmentsEpochRef.current;
+    const current = () => epoch === appointmentsEpochRef.current;
     const request = (async () => {
-      const { data, error } = await supabase
+      const { data, error } = await settleQuery(supabase
         .from(scheduleTableName)
         .select(scheduleColumns)
-        .order("start_time", { ascending: true });
+        .order("start_time", { ascending: true }));
 
+      if (!current()) return { ok: false, stale: true };
       if (error) {
         console.error("Staff appointments load failed:", error);
-        setStatusMessage(`Unable to load appointments: ${error.message}`);
+        setAppointmentsLoadError(`Unable to load appointments: ${error.message || "Please retry."}`);
         return { ok: false, error };
       }
 
@@ -2373,6 +2531,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
         mappedAppointments.map((appointment) => [appointment.id, appointment])
       );
 
+      setAppointmentsLoadError("");
       setAppointments(mappedAppointments);
       setScheduleEvents(schedules.map(mapScheduleToCalendarEvent));
     setDetailAppointment((current) =>
@@ -2424,15 +2583,15 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       }
 
       return { ok: true, count: mappedAppointments.length };
-    })();
+    })().catch((error) => {
+      if (current()) setAppointmentsLoadError("Unable to load appointments. Please retry.");
+      return { ok: false, error };
+    }).finally(() => {
+      if (appointmentsRequestRef.current === request) appointmentsRequestRef.current = null;
+      if (current()) setIsLoadingAppointments(false);
+    });
 
     appointmentsRequestRef.current = request;
-    request.finally(() => {
-      if (appointmentsRequestRef.current === request) {
-        appointmentsRequestRef.current = null;
-      }
-      setIsLoadingAppointments(false);
-    });
 
     return request;
   }, []);
@@ -2585,6 +2744,7 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   }, []);
 
   useEffect(() => {
+    appointmentsEpochRef.current += 1;
     const initialLoadTimer = window.setTimeout(loadAppointments, 0);
 
     const handleWindowFocus = () => {
@@ -2614,6 +2774,8 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      appointmentsEpochRef.current += 1;
+      appointmentsRequestRef.current = null;
       window.clearTimeout(initialLoadTimer);
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -2627,10 +2789,10 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
     const loadPatients = async () => {
       setIsLoadingPatients(true);
 
-      const { data, error } = await supabase
+      const { data, error } = await settleQuery(supabase
         .rpc("get_staff_patient_directory")
         .select(patientLookupColumns)
-        .order("full_name", { ascending: true });
+        .order("full_name", { ascending: true }));
 
       if (!active) return;
 
@@ -2708,76 +2870,34 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
               String(current.doctorName || "").trim().toLowerCase()
           );
 
-        const defaultDoctor = currentDoctor || uniqueDoctors[0];
+        if (!currentDoctor) return { ...current, doctorId: "", doctorName: "", startTime: "" };
 
         return {
           ...current,
-          doctorId: defaultDoctor.id,
-          doctorName: defaultDoctor.name,
+          doctorId: currentDoctor.id,
+          doctorName: currentDoctor.name,
         };
       });
     };
 
     const loadDoctors = async () => {
       setIsLoadingDoctors(true);
+      setDoctorsLoadError("");
 
-      /*
-       * IMPORTANT:
-       * Staff Patient registration already uses this secure RPC to obtain
-       * the active Doctor directory. Reuse it here instead of depending
-       * on Staff being able to SELECT every Doctor row from public.profiles.
-       */
-      const slotDate = addAppointmentForm.date || getLocalDateKey();
-      const rpcResult = await supabase.rpc(
-        "get_walkin_registration_availability",
-        {
-          p_slot_date: slotDate,
-        }
-      );
-
-      if (!active) return;
-
-      if (!rpcResult.error && Array.isArray(rpcResult.data)) {
-        applyDoctors(
-          rpcResult.data.map((row) => ({
-            id: row.doctor_id,
-            name: row.doctor_name || "Doctor",
-          }))
-        );
-        setIsLoadingDoctors(false);
-        return;
-      }
-
-      /*
-       * Compatibility fallback for environments where the walk-in RPC
-       * has not yet been installed. Existing RLS still decides visibility.
-       */
+      // A walk-in slot list is date-specific, so it cannot serve as the
+      // complete directory of active Doctors for standard appointments.
       const [profilesResult, personalResult] = await Promise.all([
-        supabase
+        settleQuery(supabase
           .from("profiles")
           .select("id, full_name, role, account_status")
           .ilike("role", "doctor")
-          .order("full_name", { ascending: true }),
-        supabase
+          .order("full_name", { ascending: true })),
+        settleQuery(supabase
           .from("doctor_personal_information")
-          .select("auth_user_id, full_name"),
+          .select("auth_user_id, full_name")),
       ]);
 
       if (!active) return;
-
-      setIsLoadingDoctors(false);
-
-      if (profilesResult.error) {
-        console.warn(
-          "Staff appointment Doctor directory failed:",
-          rpcResult.error || profilesResult.error
-        );
-        applyDoctors([]);
-        setStatusMessage(
-          "Unable to load active Doctors. Please refresh and try again."
-        );
-        return;
-      }
 
       const personalByDoctor = new Map(
         (personalResult.error ? [] : personalResult.data || []).map((row) => [
@@ -2806,7 +2926,32 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
           ),
         }));
 
-      applyDoctors(activeDoctors);
+      if (!profilesResult.error && activeDoctors.length) {
+        applyDoctors(activeDoctors);
+        setIsLoadingDoctors(false);
+        return;
+      }
+
+      // Existing Staff-authorized fallback when profile rows are hidden by RLS.
+      const rpcResult = await settleQuery(supabase.rpc(
+        "get_walkin_registration_availability",
+        { p_slot_date: addAppointmentForm.date || getManilaDateKey() }
+      ));
+      if (!active) return;
+
+      if (!rpcResult.error && Array.isArray(rpcResult.data) && rpcResult.data.length) {
+        applyDoctors(rpcResult.data.map((row) => ({
+          id: row.doctor_id,
+          name: row.doctor_name || "Doctor",
+        })));
+      } else {
+        applyDoctors([]);
+        if (profilesResult.error || rpcResult.error) {
+          setDoctorsLoadError("Unable to load the Doctor directory. Please refresh and try again.");
+          console.warn("Staff appointment Doctor directory failed:", profilesResult.error || rpcResult.error);
+        }
+      }
+      setIsLoadingDoctors(false);
     };
 
     loadDoctors();
@@ -2814,7 +2959,143 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
     return () => {
       active = false;
     };
-  }, [addAppointmentForm.date]);
+  }, [addAppointmentForm.date, isAddAppointmentOpen]);
+
+  const calendarDoctorIdsKey = doctors.map((doctor) => doctor.id).sort().join(",");
+  const calendarAvailabilityRows = calendarAvailabilityState.doctorIdsKey === calendarDoctorIdsKey
+    ? calendarAvailabilityState.rows
+    : null;
+
+  // Mirror the Doctor Calendar's schedule refresh, scoped to active Doctors
+  // already visible to Staff. The calendar remains clinic-wide.
+  useEffect(() => {
+    if (!calendarDoctorIdsKey) return undefined;
+    let active = true;
+    let requestVersion = 0;
+    const refreshAvailability = async () => {
+      const version = ++requestVersion;
+      const { data, error } = await settleQuery(supabase.rpc(
+        "get_staff_doctor_schedule_availability",
+        { p_doctor_ids: calendarDoctorIdsKey.split(",") }
+      ));
+      if (!active || version !== requestVersion) return;
+      setCalendarAvailabilityState({
+        doctorIdsKey: calendarDoctorIdsKey,
+        rows: error || !Array.isArray(data) ? null : data,
+      });
+    };
+    const channel = supabase.channel("staff-calendar-availability")
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "user_availability",
+      }, refreshAvailability)
+      .subscribe();
+    void refreshAvailability();
+    window.addEventListener("focus", refreshAvailability);
+    return () => {
+      active = false;
+      requestVersion += 1;
+      window.removeEventListener("focus", refreshAvailability);
+      void supabase.removeChannel(channel);
+    };
+  }, [calendarDoctorIdsKey]);
+
+  useEffect(() => {
+    if (!isAddAppointmentOpen || !addAppointmentForm.doctorId || !addAppointmentForm.date) return undefined;
+    const doctorId = addAppointmentForm.doctorId;
+    const date = addAppointmentForm.date;
+    let active = true;
+    let requestVersion = 0;
+    const loadSlots = async () => {
+      const version = ++requestVersion;
+      setAddSlotState({ doctorId, date, rows: null, policy: null, error: "" });
+      const [availabilityResult, policyResult] = await Promise.all([
+        settleQuery(supabase.rpc(
+          "get_staff_doctor_schedule_availability",
+          { p_doctor_ids: [doctorId] }
+        )),
+        loadOperationalAppointmentPolicy().then(
+          (policy) => ({ policy }),
+          (error) => ({ error })
+        ),
+      ]);
+      if (!active || version !== requestVersion) return;
+      const rows = availabilityResult.error ? null : availabilityResult.data || [];
+      const policy = policyResult.policy || null;
+      setAddSlotState({
+        doctorId,
+        date,
+        rows,
+        policy,
+        error: availabilityResult.error
+          ? "Unable to load this Doctor's schedule. Please try again."
+          : policyResult.error
+            ? "Unable to load appointment scheduling rules. Please try again."
+            : "",
+      });
+      const options = getAvailableAppointmentTimes({
+        rows, date, policy, appointments, editingAppointmentId,
+      });
+      setAddAppointmentForm((current) => {
+        if (current.doctorId !== doctorId || current.date !== date) return current;
+        if (current.startTime && !options.includes(current.startTime)) {
+          return { ...current, startTime: "" };
+        }
+        if (!current.startTime && calendarRequestedTime && options.includes(calendarRequestedTime)) {
+          return { ...current, startTime: calendarRequestedTime };
+        }
+        return current;
+      });
+    };
+    const onFocus = () => { void loadSlots(); };
+    const channel = supabase
+      .channel(`staff-booking-availability-${doctorId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "user_availability",
+        filter: `profile_id=eq.${doctorId}`,
+      }, () => { void loadSlots(); })
+      .subscribe();
+    void loadSlots();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      active = false;
+      requestVersion += 1;
+      window.removeEventListener("focus", onFocus);
+      supabase.removeChannel(channel);
+    };
+  }, [isAddAppointmentOpen, addAppointmentForm.doctorId, addAppointmentForm.date, appointments, editingAppointmentId, calendarRequestedTime]);
+
+  const addSlotIsCurrent = addSlotState.doctorId === addAppointmentForm.doctorId &&
+    addSlotState.date === addAppointmentForm.date;
+  const addSlotSchedule = useMemo(() =>
+    addSlotIsCurrent && Array.isArray(addSlotState.rows)
+      ? getDoctorScheduleState(addSlotState.rows, addAppointmentForm.date, addAppointmentForm.doctorId)
+      : null,
+  [addSlotIsCurrent, addSlotState.rows, addAppointmentForm.date, addAppointmentForm.doctorId]);
+  const addAppointmentTimeOptions = useMemo(() =>
+    addSlotIsCurrent
+      ? getAvailableAppointmentTimes({
+          rows: addSlotState.rows,
+          date: addAppointmentForm.date,
+          policy: addSlotState.policy,
+          appointments,
+          editingAppointmentId,
+        })
+      : [],
+  [addSlotIsCurrent, addSlotState.rows, addSlotState.policy, appointments, editingAppointmentId, addAppointmentForm.date]);
+
+  const addSlotMessage = !addAppointmentForm.doctorId
+    ? "Select a Doctor to see available times."
+    : !addAppointmentForm.date
+      ? "Select a date to see available times."
+      : !addSlotIsCurrent || addSlotState.rows === null || !addSlotState.policy
+        ? addSlotState.error || "Loading this Doctor's available times..."
+        : addSlotSchedule?.kind !== "available"
+          ? getDoctorScheduleMessage(addSlotSchedule?.kind)
+          : !addAppointmentTimeOptions.length
+            ? "No unoccupied appointment times fit this Doctor's schedule on the selected date."
+            : calendarRequestedTime && !addAppointmentTimeOptions.includes(calendarRequestedTime)
+              ? "The selected calendar time is outside this Doctor's available appointment times. Choose another time."
+              : "";
 
   useEffect(() => {
     const closeStatusMenu = (event) => {
@@ -3080,11 +3361,11 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
   }, [scheduleEvents]);
 
   const mobileCalendarEvents = useMemo(() => {
-    const weekStart = getStartOfWeek(calendarDate);
-    const weekEnd = addDays(weekStart, 7);
+    const weekStart = getLocalDateKey(getStartOfWeek(calendarDate));
+    const weekEnd = getLocalDateKey(addDays(getStartOfWeek(calendarDate), 7));
 
     return fullCalendarEvents.filter((event) => {
-      const eventDate = new Date(event.start);
+      const eventDate = getManilaDateKey(event.start);
       return eventDate >= weekStart && eventDate < weekEnd;
     });
   }, [calendarDate, fullCalendarEvents]);
@@ -3588,6 +3869,16 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
 
         const endTime = endDate.toISOString();
 
+        const availabilityError = await getDoctorAvailabilityError(
+          appointment.doctorId,
+          startTime,
+          endTime
+        );
+        if (availabilityError) {
+          setRescheduleError(availabilityError);
+          return;
+        }
+
         if (
           hasAppointmentConflict(appointments, {
             id: appointment.id,
@@ -3856,44 +4147,39 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
 
   const openAddAppointment = () => {
     setStatusMessage("");
+    setCalendarRequestedTime("");
     setAddAppointmentError("");
     setEditingAppointmentId("");
-    setAddAppointmentForm(createBlankAppointmentForm(doctors[0] || null));
+    setAddAppointmentForm(createBlankAppointmentForm());
     setIsAddAppointmentOpen(true);
   };
 
   const openAddAppointmentAt = useCallback(
-    (startDate, endDate) => {
+    (startDate) => {
       const start = startDate instanceof Date ? startDate : new Date(startDate);
-      const end = endDate instanceof Date ? endDate : new Date(endDate || start);
-
       if (Number.isNaN(start.getTime())) return;
 
-      if (Number.isNaN(end.getTime()) || end <= start) {
-        end.setTime(start.getTime());
-        end.setTime(start.getTime() + 30 * 60 * 1000);
-      }
-
+      const date = getLocalDateKey(start);
+      const time = formatInputTime(start);
       const category = "prenatal";
-
       setStatusMessage("");
+      setCalendarRequestedTime(time);
       setAddAppointmentError("");
       setEditingAppointmentId("");
       setAddAppointmentForm({
-        ...createBlankAppointmentForm(doctors[0] || null),
-        date: getLocalDateKey(start),
-        startTime: formatInputTime(start),
-        endTime: formatInputTime(end),
+        ...createBlankAppointmentForm(),
+        date,
         category,
         appointmentType: getAppointmentTypeForCategory(category),
       });
       setIsAddAppointmentOpen(true);
     },
-    [doctors]
+    []
   );
 
   const updateAddAppointmentForm = (field, value) => {
     setAddAppointmentError("");
+    if (field === "date" || field === "startTime") setCalendarRequestedTime("");
     setAddAppointmentForm((current) => {
       const next = { ...current, [field]: value };
 
@@ -3913,6 +4199,8 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
         next.doctorId = selectedDoctor?.id || "";
         next.doctorName = selectedDoctor?.name || "";
       }
+
+      if (field === "doctorId" || field === "date") next.startTime = "";
 
       return next;
     });
@@ -3990,6 +4278,11 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       setAddAppointmentError(
         "Select an active Doctor before saving the appointment."
       );
+      return;
+    }
+
+    if (!addAppointmentTimeOptions.includes(addAppointmentForm.startTime)) {
+      setAddAppointmentError("Choose an available time for this Doctor and date.");
       return;
     }
 
@@ -4096,6 +4389,16 @@ function StaffAppointmentsContent({ headerAction, staffUserId, requestNotificati
       setAddAppointmentError(
         "The selected appointment date and time has already passed. Please choose a future date and time."
       );
+      return;
+    }
+
+    const availabilityError = await getDoctorAvailabilityError(
+      selectedDoctor.id,
+      startTime,
+      endTime
+    );
+    if (availabilityError) {
+      setAddAppointmentError(availabilityError);
       return;
     }
 
@@ -4212,9 +4515,7 @@ setMiniMonthDate(
     setAddAppointmentError("");
     setIsAddAppointmentOpen(false);
     setEditingAppointmentId("");
-    setAddAppointmentForm(
-      createBlankAppointmentForm(doctors[0] || null)
-    );
+    setAddAppointmentForm(createBlankAppointmentForm());
 
     await loadAppointments();
 
@@ -4715,6 +5016,13 @@ setMiniMonthDate(
         </AppointmentControlGroup>
       </AppointmentToolbar>
 
+      {appointmentsLoadError ? (
+        <div className="staff-appointments-status-message" role="alert">
+          <p>{appointmentsLoadError}</p>
+          <button type="button" disabled={isLoadingAppointments} onClick={() => { setIsLoadingAppointments(true); void loadAppointments(); }}>Retry appointments</button>
+        </div>
+      ) : null}
+
       <AppointmentSummary
         summary={appointmentSummary}
         isLoading={isLoadingAppointments}
@@ -4810,12 +5118,12 @@ setMiniMonthDate(
               {isLoadingAppointments && !paginatedAppointments.length ? (
                 <tr>
                   <td colSpan="5" className="staff-appointments-empty-cell">
-                    Loading appointments...
+                    <WorkspaceSectionFallback label="appointments" compact />
                   </td>
                 </tr>
               ) : null}
 
-              {!isLoadingAppointments && !paginatedAppointments.length ? (
+              {!isLoadingAppointments && !appointmentsLoadError && !paginatedAppointments.length ? (
                 <tr>
                   <td colSpan="5" className="staff-appointments-empty-cell">
                     No appointments found.
@@ -4850,6 +5158,7 @@ setMiniMonthDate(
 
           <StaffWeekCalendar
             events={scheduleEvents}
+            availabilityRows={calendarAvailabilityRows}
             selectedDate={calendarDate}
             onSelectDate={selectCalendarDate}
             onSelectSlot={openAddAppointmentAt}
@@ -4861,12 +5170,15 @@ setMiniMonthDate(
               <button
                 key={event.id}
                 type="button"
-                className={`staff-mobile-calendar-item staff-fullcalendar-event-${event.extendedProps.category}`}
+                className={`staff-mobile-calendar-item staff-fullcalendar-event-${event.extendedProps.category}${isCompletedAppointmentStatus(event.extendedProps.status) ? " is-completed" : ""}`}
+                style={getAppointmentCategoryStyle(event.extendedProps.category)}
+                aria-label={`${event.extendedProps.patient}, ${event.extendedProps.timeLabel}, ${getAppointmentTypeLabel(event.extendedProps.label)}${isCompletedAppointmentStatus(event.extendedProps.status) ? ", Completed" : ""}`}
                 onClick={() => openAppointmentDetails(event.id)}
               >
                 <span>{formatLongDate(event.start)}</span>
                 <strong>{event.extendedProps.patient}</strong>
                 <small>{event.extendedProps.timeLabel} - {getAppointmentTypeLabel(event.extendedProps.label)}</small>
+                {isCompletedAppointmentStatus(event.extendedProps.status) ? <small className="staff-mobile-calendar-completed" style={getCompletedAppointmentStatusStyle()}>Completed</small> : null}
               </button>
             ))}
 
@@ -4932,6 +5244,7 @@ setMiniMonthDate(
                 <div
                   className={`staff-category-item ${category.colorClass}`}
                   key={category.id}
+                  style={getAppointmentCategoryStyle(category.id)}
                 >
                   <span aria-hidden="true">
                     <Icon icon={category.icon} />
@@ -4984,6 +5297,7 @@ setMiniMonthDate(
             setIsAddAppointmentOpen(false);
             setEditingAppointmentId("");
             setAddAppointmentError("");
+            setCalendarRequestedTime("");
           }}
           onSave={saveAppointment}
           saving={isSavingAppointment}
@@ -4992,7 +5306,12 @@ setMiniMonthDate(
           isLoadingPatients={isLoadingPatients}
           doctors={doctors}
           isLoadingDoctors={isLoadingDoctors}
+          doctorsLoadError={doctorsLoadError}
+          availableTimes={addAppointmentTimeOptions}
+          availabilityWindow={addSlotSchedule?.window || null}
+          slotMessage={addSlotMessage}
           error={addAppointmentError}
+          onTimeInvalid={setAddAppointmentError}
         />
       ) : null}
 

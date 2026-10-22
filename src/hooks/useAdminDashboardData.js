@@ -11,12 +11,17 @@ import {
   mapAdminAuditActivity,
 } from "../lib/adminDashboard";
 import {
+  clearAdminWorkspaceSnapshots,
   getAdminWorkspaceSnapshot,
   setAdminWorkspaceSnapshot,
 } from "../lib/adminWorkspaceSnapshots";
 import { queryAdminOverdueScheduleRows } from "../lib/adminAppointmentOverdue";
 
 const dashboardSnapshotNamespace = "dashboard";
+
+function isAuthorizationError(error) {
+  return ["42501", "PGRST301", "PGRST302", "PGRST303"].includes(error?.code);
+}
 
 const supportedAdminAlertTargets = new Set([
   "users",
@@ -272,7 +277,7 @@ function alignOverdueSystemAlert(alerts, overdueCount) {
 
   const overdueAlert = {
     id: "overdue-appointments",
-    icon: "solar:calendar-minimalistic-linear",
+    icon: "solar:calendar-minimalistic-bold",
     count: overdueCount,
     severity: "High",
     title: "Overdue appointments unresolved",
@@ -339,7 +344,7 @@ function alignUnlinkedPatientAlert(alerts, unlinkedPatientCount) {
 
   const unlinkedAlert = {
     id: "unlinked-patients",
-    icon: "solar:link-broken-minimalistic-linear",
+    icon: "solar:link-broken-minimalistic-bold",
     count: unlinkedPatientCount,
     severity: "Review",
     title: "Patient accounts not linked",
@@ -466,7 +471,7 @@ async function queryRecentActivity() {
   const { data, error } = await supabase
     .from("audit_logs")
     .select(
-      "id, actor_name, actor_role, module, action, description, created_at"
+      "id, actor_name, actor_role, module, action, entity_type, description, created_at"
     )
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -500,6 +505,9 @@ export function useAdminDashboardData(
   const requestIdRef = useRef(0);
   const realtimeTimerRef = useRef(null);
   const refreshPromiseRef = useRef(null);
+  const authorizationFailureRef = useRef(null);
+  const [authorizationFailure, setAuthorizationFailure] = useState(null);
+  const [realtimeError, setRealtimeError] = useState("");
 
   const range = useMemo(
     () => getDateRangeConfig(dateRange),
@@ -562,6 +570,7 @@ export function useAdminDashboardData(
         requestIdRef.current = requestId;
 
         if (!enabled || !adminId) {
+          if (adminId) clearAdminWorkspaceSnapshots(dashboardSnapshotNamespace, adminId);
           setSummaryState((current) => ({
             ...current,
             loading: false,
@@ -614,6 +623,14 @@ export function useAdminDashboardData(
         let overdueResult;
         let unlinkedPatientResult;
 
+        const denyAccess = error => {
+          authorizationFailureRef.current = { adminId, error };
+          setAuthorizationFailure(authorizationFailureRef.current);
+          clearAdminWorkspaceSnapshots(dashboardSnapshotNamespace, adminId);
+          setSummaryState({ data: createEmptySummary(range), snapshotKey: stateKey, loading: false, error });
+          setActivityState({ data: [], snapshotKey: stateKey, loading: false, error });
+        };
+
         try {
           [
             summaryResult,
@@ -628,6 +645,11 @@ export function useAdminDashboardData(
           ]);
         } catch (unexpectedError) {
           if (requestIdRef.current !== requestId) {
+            return;
+          }
+
+          if (isAuthorizationError(unexpectedError)) {
+            denyAccess(unexpectedError);
             return;
           }
 
@@ -652,6 +674,18 @@ export function useAdminDashboardData(
 
         if (requestIdRef.current !== requestId) {
           return;
+        }
+
+        const accessError = [summaryResult, activityResult, overdueResult, unlinkedPatientResult]
+          .map(result => result.error).find(isAuthorizationError);
+        if (accessError) {
+          denyAccess(accessError);
+          return;
+        }
+        // A partial/network-failed read must not resurrect previously denied data.
+        if (!summaryResult.error && !activityResult.error) {
+          authorizationFailureRef.current = null;
+          setAuthorizationFailure(null);
         }
 
         if (summaryResult.error) {
@@ -685,7 +719,7 @@ const nextSummary = mapSummary(
             error: null,
           });
 
-          setAdminWorkspaceSnapshot(
+          if (authorizationFailureRef.current?.adminId !== adminId) setAdminWorkspaceSnapshot(
             dashboardSnapshotNamespace,
             adminId,
             snapshotKey,
@@ -728,7 +762,7 @@ const nextSummary = mapSummary(
               snapshotKey
             );
 
-          setAdminWorkspaceSnapshot(
+          if (authorizationFailureRef.current?.adminId !== adminId) setAdminWorkspaceSnapshot(
             dashboardSnapshotNamespace,
             adminId,
             snapshotKey,
@@ -920,10 +954,15 @@ const nextSummary = mapSummary(
               scheduleRefresh
             )
             .subscribe((status) => {
+              if (!realtimeActive) return;
+              if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+                setRealtimeError("Live activity updates are unavailable. Use Refresh to check for new events.");
+              }
               if (
                 status === "SUBSCRIBED" &&
                 realtimeActive
               ) {
+                setRealtimeError("");
                 /*
                  * Recover audit events missed while disconnected by
                  * performing one authoritative catch-up refresh.
@@ -1080,10 +1119,13 @@ const nextSummary = mapSummary(
       ? activityState.error
       : null;
 
-  return {
-    ...summary,
+  const blockedError = authorizationFailure?.adminId === adminId ? authorizationFailure.error : null;
+  const canDisplay = enabled && Boolean(adminId) && !blockedError;
 
-    recentActivities,
+  return {
+    ...(canDisplay ? summary : createEmptySummary(range)),
+
+    recentActivities: canDisplay ? recentActivities : [],
     range,
 
     summaryLoading,
@@ -1093,8 +1135,9 @@ const nextSummary = mapSummary(
       summaryLoading ||
       activityLoading,
 
-    summaryError,
-    activityError,
+    summaryError: blockedError || summaryError,
+    activityError: blockedError || activityError,
+    realtimeError: canDisplay ? realtimeError : "",
 
     refresh,
   };

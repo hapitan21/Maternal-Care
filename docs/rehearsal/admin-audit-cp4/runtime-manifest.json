@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "runtime": "docker-compose",
+  "syntheticOnly": true,
+  "launchApproved": false,
+  "nonce": "__CP4_NONCE__",
+  "project": "mc-audit-cp4-compose-__CP4_NONCE__",
+  "sourceProject": "mc-audit-cp4-strict-3bd79bb163bc401ba28d6be57fc4fd1f",
+  "apiOrigin": "http://127.0.0.1:55421",
+  "databaseName": "postgres",
+  "postgresVersion": "17.11.0.002",
+  "images": {
+    "db": "public.ecr.aws/supabase/postgres@sha256:0450166354dc9c1d25f0322ac8b580774d4fb0184d2b087f6e4fe9499c66cf53",
+    "kong": "public.ecr.aws/supabase/kong@sha256:1b53405d8680a09d6f44494b7990bf7da2ea43f84a258c59717d4539abf09f6d",
+    "auth": "public.ecr.aws/supabase/gotrue@sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b",
+    "rest": "public.ecr.aws/supabase/postgrest@sha256:d155c6718ed9a9f990d159a2ab7c0a3f16944dbb6d0a0344557421042acfe0df",
+    "realtime": "public.ecr.aws/supabase/realtime@sha256:f66c721c71b576f5854c78f86df0c78a98368d900dcf62e4ddd96c6913139999"
+  },
+  "network": "mc-audit-cp4-compose-__CP4_NONCE__-net",
+  "gatewayNetwork": "mc-audit-cp4-compose-__CP4_NONCE__-gateway",
+  "volume": "mc-audit-cp4-compose-__CP4_NONCE__-db",
+  "existingVolumeReuse": false,
+  "startupHash": "6f995b129657d28b15a97a1c8a957a7c0015a9865880747c25ad00e3b6d7dd86",
+  "requiredPrivateEnvironment": {
+    "db": [
+      "POSTGRES_PASSWORD",
+      "PGPASSWORD",
+      "JWT_SECRET"
+    ],
+    "auth": [
+      "GOTRUE_DB_DATABASE_URL",
+      "GOTRUE_JWT_SECRET",
+      "GOTRUE_JWT_KEYS"
+    ],
+    "rest": [
+      "PGRST_DB_URI",
+      "PGRST_JWT_SECRET"
+    ],
+    "realtime": [
+      "DB_PASSWORD",
+      "API_JWT_SECRET",
+      "API_JWT_JWKS",
+      "METRICS_JWT_SECRET",
+      "DB_ENC_KEY",
+      "SECRET_KEY_BASE"
+    ]
+  },
+  "observedRealtimeFailure": "DB_HOST nxdomain while original DB stopped; exit 1; OOMKilled=false",
+  "approvals": [
+    "review private-file ACLs and immutable package",
+    "approve ONLY new resource creation AND upstream service initialization SQL",
+    "verify runtime/network/WAL/roles/tenant/catalog readiness",
+    "approve setup.sql",
+    "approve synthetic identities and authorization tests"
+  ],
+  "protectedResources": [
+    "mc-audit-rehearsal-ab53a2750d8e47fb9bb31b70f79a16ec",
+    "r139-supabase-restore-v2",
+    "r139-sql-restore-test",
+    "lucid_neumann",
+    "mc-audit-cp4-strict-3bd79bb163bc401ba28d6be57fc4fd1f",
+    "mc-audit-cp4-10ccde5e21c742788858a45dbc7ad88d"
+  ]
+}

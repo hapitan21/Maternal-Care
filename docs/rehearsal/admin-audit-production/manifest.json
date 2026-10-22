@@ -1,0 +1,20 @@
+{
+  "kind": "synthetic-production-audit-rehearsal",
+  "version": 1,
+  "productionBodyMd5": {
+    "record_audit_event": "a8589348a66eaf55796e3d217d98b29a",
+    "admin_set_patient_account_status": "644d99b03aeb2da0b4d4c8a7016aaf53",
+    "admin_set_doctor_account_status": "c255a40c685ac48f61ddb9f2fea666dc",
+    "admin_set_staff_account_status": "bd7fac0ad786a9d5f55c9751f27806a4"
+  },
+  "files": {
+    "baseline-check.sql": "2648103ddeac2e4a9870d5cdf13175165539ce9f859aee560fa0984c004adfcb",
+    "bootstrap.sql": "c11396a9350c45d635952dcc4e92a3b5fd9621cf04a670eb30bbf31f220c6d6f",
+    "guard.sql": "a47bb2383248e77555e63eb93cde41deccd7e611d0694ff0bb0b88c14280e058",
+    "inspect.sql": "3aa36b8d47b6f6d5ce1fc286957ebefe58282a23e3fe197094c1fa54c42b751c",
+    "migration.sql": "5df048bc972f692eed6e01fd677e751a42138a50745f9310178ca77ae333a2e1",
+    "post-check.sql": "6322db85725d283f4fe4f7b81114874313bce5aaf85c46759558d1278dafe567",
+    "run.mjs": "7a45058cfc578d1878ecd9cd73b8911cfab1c8923e7b6def4d7399fbc87d0554",
+    "tests.sql": "956727be3a0194ebc068c8854f6d9946124328844c2be048f796d4c86ada095f"
+  }
+}

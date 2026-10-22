@@ -1,3 +1,4 @@
+import { settleQuery } from "../../lib/settleQuery";
 import { createDoctorSessionCache } from "../../lib/doctorSessionCache";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -33,8 +34,11 @@ import {
 import {
   APPOINTMENT_CATEGORIES,
   APPOINTMENT_TYPES,
+  getAppointmentCategoryStyle,
+  getCompletedAppointmentStatusStyle,
   getAppointmentTypeCategory,
   getAppointmentTypeLabel,
+  isCompletedAppointmentStatus,
 } from "../../lib/appointmentTypes";
 import { sendAutomaticAppointmentNotification } from "../../lib/automaticAppointmentNotification";
 import { buildAppointmentSuccessFeedback } from "../../lib/appointmentSuccessFeedback";
@@ -50,6 +54,7 @@ import AppointmentDateRangeFilter from "../../components/appointments/Appointmen
 import { matchesAppointmentDateRange } from "../../lib/appointmentDateRange";
 import { useDoctorDelayedLoader } from "../../hooks/useDoctorDelayedLoader";
 import { useDoctorModuleDialog } from "../../hooks/useDoctorModuleDialog";
+import { getAvailabilityWindowForDate } from "../../lib/availabilitySchedule";
 import {
   clinicLocalDateTimeToISOString,
   loadOperationalAppointmentPolicy,
@@ -366,6 +371,149 @@ function hasDuplicateAppointment(schedules, candidate) {
   });
 }
 
+function getDoctorAvailabilityError({ date, time, rows, durationMinutes, timezone }) {
+  if (!Array.isArray(rows)) {
+    return "Unable to verify your saved Schedule Availability. Please wait for it to load and try again.";
+  }
+
+  const window = getAvailabilityWindowForDate(rows, date);
+  if (!window) {
+    return "You are not available on the selected date. Choose another date.";
+  }
+
+  const match = /^(\d{2}):(\d{2})$/.exec(String(time || ""));
+  if (!match) return "Choose a valid appointment time.";
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const duration = Number(durationMinutes);
+  if (hour > 23 || minute > 59 || !Number.isFinite(duration) || duration <= 0) {
+    return "Choose a valid appointment time.";
+  }
+
+  const startMinute = hour * 60 + minute;
+  const endMinute = startMinute + duration;
+  if (startMinute < window.startMinute || endMinute > window.endMinute) {
+    return "The selected time is outside your saved availability or the appointment would extend beyond it.";
+  }
+
+  try {
+    if (new Date(clinicLocalDateTimeToISOString(date, time, timezone)) < new Date()) {
+      return "The selected appointment date and time has already passed. Please choose a future date and time.";
+    }
+  } catch (error) {
+    return error?.message || "Choose a valid appointment date and time.";
+  }
+
+  return "";
+}
+
+function getDoctorAppointmentTimeOptions({ date, rows, policy, schedules }) {
+  if (!date || !Array.isArray(rows) || !policy) return [];
+  const window = getAvailabilityWindowForDate(rows, date);
+  if (!window) return [];
+
+  const duration = Number(policy.defaultAppointmentDurationMinutes);
+  const getMinutes = (value, roundUp = false) => {
+    const match = /^(\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(value || ""));
+    return match
+      ? Number(match[1]) * 60 + Number(match[2]) +
+        (roundUp && Number(match[3] || 0) > 0 ? 1 : 0)
+      : null;
+  };
+  const openingMinute = getMinutes(policy.clinicOpeningTime, true);
+  const closingMinute = getMinutes(policy.clinicClosingTime);
+  if (!Number.isFinite(duration) || duration <= 0 || openingMinute === null || closingMinute === null) return [];
+
+  const firstMinute = Math.max(window.startMinute, openingMinute);
+  const lastMinute = Math.min(window.endMinute, closingMinute) - duration;
+  const existingAppointments = schedules
+    .filter((schedule) => !isClosedAppointmentStatus(schedule.status))
+    .map((schedule) => ({ start: toDate(schedule.start_time), end: toDate(schedule.end_time) }))
+    .filter(({ start, end }) => start && end && end > start);
+  const options = [];
+
+  for (let minute = firstMinute; minute <= lastMinute; minute += 1) {
+    const time = `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+    let start;
+    try {
+      start = clinicLocalDateTimeToISOString(date, time, policy.timezone);
+    } catch {
+      continue;
+    }
+    const startDate = new Date(start);
+    if (startDate <= new Date()) continue;
+    const endDate = new Date(startDate.getTime() + duration * 60 * 1000);
+    if (existingAppointments.some(({ start: existingStart, end: existingEnd }) =>
+      startDate < existingEnd && endDate > existingStart
+    )) continue;
+    options.push(time);
+  }
+
+  return options;
+}
+
+function getDoctorCalendarSlotWarning({ date, time, rows, availabilityError, policy, policyError, policyLoading, schedules }) {
+  if (!date) return "";
+  if (!Array.isArray(rows)) {
+    return availabilityError
+      ? "Unable to load your saved Schedule Availability. Refresh and try again."
+      : "Your saved Schedule Availability is still loading. Please try again shortly.";
+  }
+  if (!policy) {
+    return policyError || (policyLoading
+      ? "Loading appointment policy..."
+      : "Unable to load the appointment policy. Please retry before booking.");
+  }
+  if (date < getManilaDateKey()) {
+    return "The selected appointment date is in the past. Choose a future date and time.";
+  }
+
+  if (time) {
+    try {
+      if (new Date(clinicLocalDateTimeToISOString(date, time, policy.timezone)) <= new Date()) {
+        return "The selected appointment date and time has already passed. Please choose a future date and time.";
+      }
+    } catch (error) {
+      return error?.message || "Choose a valid appointment date and time.";
+    }
+  }
+
+  const window = getAvailabilityWindowForDate(rows, date);
+  if (!window) {
+    return time
+      ? "The selected calendar time is outside this Doctor's available appointment times. Choose another time."
+      : "This Doctor is unavailable on the selected date. Choose another date or time.";
+  }
+
+  if (time) {
+    const availabilityErrorMessage = getDoctorAvailabilityError({
+      date,
+      time,
+      rows,
+      durationMinutes: policy.defaultAppointmentDurationMinutes,
+      timezone: policy.timezone,
+    });
+    if (availabilityErrorMessage) {
+      return /already passed|past/i.test(availabilityErrorMessage)
+        ? availabilityErrorMessage
+        : "The selected calendar time is outside this Doctor's available appointment times. Choose another time.";
+    }
+
+    const options = getDoctorAppointmentTimeOptions({ date, rows, policy, schedules });
+    if (!options.length) {
+      return "No unoccupied appointment times fit this Doctor's schedule on the selected date. Choose another date.";
+    }
+    return options.includes(time)
+      ? ""
+      : "The selected calendar time is outside this Doctor's available appointment times. Choose another time.";
+  }
+
+  return getDoctorAppointmentTimeOptions({ date, rows, policy, schedules }).length
+    ? ""
+    : "No unoccupied appointment times fit this Doctor's schedule on the selected date. Choose another date.";
+}
+
 function searchMatches(schedule, searchTerm) {
   const keyword = searchTerm.trim().toLowerCase();
 
@@ -535,7 +683,7 @@ function getWeekDays(dateValue) {
 
     return {
       date,
-      key: toDateInputValue(date),
+      key: getLocalDateKey(date),
       dayName: date.toLocaleDateString("en-US", { weekday: "short" }),
       dayNumber: date.getDate(),
     };
@@ -547,14 +695,7 @@ function getWeekRangeLabel(dateValue) {
   const first = days[0].date;
   const last = days[days.length - 1].date;
 
-  const firstMonth = first.toLocaleDateString("en-US", { month: "long" });
-  const lastMonth = last.toLocaleDateString("en-US", { month: "long" });
-
-  if (firstMonth === lastMonth) {
-    return `${firstMonth} ${first.getDate()} - ${last.getDate()}, ${last.getFullYear()}`;
-  }
-
-  return `${firstMonth} ${first.getDate()} - ${lastMonth} ${last.getDate()}, ${last.getFullYear()}`;
+  return `${first.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${last.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 function getScheduleCategory(schedule) {
@@ -1034,18 +1175,61 @@ function DoctorAppointmentDetailsModal({
   );
 }
 
+function layoutDoctorDayEvents(daySchedules, startHour, hourHeight) {
+  const events = daySchedules.map((schedule) => {
+    const startTime = schedule.start_time ? toTimeInputValue(schedule.start_time) : "";
+    const endTime = schedule.end_time ? toTimeInputValue(schedule.end_time) : "";
+    const startMinute = startTime
+      ? Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5))
+      : startHour * 60;
+    const endMinute = endTime && toDateInputValue(schedule.end_time) === toDateInputValue(schedule.start_time)
+      ? Number(endTime.slice(0, 2)) * 60 + Number(endTime.slice(3, 5))
+      : startMinute + 60;
+    const top = Math.max(0, ((startMinute - startHour * 60) / 60) * hourHeight);
+    const height = Math.min(110, (Math.max(30, endMinute - startMinute) / 60) * hourHeight);
+
+    return { schedule, top, height, lane: 0, group: null };
+  }).sort((first, second) => first.top - second.top || second.height - first.height);
+
+  let group = null;
+  let laneEnds = [];
+  let groupEnd = 0;
+
+  events.forEach((event) => {
+    if (!group || event.top >= groupEnd) {
+      group = { laneCount: 0 };
+      laneEnds = [];
+      groupEnd = 0;
+    }
+
+    const freeLane = laneEnds.findIndex((end) => end <= event.top);
+    event.lane = freeLane < 0 ? laneEnds.length : freeLane;
+    laneEnds[event.lane] = event.top + event.height;
+    group.laneCount = Math.max(group.laneCount, laneEnds.length);
+    groupEnd = Math.max(groupEnd, event.top + event.height);
+    event.group = group;
+  });
+
+  return events;
+}
+
 function FigmaWeekCalendar({
   schedules,
+  availabilityRows,
+  availabilityError,
   selectedDate,
   onSelectDate,
   onPreviousWeek,
   onNextWeek,
   onSelectSchedule,
+  onSelectSlot,
 }) {
-  const weekDays = getWeekDays(selectedDate);
-  const timeSlots = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
-  const startHour = 6;
+  const weekDays = useMemo(() => getWeekDays(selectedDate), [selectedDate]);
   const hourHeight = 70;
+  const hasVerifiedAvailability = Array.isArray(availabilityRows);
+  const dayWindows = weekDays.map((day) =>
+    hasVerifiedAvailability ? getAvailabilityWindowForDate(availabilityRows, day.key) : null
+  );
 
   const schedulesByDay = useMemo(() => {
     return weekDays.reduce((acc, day) => {
@@ -1054,17 +1238,48 @@ function FigmaWeekCalendar({
     }, {});
   }, [schedules, weekDays]);
 
+  const visibleMinutes = [
+    6 * 60,
+    19 * 60,
+    ...dayWindows.filter(Boolean).flatMap(({ startMinute, endMinute }) => [startMinute, endMinute]),
+  ];
+  weekDays.forEach((day) => {
+    (schedulesByDay[day.key] || []).forEach((schedule) => {
+      const startTime = schedule.start_time ? toTimeInputValue(schedule.start_time) : "";
+      const endTime = schedule.end_time ? toTimeInputValue(schedule.end_time) : "";
+      if (!startTime) return;
+      const startMinute = Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5));
+      const endMinute = toDateInputValue(schedule.end_time) === day.key && endTime
+        ? Number(endTime.slice(0, 2)) * 60 + Number(endTime.slice(3, 5))
+        : 24 * 60;
+      visibleMinutes.push(startMinute, Math.max(startMinute + 30, endMinute));
+    });
+  });
+  const startHour = Math.floor(Math.min(...visibleMinutes) / 60);
+  const endHour = Math.min(24, Math.max(startHour + 1, Math.ceil(Math.max(...visibleMinutes) / 60)));
+  const timeSlots = Array.from({ length: endHour - startHour }, (_, index) => startHour + index);
+
+  const formatHour = (minute) => {
+    const hour = Math.floor(minute / 60);
+    const remainder = minute % 60;
+    return `${hour % 12 || 12}${remainder ? `:${String(remainder).padStart(2, "0")}` : ""} ${hour < 12 ? "AM" : "PM"}`;
+  };
+  const formatTimeRow = (hour) =>
+    `${hour < 12 ? String(hour).padStart(2, "0") : hour % 12 || 12} ${hour < 12 ? "AM" : "PM"}`;
+
   return (
     <section className="doctor-calendar-panel">
       <header className="doctor-calendar-header">
         <div className="doctor-calendar-title-group">
           <h2>Calendar</h2>
-          <button type="button" onClick={onPreviousWeek} aria-label="Previous week">
-            ‹
-          </button>
-          <button type="button" onClick={onNextWeek} aria-label="Next week">
-            ›
-          </button>
+          <div className="doctor-calendar-controls">
+            <button type="button" onClick={onPreviousWeek} aria-label="Previous week">
+              <Icon icon="solar:alt-arrow-left-linear" />
+            </button>
+            <button type="button" onClick={onNextWeek} aria-label="Next week">
+              <Icon icon="solar:alt-arrow-right-linear" />
+            </button>
+          </div>
         </div>
 
         <strong>{getWeekRangeLabel(selectedDate)}</strong>
@@ -1074,12 +1289,13 @@ function FigmaWeekCalendar({
         <div className="doctor-week-calendar-days">
           <span className="doctor-week-calendar-time-head">Time</span>
 
-          {weekDays.map((day) => (
+          {weekDays.map((day, index) => (
             <button
-              className={day.key === selectedDate ? "is-selected" : ""}
+              className={[day.key === selectedDate ? "is-selected" : "", hasVerifiedAvailability && !dayWindows[index] ? "is-unavailable" : ""].join(" ")}
               type="button"
               key={day.key}
               onClick={() => onSelectDate(day.key)}
+              aria-label={`${day.dayName} ${day.dayNumber}: ${hasVerifiedAvailability ? dayWindows[index] ? `${formatHour(dayWindows[index].startMinute)} to ${formatHour(dayWindows[index].endMinute)} available` : "Unavailable" : availabilityError ? "Schedule unavailable" : "Schedule loading"}`}
             >
               <small>{day.dayName}</small>
               <strong>{day.dayNumber}</strong>
@@ -1087,46 +1303,60 @@ function FigmaWeekCalendar({
           ))}
         </div>
 
-        <div className="doctor-week-calendar-body" style={{ "--hour-height": `${hourHeight}px` }}>
+        <div className="doctor-week-calendar-body" style={{ "--hour-height": `${hourHeight}px`, "--slot-count": timeSlots.length }}>
           <div className="doctor-week-calendar-times">
             {timeSlots.map((hour) => (
               <span key={hour}>
-                {hour === 12 ? "12 PM" : hour > 12 ? `${hour - 12} PM` : `${hour.toString().padStart(2, "0")} AM`}
+                {formatTimeRow(hour)}
               </span>
             ))}
           </div>
 
           <div className="doctor-week-calendar-grid">
             {weekDays.map((day) => (
-              <div className="doctor-week-calendar-day" key={day.key}>
+              <div
+                className={`doctor-week-calendar-day${hasVerifiedAvailability ? " is-schedule-known" : ""}`}
+                key={day.key}
+                onClick={(event) => {
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  if (!bounds.height) return;
+                  const minutesFromStart = Math.min(
+                    timeSlots.length * 60 - 1,
+                    Math.max(0, ((event.clientY - bounds.top) / bounds.height) * timeSlots.length * 60)
+                  );
+                  const minuteOfDay = startHour * 60 + Math.floor(minutesFromStart);
+                  const time = `${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`;
+                  onSelectSlot(day.key, time);
+                }}
+              >
                 {timeSlots.map((hour) => (
                   <span className="doctor-week-calendar-line" key={hour} />
                 ))}
 
-                {(schedulesByDay[day.key] || []).map((schedule) => {
-                  const start = toDate(schedule.start_time);
-                  const startMinutes = Math.max(
-                    0,
-                    ((start?.getHours() || startHour) - startHour) * 60 + (start?.getMinutes() || 0)
-                  );
-                  const top = (startMinutes / 60) * hourHeight;
-                  const height = 66;
+                {layoutDoctorDayEvents(schedulesByDay[day.key] || [], startHour, hourHeight).map(({ schedule, top, height, lane, group }) => {
                   const category = getScheduleCategory(schedule);
+                  const completed = isCompletedAppointmentStatus(schedule.status);
+                  const gutter = group.laneCount === 1 ? 7 : 4;
 
                   return (
                     <button
                       type="button"
-                      className={`doctor-week-event is-${category}`}
+                      className={`doctor-week-event is-${category}${height < 50 ? " is-compact" : ""}${completed ? " is-completed" : ""}`}
                       key={schedule.id}
                       style={{
                         top: `${top}px`,
-                        height: `${height}px`,
+                        "--event-height": `${height}px`,
+                        "--event-left": `calc(${(lane / group.laneCount) * 100}% + ${gutter}px)`,
+                        "--event-width": `calc(${100 / group.laneCount}% - ${gutter * 2}px)`,
+                        ...getAppointmentCategoryStyle(category),
                       }}
+                      title={`${schedule.patient_name} · ${formatTime(schedule.start_time)} - ${formatTime(schedule.end_time)} · ${getAppointmentTypeLabel(schedule.title)}`}
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelectSchedule(schedule);
                       }}
                     >
+                      {completed ? <span className="doctor-week-event-completed" style={getCompletedAppointmentStatusStyle()} role="img" aria-label="Completed" title="Completed">✓</span> : null}
                       <strong>{schedule.patient_name}</strong>
                       <span>{formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}</span>
                       <small>{getAppointmentTypeLabel(schedule.title)}</small>
@@ -1138,6 +1368,13 @@ function FigmaWeekCalendar({
           </div>
         </div>
       </div>
+      <p className="doctor-calendar-availability-note" role="status">
+        {availabilityError
+          ? "Schedule availability could not be loaded. Appointments remain visible."
+          : hasVerifiedAvailability
+            ? "Highlighted hours show your saved availability; appointments outside them remain visible."
+            : "Loading saved schedule availability..."}
+      </p>
     </section>
   );
 }
@@ -1275,6 +1512,7 @@ export function DoctorAppointmentsContent({
   });
   const [isAdding, setIsAdding] = useState(false);
   const [addAppointmentError, setAddAppointmentError] = useState("");
+  const [calendarRequestedTime, setCalendarRequestedTime] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [successTitle, setSuccessTitle] = useState("");
@@ -1292,6 +1530,7 @@ export function DoctorAppointmentsContent({
     () => Boolean(appointmentSnapshot)
   );
   const [appointmentsLoadError, setAppointmentsLoadError] = useState("");
+  const [availabilityState, setAvailabilityState] = useState({ doctorId: "", rows: null, error: "" });
   const [updatingStatusId, setUpdatingStatusId] = useState("");
   const [cancelConfirmationSchedule, setCancelConfirmationSchedule] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -1469,17 +1708,48 @@ export function DoctorAppointmentsContent({
     patients.some(
       (patient) => patient.full_name?.toLowerCase() === form.patient_name.trim().toLowerCase()
     );
+  const calendarAvailabilityRows = availabilityState.doctorId === authenticatedDoctorId
+    ? availabilityState.rows : null;
+  const calendarAvailabilityError = availabilityState.doctorId === authenticatedDoctorId
+    ? availabilityState.error : "";
+  const calendarSlotWarning = useMemo(() => isAdding
+    ? getDoctorCalendarSlotWarning({
+        date: form.appointment_date,
+        time: calendarRequestedTime || form.appointment_time,
+        rows: calendarAvailabilityRows,
+        availabilityError: calendarAvailabilityError,
+        policy: appointmentPolicy,
+        policyError: appointmentPolicyError,
+        policyLoading: isAppointmentPolicyLoading,
+        schedules,
+      })
+    : "", [
+    appointmentPolicy,
+    appointmentPolicyError,
+    calendarAvailabilityError,
+    calendarAvailabilityRows,
+    calendarRequestedTime,
+    form.appointment_date,
+    form.appointment_time,
+    isAdding,
+    isAppointmentPolicyLoading,
+    schedules,
+  ]);
+  const selectedAppointmentTime = calendarRequestedTime && !calendarSlotWarning
+    ? calendarRequestedTime
+    : form.appointment_time;
   const isAddAppointmentReady =
     Boolean(form.patient_name.trim()) &&
     Boolean(form.appointment_date) &&
-    Boolean(form.appointment_time) &&
+    Boolean(selectedAppointmentTime) &&
     Boolean(form.title.trim()) &&
     hasExactPatientMatch &&
     Boolean(appointmentDoctor?.id) &&
     Boolean(appointmentPolicy) &&
     !isAppointmentPolicyLoading &&
     !isAppointmentDoctorLoading &&
-    !visibleAppointmentDoctorError;
+    !visibleAppointmentDoctorError &&
+    !calendarSlotWarning;
 
   const appointmentSummary = useMemo(() => {
     return schedules.reduce(
@@ -1520,8 +1790,10 @@ export function DoctorAppointmentsContent({
         (schedule) =>
           getManilaDateKey(schedule.start_time) === getLocalDateKey(day.date)
       ),
+      isAvailable: Array.isArray(calendarAvailabilityRows) && !day.disabled &&
+        Boolean(getAvailabilityWindowForDate(calendarAvailabilityRows, getLocalDateKey(day.date))),
     }));
-  }, [miniMonthDate, schedules, selectedDate]);
+  }, [calendarAvailabilityRows, miniMonthDate, schedules, selectedDate]);
 
   const applyDateRange = (range) => {
     setDateRange(range);
@@ -1741,6 +2013,43 @@ export function DoctorAppointmentsContent({
     loadAppointments,
   ]);
 
+  useEffect(() => {
+    if (isVisitFormRoute || doctorIdentity?.loading || !authenticatedDoctorId) return undefined;
+
+    let active = true;
+    let requestVersion = 0;
+    const refreshAvailability = async () => {
+      const version = ++requestVersion;
+      try {
+        const { data, error } = await supabase.from("user_availability")
+          .select("day_of_week, start_time, end_time, is_available")
+          .eq("profile_id", authenticatedDoctorId)
+          .order("day_of_week", { ascending: true });
+        if (!active || version !== requestVersion) return;
+        if (error || !Array.isArray(data)) throw error || new Error("Invalid availability response");
+        setAvailabilityState({ doctorId: authenticatedDoctorId, rows: data, error: "" });
+      } catch {
+        if (active && version === requestVersion) {
+          setAvailabilityState({ doctorId: authenticatedDoctorId, rows: null, error: "Schedule unavailable" });
+        }
+      }
+    };
+
+    void refreshAvailability();
+    const channel = supabase.channel(`doctor-calendar-availability-${authenticatedDoctorId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "user_availability",
+        filter: `profile_id=eq.${authenticatedDoctorId}`,
+      }, refreshAvailability)
+      .subscribe();
+    window.addEventListener("focus", refreshAvailability);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshAvailability);
+      void supabase.removeChannel(channel);
+    };
+  }, [authenticatedDoctorId, doctorIdentity?.loading, isVisitFormRoute]);
+
   /*
    * Dashboard "View Appointment" deep link.
    *
@@ -1803,7 +2112,7 @@ export function DoctorAppointmentsContent({
       setIsLoadingPatients(true);
 
       if (!patientsRequestRef.current) {
-        const request = Promise.resolve(
+        const request = settleQuery(
           supabase
             .rpc("get_doctor_patient_directory")
             .select(patientColumns)
@@ -1825,6 +2134,7 @@ export function DoctorAppointmentsContent({
 
       if (error) {
         console.error(error);
+        setStatusMessage("Unable to load patients for booking. Please return to Appointments to retry.");
         return;
       }
 
@@ -1928,9 +2238,13 @@ export function DoctorAppointmentsContent({
 
   const updateFormValue = (field, value) => {
     setAddAppointmentError("");
+    if (field === "appointment_date" || field === "appointment_time") {
+      setCalendarRequestedTime("");
+    }
     setForm((current) => ({
       ...current,
       [field]: value,
+      ...(field === "appointment_date" ? { appointment_time: "" } : {}),
     }));
   };
 
@@ -2018,10 +2332,20 @@ export function DoctorAppointmentsContent({
     return request;
   }, []);
 
-  const openAddAppointment = useCallback(() => {
+  const openAddAppointment = useCallback((prefill = null) => {
     if (isAdding) return;
 
     window.dispatchEvent(new CustomEvent("doctor:close-profile-menu"));
+    if (prefill?.date || prefill?.time) {
+      setForm((current) => ({
+        ...current,
+        ...(prefill.date ? { appointment_date: prefill.date } : {}),
+        ...(Object.prototype.hasOwnProperty.call(prefill, "time")
+          ? { appointment_time: prefill.time }
+          : {}),
+      }));
+    }
+    setCalendarRequestedTime(prefill?.requestedTime || "");
     setIsAdding(true);
     setAddAppointmentError("");
     setStatusMessage("");
@@ -2034,6 +2358,15 @@ export function DoctorAppointmentsContent({
 
     resolveAppointmentDoctor();
   }, [hookAppointmentDoctor, isAdding, loadAppointmentPolicy, resolveAppointmentDoctor]);
+
+  const handleCalendarSlotSelect = useCallback((date, time) => {
+    selectCalendarDate(date);
+    openAddAppointment({
+      date,
+      time: "",
+      requestedTime: time,
+    });
+  }, [openAddAppointment, selectCalendarDate]);
 
 
   const selectPatient = (patient) => {
@@ -2056,6 +2389,11 @@ export function DoctorAppointmentsContent({
     try {
     setAddAppointmentError("");
 
+    if (calendarSlotWarning) {
+      setAddAppointmentError(calendarSlotWarning);
+      return;
+    }
+
     if (isAppointmentPolicyLoading) {
       setAddAppointmentError("The appointment policy is still loading. Please wait.");
       return;
@@ -2074,7 +2412,7 @@ export function DoctorAppointmentsContent({
     try {
       clinicStartIso = clinicLocalDateTimeToISOString(
         form.appointment_date,
-        form.appointment_time,
+        selectedAppointmentTime,
         appointmentPolicy.timezone
       );
     } catch (error) {
@@ -2094,6 +2432,18 @@ export function DoctorAppointmentsContent({
       setAddAppointmentError(
         "The selected appointment date and time has already passed. Please choose a future date and time."
       );
+      return;
+    }
+
+    const availabilityError = getDoctorAvailabilityError({
+      date: form.appointment_date,
+      time: selectedAppointmentTime,
+      rows: calendarAvailabilityRows,
+      durationMinutes: appointmentPolicy.defaultAppointmentDurationMinutes,
+      timezone: appointmentPolicy.timezone,
+    });
+    if (availabilityError) {
+      setAddAppointmentError(availabilityError);
       return;
     }
 
@@ -2901,7 +3251,7 @@ export function DoctorAppointmentsContent({
           <button
             className="doctor-appointments-add appointment-ui-primary"
             type="button"
-            onClick={openAddAppointment}
+            onClick={() => openAddAppointment()}
           >
             <InlineIcon name="plus" />
             <span>Add Appointment</span>
@@ -2982,11 +3332,14 @@ export function DoctorAppointmentsContent({
       <section className="doctor-calendar-layout">
         <FigmaWeekCalendar
           schedules={schedules}
+          availabilityRows={calendarAvailabilityRows}
+          availabilityError={calendarAvailabilityError}
           selectedDate={selectedDate}
           onSelectDate={selectCalendarDate}
           onPreviousWeek={() => moveWeek(-1)}
           onNextWeek={() => moveWeek(1)}
           onSelectSchedule={openCalendarAppointmentDetails}
+          onSelectSlot={handleCalendarSlotSelect}
         />
 
         <aside className="staff-calendar-sidebar">
@@ -3027,6 +3380,7 @@ export function DoctorAppointmentsContent({
                     day.hasEvent ? "is-soft" : "",
                     day.active ? "is-active" : "",
                   ].join(" ")}
+                  aria-label={`${day.date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}: ${day.disabled ? "Outside displayed month" : Array.isArray(calendarAvailabilityRows) ? day.isAvailable ? "Available" : "Unavailable" : calendarAvailabilityError ? "Schedule unavailable" : "Schedule loading"}${day.hasEvent ? ", has appointments" : ""}`}
                   onClick={() => {
                     selectCalendarDate(day.date);
                   }}
@@ -3045,6 +3399,7 @@ export function DoctorAppointmentsContent({
                 <div
                   className={`doctor-category-item ${category.colorClass}`}
                   key={category.id}
+                  style={getAppointmentCategoryStyle(category.id)}
                 >
                   <span aria-hidden="true">
                     <Icon icon={category.icon} />
@@ -3140,7 +3495,7 @@ export function DoctorAppointmentsContent({
                     <AppointmentTimePicker
                       id="doctor-add-appointment-time"
                       labelId="doctor-add-appointment-time-label"
-                      value={form.appointment_time}
+                      value={selectedAppointmentTime}
                       onChange={(value) => updateFormValue("appointment_time", value)}
                       required
                     />
@@ -3194,6 +3549,12 @@ export function DoctorAppointmentsContent({
                   {appointmentPolicyError ? (
                     <p className="appointment-form-message" role="alert">
                       {appointmentPolicyError}
+                    </p>
+                  ) : null}
+
+                  {calendarSlotWarning ? (
+                    <p className="appointment-form-message" role="alert">
+                      {calendarSlotWarning}
                     </p>
                   ) : null}
 

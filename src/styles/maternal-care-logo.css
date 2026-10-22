@@ -58,7 +58,6 @@
   border-radius: 0 !important;
 }
 
-.pwa-loading-card .maternal-care-logo--status,
 .pwa-access-state-card .maternal-care-logo--status {
   width: min(170px, 100%) !important;
   height: auto !important;

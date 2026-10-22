@@ -1,10 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@iconify/react";
-import { AlarmClock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { usePatientSectionScroll } from "../../hooks/usePatientSectionScroll";
 import { supabase } from "../../lib/supabaseClient";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import WorkspaceLoadingScreen from "../../components/common/WorkspaceLoadingScreen";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import PatientNotificationBell from "../../components/patient/PatientNotificationBell";
 import PatientNotificationsProvider from "../../components/patient/PatientNotificationsProvider";
@@ -92,20 +92,14 @@ const defaultPatientProfile = {
 
 const patientSessionStorageKey = "maternal_patient_session";
 const patientAccountCacheSection = "account-shell";
-const patientLoadingMessage = "Opening Maternal Care";
+const patientLoadingMessage = "Maternal Care";
 
 const navItems = [
   { key: "dashboard", label: "Dashboard", mobileLabel: "Home", icon: "solar:widget-2-bold" },
-  { key: "medical-record", label: "Medical Record", mobileLabel: "Records", icon: "solar:document-medicine-linear" },
-  { key: "appointments", label: "Appointments", mobileLabel: "Visits", icon: "solar:calendar-linear" },
-  { key: "reminders", label: "Reminders", mobileLabel: "Reminders", icon: AlarmClock },
+  { key: "medical-record", label: "Medical Record", mobileLabel: "Records", icon: "solar:document-medicine-bold" },
+  { key: "appointments", label: "Appointments", mobileLabel: "Visits", icon: "solar:calendar-bold" },
+  { key: "reminders", label: "Reminders", mobileLabel: "Reminders", icon: "solar:alarm-bold" },
 ];
-
-function PatientNavigationIcon({ icon: NavigationIcon }) {
-  return typeof NavigationIcon === "string"
-    ? <Icon icon={NavigationIcon} aria-hidden="true" />
-    : <NavigationIcon strokeWidth={1.5} aria-hidden="true" />;
-}
 
 const pageRoutes = {
   dashboard: "/patient/dashboard",
@@ -262,14 +256,7 @@ function getPatientAccessState(patientRow, supportsAccountStatus) {
 }
 
 function PatientLoadingScreen() {
-  return (
-    <div className="pwa-shell pwa-loading-shell">
-      <div className="pwa-loading-card" role="status">
-        <MaternalCareLogo decorative variant="status" />
-        <span>{patientLoadingMessage}</span>
-      </div>
-    </div>
-  );
+  return <WorkspaceLoadingScreen message={patientLoadingMessage} />;
 }
 
 function PatientAccessStateScreen({ state, onRetry, linkPatientUrl }) {
@@ -937,7 +924,7 @@ export default function PatientPWA() {
               data-mobile-label={item.mobileLabel}
               title={item.label}
             >
-              <PatientNavigationIcon icon={item.icon} />
+              <Icon icon={item.icon} aria-hidden="true" />
               <span>{item.label}</span>
             </button>
           ))}

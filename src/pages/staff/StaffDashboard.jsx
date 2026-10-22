@@ -21,6 +21,7 @@ import {
   normalizeAppointmentStatus,
 } from "../../lib/appointmentDate";
 import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import WorkspaceLoadingScreen from "../../components/common/WorkspaceLoadingScreen";
 import StaffSessionActions from "../../components/staff/StaffSessionActions";
 import MaternalCareLogo from "../../components/common/MaternalCareLogo";
 import ProfileAvatarContent from "../../components/common/ProfileAvatarContent";
@@ -63,7 +64,7 @@ const navItems = [
   {
     key: "appointments",
     label: "Appointments",
-    icon: "solar:calendar-linear",
+    icon: "solar:calendar-bold",
   },
 ];
 
@@ -222,10 +223,10 @@ function StaffProfileDropdown({
 
 function StaffProfileCard({
   onNavigate,
+  onLogout,
   profilePhoto,
   settings,
 }) {
-  const navigate = useNavigate();
   const dropdownRef = useRef(null);
   const triggerRef = useRef(null);
   const openRef = useRef(false);
@@ -272,19 +273,9 @@ function StaffProfileCard({
     onNavigate("settings");
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setIsOpen(false);
-
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      console.error("Unable to sign out:", error.message);
-      return;
-    }
-
-    clearStaffSessionCache();
-
-    navigate("/", { replace: true });
+    return onLogout();
   };
 
   const initials = getStaffInitials(settings.displayName);
@@ -353,6 +344,8 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(
     !initialDashboardSnapshot?.stats
   );
+
+  const [dashboardLoadRevision, setDashboardLoadRevision] = useState(0);
 
   // A refreshed row object must never inherit the previous snapshot's open menu.
   const [activeSessionAction, setActiveSessionAction] = useState(null);
@@ -438,7 +431,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
         setDashboardMessage(
           hasExistingSnapshot
             ? ""
-            : "Dashboard data could not be loaded. Please refresh the page."
+            : "Dashboard data could not be loaded. Please retry."
         );
       } else {
         setDashboardMessage("");
@@ -570,10 +563,12 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
         setDashboardStats(nextStats);
         setUpcomingSessions(nextUpcomingSessions);
       }
-      setIsLoadingDashboard(false);
-      })();
-
-      refreshPromise.finally(() => {
+      })().catch((error) => {
+        if (!active) return;
+        console.warn("Staff dashboard load failed:", error);
+        setDashboardMessage("Dashboard data could not be loaded. Please retry.");
+      }).finally(() => {
+        if (active) setIsLoadingDashboard(false);
         refreshPromise = null;
       });
 
@@ -624,7 +619,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
       supabase.removeChannel(patientsChannel);
       supabase.removeChannel(scheduleChannel);
     };
-  }, [staffUserId]);
+  }, [staffUserId, dashboardLoadRevision]);
 
   const statusCards = dashboardStatusCards.map((card) => ({
     ...card,
@@ -667,7 +662,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
                 </strong>
               ) : (
                 <strong className="doctor-hero-highlight">
-                  Loading today&apos;s schedule...
+                  {isLoadingDashboard ? "Loading today's schedule..." : "Schedule information is unavailable."}
                 </strong>
               )}
             </span>
@@ -698,7 +693,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
 
               <div className="doctor-status-copy">
                 <p>{card.label}</p>
-                <h3 aria-label={card.value === null ? "Loading" : undefined}>
+                <h3 aria-label={isLoadingDashboard && card.value === null ? "Loading" : undefined}>
                   {card.value ?? "—"}
                 </h3>
               </div>
@@ -728,7 +723,8 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
 
       {dashboardMessage ? (
         <p className="staff-dashboard-status-message" role="alert">
-          {dashboardMessage}
+          {dashboardMessage}{" "}
+          <button type="button" onClick={() => setDashboardLoadRevision((current) => current + 1)}>Retry dashboard</button>
         </p>
       ) : null}
 
@@ -741,7 +737,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
             onClick={() => onNavigate("appointments")}
           >
             View All Sessions
-            <Icon icon="lucide:chevron-right" />
+            <Icon icon="solar:alt-arrow-right-bold" />
           </button>
         </div>
 
@@ -838,7 +834,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
                             });
                           }}
                         >
-                          <Icon icon="solar:calendar-linear" />
+                          <Icon icon="solar:calendar-bold" />
                           <span>View Appointment</span>
                         </button>
 
@@ -854,7 +850,7 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
                               });
                             }}
                           >
-                            <Icon icon="solar:user-rounded-linear" />
+                            <Icon icon="solar:user-rounded-bold" />
                             <span>View Patient</span>
                           </button>
                         ) : null}
@@ -869,12 +865,12 @@ function DashboardHome({ onNavigate, headerAction, staffUserId }) {
                       colSpan="5"
                       className="staff-dashboard-empty-sessions"
                     >
-                      Loading upcoming sessions...
+                      <WorkspaceSectionFallback label="upcoming sessions" compact />
                     </td>
                   </tr>
                 ) : null}
 
-                {!isLoadingDashboard && !upcomingSessions.length ? (
+                {!isLoadingDashboard && !dashboardMessage && !upcomingSessions.length ? (
                   <tr>
                     <td
                       colSpan="5"
@@ -917,6 +913,24 @@ function StaffDashboard({ staffIdentity }) {
   const location = useLocation();
   const navigate = useNavigate();
   const bookingNotifications = useStaffBookingRequestNotifications(staffIdentity?.authUser?.id);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = useCallback(async () => {
+    setIsLoggingOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Unable to sign out:", error.message);
+        return;
+      }
+      clearStaffSessionCache();
+      navigate("/", { replace: true });
+    } catch (error) {
+      console.error("Unable to sign out:", error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }, [navigate]);
 
   /*
    * Keep the Staff profile-pill data at the workspace-shell level.
@@ -1139,16 +1153,7 @@ function StaffDashboard({ staffIdentity }) {
       }
 
       if (section === "logout") {
-        const { error } = await supabase.auth.signOut();
-
-        if (error) {
-          console.error("Unable to sign out:", error.message);
-          return;
-        }
-
-        clearStaffSessionCache();
-
-        navigate("/", { replace: true });
+        await handleLogout();
         return;
       }
 
@@ -1166,11 +1171,12 @@ function StaffDashboard({ staffIdentity }) {
         handleStaffNavigation
       );
     };
-  }, [navigate, navigateToPage]);
+  }, [handleLogout, navigateToPage]);
 
   const headerAction = (
     <StaffProfileCard
       onNavigate={navigateToPage}
+      onLogout={handleLogout}
       profilePhoto={profilePhoto}
       settings={profileCardSettings}
     />
@@ -1221,6 +1227,9 @@ function StaffDashboard({ staffIdentity }) {
   };
 
   return (
+    <>
+    {isLoggingOut ? <WorkspaceLoadingScreen /> : null}
+    <div hidden={isLoggingOut}>
     <div className="doctor-dashboard staff-dashboard-shell">
       <aside className="doctor-sidebar">
         <div className="doctor-sidebar-inner">
@@ -1266,6 +1275,8 @@ function StaffDashboard({ staffIdentity }) {
       <StaffBookingRequestToast toast={bookingNotifications.toast} onDismiss={bookingNotifications.dismissToast}
         onView={() => { bookingNotifications.dismissToast(); navigateToPage("appointments", { path: "/staff/appointments?tab=requests" }); }} />
     </div>
+    </div>
+    </>
   );
 }
 

@@ -435,10 +435,9 @@ function Login() {
           className="login-opening-card"
           role="status"
           aria-live="polite"
+          aria-label="Maternal Care"
         >
           <MaternalCareLogo decorative variant="status" />
-
-          <span>Opening Maternal Care</span>
         </div>
       </div>
     );

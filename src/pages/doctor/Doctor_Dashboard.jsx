@@ -117,12 +117,12 @@ const navItems = [
   {
     key: "appointments",
     label: "Appointments",
-    icon: "solar:calendar-linear",
+    icon: "solar:calendar-bold",
   },
   {
     key: "reminders",
     label: "Reminders",
-    icon: "solar:bell-linear",
+    icon: "solar:bell-bold",
   },
 ];
 
@@ -589,7 +589,7 @@ function DashboardHome({
 
           <button type="button" onClick={() => setActivePage("appointments")}>
             View All Sessions
-            <Icon icon="lucide:chevron-right" />
+            <Icon icon="solar:alt-arrow-right-bold" />
           </button>
         </div>
 
@@ -671,7 +671,7 @@ function DashboardHome({
                                 });
                               }}
                             >
-                              <Icon icon="solar:calendar-linear" />
+                              <Icon icon="solar:calendar-bold" />
                               <span>View Appointment</span>
                             </button>
 
@@ -688,7 +688,7 @@ function DashboardHome({
                                   });
                                 }}
                               >
-                                <Icon icon="solar:user-rounded-linear" />
+                                <Icon icon="solar:user-rounded-bold" />
                                 <span>View Patient</span>
                               </button>
                             ) : null}

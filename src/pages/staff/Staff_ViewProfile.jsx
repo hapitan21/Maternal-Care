@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { supabase } from "../../lib/supabaseClient";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
@@ -288,8 +289,10 @@ function StaffViewProfileContent({
   );
 
   const [profileError, setProfileError] = useState("");
+  const profileRequestRef = useRef(0);
 
   const loadStaffProfile = useCallback(async () => {
+    const requestId = ++profileRequestRef.current;
     /*
      * Keep the last successful profile visible while Supabase refreshes.
      * Only show the blocking profile loader when there is no usable snapshot.
@@ -313,6 +316,7 @@ function StaffViewProfileContent({
         error: userError,
       } = await supabase.auth.getUser();
 
+      if (profileRequestRef.current !== requestId) return;
       if (userError) {
         throw userError;
       }
@@ -349,6 +353,7 @@ function StaffViewProfileContent({
         }),
       ]);
 
+      if (profileRequestRef.current !== requestId) return;
       if (profileResult.error) {
         throw profileResult.error;
       }
@@ -461,13 +466,14 @@ function StaffViewProfileContent({
         { broadcast: false }
       );
     } catch (error) {
+      if (profileRequestRef.current !== requestId) return;
       console.error("Unable to load staff profile:", error);
 
       setProfileError(
         error?.message || "Unable to load the staff profile."
       );
     } finally {
-      setLoadingProfile(false);
+      if (profileRequestRef.current === requestId) setLoadingProfile(false);
     }
   }, []);
 
@@ -475,6 +481,7 @@ function StaffViewProfileContent({
     const loadProfileTimer = window.setTimeout(loadStaffProfile, 0);
 
     return () => {
+      profileRequestRef.current += 1;
       window.clearTimeout(loadProfileTimer);
     };
   }, [loadStaffProfile]);
@@ -771,10 +778,7 @@ function StaffViewProfileContent({
         >
           {loadingProfile &&
           !hasProfileSnapshot(profile) ? (
-            <div className="staff-profile-loading">
-              <Icon icon="solar:refresh-linear" />
-              Loading staff information...
-            </div>
+            <WorkspaceSectionFallback label="staff information" />
           ) : activeTab === "personal" ? (
             <>
               {personalColumns.map((column, index) => (

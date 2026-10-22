@@ -1,3 +1,4 @@
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import { useId, useState } from "react";
 import { Icon } from "@iconify/react";
 import ProfilePictureActions from "../../components/common/ProfilePictureActions";
@@ -231,9 +232,7 @@ function DoctorViewProfileContent({ doctorIdentity = null, headerAction = null }
       </header>
 
       {doctorIdentity?.loading ? (
-        <p className="doctor-profile-load-state" role="status">
-          Loading Doctor profile...
-        </p>
+        <WorkspaceSectionFallback label="Doctor profile" />
       ) : null}
 
       {doctorIdentity?.error ? (

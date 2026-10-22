@@ -1,3 +1,4 @@
+import WorkspaceSectionFallback from "../../components/common/WorkspaceSectionFallback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, FileText, Pencil, Plus, Trash2, X } from "lucide-react";
@@ -1084,265 +1085,273 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
     setRegistrationHistory({});
     setHistoryWarning("");
 
-    const { data: routingData, error: routingError } = await supabase.rpc(
-      "get_appointment_visit_form_type",
-      { p_appointment_id: appointmentId }
-    );
-
-    if (requestIdRef.current !== requestId) return;
-    if (routingError) {
-      logVisitError("routing RPC failed", routingError);
-      setError(getErrorMessage(routingError, "Unable to determine the visit form."));
-      setLoading(false);
-      return;
-    }
-
-    const routeResult = Array.isArray(routingData) ? routingData[0] : routingData;
-    if (!routeResult?.visit_form_type) {
-      setError("The visit-routing RPC did not return a form type.");
-      setLoading(false);
-      return;
-    }
-
-    if (routeResult.visit_form_type !== requestedType) {
-      const routeSegment = routeResult.visit_form_type === "initial"
-        ? "initial-visit"
-        : "follow-up";
-      navigate(
-        {
-          pathname: `/${workspace}/appointments/${appointmentId}/${routeSegment}`,
-          search: location.search || "",
-        },
-        { replace: true }
+    try {
+      const { data: routingData, error: routingError } = await supabase.rpc(
+        "get_appointment_visit_form_type",
+        { p_appointment_id: appointmentId }
       );
-      return;
-    }
 
-    const { data: schedule, error: scheduleError } = await supabase
-      .from("schedule")
-      .select(scheduleColumns)
-      .eq("id", appointmentId)
-      .maybeSingle();
+      if (requestIdRef.current !== requestId) return;
+      if (routingError) {
+        logVisitError("routing RPC failed", routingError);
+        setError(getErrorMessage(routingError, "Unable to determine the visit form."));
+        setLoading(false);
+        return;
+      }
 
-    if (requestIdRef.current !== requestId) return;
-    if (scheduleError || !schedule?.patient_id) {
-      logVisitError("appointment load failed", scheduleError);
-      setError(getErrorMessage(scheduleError, "The appointment could not be loaded."));
-      setLoading(false);
-      return;
-    }
+      const routeResult = Array.isArray(routingData) ? routingData[0] : routingData;
+      if (!routeResult?.visit_form_type) {
+        setError("The visit-routing RPC did not return a form type.");
+        setLoading(false);
+        return;
+      }
 
-    const [
-      patientResult,
-      recordResult,
-      baselineResult,
-      staffIntakeResult,
-      obstetricResult,
-      medicalHistoryResult,
-      initialAssessmentResult,
-    ] = await Promise.all([
-      loadVisitPatient(schedule.patient_id, requestedType === "initial"),
-      supabase
-        .from("medical_records")
-        .select(recordColumns)
-        .eq("schedule_id", appointmentId)
-        .maybeSingle(),
-      supabase
-        .from("medical_records")
-        .select(recordColumns)
-        .eq("patient_id", schedule.patient_id)
-        .order("uploaded_at", { ascending: false })
-        .limit(30),
-      supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
-      loadLatestRegistrationHistory("patient_obstetric_history",
-        requestedType === "initial" ? obstetricHistoryColumns : followUpHistoryColumns,
-        schedule.patient_id),
-      requestedType === "initial"
-        ? loadLatestRegistrationHistory("patient_medical_history", medicalHistoryColumns, schedule.patient_id)
-        : Promise.resolve({ data: null, error: null }),
-      requestedType === "initial"
-        ? loadLatestRegistrationHistory("patient_initial_assessment", initialAssessmentColumns, schedule.patient_id)
-        : Promise.resolve({ data: null, error: null }),
-    ]);
+      if (routeResult.visit_form_type !== requestedType) {
+        const routeSegment = routeResult.visit_form_type === "initial"
+          ? "initial-visit"
+          : "follow-up";
+        navigate(
+          {
+            pathname: `/${workspace}/appointments/${appointmentId}/${routeSegment}`,
+            search: location.search || "",
+          },
+          { replace: true }
+        );
+        return;
+      }
 
-    if (requestIdRef.current !== requestId) return;
-    // Optional history columns must not break the established pregnancy load.
-    // If optional columns fail, retain the original EDD load and row ordering.
-    // Follow-Up never displays partial history from this fallback.
-    const pregnancyResult = obstetricResult.error
-      ? await loadLatestRegistrationHistory("patient_obstetric_history", "id, patient_id, expected_delivery_date", schedule.patient_id)
-      : obstetricResult;
-    if (requestIdRef.current !== requestId) return;
-    const staffIntakeError =
-      staffIntakeResult.error && !isMissingStaffIntakeSupport(staffIntakeResult.error)
-        ? staffIntakeResult.error
-        : null;
-    const loadError =
-      patientResult.error ||
-      recordResult.error ||
-      baselineResult.error ||
-      pregnancyResult.error ||
-      staffIntakeError ||
-      (requestedType === "follow_up" && pregnancyResult.data && (
-        !pregnancyResult.data.id || pregnancyResult.data.patient_id !== schedule.patient_id ||
-        patientResult.data?.id !== schedule.patient_id
-      ) ? new Error("The stored history did not match this visit's Patient record.") : null);
-    if (loadError) {
-      logVisitError("visit information load failed", loadError);
-      setError(getErrorMessage(loadError, "Unable to load visit information."));
-      setLoading(false);
-      return;
-    }
+      const { data: schedule, error: scheduleError } = await supabase
+        .from("schedule")
+        .select(scheduleColumns)
+        .eq("id", appointmentId)
+        .maybeSingle();
 
-    const patientRow = patientResult.data;
-    const record = recordResult.data;
-    const staffIntake = Array.isArray(staffIntakeResult.data)
-      ? staffIntakeResult.data[0]
-      : staffIntakeResult.data;
-    const obstetricHistory = pregnancyResult.data || null;
-    if (requestedType === "initial") {
-      const historyErrors = [obstetricResult, medicalHistoryResult, initialAssessmentResult]
-        .filter((result) => result.error);
-      historyErrors.forEach((result) => logVisitError("optional registration history load failed", result.error));
-      setHistoryWarning(historyErrors.length ? "Some registration history could not be loaded. Unavailable values are shown as Not recorded." : "");
-      setRegistrationHistory({
-        obstetric: obstetricHistory,
-        medical: medicalHistoryResult.error ? null : medicalHistoryResult.data,
+      if (requestIdRef.current !== requestId) return;
+      if (scheduleError || !schedule?.patient_id) {
+        logVisitError("appointment load failed", scheduleError);
+        setError(getErrorMessage(scheduleError, "The appointment could not be loaded."));
+        setLoading(false);
+        return;
+      }
+
+      const [
+        patientResult,
+        recordResult,
+        baselineResult,
+        staffIntakeResult,
+        obstetricResult,
+        medicalHistoryResult,
+        initialAssessmentResult,
+      ] = await Promise.all([
+        loadVisitPatient(schedule.patient_id, requestedType === "initial"),
+        supabase
+          .from("medical_records")
+          .select(recordColumns)
+          .eq("schedule_id", appointmentId)
+          .maybeSingle(),
+        supabase
+          .from("medical_records")
+          .select(recordColumns)
+          .eq("patient_id", schedule.patient_id)
+          .order("uploaded_at", { ascending: false })
+          .limit(30),
+        supabase.rpc("get_staff_visit_intake", { p_appointment_id: appointmentId }),
+        loadLatestRegistrationHistory("patient_obstetric_history",
+          requestedType === "initial" ? obstetricHistoryColumns : followUpHistoryColumns,
+          schedule.patient_id),
+        requestedType === "initial"
+          ? loadLatestRegistrationHistory("patient_medical_history", medicalHistoryColumns, schedule.patient_id)
+          : Promise.resolve({ data: null, error: null }),
+        requestedType === "initial"
+          ? loadLatestRegistrationHistory("patient_initial_assessment", initialAssessmentColumns, schedule.patient_id)
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+
+      if (requestIdRef.current !== requestId) return;
+      // Optional history columns must not break the established pregnancy load.
+      // If optional columns fail, retain the original EDD load and row ordering.
+      // Follow-Up never displays partial history from this fallback.
+      const pregnancyResult = obstetricResult.error
+        ? await loadLatestRegistrationHistory("patient_obstetric_history", "id, patient_id, expected_delivery_date", schedule.patient_id)
+        : obstetricResult;
+      if (requestIdRef.current !== requestId) return;
+      const staffIntakeError =
+        staffIntakeResult.error && !isMissingStaffIntakeSupport(staffIntakeResult.error)
+          ? staffIntakeResult.error
+          : null;
+      const loadError =
+        patientResult.error ||
+        recordResult.error ||
+        baselineResult.error ||
+        pregnancyResult.error ||
+        staffIntakeError ||
+        (requestedType === "follow_up" && pregnancyResult.data && (
+          !pregnancyResult.data.id || pregnancyResult.data.patient_id !== schedule.patient_id ||
+          patientResult.data?.id !== schedule.patient_id
+        ) ? new Error("The stored history did not match this visit's Patient record.") : null);
+      if (loadError) {
+        logVisitError("visit information load failed", loadError);
+        setError(getErrorMessage(loadError, "Unable to load visit information."));
+        setLoading(false);
+        return;
+      }
+
+      const patientRow = patientResult.data;
+      const record = recordResult.data;
+      const staffIntake = Array.isArray(staffIntakeResult.data)
+        ? staffIntakeResult.data[0]
+        : staffIntakeResult.data;
+      const obstetricHistory = pregnancyResult.data || null;
+      if (requestedType === "initial") {
+        const historyErrors = [obstetricResult, medicalHistoryResult, initialAssessmentResult]
+          .filter((result) => result.error);
+        historyErrors.forEach((result) => logVisitError("optional registration history load failed", result.error));
+        setHistoryWarning(historyErrors.length ? "Some registration history could not be loaded. Unavailable values are shown as Not recorded." : "");
+        setRegistrationHistory({
+          obstetric: obstetricHistory,
+          medical: medicalHistoryResult.error ? null : medicalHistoryResult.data,
+        });
+      } else {
+        setRegistrationHistory({ obstetric: obstetricResult.error ? null : obstetricHistory });
+      }
+      const completedPriorRecords = (baselineResult.data || []).filter((candidate) => {
+        if (!isCompletedClinicalVisitRecord(candidate)) return false;
+        return candidate?.schedule_id !== appointmentId;
       });
-    } else {
-      setRegistrationHistory({ obstetric: obstetricResult.error ? null : obstetricHistory });
-    }
-    const completedPriorRecords = (baselineResult.data || []).filter((candidate) => {
-      if (!isCompletedClinicalVisitRecord(candidate)) return false;
-      return candidate?.schedule_id !== appointmentId;
-    });
-    const baseline = completedPriorRecords[0] || null;
+      const baseline = completedPriorRecords[0] || null;
 
-    // Gestational age uses the earliest completed Doctor visit with a usable
-    // gestational-age/date pair as its anchor. This prevents older Follow-Up
-    // records that copied a stale age (for example, 14 weeks every visit) from
-    // permanently freezing the progression.
-    const gestationalAgeAnchor = [...completedPriorRecords].reverse().find((candidate) => {
-      const data = candidate?.form_data && typeof candidate.form_data === "object"
-        ? candidate.form_data
-        : {};
-      const visitDate =
-        data.appointmentDate ||
-        data.visitDate ||
-        (candidate?.uploaded_at ? getManilaDateKey(candidate.uploaded_at) : "");
+      // Gestational age uses the earliest completed Doctor visit with a usable
+      // gestational-age/date pair as its anchor. This prevents older Follow-Up
+      // records that copied a stale age (for example, 14 weeks every visit) from
+      // permanently freezing the progression.
+      const gestationalAgeAnchor = [...completedPriorRecords].reverse().find((candidate) => {
+        const data = candidate?.form_data && typeof candidate.form_data === "object"
+          ? candidate.form_data
+          : {};
+        const visitDate =
+          data.appointmentDate ||
+          data.visitDate ||
+          (candidate?.uploaded_at ? getManilaDateKey(candidate.uploaded_at) : "");
 
-      return String(data.gestationalAge || "").trim() && visitDate;
-    }) || baseline;
+        return String(data.gestationalAge || "").trim() && visitDate;
+      }) || baseline;
 
-    const previousVisitDefaults =
-      requestedType === "follow_up"
-        ? buildPreviousVisitDefaults(baseline)
-        : {};
-
-    const anchorData =
-      gestationalAgeAnchor?.form_data &&
-      typeof gestationalAgeAnchor.form_data === "object"
-        ? gestationalAgeAnchor.form_data
-        : {};
-
-    const currentVisitDate = getManilaDateKey(schedule.start_time);
-    const anchorVisitDate =
-      anchorData.appointmentDate ||
-      anchorData.visitDate ||
-      (gestationalAgeAnchor?.uploaded_at
-        ? getManilaDateKey(gestationalAgeAnchor.uploaded_at)
-        : "");
-
-    const progressedGestationalAge =
-      requestedType === "follow_up"
-        ? progressGestationalAge(
-            anchorData.gestationalAge || previousVisitDefaults.gestationalAge,
-            anchorVisitDate,
-            currentVisitDate
-          )
-        : "";
-
-    const staffIntakeDefaults = buildStaffIntakeDefaults(staffIntake);
-    // Only a new Initial visit may use the registration assessment as prefill.
-    // Baseline remarks/vitals never replace today's Staff or Doctor findings.
-    const initialAssessmentDefaults = requestedType === "initial"
-      ? buildInitialAssessmentDefaults(record?.id || initialAssessmentResult.error ? null : initialAssessmentResult.data)
-      : {};
-    const currentExpectedDeliveryDate = [
-      obstetricHistory?.expected_delivery_date,
-      patientRow?.expected_delivery_date,
-    ].filter(isMeaningfulClinicalValue).map(getManilaDateKey).find(Boolean) || "";
-
-    const defaults = {
-      ...previousVisitDefaults,
-      ...initialAssessmentDefaults,
-
-      // Today's completed Staff pre-consultation is the current-visit source
-      // of truth. Use it before patient/baseline values when a Doctor record
-      // for this appointment does not exist yet.
-      ...staffIntakeDefaults,
-
-      gestationalAge:
+      const previousVisitDefaults =
         requestedType === "follow_up"
-          ? (
-              staffIntakeDefaults.gestationalAge ||
-              progressedGestationalAge ||
-              previousVisitDefaults.gestationalAge ||
-              patientRow?.gestational_age ||
-              ""
+          ? buildPreviousVisitDefaults(baseline)
+          : {};
+
+      const anchorData =
+        gestationalAgeAnchor?.form_data &&
+        typeof gestationalAgeAnchor.form_data === "object"
+          ? gestationalAgeAnchor.form_data
+          : {};
+
+      const currentVisitDate = getManilaDateKey(schedule.start_time);
+      const anchorVisitDate =
+        anchorData.appointmentDate ||
+        anchorData.visitDate ||
+        (gestationalAgeAnchor?.uploaded_at
+          ? getManilaDateKey(gestationalAgeAnchor.uploaded_at)
+          : "");
+
+      const progressedGestationalAge =
+        requestedType === "follow_up"
+          ? progressGestationalAge(
+              anchorData.gestationalAge || previousVisitDefaults.gestationalAge,
+              anchorVisitDate,
+              currentVisitDate
             )
-          : (
-              staffIntakeDefaults.gestationalAge ||
-              patientRow?.gestational_age ||
-              ""
-            ),
-      expectedDeliveryDate:
-        // A legacy blank Doctor record may prefill the authoritative date on
-        // edit. Loading never persists it; a meaningful saved Doctor EDD wins.
-        (record?.id ? currentExpectedDeliveryDate : "") ||
-        staffIntakeDefaults.expectedDeliveryDate ||
-        currentExpectedDeliveryDate ||
-        previousVisitDefaults.expectedDeliveryDate ||
-        "",
-      riskLevel:
-        staffIntakeDefaults.riskLevel ||
-        patientRow?.risk_level ||
-        previousVisitDefaults.riskLevel ||
-        "",
-    };
+          : "";
 
-    const nextForm = normalizeFormData(record, defaults);
+      const staffIntakeDefaults = buildStaffIntakeDefaults(staffIntake);
+      // Only a new Initial visit may use the registration assessment as prefill.
+      // Baseline remarks/vitals never replace today's Staff or Doctor findings.
+      const initialAssessmentDefaults = requestedType === "initial"
+        ? buildInitialAssessmentDefaults(record?.id || initialAssessmentResult.error ? null : initialAssessmentResult.data)
+        : {};
+      const currentExpectedDeliveryDate = [
+        obstetricHistory?.expected_delivery_date,
+        patientRow?.expected_delivery_date,
+      ].filter(isMeaningfulClinicalValue).map(getManilaDateKey).find(Boolean) || "";
 
-    // For a new Doctor visit record, explicitly preserve today's Staff intake
-    // after normalization. Existing Doctor records still win when Edit Record
-    // is opened because this override is skipped once record.id exists.
-    if (!record?.id) {
-      [
-        "gestationalAge",
-        "expectedDeliveryDate",
-        "riskLevel",
-        "bloodPressure",
-        "temperature",
-        "weight",
-        "fetalHeartRate",
-      ].forEach((field) => {
-        if (String(staffIntakeDefaults[field] || "").trim()) {
-          nextForm[field] = staffIntakeDefaults[field];
-        }
+      const defaults = {
+        ...previousVisitDefaults,
+        ...initialAssessmentDefaults,
+
+        // Today's completed Staff pre-consultation is the current-visit source
+        // of truth. Use it before patient/baseline values when a Doctor record
+        // for this appointment does not exist yet.
+        ...staffIntakeDefaults,
+
+        gestationalAge:
+          requestedType === "follow_up"
+            ? (
+                staffIntakeDefaults.gestationalAge ||
+                progressedGestationalAge ||
+                previousVisitDefaults.gestationalAge ||
+                patientRow?.gestational_age ||
+                ""
+              )
+            : (
+                staffIntakeDefaults.gestationalAge ||
+                patientRow?.gestational_age ||
+                ""
+              ),
+        expectedDeliveryDate:
+          // A legacy blank Doctor record may prefill the authoritative date on
+          // edit. Loading never persists it; a meaningful saved Doctor EDD wins.
+          (record?.id ? currentExpectedDeliveryDate : "") ||
+          staffIntakeDefaults.expectedDeliveryDate ||
+          currentExpectedDeliveryDate ||
+          previousVisitDefaults.expectedDeliveryDate ||
+          "",
+        riskLevel:
+          staffIntakeDefaults.riskLevel ||
+          patientRow?.risk_level ||
+          previousVisitDefaults.riskLevel ||
+          "",
+      };
+
+      const nextForm = normalizeFormData(record, defaults);
+
+      // For a new Doctor visit record, explicitly preserve today's Staff intake
+      // after normalization. Existing Doctor records still win when Edit Record
+      // is opened because this override is skipped once record.id exists.
+      if (!record?.id) {
+        [
+          "gestationalAge",
+          "expectedDeliveryDate",
+          "riskLevel",
+          "bloodPressure",
+          "temperature",
+          "weight",
+          "fetalHeartRate",
+        ].forEach((field) => {
+          if (String(staffIntakeDefaults[field] || "").trim()) {
+            nextForm[field] = staffIntakeDefaults[field];
+          }
+        });
+      }
+
+      setRouting(routeResult);
+      setAppointment(schedule);
+      setPatient(patientRow || null);
+      setExistingRecord(record || null);
+      setPreviousBaseline(baseline || null);
+      setCurrentPregnancy({
+        obstetricHistoryId: obstetricHistory?.id || "",
+        expectedDeliveryDate: currentExpectedDeliveryDate,
       });
+      setForm(nextForm);
+      setLoading(false);
+    } catch (loadError) {
+      if (requestIdRef.current === requestId) {
+        setError(getErrorMessage(loadError, "Unable to load visit information. Please retry."));
+      }
+    } finally {
+      if (requestIdRef.current === requestId) setLoading(false);
     }
-
-    setRouting(routeResult);
-    setAppointment(schedule);
-    setPatient(patientRow || null);
-    setExistingRecord(record || null);
-    setPreviousBaseline(baseline || null);
-    setCurrentPregnancy({
-      obstetricHistoryId: obstetricHistory?.id || "",
-      expectedDeliveryDate: currentExpectedDeliveryDate,
-    });
-    setForm(nextForm);
-    setLoading(false);
   }, [appointmentId, location.search, navigate, requestedType, workspace]);
 
   useEffect(() => {
@@ -1771,7 +1780,7 @@ export default function AppointmentVisitForm({ appointmentId, requestedType, wor
   };
 
   if (loading) {
-    return <main className="appointment-visit-state">Loading visit information...</main>;
+    return <WorkspaceSectionFallback label="visit information" />;
   }
 
   if (error && !appointment) {
